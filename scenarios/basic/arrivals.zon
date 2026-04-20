@@ -1,0 +1,11 @@
+.{
+    .name = "arrivals",
+    .description = "Staggered arrivals for deterministic waiting-time comparisons.",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "B", .arrival_tick = 2, .burst_ticks = 3 },
+        .{ .id = "C", .arrival_tick = 4, .burst_ticks = 2 },
+        .{ .id = "D", .arrival_tick = 6, .burst_ticks = 1 },
+    },
+}

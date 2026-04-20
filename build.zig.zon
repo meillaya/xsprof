@@ -1,7 +1,7 @@
 .{
     .name = .zig_scheduler,
     .version = "0.1.0",
-    .fingerprint = 0x77f0b0f9b862b84e,
+    .fingerprint = 0x1ab11c99d8a44f0e, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.2",
     .dependencies = .{},
     .paths = .{
@@ -10,6 +10,5 @@
         "src",
         "scenarios",
         "docs",
-        "README.md",
     },
 }

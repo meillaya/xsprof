@@ -1,0 +1,10 @@
+.{
+    .name = "contention",
+    .description = "Equal-arrival contention to compare queue ordering and fairness.",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "B", .arrival_tick = 0, .burst_ticks = 4 },
+        .{ .id = "C", .arrival_tick = 0, .burst_ticks = 3 },
+    },
+}
