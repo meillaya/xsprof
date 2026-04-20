@@ -1,0 +1,24 @@
+pub usingnamespace @import("sim/types.zig");
+
+pub const cli = @import("cli/output.zig");
+pub const engine = @import("sim/engine.zig");
+pub const metrics = @import("sim/metrics.zig");
+pub const policies = struct {
+    pub const fcfs = @import("policies/fcfs.zig");
+    pub const round_robin = @import("policies/round_robin.zig");
+    pub const cfs_like = @import("policies/cfs_like.zig");
+};
+pub const scenario = @import("sim/scenario.zig");
+pub const trace = @import("sim/trace.zig");
+
+pub const loadScenarioByName = scenario.loadScenarioByName;
+pub const loadScenarioFile = scenario.loadScenarioFile;
+pub const parseScenarioText = scenario.parseScenarioText;
+pub const simulate = engine.simulate;
+
+test {
+    _ = @import("tests/simulator_test.zig");
+    _ = @import("tests/policies_test.zig");
+    _ = @import("tests/scenarios_test.zig");
+    _ = @import("tests/cli_smoke_test.zig");
+}
