@@ -3,96 +3,111 @@
 Reviewed against:
 - `.omx/plans/prd-phase1-zig-scheduler-simulator.md`
 - `.omx/plans/test-spec-phase1-zig-scheduler-simulator.md`
-- leader snapshot `caa3368`
+- leader snapshot `cc3eaa8`
 
 ## Review outcome
 
-The implementation has a solid Phase 1 foundation:
-- build passes
-- tests in the active build graph pass
-- canned scenarios exist
-- trace/metrics reporting code exists
-- docs keep the Linux-inspired / simulator-only boundary clear
+The repository still has a solid Phase 1 foundation:
+- `zig build` passes
+- policy, engine, metrics, and reporting code exist
+- review/docs artifacts are present and keep the Phase 1 boundary explicit
+- Linux-inspired wording is still mostly disciplined
 
-But the current leader snapshot should still be treated as **not yet accepted** for Phase 1 because two review findings block full alignment with the approved test spec.
+However, the current leader snapshot should still be treated as **not yet accepted** for Phase 1 because three concrete issues now block alignment with the approved test spec.
 
 ## Blocking findings
 
-### 1. Public CLI does not expose the simulation path
+### 1. Builtin scenario loading is currently broken for the golden fixture
+
+**Evidence**
+- `zig build test` fails in `src/tests/scenario_test.zig`
+- `zig build run -- show short-vs-long` fails with `error: ParseZon`
+- `src/sim/scenario.zig` parses builtin fixtures through `std.zon.parse.fromSlice(types.Scenario, ...)`
+- `scenarios/basic/short-vs-long.zon` is still in the older line-oriented format:
+  - `name: short-vs-long`
+  - `rr_quantum: 2`
+  - `task: ...`
+
+**Why this blocks acceptance**
+The active loader now expects structured ZON, but at least the golden scenario fixture is still encoded in the prior ad hoc text format. This breaks both the test path and builtin scenario inspection for the key Scenario C artifact.
+
+**Recommended fix**
+- reconcile builtin scenario files to one format only
+- if ZON is now the canonical format, convert `short-vs-long.zon` (and any remaining old-format fixtures) to the current `types.Scenario` shape
+- rerun `zig build test` and `zig build run -- show short-vs-long`
+
+### 2. Public CLI still does not expose policy-run simulation
 
 **Evidence**
 - `src/main.zig` only supports:
   - `list`
   - `show <scenario-name>`
-- policy-run smoke commands required by the test spec return usage text instead of executing a simulation
+- smoke commands required by the test spec still print usage text:
+  - `zig build run -- --scenario short-vs-long --policy fcfs`
+  - `zig build run -- --scenario short-vs-long --policy rr --quantum 2`
+  - `zig build run -- --scenario short-vs-long --policy cfs-like`
 
 **Why this blocks acceptance**
-The test spec requires a CLI path that can:
-- select a policy
-- run a scenario
-- print completion order
-- print trace/timeline
-- print per-task metrics
-- print aggregate metrics
-
-That report surface already exists in `src/cli/output.zig`, but it is not wired into `src/main.zig`.
+The test spec requires a public CLI path that can select a policy, run a scenario, and print completion order, trace/timeline, per-task metrics, and aggregate metrics. That end-to-end surface is still missing from the current CLI even though related reporting components exist elsewhere in the tree.
 
 **Recommended fix**
-- add a `run` path in `src/main.zig`
-- parse scenario + policy (+ RR quantum override if supported)
-- call the simulation library
-- route output through `src/cli/output.zig`
+- add a simulation execution path to `src/main.zig`
+- support the review/test-spec smoke form `--scenario <name> --policy <...> [--quantum <n>]`
+- route the final output through the existing report writer instead of duplicating presentation logic
 
-### 2. `src/root.zig` is stale and internally inconsistent
+### 3. `src/root.zig` remains stale and broken
 
 **Evidence**
-`zig test src/root.zig` fails because `src/root.zig` references APIs and types that do not exist in the current tree, including:
+`zig test src/root.zig` fails because `src/root.zig` still references symbols that do not exist in the current source tree, including:
 - `types.ScenarioOwned`
 - `scenario.loadScenarioByName`
 - `scenario.parseScenarioText`
-- missing test imports listed in its `test` block
 
-**Why this matters**
-Even though this surface is not on the current `zig build test` path, it is still a misleading dead surface in the repo and can confuse future integration or package consumers.
+It also still points at an older simulator-oriented surface while `src/lib.zig` now exposes the active scenario-loading API.
+
+**Why this blocks acceptance**
+Even if the main build graph can stay green without this file, it leaves a broken duplicate public surface in the repo and makes the package boundary confusing for future contributors or consumers.
 
 **Recommended fix**
 Choose one and do it consistently:
-- update `src/root.zig` to match the current library surface, or
-- remove it if `src/lib.zig` is the intended stable entrypoint
+- remove `src/root.zig` if `src/lib.zig` is the intended public entrypoint, or
+- rewrite `src/root.zig` so it mirrors only the currently supported exports
 
 ## Non-blocking strengths
 
-### Deterministic scenario fixtures exist
-- `arrivals`
-- `contention`
-- `short-vs-long`
+### Build still succeeds
+- `zig build` passes on the current snapshot
 
-This matches the required scenario shape from the test spec.
+### Scenario metadata discovery still works
+- `zig build run -- list` succeeds and enumerates the three intended canned scenarios:
+  - `arrivals`
+  - `contention`
+  - `short-vs-long`
 
-### Documentation guardrails are good
-Current docs correctly state:
-- simulator only
+### Documentation boundary language remains good
+Current docs still preserve:
+- simulator-only scope
 - no real process execution
 - no kernel integration
 - CFS-inspired rather than Linux-faithful wording
 
-### Scope discipline is intact
-Scoped review did not find signs of phase creep such as process spawning or kernel scheduler integration in implementation files.
-
 ## Suggested acceptance sequence
 
-1. Fix CLI wiring in `src/main.zig`
-2. Fix or remove stale `src/root.zig`
-3. Re-run verification:
+1. Fix builtin scenario-format drift so Scenario C loads again
+2. Add the public CLI simulation execution path in `src/main.zig`
+3. Fix or remove stale `src/root.zig`
+4. Re-run verification:
    - `zig build`
-   - `zig build test --summary all`
+   - `zig build test`
+   - `zig build run -- list`
+   - `zig build run -- show short-vs-long`
    - `zig build run -- --scenario short-vs-long --policy fcfs`
    - `zig build run -- --scenario short-vs-long --policy rr --quantum 2`
    - `zig build run -- --scenario short-vs-long --policy cfs-like`
-4. If those pass, task 3 can move from review-blocked to acceptance-ready
+   - `zig test src/root.zig`
 
 ## Reviewer disposition
 
-Current disposition: **conditionally promising, not yet acceptable**.
+Current disposition: **still blocked, and now more clearly so than the previous review snapshot**.
 
-The project is close, but the team should not mark Phase 1 complete until the public CLI executes simulations as specified and the stale root surface is resolved.
+The remaining issues are still narrow and implementation-local, but the repo is no longer at a simple “two blockers left” state because scenario-format drift now breaks the active test path as well.
