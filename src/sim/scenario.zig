@@ -82,7 +82,9 @@ pub fn parseScenario(
     source: [:0]const u8,
 ) !types.Scenario {
     var diag: std.zon.parse.Diagnostics = .{};
-    var scenario = try std.zon.parse.fromSliceAlloc(types.Scenario, allocator, source, &diag, .{});
+    defer diag.deinit(allocator);
+
+    var scenario = try std.zon.parse.fromSlice(types.Scenario, allocator, source, &diag, .{});
     errdefer std.zon.parse.free(allocator, scenario);
 
     try normalizeAndValidate(&scenario);
