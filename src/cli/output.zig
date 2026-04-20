@@ -30,7 +30,7 @@ pub fn writeSimulationReport(writer: anytype, scenario: *const types.ScenarioOwn
                 task.id,
                 task.arrival_tick,
                 task.burst_ticks,
-                task.first_dispatch_tick.?,
+                task.first_dispatch_tick,
                 task.completion_time,
                 task.turnaround_time,
                 task.waiting_time,
