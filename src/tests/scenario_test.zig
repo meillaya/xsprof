@@ -1,5 +1,5 @@
 const std = @import("std");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("../lib.zig");
 
 test "builtin golden scenario fixture matches plan inputs" {
     const scenario = try scheduler.loadBuiltinScenario(std.testing.allocator, .short_vs_long);
