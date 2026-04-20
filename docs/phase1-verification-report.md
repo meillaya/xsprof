@@ -1,21 +1,22 @@
 # Phase 1 Verification Report
 
-Verified on leader repository snapshot `cc3eaa8` on 2026-04-20.
+Verified on leader repository snapshot `247ada3` on 2026-04-20.
 
 ## Summary verdict
 
-The current snapshot is **not yet aligned** with the approved Phase 1 test spec.
+The current snapshot is **aligned with the approved Phase 1 test spec** for the reviewed surface.
 
-What still works:
+What passes now:
 - `zig build`
+- `zig build test`
 - `zig build run -- list`
-- review docs continue to preserve the simulator-only / Linux-inspired boundary
+- `zig build run -- show short-vs-long`
+- `zig build run -- --scenario short-vs-long --policy fcfs`
+- `zig build run -- --scenario short-vs-long --policy rr --quantum 2`
+- `zig build run -- --scenario short-vs-long --policy cfs-like`
+- `zig test src/root.zig`
 
-What now fails or remains incomplete:
-- `zig build test` fails because builtin scenario parsing does not match the golden fixture file format
-- `zig build run -- show short-vs-long` fails with `ParseZon`
-- the public CLI still cannot run a scenario under selectable policies and print the required trace/metrics report
-- `src/root.zig` is still stale and fails standalone compilation
+Review docs also continue to preserve the simulator-only / Linux-inspired boundary.
 
 ## Verification results
 
@@ -30,7 +31,7 @@ zig build
 Result:
 - exited successfully with no build errors
 
-### FAIL — test suite
+### PASS — test suite
 
 Command:
 
@@ -39,9 +40,8 @@ zig build test
 ```
 
 Result:
-- failed in `tests.scenario_test.test.builtin golden scenario fixture matches plan inputs`
-- failure path ends in `std.zon.parse.fromSlice(...)` returning `error.ParseZon`
-- the active loader expects ZON, but the golden scenario fixture is still stored in the earlier line-oriented format
+- all 15 tests passed
+- includes the builtin golden-scenario loader test and the simulator/policy/CLI smoke tests
 
 ### PASS — builtin scenario metadata list
 
@@ -52,13 +52,12 @@ zig build run -- list
 ```
 
 Result:
-- lists `arrivals`, `contention`, and `short-vs-long`
+- lists:
+  - `staggered-arrivals`
+  - `equal-arrival-contention`
+  - `short-vs-long`
 
-Interpretation:
-- builtin metadata registration is still wired
-- this does **not** prove fixture loading works
-
-### FAIL — builtin scenario display for Scenario C
+### PASS — builtin scenario display for Scenario C
 
 Command:
 
@@ -67,17 +66,11 @@ zig build run -- show short-vs-long
 ```
 
 Result:
-- fails with `error: ParseZon`
+- prints the Scenario C task set and Round Robin quantum successfully
 
-Interpretation:
-- scenario metadata exists, but loading the golden fixture currently fails
+### PASS — policy-run CLI execution
 
-### FAIL — CLI does not yet execute simulations by policy
-
-Spec expectation:
-- the CLI should allow a scenario to be run under selectable policies and print completion order, per-task metrics, aggregate metrics, and trace/timeline output
-
-Observed commands:
+Commands:
 
 ```sh
 zig build run -- --scenario short-vs-long --policy fcfs
@@ -85,19 +78,11 @@ zig build run -- --scenario short-vs-long --policy rr --quantum 2
 zig build run -- --scenario short-vs-long --policy cfs-like
 ```
 
-Observed result for each:
+Result:
+- each command executes successfully
+- output includes scenario/policy headings, completion order, trace, per-task metrics, aggregate metrics, and Phase 1 scope notes
 
-```text
-Usage:
-  zig build run -- list
-  zig build run -- show <scenario-name>
-```
-
-Interpretation:
-- the public CLI still only supports `list` and `show`
-- the required end-to-end policy-run smoke path is still missing
-
-### FAIL — stale root surface
+### PASS — root surface consistency
 
 Command:
 
@@ -106,15 +91,8 @@ zig test src/root.zig
 ```
 
 Result:
-- compile failure
-- `src/root.zig` references missing APIs/types such as:
-  - `ScenarioOwned`
-  - `loadScenarioByName`
-  - `parseScenarioText`
-
-Interpretation:
-- this file is still stale relative to the currently active `src/lib.zig` surface
-- it remains a repo-consistency and public-surface quality issue
+- all root-surface tests pass
+- `src/root.zig` compiles cleanly against the current exports
 
 ### PASS — review docs still preserve scope wording
 
@@ -124,41 +102,11 @@ Checked docs continue to preserve:
 - no kernel integration
 - CFS-inspired wording rather than Linux-faithful claims
 
-## Failures / gaps summary
+## Remaining gaps
 
-Three issues now block acceptance:
-
-1. **Scenario fixture / parser mismatch**
-   - active builtin loader expects ZON
-   - `short-vs-long.zon` is still stored in the older ad hoc format
-   - this breaks `zig build test` and `zig build run -- show short-vs-long`
-
-2. **Missing public CLI simulation path**
-   - `src/main.zig` still cannot run scenarios by policy
-   - required trace/metrics report cannot be exercised end-to-end from the public CLI
-
-3. **Stale `src/root.zig` surface**
-   - standalone compilation still fails
-   - exports do not match the current library surface
-
-## Recommended next fixes
-
-1. Convert the remaining old-format builtin scenario fixtures to the active ZON `types.Scenario` shape.
-2. Extend `src/main.zig` so the CLI can run a scenario under `fcfs`, `rr`, and `cfs-like`.
-3. Reuse the existing report writer for public CLI output.
-4. Either update or remove `src/root.zig` so broken duplicate exports do not linger.
-5. After fixes land, rerun:
-   - `zig build`
-   - `zig build test`
-   - `zig build run -- list`
-   - `zig build run -- show short-vs-long`
-   - `zig build run -- --scenario short-vs-long --policy fcfs`
-   - `zig build run -- --scenario short-vs-long --policy rr --quantum 2`
-   - `zig build run -- --scenario short-vs-long --policy cfs-like`
-   - `zig test src/root.zig`
+No active Task 3 review blockers remain in the current snapshot.
 
 ## Current disposition
 
 - Verification evidence is updated to the live snapshot.
-- The repo is **not signoff-ready**.
-- Acceptance is now blocked by three concrete, local issues rather than the earlier two-blocker picture.
+- The repo is signoff-ready for the reviewed Phase 1 surface.
