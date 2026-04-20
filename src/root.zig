@@ -1,4 +1,4 @@
-pub usingnamespace @import("sim/types.zig");
+const types = @import("sim/types.zig");
 
 pub const cli = @import("cli/output.zig");
 pub const engine = @import("sim/engine.zig");
@@ -10,6 +10,16 @@ pub const policies = struct {
 };
 pub const scenario = @import("sim/scenario.zig");
 pub const trace = @import("sim/trace.zig");
+
+pub const AggregateMetrics = types.AggregateMetrics;
+pub const PolicyKind = types.PolicyKind;
+pub const ScenarioOwned = types.ScenarioOwned;
+pub const SimulationResult = types.SimulationResult;
+pub const TaskMetrics = types.TaskMetrics;
+pub const TaskSpec = types.TaskSpec;
+pub const TaskState = types.TaskState;
+pub const TraceEntry = types.TraceEntry;
+pub const TraceEventKind = types.TraceEventKind;
 
 pub const loadScenarioByName = scenario.loadScenarioByName;
 pub const loadScenarioFile = scenario.loadScenarioFile;
