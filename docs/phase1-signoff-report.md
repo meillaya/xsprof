@@ -1,10 +1,12 @@
 # Phase 1 Signoff Report
 
-Reviewed against leader snapshot `9bebdbe` on 2026-04-20.
+Reviewed against the green Phase 1 implementation snapshot on 2026-04-20.
 
 ## Signoff verdict
 
 Phase 1 is now **acceptance-ready** based on the current leader snapshot.
+
+This report is the canonical end-state artifact for Phase 1 signoff and supersedes earlier intermediate review/blocker/handoff notes.
 
 The two prior blockers have been cleared:
 - the public CLI now runs scenarios by policy and prints trace/metrics output
@@ -95,6 +97,17 @@ Result: PASS
 Observed summary:
 - all 15 direct tests passed
 
+## Condensed traceability summary
+
+The final reviewed snapshot satisfies the approved Phase 1 scope:
+- build scaffold present and green
+- deterministic canned scenarios present and loadable
+- FCFS, Round Robin, and simplified CFS-inspired policies available
+- CLI can list, inspect, and run scenarios by policy
+- trace, per-task metrics, and aggregate metrics are visible
+- documentation preserves the simulator-only / Linux-inspired boundary
+- no real process execution, kernel integration, or daemon behavior
+
 ## Scope-boundary disposition
 
 Phase 1 review still confirms:
@@ -107,3 +120,13 @@ Phase 1 review still confirms:
 ## Reviewer recommendation
 
 Task 3 can now be marked **completed** once the team owner/claim holder performs the lifecycle transition on the integration branch.
+
+## Retained Phase 1 docs
+
+After cleanup, the main long-lived Phase 1 docs are:
+- `README.md`
+- `docs/phase1-simulator.md`
+- `docs/linux-mapping.md`
+- `docs/phase1-scenario-c-walkthrough.md`
+- `docs/phase1-verification-checklist.md`
+- `docs/phase1-signoff-report.md`
