@@ -1,1 +1,3 @@
-pub usingnamespace @import("root.zig");
+const root = @import("root.zig");
+
+pub usingnamespace root;
