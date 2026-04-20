@@ -3,6 +3,8 @@
 This repository's Phase 1 deliverable is a **user-space, in-process CPU scheduling simulator** written in Zig.
 It is intentionally designed to teach Linux scheduler ideas **without** pretending to be the Linux kernel scheduler.
 
+Phase 1 explicitly includes **no real process execution** and **no kernel integration**; it is a teaching model only.
+
 ## Scope boundary
 
 Phase 1 must remain:
