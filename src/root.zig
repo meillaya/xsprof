@@ -12,7 +12,11 @@ pub const scenario = @import("sim/scenario.zig");
 pub const trace = @import("sim/trace.zig");
 
 pub const AggregateMetrics = types.AggregateMetrics;
+pub const BuiltinScenario = scenario.BuiltinScenario;
+pub const BuiltinScenarioMeta = scenario.BuiltinScenarioMeta;
 pub const PolicyKind = types.PolicyKind;
+pub const PolicyName = types.PolicyName;
+pub const Scenario = types.Scenario;
 pub const ScenarioOwned = types.ScenarioOwned;
 pub const SimulationResult = types.SimulationResult;
 pub const TaskMetrics = types.TaskMetrics;
@@ -20,13 +24,20 @@ pub const TaskSpec = types.TaskSpec;
 pub const TaskState = types.TaskState;
 pub const TraceEntry = types.TraceEntry;
 pub const TraceEventKind = types.TraceEventKind;
+pub const ValidationError = types.ValidationError;
 
+pub const freeScenario = scenario.freeScenario;
+pub const listBuiltinScenarios = scenario.listBuiltinScenarios;
+pub const loadBuiltinScenario = scenario.loadBuiltinScenario;
+pub const loadNamedScenario = scenario.loadNamedScenario;
 pub const loadScenarioByName = scenario.loadScenarioByName;
 pub const loadScenarioFile = scenario.loadScenarioFile;
+pub const parseScenario = scenario.parseScenario;
 pub const parseScenarioText = scenario.parseScenarioText;
 pub const simulate = engine.simulate;
 
 test {
+    _ = @import("tests/scenario_test.zig");
     _ = @import("tests/simulator_test.zig");
     _ = @import("tests/policies_test.zig");
     _ = @import("tests/scenarios_test.zig");

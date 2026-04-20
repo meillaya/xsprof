@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lib_mod = b.addModule("zig_scheduler", .{
-        .root_source_file = b.path("src/lib.zig"),
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
     });
 
