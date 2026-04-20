@@ -1,10 +1,6 @@
-.{
-    .name = "short-vs-long",
-    .description = "Golden-oracle short-job versus long-job contention for Phase 1.",
-    .quantum = 2,
-    .tasks = .{
-        .{ .id = "L", .arrival_tick = 0, .burst_ticks = 8 },
-        .{ .id = "S1", .arrival_tick = 1, .burst_ticks = 2 },
-        .{ .id = "S2", .arrival_tick = 2, .burst_ticks = 1 },
-    },
-}
+# Phase 1 golden oracle scenario
+name: short-vs-long
+rr_quantum: 2
+task: L 0 8
+task: S1 1 2
+task: S2 2 1

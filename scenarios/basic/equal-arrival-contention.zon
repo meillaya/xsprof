@@ -1,0 +1,6 @@
+# Phase 1 simple scenario format
+name: equal-arrival-contention
+rr_quantum: 2
+task: A 0 4
+task: B 0 3
+task: C 0 2

@@ -1,0 +1,6 @@
+# Phase 1 simple scenario format
+name: staggered-arrivals
+rr_quantum: 2
+task: A 0 3
+task: B 2 2
+task: C 4 1
