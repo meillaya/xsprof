@@ -89,21 +89,15 @@ fn parseArgs(args: []const []const u8) !Options {
     while (index < args.len) : (index += 1) {
         const arg = args[index];
         if (std.mem.eql(u8, arg, "--scenario")) {
-            index += 1;
-            if (index >= args.len) return error.InvalidArguments;
-            options.scenario_name = args[index];
+            options.scenario_name = try nextArg(args, &index);
             continue;
         }
         if (std.mem.eql(u8, arg, "--policy")) {
-            index += 1;
-            if (index >= args.len) return error.InvalidArguments;
-            options.policy = parsePolicy(args[index]) orelse return error.InvalidPolicy;
+            options.policy = parsePolicy(try nextArg(args, &index)) orelse return error.InvalidPolicy;
             continue;
         }
         if (std.mem.eql(u8, arg, "--quantum")) {
-            index += 1;
-            if (index >= args.len) return error.InvalidArguments;
-            options.quantum_override = std.fmt.parseInt(u32, args[index], 10) catch return error.InvalidArguments;
+            options.quantum_override = std.fmt.parseInt(u32, try nextArg(args, &index), 10) catch return error.InvalidArguments;
             continue;
         }
         if (std.mem.eql(u8, arg, "--help")) return error.InvalidArguments;
@@ -112,6 +106,12 @@ fn parseArgs(args: []const []const u8) !Options {
 
     if (options.scenario_name == null or options.policy == null) return error.InvalidArguments;
     return options;
+}
+
+fn nextArg(args: []const []const u8, index: *usize) ![]const u8 {
+    index.* += 1;
+    if (index.* >= args.len) return error.InvalidArguments;
+    return args[index.*];
 }
 
 fn parsePolicy(value: []const u8) ?scheduler.PolicyKind {
@@ -138,4 +138,26 @@ test "policy aliases parse" {
     try std.testing.expectEqual(scheduler.PolicyKind.round_robin, parsePolicy("round-robin").?);
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, parsePolicy("cfs-like").?);
     try std.testing.expect(parsePolicy("bogus") == null);
+}
+
+test "show command parsing stays stable" {
+    const options = try parseArgs(&.{ "show", "short-vs-long" });
+    try std.testing.expectEqual(Command.show, options.command);
+    try std.testing.expectEqualStrings("short-vs-long", options.scenario_name.?);
+    try std.testing.expect(options.policy == null);
+    try std.testing.expect(options.quantum_override == null);
+}
+
+test "run command parsing stays stable" {
+    const options = try parseArgs(&.{ "--scenario", "short-vs-long", "--policy", "rr", "--quantum", "2" });
+    try std.testing.expectEqual(Command.run, options.command);
+    try std.testing.expectEqualStrings("short-vs-long", options.scenario_name.?);
+    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, options.policy.?);
+    try std.testing.expectEqual(@as(u32, 2), options.quantum_override.?);
+}
+
+test "invalid argument parsing stays rejected" {
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "show" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario", "short-vs-long" }));
+    try std.testing.expectError(error.InvalidPolicy, parseArgs(&.{ "--scenario", "short-vs-long", "--policy", "bogus" }));
 }
