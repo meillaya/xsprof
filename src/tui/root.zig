@@ -6,8 +6,14 @@ const term_mod = @import("terminal.zig");
 const render = @import("render.zig");
 
 pub const Options = args_mod.Options;
-pub const LaunchMode = args_mod.LaunchMode;
+pub const InputSource = args_mod.InputSource;
+pub const RuntimeMode = args_mod.RuntimeMode;
 pub const parseArgs = args_mod.parseArgs;
+pub const usage_text =
+    "usage: zig-scheduler-tui [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n" ++
+    "\n" ++
+    "interactive mode requires a real TTY\n" ++
+    "snapshot mode is explicit and requires a report-producing source\n";
 
 const ParsedReport = std.json.Parsed(analysis.model.Report);
 
@@ -67,7 +73,25 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     };
     defer app.deinit();
 
-    try bootstrap(&app, options);
+    const stdin_is_tty = std.fs.File.stdin().isTty();
+    const stdout_is_tty = std.fs.File.stdout().isTty();
+    try validateTerminalMode(options, stdin_is_tty, stdout_is_tty);
+    try bootstrap(&app, options, stdin_is_tty);
+
+    switch (options.runtime_mode) {
+        .snapshot => {
+            var stdout_buffer: [8192]u8 = undefined;
+            var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+            const stdout = &stdout_writer.interface;
+            const frame = try renderSnapshotAlloc(allocator, &app, options);
+            defer allocator.free(frame);
+            try stdout.writeAll(frame);
+            try stdout.writeByte('\n');
+            try stdout.flush();
+            return;
+        },
+        .interactive => {},
+    }
 
     var terminal = try term_mod.Terminal.init();
     defer terminal.deinit();
@@ -88,20 +112,14 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     }
 }
 
-fn bootstrap(app: *App, options: Options) !void {
-    switch (options.mode) {
+fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
+    switch (options.input_source) {
         .picker => {
-            if (std.fs.File.stdin().isTty()) {
-                app.view = .picker;
-                return;
-            }
-            const bytes = try std.fs.File.stdin().readToEndAlloc(app.allocator, std.math.maxInt(usize));
-            defer app.allocator.free(bytes);
-            try loadReportBytes(app, bytes);
-            app.view = .explorer;
+            if (!stdin_is_tty) return error.NonTtyPickerRequiresSnapshot;
+            app.view = .picker;
         },
-        .input_file => {
-            const bytes = try std.fs.cwd().readFileAlloc(app.allocator, options.input_path.?, std.math.maxInt(usize));
+        .input_file => |path| {
+            const bytes = try std.fs.cwd().readFileAlloc(app.allocator, path, std.math.maxInt(usize));
             defer app.allocator.free(bytes);
             try loadReportBytes(app, bytes);
             app.view = .explorer;
@@ -112,12 +130,12 @@ fn bootstrap(app: *App, options: Options) !void {
             try loadReportBytes(app, bytes);
             app.view = .explorer;
         },
-        .simulate_builtin => {
-            try loadSimulation(app, .{ .builtin = options.scenario_name.? }, options.policy.?);
+        .simulate_builtin => |name| {
+            try loadSimulation(app, .{ .builtin = name }, options.policy.?);
             app.view = .explorer;
         },
-        .simulate_file => {
-            try loadSimulation(app, .{ .file = options.scenario_file.? }, options.policy.?);
+        .simulate_file => |path| {
+            try loadSimulation(app, .{ .file = path }, options.policy.?);
             app.view = .explorer;
         },
     }
@@ -137,6 +155,28 @@ fn appView(app: *App) AppView {
         .picker_entries = app.picker_entries,
         .history = app.history.items,
     };
+}
+
+fn validateTerminalMode(options: Options, stdin_is_tty: bool, stdout_is_tty: bool) !void {
+    if (options.runtime_mode == .snapshot) return;
+    if (stdin_is_tty and stdout_is_tty) return;
+    if (options.input_source == .picker and !stdin_is_tty) return error.NonTtyPickerRequiresSnapshot;
+    return error.NotATerminal;
+}
+
+fn renderSnapshotAlloc(allocator: std.mem.Allocator, app: *App, options: Options) ![]u8 {
+    if (options.input_source == .picker) return error.InvalidArguments;
+    const report = app.report() orelse return error.InvalidArguments;
+    if (options.snapshot_tick) |tick| {
+        const end = lastTick(report);
+        if (tick > end) return error.InvalidArguments;
+        app.cursor = tick;
+    } else {
+        app.cursor = 0;
+    }
+    app.view = .explorer;
+    app.playing = false;
+    return try render.renderSnapshotFrame(allocator, options.snapshot_width, options.snapshot_height, appView(app));
 }
 
 fn handleEvent(app: *App, event: term_mod.Event) !bool {
@@ -415,4 +455,112 @@ test "picker metadata matches mockup lanes" {
     try std.testing.expectEqual(scheduler.PolicyKind.fcfs, entries[0].policy);
     try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", entries[3].scenario_key);
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[3].policy);
+}
+
+test "interactive picker rejects missing tty without snapshot" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    try std.testing.expectError(error.NonTtyPickerRequiresSnapshot, bootstrap(&app, .{}, false));
+}
+
+
+
+test "interactive runtime rejects missing tty for explicit sources" {
+    try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+    }, false, true));
+    try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
+        .input_source = .{ .simulate_builtin = "short-vs-long" },
+        .policy = .fcfs,
+    }, true, false));
+    try validateTerminalMode(.{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+    }, false, false);
+}
+
+test "usage text mentions explicit snapshot mode" {
+    try std.testing.expect(std.mem.indexOf(u8, usage_text, "--snapshot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, usage_text, "--width") != null);
+    try std.testing.expect(std.mem.indexOf(u8, usage_text, "requires a real TTY") != null);
+}
+
+test "snapshot render is deterministic for fixture report" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    defer std.testing.allocator.free(bytes);
+    try loadReportBytes(&app, bytes);
+
+    const options = Options{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 120,
+        .snapshot_height = 40,
+    };
+
+    const first = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(first);
+    const second = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(second);
+    try std.testing.expectEqualStrings(first, second);
+    try std.testing.expect(std.mem.indexOf(u8, first, "\x1b[") == null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "multicore-contention") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "FCFS") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "SNAPSHOT") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "non-interactive render") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "q quit") == null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "space play") == null);
+}
+
+test "snapshot render works from simulation path" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    try loadSimulation(&app, .{ .file = "scenarios/basic/multicore-contention.zon" }, .fcfs);
+    const options = Options{
+        .input_source = .{ .simulate_file = "scenarios/basic/multicore-contention.zon" },
+        .runtime_mode = .snapshot,
+        .policy = .fcfs,
+        .snapshot_width = 120,
+        .snapshot_height = 40,
+    };
+    const frame = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(frame);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "multicore-contention") != null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "FCFS") != null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "cpu lanes") != null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "A") != null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "snapshot") != null);
+}
+
+test "snapshot rejects out of range tick" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    defer std.testing.allocator.free(bytes);
+    try loadReportBytes(&app, bytes);
+
+    try std.testing.expectError(error.InvalidArguments, renderSnapshotAlloc(std.testing.allocator, &app, .{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 120,
+        .snapshot_height = 40,
+        .snapshot_tick = 999,
+    }));
 }

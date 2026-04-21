@@ -27,6 +27,11 @@ pub const ThemeKind = enum {
     light,
 };
 
+pub const OutputMode = enum {
+    interactive,
+    snapshot,
+};
+
 pub const PickerEntry = struct {
     scenario_key: []const u8,
     scenario_label: []const u8,
@@ -269,9 +274,35 @@ const Canvas = struct {
         try writer.writeAll("\x1b[0m");
         return try out.toOwnedSlice(allocator);
     }
+
+    fn renderPlain(self: *Canvas, allocator: std.mem.Allocator) ![]u8 {
+        var out: std.ArrayList(u8) = .empty;
+        defer out.deinit(allocator);
+        var writer = out.writer(allocator);
+
+        var y: usize = 0;
+        while (y < self.height) : (y += 1) {
+            var x: usize = 0;
+            while (x < self.width) : (x += 1) {
+                const cell = self.cells[y * self.width + x];
+                try writeCodepoint(&writer, cell.ch);
+            }
+            if (y + 1 < self.height) try writer.writeAll("\n");
+        }
+
+        return try out.toOwnedSlice(allocator);
+    }
 };
 
 pub fn renderFrame(allocator: std.mem.Allocator, width: usize, height: usize, app: AppView) ![]u8 {
+    return renderFrameWithMode(allocator, width, height, app, .interactive);
+}
+
+pub fn renderSnapshotFrame(allocator: std.mem.Allocator, width: usize, height: usize, app: AppView) ![]u8 {
+    return renderFrameWithMode(allocator, width, height, app, .snapshot);
+}
+
+fn renderFrameWithMode(allocator: std.mem.Allocator, width: usize, height: usize, app: AppView, output_mode: OutputMode) ![]u8 {
     const theme = switch (app.theme) {
         .dark => dark_theme,
         .light => light_theme,
@@ -282,18 +313,24 @@ pub fn renderFrame(allocator: std.mem.Allocator, width: usize, height: usize, ap
 
     if (width < 100 or height < 30) {
         renderTooSmall(&canvas, theme, width, height);
-        return try canvas.renderAnsi(allocator, theme);
+        return switch (output_mode) {
+            .interactive => try canvas.renderAnsi(allocator, theme),
+            .snapshot => try canvas.renderPlain(allocator),
+        };
     }
 
     switch (app.view) {
-        .picker => renderPicker(&canvas, app, theme),
-        .explorer => renderExplorer(&canvas, app, theme),
-        .drawer => renderDrawer(&canvas, app, theme),
-        .diff => renderDiff(&canvas, app, theme),
-        .help => renderHelp(&canvas, app, theme),
+        .picker => renderPicker(&canvas, app, theme, output_mode),
+        .explorer => renderExplorer(&canvas, app, theme, output_mode),
+        .drawer => renderDrawer(&canvas, app, theme, output_mode),
+        .diff => renderDiff(&canvas, app, theme, output_mode),
+        .help => renderHelp(&canvas, app, theme, output_mode),
     }
 
-    return try canvas.renderAnsi(allocator, theme);
+    return switch (output_mode) {
+        .interactive => try canvas.renderAnsi(allocator, theme),
+        .snapshot => try canvas.renderPlain(allocator),
+    };
 }
 
 fn renderTooSmall(canvas: *Canvas, _: Theme, width: usize, height: usize) void {
@@ -333,23 +370,29 @@ fn renderHeader(canvas: *Canvas, rect: Rect, report: *const Report, _: Theme, li
         var policy_buf: [64]u8 = undefined;
         const policy = std.fmt.bufPrint(&policy_buf, "[{s}]", .{report.policy.display_name}) catch report.policy.display_name;
         canvas.drawTextClipped(x, rect.y, 22, policy, .{ .fg = .running, .bg = .bg, .bold = true });
+        x += 24;
     }
 
+    const replay = if (live) "● LIVE" else "● REPLAY";
     var counts_buf: [128]u8 = undefined;
     const counts = std.fmt.bufPrint(&counts_buf, "cores {d} · tasks {d} · ticks {d}", .{ report.core_count, report.tasks.len, lastTick(report) + 1 }) catch "";
-    if (counts.len + 20 < rect.w) canvas.drawText(rect.x + rect.w - counts.len - 24, rect.y, counts, .{ .fg = .fg_dim, .bg = .bg });
+    const counts_on_top = x + 2 + counts.len + replay.len + 4 < rect.w;
+    if (counts_on_top) {
+        canvas.drawText(rect.x + rect.w - counts.len - replay.len - 6, rect.y, counts, .{ .fg = .fg_dim, .bg = .bg });
+    } else if (counts.len + 2 < rect.w / 2) {
+        canvas.drawText(rect.x + 1, rect.y + 1, counts, .{ .fg = .fg_dim, .bg = .bg });
+    }
 
     var source_buf: [196]u8 = undefined;
     const source = std.fmt.bufPrint(&source_buf, "{s}: {s}", .{ @tagName(report.source.kind), report.source.value }) catch "";
     if (source.len + 8 < rect.w) canvas.drawText(rect.x + rect.w - source.len - 8, rect.y + 1, source, .{ .fg = .fg_dim, .bg = .bg });
 
-    const replay = if (live) "● LIVE" else "● REPLAY";
     const replay_style = if (live) Style{ .fg = .complete, .bg = .bg, .bold = true } else Style{ .fg = .fg_dim, .bg = .bg, .bold = true };
     canvas.drawText(rect.x + rect.w - replay.len - 2, rect.y, replay, replay_style);
     canvas.drawHLine(rect.x, rect.y + rect.h - 1, rect.w, '─', .{ .fg = .fg_faint, .bg = .bg });
 }
 
-fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_label: []const u8) void {
+fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_label: []const u8, output_mode: OutputMode) void {
     canvas.fillRect(rect, .{ .fg = .fg_inv, .bg = .bg_inv });
     canvas.drawText(rect.x + 1, rect.y, mode_label, .{ .fg = .fg_inv, .bg = .bg_inv, .bold = true });
     if (app.report) |report| {
@@ -362,12 +405,15 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
         canvas.drawText(rect.x + 10, rect.y, info, .{ .fg = .fg_inv, .bg = .bg_inv });
     }
 
-    const hints = switch (app.view) {
-        .picker => "↑ ↓ select  ↵ open  p policy  w theme  ? help  q quit",
-        .explorer => "← → scrub  j k task  tab pane  space play  d diff  s open  ? help  q quit",
-        .drawer => "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
-        .diff => "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
-        .help => "? or esc close  q quit",
+    const hints = switch (output_mode) {
+        .interactive => switch (app.view) {
+            .picker => "↑ ↓ select  ↵ open  p policy  w theme  ? help  q quit",
+            .explorer => "← → scrub  j k task  tab pane  space play  d diff  s open  ? help  q quit",
+            .drawer => "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
+            .diff => "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
+            .help => "? or esc close  q quit",
+        },
+        .snapshot => "snapshot · non-interactive render · rerun without --snapshot for controls",
     };
     canvas.drawTextClipped(rect.x + rect.w / 2, rect.y, rect.w / 2 - 2, hints, .{ .fg = .fg_inv, .bg = .bg_inv, .bold = false });
 }
@@ -389,8 +435,8 @@ fn renderPane(canvas: *Canvas, rect: Rect, title: []const u8, badge: ?[]const u8
     return .{ .x = rect.x + 1, .y = rect.y + subtitle_rows, .w = rect.w - 2, .h = rect.h - footer_rows };
 }
 
-fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme) void {
-    const report = app.report orelse return renderPicker(canvas, app, theme);
+fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    const report = app.report orelse return renderPicker(canvas, app, theme, output_mode);
     renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report, theme, app.playing, null);
 
     const body_top: usize = 3;
@@ -429,12 +475,12 @@ fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme) void {
     const agg_inner = renderPane(canvas, right_bottom_rect, "aggregate", null, null, false, theme);
     renderAggregate(canvas, agg_inner, report, theme);
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, "NORMAL");
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "NORMAL", output_mode);
 }
 
-fn renderDrawer(canvas: *Canvas, app: AppView, theme: Theme) void {
-    const report = app.report orelse return renderExplorer(canvas, app, theme);
-    const task = selectedTask(report, app.selected_task_index) orelse return renderExplorer(canvas, app, theme);
+fn renderDrawer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    const report = app.report orelse return renderExplorer(canvas, app, theme, output_mode);
+    const task = selectedTask(report, app.selected_task_index) orelse return renderExplorer(canvas, app, theme, output_mode);
     renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report, theme, false, null);
 
     const gap: usize = 1;
@@ -469,12 +515,12 @@ fn renderDrawer(canvas: *Canvas, app: AppView, theme: Theme) void {
     const neigh_inner = renderPane(canvas, neigh_rect, "neighbors · completion order", null, null, false, theme);
     renderCompletionOrder(canvas, neigh_inner, report, task.id, theme);
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, "TASK");
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "TASK", output_mode);
 }
 
-fn renderDiff(canvas: *Canvas, app: AppView, theme: Theme) void {
-    const report_a = app.report orelse return renderExplorer(canvas, app, theme);
-    const report_b = app.compare_report orelse return renderExplorer(canvas, app, theme);
+fn renderDiff(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    const report_a = app.report orelse return renderExplorer(canvas, app, theme, output_mode);
+    const report_b = app.compare_report orelse return renderExplorer(canvas, app, theme, output_mode);
     renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report_a, theme, false, "diff");
 
     const gap: usize = 1;
@@ -497,10 +543,10 @@ fn renderDiff(canvas: *Canvas, app: AppView, theme: Theme) void {
     const agg_inner = renderPane(canvas, agg_rect, "aggregate", null, null, false, theme);
     renderDiffAggregate(canvas, agg_inner, report_a, report_b, theme);
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, "DIFF");
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "DIFF", output_mode);
 }
 
-fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme) void {
+fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
     const fallback_report = app.report orelse blk: {
         canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = canvas.height }, .{ .fg = .fg, .bg = .bg });
         break :blk null;
@@ -542,11 +588,11 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme) void {
     const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false, theme);
     renderPickerRecent(canvas, recent_inner, app.history, theme);
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, "OPEN");
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "OPEN", output_mode);
 }
 
-fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme) void {
-    renderExplorer(canvas, AppView{ .view = .explorer, .theme = app.theme, .focus = app.focus, .cursor = app.cursor, .selected_task_index = app.selected_task_index, .picker_index = app.picker_index, .playing = app.playing, .report = app.report, .compare_report = app.compare_report, .picker_entries = app.picker_entries, .history = app.history }, theme);
+fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    renderExplorer(canvas, AppView{ .view = .explorer, .theme = app.theme, .focus = app.focus, .cursor = app.cursor, .selected_task_index = app.selected_task_index, .picker_index = app.picker_index, .playing = app.playing, .report = app.report, .compare_report = app.compare_report, .picker_entries = app.picker_entries, .history = app.history }, theme, output_mode);
 
     const width = @min(82, canvas.width - 8);
     const height = @min(22, canvas.height - 6);
@@ -583,7 +629,7 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme) void {
         sec_y = row_y + 1;
     }
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, "HELP");
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "HELP", output_mode);
 }
 
 fn renderGantt(canvas: *Canvas, rect: Rect, report: *const Report, app: AppView, theme: Theme, show_legend: bool) void {
@@ -1005,7 +1051,7 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
         "regressions scenarios/regressions",
         "",
         "load any exported report:",
-        "zig build run -- --scenario-file <path> --format json | zig build tui -- --stdin",
+        "zig build run -- --scenario-file <path> --format json | zig build tui -- --stdin --snapshot",
     };
     for (lines, 0..) |line, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;

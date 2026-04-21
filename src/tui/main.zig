@@ -15,16 +15,24 @@ pub fn main() !void {
     };
 
     tui.run(allocator, options) catch |err| {
-        if (err == error.NotATerminal) {
-            try std.fs.File.stderr().writeAll("zig-scheduler-tui requires a TTY on stdin/stdout\n");
-            return;
+        switch (err) {
+            error.NotATerminal => {
+                try std.fs.File.stderr().writeAll("zig-scheduler-tui interactive mode requires a TTY; use --snapshot for redirected output\n");
+                return;
+            },
+            error.NonTtyPickerRequiresSnapshot => {
+                try std.fs.File.stderr().writeAll("zig-scheduler-tui without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
+                return;
+            },
+            error.InvalidArguments => {
+                try usage();
+                return;
+            },
+            else => return err,
         }
-        return err;
     };
 }
 
 fn usage() !void {
-    try std.fs.File.stderr().writeAll(
-        "usage: zig-scheduler-tui [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy>]\n",
-    );
+    try std.fs.File.stderr().writeAll(tui.usage_text);
 }
