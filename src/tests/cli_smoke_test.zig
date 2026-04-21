@@ -196,6 +196,7 @@ test "public report field lists stay frozen for version 1" {
         "source",
         "scenario",
         "policy",
+        "core_count",
         "completion_order",
         "trace",
         "tasks",
@@ -219,6 +220,7 @@ test "public report field lists stay frozen for version 1" {
         "tick",
         "kind",
         "task_id",
+        "core_id",
     };
     const expected_task_fields = [_][]const u8{
         "id",
