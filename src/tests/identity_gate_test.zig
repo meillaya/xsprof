@@ -105,3 +105,44 @@ test "M18 gate proof surfaces and branch blocking are explicit" {
     try std.testing.expect(std.mem.indexOf(u8, test_spec, "live capture, automation, and in-repo perf/ftrace execution workflows are explicitly rejected") != null);
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "docs/adr/0002-m18-linux-observability-gate.md") != null);
 }
+
+test "M19 proof surfaces stay tuple-pinned and observability-only" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+    const m19_doc = try readFileAlloc(allocator, "docs/m19-curated-linux-observability.md");
+    defer allocator.free(m19_doc);
+
+    const readme_required = [_][]const u8{
+        "docs/m19-curated-linux-observability.md",
+        "bounded observability summary",
+        "analyzer/report-contract widening",
+    };
+    for (readme_required) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, readme, needle) != null);
+    }
+
+    const project_required = [_][]const u8{
+        "docs/m19-curated-linux-observability.md",
+        "tracefs-sched-snapshot",
+        "linux-observability-scrub-v1",
+        "src/analysis",
+    };
+    for (project_required) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, project_doc, needle) != null);
+    }
+
+    const m19_required = [_][]const u8{
+        "fixtures/linux-observability/support-matrix.json",
+        "fail closed",
+        "zig-scheduler/report",
+        "perf sched",
+        "trace_pipe",
+        "observability-only normalized summary boundary",
+    };
+    for (m19_required) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, m19_doc, needle) != null);
+    }
+}
