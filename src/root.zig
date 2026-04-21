@@ -12,6 +12,7 @@ pub const policies = struct {
 };
 pub const scenario = @import("sim/scenario.zig");
 pub const trace = @import("sim/trace.zig");
+pub const property = @import("testing/property.zig");
 
 pub const AggregateMetrics = types.AggregateMetrics;
 pub const BuiltinScenario = scenario.BuiltinScenario;
@@ -53,5 +54,6 @@ test {
     _ = @import("tests/cli_smoke_test.zig");
     _ = @import("tests/identity_gate_test.zig");
     _ = @import("tests/fairness_probe_test.zig");
+    _ = @import("tests/property_test.zig");
     _ = @import("tests/policy_architecture_test.zig");
 }
