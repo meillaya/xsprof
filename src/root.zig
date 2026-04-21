@@ -27,6 +27,7 @@ pub const TraceEventKind = types.TraceEventKind;
 pub const ValidationError = types.ValidationError;
 pub const default_task_weight = types.default_task_weight;
 pub const max_task_weight = types.max_task_weight;
+pub const public_trace_event_kinds = trace.public_event_kinds;
 
 pub const freeScenario = scenario.freeScenario;
 pub const listBuiltinScenarios = scenario.listBuiltinScenarios;

@@ -56,6 +56,9 @@ Suggested review search terms for accidental phase creep:
 - [ ] JSON export includes the expected schema/version markers
 - [ ] Weighted scenarios parse correctly and keep default weight behavior when omitted
 - [ ] CFS-inspired mode reflects weight-aware fairness without changing FCFS/RR semantics
+- [ ] Public trace event kinds are asserted programmatically
+- [ ] Export contract tests reject missing or unsupported schema/version values
+- [ ] Export contract tests assert nested `source`, `scenario`, `policy`, `completion_order`, and `aggregate` structure
 
 Required per-task metrics:
 - [ ] completion time

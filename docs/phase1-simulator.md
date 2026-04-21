@@ -43,6 +43,75 @@ Machine-readable export is versioned JSON with:
 
 Version `1` is stable for consumers, but later milestones may add backward-compatible fields or introduce a new schema version for breaking changes.
 
+Consumers should treat the export as supported only when:
+- `schema == "zig-scheduler/report"`
+- `version == 1`
+
+Missing schema/version fields or unsupported values should be rejected rather than guessed.
+
+### Public trace event taxonomy
+The public trace event kinds are:
+- `arrival`
+- `dispatch`
+- `tick`
+- `preempt`
+- `complete`
+- `idle`
+
+### Public JSON report fields
+Top-level fields:
+- `schema`
+- `version`
+- `source`
+- `scenario`
+- `policy`
+- `completion_order`
+- `trace`
+- `tasks`
+- `aggregate`
+- `notes`
+
+`completion_order` is an array of task ids in final completion order.
+
+`source` fields:
+- `kind`
+- `value`
+
+`scenario` fields:
+- `name`
+- `round_robin_quantum`
+
+`policy` fields:
+- `kind`
+- `display_name`
+- `quantum`
+
+Trace entry fields:
+- `tick`
+- `kind`
+- `task_id`
+
+Per-task fields:
+- `id`
+- `arrival_tick`
+- `burst_ticks`
+- `weight`
+- `input_order`
+- `first_dispatch_tick`
+- `completion_time`
+- `turnaround_time`
+- `waiting_time`
+- `response_time`
+- `total_executed`
+
+Aggregate fields:
+- `average_waiting_time`
+- `average_response_time`
+- `throughput`
+- `throughput_numerator`
+- `throughput_denominator`
+- `waiting_time_spread`
+
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`
 - `turnaround_time = completion_time - arrival_tick`
