@@ -25,9 +25,12 @@ pub fn main() !void {
 }
 
 fn writeScenarioList(writer: anytype) !void {
-    try writer.writeAll("Phase 1 canned scenarios:\n");
-    for (scheduler.listBuiltinScenarios()) |entry| {
-        try writer.print("  - {s}: {s}\n", .{ entry.key, entry.description });
+    try writer.writeAll("Phase 1 scenario packs:\n");
+    for (scheduler.listScenarioPacks()) |pack| {
+        try writer.print("Pack {s} ({s})\n", .{ pack.key, pack.directory });
+        for (scheduler.listScenarioPackEntries(pack.id)) |entry| {
+            try writer.print("  - {s} [{s}:{s}]: {s}\n", .{ entry.key, pack.key, entry.key, entry.description });
+        }
     }
 }
 
@@ -85,4 +88,17 @@ test "list command metadata stays stable" {
     try std.testing.expectEqualStrings("staggered-arrivals", scenarios[0].key);
     try std.testing.expectEqualStrings("equal-arrival-contention", scenarios[1].key);
     try std.testing.expectEqualStrings("short-vs-long", scenarios[2].key);
+}
+
+test "list command exposes scenario pack registry layout" {
+    const allocator = std.testing.allocator;
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    var writer = buffer.writer(allocator);
+
+    try writeScenarioList(&writer);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Phase 1 scenario packs:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Pack core/basic (scenarios/basic)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "short-vs-long [core/basic:short-vs-long]") != null);
 }
