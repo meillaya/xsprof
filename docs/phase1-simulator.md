@@ -42,6 +42,9 @@ Machine-readable export is versioned JSON with:
 - `version = 1`
 
 Version `1` is stable for consumers, but later milestones may add backward-compatible fields or introduce a new schema version for breaking changes.
+Current additive version-1 core identity fields are:
+- top-level `core_count`
+- per-trace-entry `core_id` for core-scoped events such as dispatch, tick, preempt, complete, and idle
 
 Consumers should treat the export as supported only when:
 - `schema == "zig-scheduler/report"`
@@ -65,6 +68,7 @@ Top-level fields:
 - `source`
 - `scenario`
 - `policy`
+- `core_count`
 - `completion_order`
 - `trace`
 - `tasks`
@@ -90,6 +94,7 @@ Trace entry fields:
 - `tick`
 - `kind`
 - `task_id`
+- `core_id`
 
 Per-task fields:
 - `id`

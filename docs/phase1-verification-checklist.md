@@ -49,11 +49,13 @@ Suggested review search terms for accidental phase creep:
 
 - [ ] raw trace access exists for tests
 - [ ] CLI output includes scenario name and policy name
+- [ ] CLI output includes core count and core-tagged trace lines where applicable
 - [ ] CLI output includes completion order
 - [ ] CLI output includes per-task metrics
 - [ ] CLI output includes aggregate metrics
 - [ ] CLI supports mutually exclusive `--scenario` / `--scenario-file` run inputs
 - [ ] JSON export includes the expected schema/version markers
+- [ ] JSON export includes additive `core_count` / `core_id` identity fields
 - [ ] Weighted scenarios parse correctly and keep default weight behavior when omitted
 - [ ] CFS-inspired mode reflects weight-aware fairness without changing FCFS/RR semantics
 - [ ] Public trace event kinds are asserted programmatically

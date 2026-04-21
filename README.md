@@ -34,7 +34,9 @@ The JSON contract is versioned with:
 - `schema: "zig-scheduler/report"`
 - `version: 1`
 
-Consumers should reject missing or unsupported schema/version values instead of guessing. Later version-`1` additions are supported only when they stay additive and are documented with tests.
+Version `1` now includes additive core-identity fields:
+- top-level `core_count`
+- per-trace-entry `core_id` when an event is associated with a core
 
 ## Scenario fixtures
 The canonical external scenario-file dialect is object-style ZON:
@@ -70,8 +72,9 @@ Task entries may include an optional `weight` field. Supported weights range fro
 Every text-mode run prints:
 - scenario name
 - policy name
+- core count
 - completion order
-- raw trace events
+- raw trace events, including `core=<id>` on core-scoped lines
 - per-task completion, turnaround, waiting, and response metrics
 - aggregate average waiting time, average response time, throughput, and waiting-time spread
 
