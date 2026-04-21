@@ -1,0 +1,9 @@
+# tracer: nop
+# entries-in-buffer/entries-written: 5/5   #P:2
+#              TASK-PID      CPU#  ||||    TIMESTAMP  FUNCTION
+#                 | |          |   ||||       |         |
+swapper/0-0         [000] d..2  1000.000000: sched_wakeup: comm=demo-worker pid=101 prio=120 target_cpu=000
+swapper/0-0         [000] d..2  1000.050000: sched_switch: prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=demo-worker next_pid=101 next_prio=120
+demo-worker-101     [000] d..2  1000.100000: sched_process_fork: comm=demo-worker pid=101 child_comm=demo-helper child_pid=202
+demo-helper-202     [001] d..2  1000.150000: sched_wakeup_new: comm=demo-helper pid=202 prio=120 target_cpu=001
+demo-worker-101     [000] d..2  1000.200000: sched_process_exit: comm=demo-worker pid=101 prio=120

@@ -1,35 +1,29 @@
-# M19 Curated Linux-observability snapshots
+# M19 curated Linux-observability snapshots
 
-M19 is the first implementation milestone inside the optional Linux-observability
-branch approved by `docs/adr/0002-m18-linux-observability-gate.md`. It adds a
-fixture-first, offline import path for curated Linux scheduler snapshots while
-keeping the simulator/report mainline unchanged.
+M19 adds a narrow offline import boundary for curated Linux scheduler
+observability fixtures.
 
-## Contract summary
+## Scope
 
-M19 is allowed to do only the following:
+The M19 implementation is intentionally limited to:
+- committed scrubbed fixtures under `fixtures/linux-observability/`
+- manifest validation against `fixtures/linux-observability/support-matrix.json`
+- one approved literal tuple only
+- offline parsing of `tracefs-sched-snapshot` text fixtures
+- a separate observability-only normalized summary path in `src/observability/root.zig`
 
-- load committed scrubbed fixtures from `fixtures/linux-observability/`
-- validate a manifest plus support-matrix tuple before parsing a fixture
-- parse the initial approved `tracefs-sched-snapshot` text snapshot format
-- normalize imported data into an observability-only model
-- render or test a bounded observability summary smoke path
+M19 explicitly does **not**:
+- run live capture tooling
+- execute `perf`, tracefs, ftrace, or eBPF workflows in the repo
+- support `perf sched`, generic `perf.data`, `perf script`, `trace_pipe`, or
+  non-sched tracepoints
+- widen `zig-scheduler/report`
+- widen `src/analysis`
+- make replay, calibration, or Linux-performance claims
 
-M19 is explicitly not allowed to do the following:
+## Approved tuple
 
-- live tracing, trace capture, or capture automation in the repo
-- replay-fidelity, calibration, or Linux-performance claims
-- import `perf sched`, generic `perf.data`, `perf script`, `trace_pipe`, or
-  non-`sched:*` tracepoint families in the initial cut
-- widen `zig-scheduler/report`, `src/analysis`, or simulator-native scenario
-  contracts
-
-## Approved initial tuple
-
-Only one literal tuple is approved for the initial M19 cut. Anything else must
-fail closed until a later planning/approval pass widens the support matrix.
-
-| field | approved value |
+| field | value |
 | --- | --- |
 | `family` | `tracefs-sched-snapshot` |
 | `kernel_release` | `linux-6.6` |
@@ -44,50 +38,19 @@ fail closed until a later planning/approval pass widens the support matrix.
 | `snapshot_format_version` | `tracefs-sched-text-v1` |
 | `scrub_policy_version` | `linux-observability-scrub-v1` |
 
-## Fixture and manifest policy
+Unsupported tuples fail closed by default.
 
-All Linux-facing artifacts introduced by M19 stay outside `scenarios/` and are
-reviewed as committed evidence artifacts, not as simulator-native workloads.
-The expected surfaces are:
+## Repo surfaces
 
-- `fixtures/linux-observability/README.md`
-- `fixtures/linux-observability/manifests/*.json`
-- `fixtures/linux-observability/tracefs-sched-snapshot/*`
-- `fixtures/linux-observability/support-matrix.json`
+- Loader + normalized summary: `src/observability/root.zig`
+- Governance + smoke tests: `src/tests/linux_observability_test.zig`
+- Fixture manifest: `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json`
+- Fixture payload: `fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace`
+- Support matrix: `fixtures/linux-observability/support-matrix.json`
 
-Every admitted fixture must carry provenance, redistribution basis, scrub-policy
-version, and the exact approved tuple row used for loading.
+## Summary boundary
 
-## Boundary with the existing report/analyzer path
-
-M19 stops before the existing `zig-scheduler/report` export contract. Imported
-Linux fixtures do not route into `src/analysis`, do not become simulator-native
-report fixtures, and do not widen the report schema. The M19 output is a
-separate observability-only normalized summary boundary.
-
-## Unsupported families in the initial cut
-
-The initial M19 cut rejects these families or source classes by design:
-
-- `perf sched`
-- generic `perf.data`
-- `perf script`
-- `trace_pipe`
-- non-sched tracepoints
-
-If support for any of these is needed, that is a new planning decision rather
-than a small follow-up inside the initial M19 scope.
-
-## Proof surfaces
-
-The repo must keep the following surfaces aligned whenever M19 changes:
-
-- `docs/adr/0002-m18-linux-observability-gate.md`
-- `README.md`
-- `docs/project-architecture-and-status.md`
-- this document
-- governance/import smoke tests that verify wording, tuple enforcement, and the
-  observability-summary boundary
-
-The proof standard is intentionally governance-heavy: make every claim narrower
-than the implementation can prove, and prefer rejected scope over overclaiming.
+The summary output is intentionally observability-only. It reports fixture
+identity, approved tuple fields, event counts, CPUs seen, PID presence, and
+bounded timestamp span. It does not claim scheduler replay fidelity, calibration
+meaning, or Linux-performance interpretation.

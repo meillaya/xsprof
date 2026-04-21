@@ -1,0 +1,33 @@
+{
+  "schema": "zig-scheduler/linux-observability-support-matrix",
+  "version": 1,
+  "approved_tuples": [
+    {
+      "family": "tracefs-sched-snapshot",
+      "kernel_release": "linux-6.6",
+      "tool_version": "tracefs-kernel-6.6",
+      "tracefs_root": "/sys/kernel/tracing",
+      "capture_recipe": "instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
+      "trace_clock": "global",
+      "enabled_sched_events": [
+        "sched_switch",
+        "sched_wakeup",
+        "sched_wakeup_new",
+        "sched_process_fork",
+        "sched_process_exit"
+      ],
+      "scope": "system-wide dedicated instance",
+      "mode": "snapshot",
+      "time_window": "single bounded snapshot",
+      "snapshot_format_version": "tracefs-sched-text-v1",
+      "scrub_policy_version": "linux-observability-scrub-v1"
+    }
+  ],
+  "rejected_families": [
+    "perf sched",
+    "perf.data",
+    "perf script",
+    "trace_pipe",
+    "non-sched tracepoints"
+  ]
+}
