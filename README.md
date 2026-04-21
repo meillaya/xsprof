@@ -72,9 +72,12 @@ zig build bench
 TUI trace explorer (M15):
 
 ```sh
+# interactive mode (requires a real TTY)
 zig build tui -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
-# or, after building once:
-zig-out/bin/zig-scheduler-tui --input docs/examples/exports/multicore-contention-fcfs.report.json
+
+# explicit non-TTY snapshot mode
+zig-out/bin/zig-scheduler-tui --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
+zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler-tui --stdin --snapshot
 ```
 
 ## Key teaching fixtures

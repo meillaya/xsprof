@@ -59,11 +59,6 @@ const App = struct {
         if (self.compare_report) |*parsed| return &parsed.value;
         return null;
     }
-
-    fn selectedTaskCount(self: *App) usize {
-        const current = self.report() orelse return 0;
-        return current.tasks.len;
-    }
 };
 
 pub fn run(allocator: std.mem.Allocator, options: Options) !void {
@@ -466,8 +461,6 @@ test "interactive picker rejects missing tty without snapshot" {
 
     try std.testing.expectError(error.NonTtyPickerRequiresSnapshot, bootstrap(&app, .{}, false));
 }
-
-
 
 test "interactive runtime rejects missing tty for explicit sources" {
     try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
