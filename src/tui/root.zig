@@ -41,7 +41,7 @@ const App = struct {
     selected_task_index: ?usize = null,
     picker_index: usize = 0,
     playing: bool = false,
-    picker_entries: []const PickerEntry,
+    picker_entries: []PickerEntry,
     history: std.ArrayList([]const u8) = .empty,
     source: ?PickerSource = null,
 
@@ -50,6 +50,7 @@ const App = struct {
         if (self.compare_report) |*parsed| parsed.deinit();
         for (self.history.items) |entry| self.allocator.free(entry);
         self.history.deinit(self.allocator);
+        self.allocator.free(self.picker_entries);
     }
 
     fn report(self: *App) ?*const analysis.model.Report {
@@ -76,7 +77,7 @@ fn normalizeInteractiveSize(raw: term_mod.Size, fallback: term_mod.Size) term_mo
 pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     var app = App{
         .allocator = allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(allocator),
     };
     defer app.deinit();
 
@@ -366,7 +367,6 @@ fn openPickerSelection(app: *App) !void {
 }
 
 fn cyclePickerPolicy(app: *App) void {
-    const scenario_key = app.picker_entries[app.picker_index].scenario_key;
     const current = app.picker_entries[app.picker_index].policy;
     const order = [_]scheduler.PolicyKind{ .fcfs, .round_robin, .cfs_like, .deadline };
     var next_policy = current;
@@ -376,16 +376,7 @@ fn cyclePickerPolicy(app: *App) void {
             break;
         }
     }
-    if (findPickerEntry(app.picker_entries, scenario_key, next_policy)) |index| {
-        app.picker_index = index;
-    }
-}
-
-fn findPickerEntry(entries: []const PickerEntry, scenario_key: []const u8, policy: scheduler.PolicyKind) ?usize {
-    for (entries, 0..) |entry, idx| {
-        if (std.mem.eql(u8, entry.scenario_key, scenario_key) and entry.policy == policy) return idx;
-    }
-    return null;
+    updatePickerEntry(app, app.picker_index, next_policy) catch {};
 }
 
 fn loadReportBytes(app: *App, bytes: []const u8) !void {
@@ -481,19 +472,57 @@ fn lastTick(report: *const analysis.model.Report) u32 {
     return max_tick;
 }
 
-fn pickerEntries() []const PickerEntry {
-    return &.{
-        .{ .scenario_key = "scenarios/basic/short-vs-long.zon", .scenario_label = "short-vs-long", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "convoy-style long job ahead of short arrivals", .cores = 1, .tasks = 3, .ticks = 12 },
-        .{ .scenario_key = "scenarios/basic/multicore-contention.zon", .scenario_label = "multicore-contention", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "two cores, equal arrivals, unbounded bursts", .cores = 2, .tasks = 4, .ticks = 9 },
-        .{ .scenario_key = "scenarios/basic/multicore-contention.zon", .scenario_label = "multicore-contention", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "same scenario, q=2 preemptive quantum", .cores = 2, .tasks = 4, .ticks = 8 },
-        .{ .scenario_key = "scenarios/basic/multi-phase-io.zon", .scenario_label = "multi-phase-io", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "bursty CPU/wait phases with deterministic wakeups", .cores = 1, .tasks = 2, .ticks = 9 },
-        .{ .scenario_key = "scenarios/basic/multicore-balancing.zon", .scenario_label = "multicore-balancing", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "idle core steals queued work deterministically", .cores = 2, .tasks = 3, .ticks = 6 },
-        .{ .scenario_key = "scenarios/basic/deadline-priority.zon", .scenario_label = "deadline-priority", .pack = "core/basic", .policy = .deadline, .policy_label = "deadline", .description = "edf-style ordering, missed-deadline probe", .cores = 1, .tasks = 4, .ticks = 11 },
-        .{ .scenario_key = "scenarios/basic/group-fairness.zon", .scenario_label = "group-fairness", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "two groups, latency vs batch weighting", .cores = 1, .tasks = 3, .ticks = 13 },
-        .{ .scenario_key = "scenarios/basic/sleep-wakeup.zon", .scenario_label = "sleep-wakeup", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "blocked/wakeup transitions, single phase", .cores = 1, .tasks = 2, .ticks = 8 },
-        .{ .scenario_key = "scenarios/basic/starvation-pressure.zon", .scenario_label = "starvation-pressure", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "long-running low-priority task under cfs-like", .cores = 1, .tasks = 4, .ticks = 25 },
-        .{ .scenario_key = "scenarios/basic/topology-domains.zon", .scenario_label = "topology-domains", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "domain-aware placement + work stealing", .cores = 4, .tasks = 5, .ticks = 6 },
-        .{ .scenario_key = "scenarios/basic/latency-probe.zon", .scenario_label = "latency-probe", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "response-time spread under mixed loads", .cores = 1, .tasks = 5, .ticks = 15 },
+fn buildPickerEntries(allocator: std.mem.Allocator) ![]PickerEntry {
+    const entries = scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key) orelse return error.UnknownScenarioPack;
+    var picker_entries = try allocator.alloc(PickerEntry, entries.len);
+    errdefer allocator.free(picker_entries);
+
+    for (entries, 0..) |entry, index| {
+        picker_entries[index] = try buildPickerEntry(allocator, entry, entry.picker_policy);
+    }
+
+    return picker_entries;
+}
+
+fn buildPickerEntry(
+    allocator: std.mem.Allocator,
+    entry: scheduler.scenario_packs.ScenarioPackEntry,
+    policy: scheduler.PolicyKind,
+) !PickerEntry {
+    var scenario = try scheduler.loadScenarioFile(allocator, entry.path);
+    defer scenario.deinit();
+
+    var result = try scheduler.simulate(allocator, &scenario, policy);
+    defer result.deinit();
+
+    var max_tick: u32 = 0;
+    for (result.trace) |event| max_tick = @max(max_tick, event.tick);
+
+    return .{
+        .scenario_key = entry.path,
+        .scenario_label = entry.key,
+        .pack = scheduler.scenario_packs.core_pack_key,
+        .policy = policy,
+        .policy_label = policyLabel(policy),
+        .description = entry.description,
+        .cores = scenario.core_count,
+        .tasks = @intCast(scenario.tasks.len),
+        .ticks = if (result.trace.len == 0) 0 else max_tick + 1,
+    };
+}
+
+fn updatePickerEntry(app: *App, index: usize, policy: scheduler.PolicyKind) !void {
+    const scenario_label = app.picker_entries[index].scenario_label;
+    const entry = scheduler.scenario_packs.findScenarioPackEntry(scheduler.scenario_packs.core_pack_key, scenario_label) orelse return error.UnknownScenario;
+    app.picker_entries[index] = try buildPickerEntry(app.allocator, entry, policy);
+}
+
+fn policyLabel(policy: scheduler.PolicyKind) []const u8 {
+    return switch (policy) {
+        .fcfs => "fcfs",
+        .round_robin => "round_robin",
+        .cfs_like => "cfs-like",
+        .deadline => "deadline",
     };
 }
 
@@ -502,19 +531,21 @@ test {
 }
 
 test "picker metadata matches mockup lanes" {
-    const entries = pickerEntries();
-    try std.testing.expectEqual(@as(usize, 11), entries.len);
-    try std.testing.expectEqualStrings("scenarios/basic/short-vs-long.zon", entries[0].scenario_key);
+    const entries = try buildPickerEntries(std.testing.allocator);
+    defer std.testing.allocator.free(entries);
+    try std.testing.expectEqual(scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key).?.len, entries.len);
+    try std.testing.expectEqualStrings("scenarios/basic/arrivals.zon", entries[0].scenario_key);
     try std.testing.expectEqual(scheduler.PolicyKind.fcfs, entries[0].policy);
-    try std.testing.expectEqualStrings("scenarios/basic/multi-phase-io.zon", entries[3].scenario_key);
-    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, entries[3].policy);
-    try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", entries[6].scenario_key);
-    try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[6].policy);
+    try std.testing.expectEqualStrings("scenarios/basic/deadline-priority.zon", entries[2].scenario_key);
+    try std.testing.expectEqual(scheduler.PolicyKind.deadline, entries[2].policy);
+    try std.testing.expectEqualStrings("scenarios/basic/starvation-pressure.zon", entries[16].scenario_key);
+    try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[16].policy);
 }
 
 test "picker metadata stays aligned with canonical scenario files" {
     const allocator = std.testing.allocator;
-    const entries = pickerEntries();
+    const entries = try buildPickerEntries(allocator);
+    defer allocator.free(entries);
 
     for (entries) |entry| {
         var scenario = try scheduler.loadScenarioFile(allocator, entry.scenario_key);
@@ -532,13 +563,17 @@ test "picker metadata stays aligned with canonical scenario files" {
 }
 
 test "picker policy presets stay aligned with canonical scenario recommendations" {
-    const canonical_entries = scheduler.scenario_packs.listScenarioPackEntries("core/basic").?;
+    const canonical_entries = scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key).?;
+    const picker_entries = try buildPickerEntries(std.testing.allocator);
+    defer std.testing.allocator.free(picker_entries);
 
-    for (pickerEntries()) |picker_entry| {
+    for (picker_entries) |picker_entry| {
         for (canonical_entries) |canonical_entry| {
-            if (!canonical_entry.canonical) continue;
             if (!std.mem.eql(u8, picker_entry.scenario_key, canonical_entry.path)) continue;
-            try std.testing.expectEqual(canonical_entry.recommended_policy.?, picker_entry.policy);
+            try std.testing.expectEqual(canonical_entry.picker_policy, picker_entry.policy);
+            if (canonical_entry.canonical) {
+                try std.testing.expectEqual(canonical_entry.recommended_policy.?, picker_entry.policy);
+            }
         }
     }
 }
@@ -559,7 +594,7 @@ test "normalize interactive size falls back for zero or absurd area" {
 test "interactive picker rejects missing tty without snapshot" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -614,7 +649,7 @@ test "explorer focus contract skips hidden panes in too-small tier" {
 test "snapshot render is deterministic for fixture report" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -646,7 +681,7 @@ test "snapshot render is deterministic for fixture report" {
 test "snapshot render adapts across large medium compact and too-small tiers" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -703,7 +738,7 @@ test "snapshot render adapts across large medium compact and too-small tiers" {
 test "compact picker, help, drawer, and diff snapshots stay usable" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -748,7 +783,7 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
 test "compact and too-small contracts gate explorer actions" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -780,7 +815,7 @@ test "compact and too-small contracts gate explorer actions" {
 test "snapshot render works from simulation path" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -804,7 +839,7 @@ test "snapshot render works from simulation path" {
 test "snapshot rejects out of range tick" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = pickerEntries(),
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
     };
     defer app.deinit();
 
