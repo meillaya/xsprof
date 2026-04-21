@@ -72,6 +72,11 @@ M7 extends the object-style scenario surface with explicit `phases` arrays so a 
 
 For backward compatibility, the earlier M6 `sleep_after_ticks` / `sleep_duration` pair is still accepted and normalized to an equivalent three-phase `cpu -> wait -> cpu` plan. Existing single-burst scenarios remain valid with no migration.
 
+### Scheduling-class boundary
+M9 refactors the engine so policy-specific selection, preemption, and tick-accounting hooks flow through an explicit scheduling-class boundary (`src/policies/class.zig`). The engine still owns common simulation state and trace/metric production, while policy families provide their own scheduling decisions behind that boundary.
+
+This is an internal architecture cleanup only: current FCFS, Round Robin, and CFS-inspired behavior should remain semantically unchanged.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`

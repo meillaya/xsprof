@@ -19,6 +19,7 @@ Per `docs/adr/0001-m5-project-identity.md`, the current implementation remains s
 - Simplified deterministic multicore / SMP simulation, not faithful Linux SMP scheduling
 - Optional per-task weights that affect only the CFS-inspired policy
 - Optional deterministic single-sleep transitions (`sleep_after_ticks`, `sleep_duration`) for blocked/wakeup teaching scenarios
+- Policy handling is routed through an explicit scheduling-class boundary so additional policy families can be added without tangling engine core
 
 ## Quick start
 ```sh

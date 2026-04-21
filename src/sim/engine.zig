@@ -1,8 +1,6 @@
 const std = @import("std");
-const cfs_like = @import("../policies/cfs_like.zig");
-const fcfs = @import("../policies/fcfs.zig");
 const metrics = @import("metrics.zig");
-const round_robin = @import("../policies/round_robin.zig");
+const policy_class_mod = @import("../policies/class.zig");
 const types = @import("types.zig");
 
 const RuntimeTask = struct {
@@ -43,11 +41,6 @@ const CoreState = struct {
     }
 };
 
-const ReadyChoice = struct {
-    queue_index: usize,
-    task_index: usize,
-};
-
 const single_core_id: types.CoreId = 0;
 
 pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwned, policy: types.PolicyKind) !types.SimulationResult {
@@ -69,52 +62,31 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
     var completion_order: std.ArrayList(usize) = .empty;
     defer completion_order.deinit(allocator);
 
+    const policy_class = policy_class_mod.SchedulerClass(RuntimeTask).resolve(policy);
+
     var current: ?usize = null;
     var current_quantum: u32 = 0;
     var completed: usize = 0;
     var tick: u32 = 0;
 
     while (completed < runtimes.len) : (tick += 1) {
-        try processBlockedSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy);
-        try enqueueArrivalsSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy);
+        try processBlockedSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
+        try enqueueArrivalsSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
 
-        switch (policy) {
-            .fcfs => {},
-            .round_robin => {
-                if (current) |current_index| {
-                    if (round_robin.shouldPreempt(current_quantum, scenario.round_robin_quantum, ready_queue.items.len)) {
-                        runtimes[current_index].state = .ready;
-                        try ready_queue.append(allocator, current_index);
-                        current = null;
-                        current_quantum = 0;
-                        try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
-                    }
-                }
-            },
-            .cfs_like => {
-                const best = cfs_like.chooseRunnable(RuntimeTask, runtimes);
-                if (current) |current_index| {
-                    if (best) |best_index| {
-                        if (best_index != current_index) {
-                            runtimes[current_index].state = .ready;
-                            current = null;
-                            current_quantum = 0;
-                            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
-                        }
-                    }
-                }
-            },
+        if (policy_class.shouldPreemptSingle(current, current_quantum, scenario.round_robin_quantum, ready_queue.items.len, runtimes)) {
+            const current_index = current.?;
+            runtimes[current_index].state = .ready;
+            if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, current_index);
+            current = null;
+            current_quantum = 0;
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
         }
 
         if (current == null) {
-            const next = switch (policy) {
-                .fcfs => fcfs.selectNext(&ready_queue),
-                .round_robin => round_robin.selectNext(&ready_queue),
-                .cfs_like => cfs_like.chooseRunnable(RuntimeTask, runtimes),
-            };
+            const next = policy_class.selectNextSingle(&ready_queue, runtimes);
 
             if (next) |next_index| {
-                if (policy == .cfs_like and runtimes[next_index].state == .running) {
+                if (policy_class.keepsRunningSelection(runtimes[next_index])) {
                     current = next_index;
                 } else {
                     runtimes[next_index].state = .running;
@@ -143,9 +115,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
             runtimes[current_index].phase_remaining_ticks -= 1;
             runtimes[current_index].last_execution_tick = tick;
             current_quantum += 1;
-            if (policy == .cfs_like) {
-                runtimes[current_index].vruntime += cfs_like.vruntimeDelta(runtimes[current_index].weight);
-            }
+            policy_class.onTaskTick(&runtimes[current_index]);
 
             if (runtimes[current_index].remaining_ticks == 0) {
                 runtimes[current_index].completion_time = tick + 1;
@@ -174,6 +144,8 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
     var runtimes = try initRuntimes(allocator, scenario);
     defer allocator.free(runtimes);
 
+    const policy_class = policy_class_mod.SchedulerClass(RuntimeTask).resolve(policy);
+
     const core_count: usize = @intCast(scenario.core_count);
     const cores = try allocator.alloc(CoreState, core_count);
     defer {
@@ -194,10 +166,10 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
     while (completed < runtimes.len) : (tick += 1) {
         try processBlockedMulticore(allocator, &runtimes, cores, &trace_entries, tick);
         try enqueueArrivalsMulticore(allocator, &runtimes, cores, &trace_entries, tick);
-        try preemptMulticore(allocator, scenario, policy, &runtimes, cores, &trace_entries, tick);
+        try preemptMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, tick);
         try rebalanceReadyQueues(allocator, &runtimes, cores);
-        try dispatchMulticore(allocator, policy, &runtimes, cores, &trace_entries, tick);
-        try executeMulticore(allocator, policy, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
+        try dispatchMulticore(allocator, policy_class, &runtimes, cores, &trace_entries, tick);
+        try executeMulticore(allocator, policy_class, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
     }
 
     return finalizeResult(allocator, scenario, policy, &trace_entries, &completion_order, runtimes, tick);
@@ -281,7 +253,7 @@ fn processBlockedSingleCore(
     ready_queue: *std.ArrayList(usize),
     trace_entries: *std.ArrayList(types.TraceEntry),
     tick: u32,
-    policy: types.PolicyKind,
+    policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
 ) !void {
     for (runtimes.*, 0..) |*task, index| {
         if (task.state != .blocked) continue;
@@ -290,7 +262,7 @@ fn processBlockedSingleCore(
             task.state = .ready;
             task.assigned_core = single_core_id;
             task.wake_tick = null;
-            if (policy != .cfs_like) try ready_queue.append(allocator, index);
+            if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .core_id = single_core_id });
         } else {
             task.blocked_time += 1;
@@ -304,13 +276,13 @@ fn enqueueArrivalsSingleCore(
     ready_queue: *std.ArrayList(usize),
     trace_entries: *std.ArrayList(types.TraceEntry),
     tick: u32,
-    policy: types.PolicyKind,
+    policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
 ) !void {
     for (runtimes.*, 0..) |*task, index| {
         if (task.state == .pending and task.arrival_tick == tick) {
             task.assigned_core = single_core_id;
             task.state = .ready;
-            if (policy != .cfs_like) try ready_queue.append(allocator, index);
+            if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .core_id = single_core_id });
         }
     }
@@ -359,41 +331,20 @@ fn enqueueArrivalsMulticore(
 fn preemptMulticore(
     allocator: std.mem.Allocator,
     scenario: *const types.ScenarioOwned,
-    policy: types.PolicyKind,
+    policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
     tick: u32,
 ) !void {
     for (cores, 0..) |*core, core_index| {
-        switch (policy) {
-            .fcfs => {},
-            .round_robin => {
-                if (core.current) |current_index| {
-                    if (round_robin.shouldPreempt(core.current_quantum, scenario.round_robin_quantum, core.ready_queue.items.len)) {
-                        runtimes.*[current_index].state = .ready;
-                        try core.ready_queue.append(allocator, current_index);
-                        core.current = null;
-                        core.current_quantum = 0;
-                        try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
-                    }
-                }
-            },
-            .cfs_like => {
-                if (core.current) |current_index| {
-                    if (chooseBestReadyTask(runtimes.*, core.ready_queue.items)) |choice| {
-                        const current_task = runtimes.*[current_index];
-                        const contender = runtimes.*[choice.task_index];
-                        if (cfs_like.betterCandidate(contender.vruntime, contender.input_order, current_task.vruntime, current_task.input_order)) {
-                            runtimes.*[current_index].state = .ready;
-                            try core.ready_queue.append(allocator, current_index);
-                            core.current = null;
-                            core.current_quantum = 0;
-                            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = current_task.id, .core_id = @intCast(core_index) });
-                        }
-                    }
-                }
-            },
+        if (policy_class.shouldPreemptCore(core.current, core.current_quantum, scenario.round_robin_quantum, core.ready_queue.items, runtimes.*)) {
+            const current_index = core.current.?;
+            runtimes.*[current_index].state = .ready;
+            try core.ready_queue.append(allocator, current_index);
+            core.current = null;
+            core.current_quantum = 0;
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
         }
     }
 }
@@ -416,7 +367,7 @@ fn rebalanceReadyQueues(
 
 fn dispatchMulticore(
     allocator: std.mem.Allocator,
-    policy: types.PolicyKind,
+    policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -425,14 +376,7 @@ fn dispatchMulticore(
     for (cores, 0..) |*core, core_index| {
         if (core.current != null) continue;
 
-        const next_index = switch (policy) {
-            .fcfs => fcfs.selectNext(&core.ready_queue),
-            .round_robin => round_robin.selectNext(&core.ready_queue),
-            .cfs_like => if (chooseBestReadyTask(runtimes.*, core.ready_queue.items)) |choice|
-                core.ready_queue.orderedRemove(choice.queue_index)
-            else
-                null,
-        };
+        const next_index = policy_class.selectNextCore(&core.ready_queue, runtimes.*);
 
         if (next_index) |task_index| {
             runtimes.*[task_index].state = .running;
@@ -449,7 +393,7 @@ fn dispatchMulticore(
 
 fn executeMulticore(
     allocator: std.mem.Allocator,
-    policy: types.PolicyKind,
+    policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -472,9 +416,7 @@ fn executeMulticore(
             runtimes.*[current_index].phase_remaining_ticks -= 1;
             runtimes.*[current_index].last_execution_tick = tick;
             core.current_quantum += 1;
-            if (policy == .cfs_like) {
-                runtimes.*[current_index].vruntime += cfs_like.vruntimeDelta(runtimes.*[current_index].weight);
-            }
+            policy_class.onTaskTick(&runtimes.*[current_index]);
 
             if (runtimes.*[current_index].remaining_ticks == 0) {
                 runtimes.*[current_index].completion_time = tick + 1;
@@ -553,23 +495,6 @@ fn busiestReadyCore(cores: []const CoreState, exclude: usize) ?usize {
         }
     }
     return best_index;
-}
-
-fn chooseBestReadyTask(runtimes: []const RuntimeTask, ready_queue: []const usize) ?ReadyChoice {
-    var best: ?ReadyChoice = null;
-    for (ready_queue, 0..) |task_index, queue_index| {
-        if (best == null) {
-            best = .{ .queue_index = queue_index, .task_index = task_index };
-            continue;
-        }
-
-        const current_best = runtimes[best.?.task_index];
-        const contender = runtimes[task_index];
-        if (cfs_like.betterCandidate(contender.vruntime, contender.input_order, current_best.vruntime, current_best.input_order)) {
-            best = .{ .queue_index = queue_index, .task_index = task_index };
-        }
-    }
-    return best;
 }
 
 fn shouldBlockAfterExecution(task: *RuntimeTask) !bool {

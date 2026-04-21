@@ -7,6 +7,7 @@ pub const policies = struct {
     pub const fcfs = @import("policies/fcfs.zig");
     pub const round_robin = @import("policies/round_robin.zig");
     pub const cfs_like = @import("policies/cfs_like.zig");
+    pub const class = @import("policies/class.zig");
 };
 pub const scenario = @import("sim/scenario.zig");
 pub const trace = @import("sim/trace.zig");
@@ -50,4 +51,5 @@ test {
     _ = @import("tests/cli_smoke_test.zig");
     _ = @import("tests/identity_gate_test.zig");
     _ = @import("tests/fairness_probe_test.zig");
+    _ = @import("tests/policy_architecture_test.zig");
 }
