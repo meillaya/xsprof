@@ -21,22 +21,31 @@ zig build
 
 ## Run
 
-Built-in scenario:
+Main interface:
 
 ```sh
-zig build run -- --scenario short-vs-long --policy fcfs
+zig build run
+# or, after building:
+zig-out/bin/zig-scheduler
 ```
 
-Scenario file:
+Launch the TUI with a scenario preloaded:
 
 ```sh
 zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs-like
 ```
 
-JSON export:
+Render a non-interactive snapshot:
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
+zig-out/bin/zig-scheduler --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
+```
+
+Legacy simulator CLI:
+
+```sh
+zig build sim -- --scenario short-vs-long --policy fcfs
+zig-out/bin/zig-scheduler sim --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
 ```
 
 ## Test
@@ -48,12 +57,16 @@ zig build test --summary all
 
 ## CLI surface
 
-Use exactly one scenario source:
+The default `zig-scheduler` entrypoint is now TUI-first.
 
+TUI input flags:
 - `--scenario <builtin-name>`
 - `--scenario-file <path>`
+- `--input <report.json>`
+- `--stdin`
+- `--snapshot`
 
-These flags are mutually exclusive.
+Legacy simulator CLI remains available under `zig-scheduler sim ...` (or `zig build sim -- ...`).
 
 ## Tooling
 
@@ -72,12 +85,15 @@ zig build bench
 TUI trace explorer (M15):
 
 ```sh
-# interactive mode (requires a real TTY)
+# dedicated TUI binary still exists
 zig build tui -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 
+# main binary now launches the same TUI by default
+zig-out/bin/zig-scheduler --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
+
 # explicit non-TTY snapshot mode
-zig-out/bin/zig-scheduler-tui --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
-zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler-tui --stdin --snapshot
+zig-out/bin/zig-scheduler --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
+zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler --stdin --snapshot
 ```
 
 ## Key teaching fixtures

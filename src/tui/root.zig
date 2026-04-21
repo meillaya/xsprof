@@ -9,11 +9,13 @@ pub const Options = args_mod.Options;
 pub const InputSource = args_mod.InputSource;
 pub const RuntimeMode = args_mod.RuntimeMode;
 pub const parseArgs = args_mod.parseArgs;
-pub const usage_text =
-    "usage: zig-scheduler-tui [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n" ++
-    "\n" ++
-    "interactive mode requires a real TTY\n" ++
-    "snapshot mode is explicit and requires a report-producing source\n";
+
+pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
+    try writer.print(
+        "usage: {s} [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n\ninteractive mode requires a real TTY\nsnapshot mode is explicit and requires a report-producing source\n",
+        .{exe_name},
+    );
+}
 
 const ParsedReport = std.json.Parsed(analysis.model.Report);
 
@@ -477,9 +479,14 @@ test "interactive runtime rejects missing tty for explicit sources" {
 }
 
 test "usage text mentions explicit snapshot mode" {
-    try std.testing.expect(std.mem.indexOf(u8, usage_text, "--snapshot") != null);
-    try std.testing.expect(std.mem.indexOf(u8, usage_text, "--width") != null);
-    try std.testing.expect(std.mem.indexOf(u8, usage_text, "requires a real TTY") != null);
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
+    var writer = buffer.writer(std.testing.allocator);
+    try writeUsage(&writer, "zig-scheduler-tui");
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--snapshot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--width") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "requires a real TTY") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-scheduler-tui") != null);
 }
 
 test "snapshot render is deterministic for fixture report" {

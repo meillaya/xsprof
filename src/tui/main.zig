@@ -34,5 +34,8 @@ pub fn main() !void {
 }
 
 fn usage() !void {
-    try std.fs.File.stderr().writeAll(tui.usage_text);
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    try tui.writeUsage(&stderr_writer.interface, "zig-scheduler-tui");
+    try stderr_writer.interface.flush();
 }

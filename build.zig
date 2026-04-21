@@ -51,6 +51,19 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zig_scheduler", .module = lib_mod },
+                .{ .name = "tui_root", .module = tui_mod },
+            },
+        }),
+    });
+
+    const sim_exe = b.addExecutable(.{
+        .name = "zig-scheduler-sim",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/sim_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zig_scheduler", .module = lib_mod },
             },
         }),
     });
@@ -92,6 +105,7 @@ pub fn build(b: *std.Build) void {
     });
 
     b.installArtifact(exe);
+    b.installArtifact(sim_exe);
     b.installArtifact(analysis_exe);
     b.installArtifact(bench_exe);
     b.installArtifact(tui_exe);
@@ -102,8 +116,17 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
 
-    const run_step = b.step("run", "Run the Phase 1 simulator scaffold");
+    const run_step = b.step("run", "Run zig-scheduler (TUI-first main interface)");
     run_step.dependOn(&run_cmd.step);
+
+    const sim_cmd = b.addRunArtifact(sim_exe);
+    sim_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        sim_cmd.addArgs(args);
+    }
+
+    const sim_step = b.step("sim", "Run the legacy simulator CLI directly");
+    sim_step.dependOn(&sim_cmd.step);
 
     const analyze_cmd = b.addRunArtifact(analysis_exe);
     analyze_cmd.step.dependOn(b.getInstallStep());
@@ -152,15 +175,21 @@ pub fn build(b: *std.Build) void {
     });
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
+    const sim_exe_tests = b.addTest(.{
+        .root_module = sim_exe.root_module,
+    });
+    const run_sim_exe_tests = b.addRunArtifact(sim_exe_tests);
+
     const tui_tests = b.addTest(.{
         .root_module = tui_mod,
     });
     const run_tui_tests = b.addRunArtifact(tui_tests);
 
-    const test_step = b.step("test", "Run library, analysis, benchmark, CLI, and TUI tests");
+    const test_step = b.step("test", "Run library, analysis, benchmark, main-entry, simulator CLI, and TUI tests");
     test_step.dependOn(&run_lib_tests.step);
     test_step.dependOn(&run_analysis_tests.step);
     test_step.dependOn(&run_bench_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+    test_step.dependOn(&run_sim_exe_tests.step);
     test_step.dependOn(&run_tui_tests.step);
 }

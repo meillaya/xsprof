@@ -1,104 +1,96 @@
 const std = @import("std");
-const scheduler = @import("zig_scheduler");
+const sim_app = @import("sim_cli_app.zig");
+const tui = @import("tui_root");
+
+const Dispatch = enum {
+    tui,
+    sim,
+};
+
+const top_usage =
+    "usage: zig-scheduler [sim <legacy-sim-args> | <tui-args>]\n" ++
+    "\n" ++
+    "default behavior launches the TUI, making it the main interface.\n" ++
+    "use `zig-scheduler sim ...` for the legacy simulator CLI.\n";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const argv = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, argv);
+    const args = argv[1..];
 
-    const options = try scheduler.cli.parseArgs(args[1..]);
-
-    var stdout_buffer: [8192]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-
-    switch (options.command) {
-        .list => try writeScenarioList(stdout),
-        .show => try writeScenarioDetails(stdout, allocator, options.show_name.?),
-        .run => try runSimulation(stdout, allocator, options),
+    switch (dispatch(args)) {
+        .tui => try runTui(allocator, args),
+        .sim => {
+            const sim_args = args[1..];
+            sim_app.runWithArgs(allocator, sim_args) catch |err| {
+                switch (err) {
+                    error.InvalidArguments, error.InvalidPolicy => {
+                        var stderr_buffer: [1024]u8 = undefined;
+                        var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+                        try sim_app.writeUsage(&stderr_writer.interface, "zig-scheduler sim");
+                        try stderr_writer.interface.flush();
+                        return;
+                    },
+                    else => return err,
+                }
+            };
+        },
     }
-
-    try stdout.flush();
 }
 
-fn writeScenarioList(writer: anytype) !void {
-    try writer.writeAll("Phase 1 scenario packs:\n");
-    for (scheduler.listScenarioPacks()) |pack| {
-        try writer.print("Pack {s} ({s})\n", .{ pack.key, pack.directory });
-        for (scheduler.listScenarioPackEntries(pack.id)) |entry| {
-            try writer.print("  - {s} [{s}:{s}]: {s}\n", .{ entry.key, pack.key, entry.key, entry.description });
+fn runTui(allocator: std.mem.Allocator, args: []const []const u8) !void {
+    const options = tui.parseArgs(args) catch {
+        try writeTuiUsage();
+        return;
+    };
+
+    tui.run(allocator, options) catch |err| {
+        switch (err) {
+            error.NotATerminal => {
+                try std.fs.File.stderr().writeAll("zig-scheduler interactive mode requires a TTY; use --snapshot for redirected output\n");
+                return;
+            },
+            error.NonTtyPickerRequiresSnapshot => {
+                try std.fs.File.stderr().writeAll("zig-scheduler without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
+                return;
+            },
+            error.InvalidArguments => {
+                try writeTuiUsage();
+                return;
+            },
+            else => return err,
         }
-    }
-}
-
-fn writeScenarioDetails(writer: anytype, allocator: std.mem.Allocator, name: []const u8) !void {
-    var scenario = try scheduler.loadScenarioByName(allocator, name);
-    defer scenario.deinit();
-
-    try writer.print("Scenario: {s}\n", .{scenario.name});
-    try writer.print("Round Robin Quantum: {d}\n", .{scenario.round_robin_quantum});
-    try writer.writeAll("Tasks:\n");
-    for (scenario.tasks) |task| {
-        try writer.print(
-            "  [{d}] {s}: arrival={d}, burst={d}\n",
-            .{ task.input_order, task.id, task.arrival_tick, task.burst_ticks },
-        );
-    }
-}
-
-fn runSimulation(writer: anytype, allocator: std.mem.Allocator, options: scheduler.cli.Options) !void {
-    const input_source = options.input_source.?;
-    var scenario = try loadScenarioForRun(allocator, input_source);
-    defer scenario.deinit();
-
-    if (options.quantum_override) |quantum| {
-        scenario.round_robin_quantum = quantum;
-    }
-
-    var result = try scheduler.simulate(allocator, &scenario, options.policy.?);
-    defer result.deinit();
-
-    const report = scheduler.cli.SimulationReport.init(sourceInfoFromInput(input_source), &scenario, &result);
-    switch (options.output_format) {
-        .text => try scheduler.cli.writeHumanReport(writer, report),
-        .json => try scheduler.cli.writeJsonReport(writer, report),
-    }
-}
-
-fn loadScenarioForRun(allocator: std.mem.Allocator, input_source: scheduler.cli.InputSource) !scheduler.ScenarioOwned {
-    return switch (input_source) {
-        .builtin => |name| scheduler.loadScenarioByName(allocator, name),
-        .file => |path| scheduler.loadScenarioFile(allocator, path),
     };
 }
 
-fn sourceInfoFromInput(input_source: scheduler.cli.InputSource) scheduler.cli.SourceInfo {
-    return switch (input_source) {
-        .builtin => |name| .{ .kind = .builtin, .value = name },
-        .file => |path| .{ .kind = .file, .value = path },
-    };
+fn writeTuiUsage() !void {
+    try std.fs.File.stderr().writeAll("\n");
+    try std.fs.File.stderr().writeAll(top_usage);
+    try std.fs.File.stderr().writeAll("\n");
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    try tui.writeUsage(&stderr_writer.interface, "zig-scheduler");
+    try stderr_writer.interface.flush();
 }
 
-test "list command metadata stays stable" {
-    const scenarios = scheduler.listBuiltinScenarios();
-    try std.testing.expectEqual(@as(usize, 3), scenarios.len);
-    try std.testing.expectEqualStrings("staggered-arrivals", scenarios[0].key);
-    try std.testing.expectEqualStrings("equal-arrival-contention", scenarios[1].key);
-    try std.testing.expectEqualStrings("short-vs-long", scenarios[2].key);
+fn dispatch(args: []const []const u8) Dispatch {
+    if (args.len == 0) return .tui;
+    if (std.mem.eql(u8, args[0], "sim")) return .sim;
+    return .tui;
 }
 
-test "list command exposes scenario pack registry layout" {
-    const allocator = std.testing.allocator;
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+test "dispatch routes main interface to tui by default" {
+    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{}));
+    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{ "--scenario-file", "scenarios/basic/multicore-contention.zon", "--policy", "fcfs" }));
+    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{ "--input", "docs/examples/exports/multicore-contention-fcfs.report.json", "--snapshot" }));
+}
 
-    try writeScenarioList(&writer);
-
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Phase 1 scenario packs:") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Pack core/basic (scenarios/basic)") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "short-vs-long [core/basic:short-vs-long]") != null);
+test "dispatch preserves legacy simulator subcommand only" {
+    try std.testing.expectEqual(Dispatch.sim, dispatch(&.{"sim"}));
+    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{"list"}));
+    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{ "show", "short-vs-long" }));
 }
