@@ -7,7 +7,8 @@ A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
 - FCFS/FIFO, Round Robin, and a simplified CFS-inspired policy
 - Deterministic traces, per-task metrics, and aggregate metrics
 - Linux-inspired learning aid, not a kernel-faithful scheduler
-- No kernel integration, real process execution, daemon behavior, or SMP scheduling
+- No kernel integration, real process execution, or daemon behavior
+- Simplified deterministic multicore / SMP simulation, not faithful Linux SMP scheduling
 - Optional per-task weights that affect only the CFS-inspired policy
 
 ## Quick start
@@ -16,6 +17,7 @@ zig build test
 zig build run -- --scenario short-vs-long --policy fcfs
 zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
+zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 ```
 
@@ -36,7 +38,7 @@ The JSON contract is versioned with:
 
 Version `1` now includes additive core-identity fields:
 - top-level `core_count`
-- per-trace-entry `core_id` when an event is associated with a core
+- per-trace-entry `core_id` when the engine has assigned the event to a core
 
 ## Scenario fixtures
 The canonical external scenario-file dialect is object-style ZON:

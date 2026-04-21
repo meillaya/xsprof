@@ -1,0 +1,11 @@
+.{
+    .name = "multicore-balancing",
+    .description = "Two-core balancing case that moves queued work onto an idle core deterministically.",
+    .quantum = 2,
+    .core_count = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "B", .arrival_tick = 0, .burst_ticks = 1 },
+        .{ .id = "C", .arrival_tick = 0, .burst_ticks = 4 },
+    },
+}

@@ -33,6 +33,15 @@ test "canonical object style scenario files load by path" {
     try expectTask(scenario.tasks[3], "D", 6, 1, 3);
 }
 
+test "canonical object style scenario files parse core counts" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/multicore-contention.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("multicore-contention", scenario.name);
+    try std.testing.expectEqual(@as(u32, 2), scenario.core_count);
+    try std.testing.expectEqual(@as(usize, 4), scenario.tasks.len);
+}
+
 test "canonical object style scenario files parse task weights" {
     var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/weighted-fairness.zon");
     defer scenario.deinit();

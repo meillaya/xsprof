@@ -299,7 +299,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(u32, 0), parsed.value.trace[0].tick);
     try std.testing.expectEqual(sim.TraceEventKind.arrival, parsed.value.trace[0].kind);
     try std.testing.expectEqualStrings("light", parsed.value.trace[0].task_id.?);
-    try std.testing.expect(parsed.value.trace[0].core_id == null);
+    try std.testing.expectEqual(@as(?sim.CoreId, 0), parsed.value.trace[0].core_id);
     var saw_core_identity = false;
     for (parsed.value.trace) |entry| {
         if (entry.core_id) |core_id| {
@@ -393,4 +393,27 @@ test "public trace taxonomy stays frozen" {
     for (expected, sim.cli.publicTraceEventKinds()) |lhs, rhs| {
         try std.testing.expectEqual(lhs, rhs);
     }
+}
+
+test "CLI multicore smoke exposes core identity for file scenarios" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/multicore-contention.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    const report = sim.cli.SimulationReport.init(.{ .kind = .file, .value = "scenarios/basic/multicore-contention.zon" }, &scenario, &result);
+
+    var human_buffer: std.ArrayList(u8) = .empty;
+    defer human_buffer.deinit(allocator);
+    var human_writer = human_buffer.writer(allocator);
+    try sim.cli.writeHumanReport(&human_writer, report);
+    try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "Core Count: 2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "core=1") != null);
+
+    const rendered_json = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/multicore-contention.zon" }, &scenario, &result);
+    defer allocator.free(rendered_json);
+    try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_count\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_id\":1") != null);
 }

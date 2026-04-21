@@ -4,7 +4,7 @@
 Each simulation tick follows the same deterministic sequence:
 1. incorporate arrivals for the current tick
 2. evaluate policy dispatch/preemption decisions
-3. execute exactly one tick of CPU time for the selected task
+3. execute exactly one tick of CPU time per selected core-local task
 4. record resulting completion state at the tick boundary
 
 ## Tie breaking
@@ -129,3 +129,12 @@ These field lists define the required version `1` baseline. Any later version-`1
 
 ## Phase boundary
 This project is a simulator only. It does not launch processes, integrate with the Linux kernel, or implement daemon/service behavior.
+
+## Simplified multicore / SMP semantics
+When `core_count > 1`, the simulator runs one deterministic scheduling lane per core.
+
+Rules:
+- arrivals are assigned to the least-loaded core, tie-breaking by lower core id
+- before dispatch, an idle core may steal the oldest ready task from the busiest ready queue
+- arrival, dispatch, tick, preempt, complete, and idle trace events carry `core_id` where the engine has assigned a core
+- no distinct migration event kind is added in version 1; migration is inferred when a later dispatch core differs from the task's earlier arrival/dispatched core

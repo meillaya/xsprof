@@ -9,6 +9,14 @@ fn loadWeightedFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/weighted-fairness.zon");
 }
 
+fn loadMulticoreFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-contention.zon");
+}
+
+fn loadBalancingFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-balancing.zon");
+}
+
 fn taskIndexById(tasks: []const sim.TaskMetrics, id: []const u8) ?usize {
     for (tasks, 0..) |task, index| {
         if (std.mem.eql(u8, task.id, id)) return index;
@@ -113,7 +121,72 @@ test "simulation never records the same task executing twice in one tick" {
 
 test "per-core execution reconciliation matches task totals and total work" {
     const allocator = std.testing.allocator;
-    var scenario = try loadWeightedFixture(allocator);
+    var weighted = try loadWeightedFixture(allocator);
+    defer weighted.deinit();
+    var multicore = try loadMulticoreFixture(allocator);
+    defer multicore.deinit();
+
+    const cases = [_]struct {
+        scenario: *const sim.ScenarioOwned,
+        policies: []const sim.PolicyKind,
+    }{
+        .{ .scenario = &weighted, .policies = &.{ .fcfs, .round_robin, .cfs_like } },
+        .{ .scenario = &multicore, .policies = &.{ .fcfs, .round_robin, .cfs_like } },
+    };
+
+    for (cases) |case| {
+        for (case.policies) |policy| {
+            var result = try sim.simulate(allocator, case.scenario, policy);
+            defer result.deinit();
+
+            try expectNoDuplicateTaskTicksPerTick(result.trace);
+
+            const core_count: usize = @intCast(result.core_count);
+            try std.testing.expect(core_count >= 1);
+
+            const per_core = try allocator.alloc(u32, core_count);
+            defer allocator.free(per_core);
+            @memset(per_core, 0);
+
+            const per_task = try allocator.alloc(u32, result.tasks.len);
+            defer allocator.free(per_task);
+            @memset(per_task, 0);
+
+            var total_tick_events: u32 = 0;
+            for (result.trace) |entry| {
+                if (entry.kind != .tick) continue;
+
+                const core_id = entry.core_id orelse return error.MissingCoreIdentity;
+                try std.testing.expect(core_id < result.core_count);
+
+                const core_index: usize = @intCast(core_id);
+                per_core[core_index] += 1;
+                total_tick_events += 1;
+
+                const task_id = entry.task_id orelse return error.MissingTaskId;
+                const task_index = taskIndexById(result.tasks, task_id) orelse return error.UnknownTaskId;
+                per_task[task_index] += 1;
+            }
+
+            var summed_core_ticks: u32 = 0;
+            for (per_core) |count| summed_core_ticks += count;
+            try std.testing.expectEqual(total_tick_events, summed_core_ticks);
+
+            var expected_total_work: u32 = 0;
+            for (result.tasks, per_task) |task, counted_ticks| {
+                expected_total_work += task.burst_ticks;
+                try std.testing.expectEqual(task.total_executed, counted_ticks);
+                try std.testing.expectEqual(task.burst_ticks, counted_ticks);
+            }
+
+            try std.testing.expectEqual(expected_total_work, total_tick_events);
+        }
+    }
+}
+
+test "multicore fixture uses more than one core across policies" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadMulticoreFixture(allocator);
     defer scenario.deinit();
 
     const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
@@ -121,46 +194,72 @@ test "per-core execution reconciliation matches task totals and total work" {
         var result = try sim.simulate(allocator, &scenario, policy);
         defer result.deinit();
 
+        try std.testing.expectEqual(@as(u32, 2), result.core_count);
         try expectNoDuplicateTaskTicksPerTick(result.trace);
 
-        const core_count: usize = @intCast(result.core_count);
-        try std.testing.expect(core_count >= 1);
-
-        const per_core = try allocator.alloc(u32, core_count);
-        defer allocator.free(per_core);
-        @memset(per_core, 0);
-
-        const per_task = try allocator.alloc(u32, result.tasks.len);
-        defer allocator.free(per_task);
-        @memset(per_task, 0);
-
-        var total_tick_events: u32 = 0;
+        var saw_core_one = false;
         for (result.trace) |entry| {
-            if (entry.kind != .tick) continue;
-
-            const core_id = entry.core_id orelse return error.MissingCoreIdentity;
-            try std.testing.expect(core_id < result.core_count);
-
-            const core_index: usize = @intCast(core_id);
-            per_core[core_index] += 1;
-            total_tick_events += 1;
-
-            const task_id = entry.task_id orelse return error.MissingTaskId;
-            const task_index = taskIndexById(result.tasks, task_id) orelse return error.UnknownTaskId;
-            per_task[task_index] += 1;
+            if (entry.core_id == 1) saw_core_one = true;
         }
-
-        var summed_core_ticks: u32 = 0;
-        for (per_core) |count| summed_core_ticks += count;
-        try std.testing.expectEqual(total_tick_events, summed_core_ticks);
-
-        var expected_total_work: u32 = 0;
-        for (result.tasks, per_task) |task, counted_ticks| {
-            expected_total_work += task.burst_ticks;
-            try std.testing.expectEqual(task.total_executed, counted_ticks);
-            try std.testing.expectEqual(task.burst_ticks, counted_ticks);
-        }
-
-        try std.testing.expectEqual(expected_total_work, total_tick_events);
+        try std.testing.expect(saw_core_one);
     }
+}
+
+test "multicore balancing moves ready work onto an idle core deterministically" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadBalancingFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    var saw_balanced_dispatch = false;
+    for (result.trace) |entry| {
+        if (entry.kind == .dispatch and entry.task_id != null and std.mem.eql(u8, entry.task_id.?, "C")) {
+            try std.testing.expectEqual(@as(sim.CoreId, 1), entry.core_id.?);
+            saw_balanced_dispatch = true;
+            break;
+        }
+    }
+    try std.testing.expect(saw_balanced_dispatch);
+}
+
+test "multicore balancing keeps migration visible in the trace" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadBalancingFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    var arrival_core: ?sim.CoreId = null;
+    var dispatch_core: ?sim.CoreId = null;
+    for (result.trace) |entry| {
+        if (entry.task_id == null or !std.mem.eql(u8, entry.task_id.?, "C")) continue;
+        if (entry.kind == .arrival) arrival_core = entry.core_id;
+        if (entry.kind == .dispatch and dispatch_core == null) dispatch_core = entry.core_id;
+    }
+
+    try std.testing.expectEqual(@as(?sim.CoreId, 0), arrival_core);
+    try std.testing.expectEqual(@as(?sim.CoreId, 1), dispatch_core);
+}
+
+test "multicore arrivals expose assigned core identity" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadMulticoreFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    var saw_secondary_arrival = false;
+    for (result.trace) |entry| {
+        if (entry.kind != .arrival) continue;
+        if (entry.core_id == 1) {
+            saw_secondary_arrival = true;
+            break;
+        }
+    }
+
+    try std.testing.expect(saw_secondary_arrival);
 }

@@ -17,7 +17,7 @@ Implementation must remain Phase-1 only:
 - [ ] no real process execution
 - [ ] no kernel integration
 - [ ] no daemon/service/cron behavior
-- [ ] no SMP or multi-core scheduling claims
+- [ ] no kernel-faithful SMP scheduling claims
 
 Suggested review search terms for accidental phase creep:
 - `std.process`
@@ -56,6 +56,7 @@ Suggested review search terms for accidental phase creep:
 - [ ] CLI supports mutually exclusive `--scenario` / `--scenario-file` run inputs
 - [ ] JSON export includes the expected schema/version markers
 - [ ] JSON export includes additive `core_count` / `core_id` identity fields
+- [ ] multicore scenarios expose additive core identity in CLI and JSON output
 - [ ] Weighted scenarios parse correctly and keep default weight behavior when omitted
 - [ ] CFS-inspired mode reflects weight-aware fairness without changing FCFS/RR semantics
 - [ ] Public trace event kinds are asserted programmatically
@@ -125,8 +126,8 @@ Scenario C definition:
 Recommended omissions to verify are named:
 - [ ] Linux's full nice-to-weight table
 - [ ] sleeper bonus heuristics
-- [ ] SMP or multi-core balancing
-- [ ] per-CPU run queues
+- [ ] faithful Linux SMP balancing heuristics
+- [ ] faithful Linux per-CPU runqueue behavior
 - [ ] cgroups or group scheduling
 - [ ] kernel timing precision and interrupts
 

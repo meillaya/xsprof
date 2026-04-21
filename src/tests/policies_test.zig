@@ -9,6 +9,10 @@ fn loadWeightedFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/weighted-fairness.zon");
 }
 
+fn loadMulticoreFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-contention.zon");
+}
+
 test "fcfs preserves equal-arrival input order" {
     const allocator = std.testing.allocator;
     var scenario = try loadScenario(allocator, "equal-arrival-contention");
@@ -95,6 +99,33 @@ test "weighted scenarios stay deterministic across repeated runs for every polic
             try std.testing.expectEqual(lhs.completion_time, rhs.completion_time);
             try std.testing.expectEqual(lhs.waiting_time, rhs.waiting_time);
             try std.testing.expectEqual(lhs.response_time, rhs.response_time);
+        }
+    }
+}
+
+test "multicore fixtures stay deterministic across repeated runs for every policy" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadMulticoreFixture(allocator);
+    defer scenario.deinit();
+
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
+    for (policies) |policy| {
+        var first = try sim.simulate(allocator, &scenario, policy);
+        defer first.deinit();
+        var second = try sim.simulate(allocator, &scenario, policy);
+        defer second.deinit();
+
+        try std.testing.expectEqual(first.core_count, second.core_count);
+        try std.testing.expectEqual(first.trace.len, second.trace.len);
+        for (first.trace, second.trace) |lhs, rhs| {
+            try std.testing.expectEqual(lhs.tick, rhs.tick);
+            try std.testing.expectEqual(lhs.kind, rhs.kind);
+            try std.testing.expectEqual(lhs.core_id, rhs.core_id);
+            if (lhs.task_id) |lhs_id| {
+                try std.testing.expectEqualStrings(lhs_id, rhs.task_id.?);
+            } else {
+                try std.testing.expect(rhs.task_id == null);
+            }
         }
     }
 }

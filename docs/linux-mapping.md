@@ -11,12 +11,12 @@ Phase 1 remains:
 - single-process and in-process only
 - deterministic and testable
 
-Phase 1 does **not** include:
+Current repo scope does **not** include:
 - real process execution
 - kernel integration
 - eBPF hooks or scheduler hooks
 - daemon, service, or cron behavior
-- SMP or multi-core scheduling
+- faithful Linux SMP scheduling
 
 ## Simulator concept to Linux concept mapping
 
@@ -25,7 +25,7 @@ Phase 1 does **not** include:
 | Task | Simulated schedulable workload with arrival tick and CPU burst ticks | schedulable entity / `task_struct`-like mental model | Not a real process or thread |
 | Arrival tick | When a task becomes runnable in the simulation | wakeup/enqueue into a runnable set | No interrupts, blocking I/O, or wakeup races |
 | Burst ticks | CPU demand required to complete a task | CPU time demand / runtime | No syscalls, sleeps, or mixed CPU/I/O behavior |
-| Ready queue / runnable set | Tasks eligible to run | run queue / runnable tasks | Single-core only; no per-CPU run queues |
+| Ready queue / runnable set | Tasks eligible to run | run queue / runnable tasks | Simplified per-core run queues, not Linux runqueue fidelity |
 | Dispatch | Selecting the next runnable task | scheduler pick-next decision | No context-switch overhead modeling |
 | Tick execution | One unit of CPU progress | time accounting / runtime accumulation | Fixed discrete ticks, not kernel timing precision |
 | Quantum | Time slice before Round Robin preemption | RR time slice / periodic preemption | Simplified fixed quantum |
@@ -77,8 +77,7 @@ Linux relevance:
 Explicit omissions:
 - Linux's full nice-to-weight table
 - sleeper bonuses
-- SMP or multi-core balancing
-- per-CPU run queues
+- Linux SMP balancing heuristics, scheduler-domain behavior, and per-CPU runqueue fidelity
 - cgroups or group scheduling
 - kernel timing precision, interrupts, and scheduler-class interactions
 - priority inheritance and other kernel edge cases
