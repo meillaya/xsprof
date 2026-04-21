@@ -151,10 +151,10 @@ pub const GeneratedScenario = struct {
         return scenario;
     }
 
-    pub fn writeZonFile(self: *const GeneratedScenario, allocator: std.mem.Allocator, dir: anytype, io: anytype, sub_path: []const u8) !void {
+    pub fn writeZonFile(self: *const GeneratedScenario, allocator: std.mem.Allocator, dir: anytype, sub_path: []const u8) !void {
         const zon = try self.renderZonAlloc(allocator);
         defer allocator.free(zon);
-        try dir.writeFile(io, .{ .sub_path = sub_path, .data = zon });
+        try dir.writeFile(.{ .sub_path = sub_path, .data = zon });
     }
 
     pub fn renderJsonAlloc(

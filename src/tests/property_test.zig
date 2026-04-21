@@ -198,9 +198,9 @@ test "M13 shrinker reduces and saves regression fixtures" {
 
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try shrunk.writeZonFile(allocator, tmp.dir, std.testing.io, "m13-shrunk-regression.zon");
+    try shrunk.writeZonFile(allocator, tmp.dir, "m13-shrunk-regression.zon");
 
-    const saved = try tmp.dir.readFileAlloc(allocator, std.testing.io, "m13-shrunk-regression.zon", std.math.maxInt(usize));
+    const saved = try tmp.dir.readFileAlloc(allocator, "m13-shrunk-regression.zon", std.math.maxInt(usize));
     defer allocator.free(saved);
     try std.testing.expect(std.mem.indexOf(u8, saved, ".tasks = .{") != null);
 
