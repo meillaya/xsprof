@@ -16,6 +16,18 @@ fn taskIndexById(tasks: []const sim.TaskMetrics, id: []const u8) ?usize {
     return null;
 }
 
+fn expectNoDuplicateTaskTicksPerTick(trace: []const sim.TraceEntry) !void {
+    for (trace, 0..) |entry, index| {
+        if (entry.kind != .tick) continue;
+        const task_id = entry.task_id orelse return error.MissingTaskId;
+        for (trace[index + 1 ..]) |other| {
+            if (other.tick != entry.tick) continue;
+            if (other.kind != .tick) continue;
+            try std.testing.expect(!std.mem.eql(u8, task_id, other.task_id orelse return error.MissingTaskId));
+        }
+    }
+}
+
 test "scenario parser loads deterministic task order" {
     const allocator = std.testing.allocator;
     var scenario = try sim.loadScenarioByName(allocator, "staggered-arrivals");
@@ -108,6 +120,8 @@ test "per-core execution reconciliation matches task totals and total work" {
     for (policies) |policy| {
         var result = try sim.simulate(allocator, &scenario, policy);
         defer result.deinit();
+
+        try expectNoDuplicateTaskTicksPerTick(result.trace);
 
         const core_count: usize = @intCast(result.core_count);
         try std.testing.expect(core_count >= 1);
