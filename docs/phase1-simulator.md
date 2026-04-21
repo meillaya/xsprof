@@ -112,6 +112,8 @@ Aggregate fields:
 - `throughput_denominator`
 - `waiting_time_spread`
 
+These field lists define the required version `1` baseline. Any later version-`1` extension must remain additive, be documented here, and land with regression coverage for the new fields.
+
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`
 - `turnaround_time = completion_time - arrival_tick`

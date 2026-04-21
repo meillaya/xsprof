@@ -62,7 +62,30 @@ fn renderJson(
 }
 
 fn parseJsonReport(allocator: std.mem.Allocator, rendered: []const u8) !std.json.Parsed(ParsedReport) {
-    return try std.json.parseFromSlice(ParsedReport, allocator, rendered, .{});
+    return try std.json.parseFromSlice(ParsedReport, allocator, rendered, .{
+        .ignore_unknown_fields = true,
+    });
+}
+
+fn parseJsonValue(allocator: std.mem.Allocator, rendered: []const u8) !std.json.Parsed(std.json.Value) {
+    return try std.json.parseFromSlice(std.json.Value, allocator, rendered, .{});
+}
+
+fn expectStringFieldSet(expected: []const []const u8, actual: []const []const u8) !void {
+    try std.testing.expectEqual(expected.len, actual.len);
+    for (expected, actual) |lhs, rhs| {
+        try std.testing.expectEqualStrings(lhs, rhs);
+    }
+}
+
+fn expectJsonObjectFields(value: std.json.Value, expected: []const []const u8) !void {
+    try std.testing.expect(value == .object);
+
+    const object = value.object;
+    try std.testing.expectEqual(expected.len, object.count());
+    for (expected) |field| {
+        try std.testing.expect(object.contains(field));
+    }
 }
 
 test "CLI report includes required sections" {
@@ -138,7 +161,69 @@ test "JSON export is deterministic across repeated runs" {
     try std.testing.expectEqualStrings(first_json, second_json);
 }
 
-test "JSON export includes the documented public task and trace fields" {
+test "public report field lists stay frozen for version 1" {
+    const expected_top_level_fields = [_][]const u8{
+        "schema",
+        "version",
+        "source",
+        "scenario",
+        "policy",
+        "completion_order",
+        "trace",
+        "tasks",
+        "aggregate",
+        "notes",
+    };
+    const expected_source_fields = [_][]const u8{
+        "kind",
+        "value",
+    };
+    const expected_scenario_fields = [_][]const u8{
+        "name",
+        "round_robin_quantum",
+    };
+    const expected_policy_fields = [_][]const u8{
+        "kind",
+        "display_name",
+        "quantum",
+    };
+    const expected_trace_entry_fields = [_][]const u8{
+        "tick",
+        "kind",
+        "task_id",
+    };
+    const expected_task_fields = [_][]const u8{
+        "id",
+        "arrival_tick",
+        "burst_ticks",
+        "weight",
+        "input_order",
+        "first_dispatch_tick",
+        "completion_time",
+        "turnaround_time",
+        "waiting_time",
+        "response_time",
+        "total_executed",
+    };
+    const expected_aggregate_fields = [_][]const u8{
+        "average_waiting_time",
+        "average_response_time",
+        "throughput",
+        "throughput_numerator",
+        "throughput_denominator",
+        "waiting_time_spread",
+    };
+
+    try expectStringFieldSet(expected_top_level_fields[0..], sim.cli.top_level_fields[0..]);
+    try expectStringFieldSet(expected_source_fields[0..], sim.cli.source_fields[0..]);
+    try expectStringFieldSet(expected_scenario_fields[0..], sim.cli.scenario_fields[0..]);
+    try expectStringFieldSet(expected_policy_fields[0..], sim.cli.policy_fields[0..]);
+    try expectStringFieldSet(expected_trace_entry_fields[0..], sim.cli.trace_entry_fields[0..]);
+    try expectStringFieldSet(expected_task_fields[0..], sim.cli.task_fields[0..]);
+    try expectStringFieldSet(expected_aggregate_fields[0..], sim.cli.aggregate_fields[0..]);
+}
+
+test "JSON export preserves the documented version 1 baseline fields" {
     const allocator = std.testing.allocator;
     var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/weighted-fairness.zon");
     defer scenario.deinit();
@@ -151,6 +236,18 @@ test "JSON export includes the documented public task and trace fields" {
 
     var parsed = try parseJsonReport(allocator, rendered);
     defer parsed.deinit();
+    var parsed_value = try parseJsonValue(allocator, rendered);
+    defer parsed_value.deinit();
+
+    try expectJsonObjectFields(parsed_value.value, sim.cli.top_level_fields[0..]);
+    try expectJsonObjectFields(parsed_value.value.object.get("source").?, sim.cli.source_fields[0..]);
+    try expectJsonObjectFields(parsed_value.value.object.get("scenario").?, sim.cli.scenario_fields[0..]);
+    try expectJsonObjectFields(parsed_value.value.object.get("policy").?, sim.cli.policy_fields[0..]);
+    try std.testing.expect(parsed_value.value.object.get("trace").?.array.items.len != 0);
+    try expectJsonObjectFields(parsed_value.value.object.get("trace").?.array.items[0], sim.cli.trace_entry_fields[0..]);
+    try std.testing.expect(parsed_value.value.object.get("tasks").?.array.items.len != 0);
+    try expectJsonObjectFields(parsed_value.value.object.get("tasks").?.array.items[0], sim.cli.task_fields[0..]);
+    try expectJsonObjectFields(parsed_value.value.object.get("aggregate").?, sim.cli.aggregate_fields[0..]);
 
     try std.testing.expectEqualStrings(sim.cli.schema_name, parsed.value.schema);
     try std.testing.expectEqual(sim.cli.schema_version, parsed.value.version);
