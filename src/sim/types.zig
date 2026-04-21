@@ -39,6 +39,7 @@ pub const ValidationError = error{
     EmptyScenarioName,
     NoTasks,
     InvalidQuantum,
+    InvalidCoreCount,
     EmptyTaskId,
     ZeroBurstTicks,
     DuplicateTaskId,
@@ -72,6 +73,7 @@ pub const ScenarioOwned = struct {
     allocator: std.mem.Allocator,
     name: []const u8,
     round_robin_quantum: u32 = 1,
+    core_count: u32 = 1,
     tasks: []TaskSpec,
 
     pub fn deinit(self: *ScenarioOwned) void {
@@ -86,6 +88,7 @@ pub const ScenarioOwned = struct {
     pub fn validate(self: *const ScenarioOwned) ValidationError!void {
         if (self.name.len == 0) return error.EmptyScenarioName;
         if (self.round_robin_quantum == 0) return error.InvalidQuantum;
+        if (self.core_count == 0) return error.InvalidCoreCount;
         if (self.tasks.len == 0) return error.NoTasks;
 
         for (self.tasks, 0..) |task, index| {
