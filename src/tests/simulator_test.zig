@@ -37,6 +37,40 @@ fn loadSleepWakeFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/sleep-wakeup.zon");
 }
 
+fn loadMultiPhaseFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/multi-phase-io.zon");
+}
+
+test "multi-phase workloads complete correctly and preserve total CPU accounting" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadMultiPhaseFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), result.completion_order.len);
+    try std.testing.expectEqualStrings("B", result.completionTaskId(0));
+    try std.testing.expectEqualStrings("A", result.completionTaskId(1));
+
+    const task_a = result.taskById("A") orelse return error.MissingTaskA;
+    try std.testing.expectEqual(@as(u32, 5), task_a.burst_ticks);
+    try std.testing.expectEqual(@as(u32, 5), task_a.total_executed);
+    try std.testing.expectEqual(@as(u32, 3), task_a.blocked_time);
+    try std.testing.expectEqual(@as(u32, 5), task_a.phase_count);
+
+    var block_count: u32 = 0;
+    var wakeup_count: u32 = 0;
+    for (result.trace) |entry| {
+        if (entry.task_id == null or !std.mem.eql(u8, entry.task_id.?, "A")) continue;
+        if (entry.kind == .block) block_count += 1;
+        if (entry.kind == .wakeup) wakeup_count += 1;
+    }
+    try std.testing.expectEqual(@as(u32, 2), block_count);
+    try std.testing.expectEqual(@as(u32, 2), wakeup_count);
+    try expectNoExecutionWhileBlocked(result.trace, "A");
+}
+
 fn expectNoExecutionWhileBlocked(trace: []const sim.TraceEntry, task_id: []const u8) !void {
     var blocked = false;
     for (trace) |entry| {

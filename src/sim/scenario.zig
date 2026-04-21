@@ -43,13 +43,24 @@ const legacy_aliases = [_]struct {
     .{ .alias = "contention", .canonical = .equal_arrival_contention },
 };
 
+const ParsedZonTaskPhaseKind = enum {
+    cpu,
+    wait,
+};
+
+const ParsedZonTaskPhase = struct {
+    kind: ParsedZonTaskPhaseKind,
+    ticks: u32,
+};
+
 const ParsedZonTask = struct {
     id: []const u8,
     arrival_tick: u32,
-    burst_ticks: u32,
+    burst_ticks: ?u32 = null,
     weight: ?u32 = null,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: ?u32 = null,
+    phases: ?[]const ParsedZonTaskPhase = null,
 };
 
 const ParsedZonScenario = struct {
@@ -125,7 +136,7 @@ fn parseScenarioLegacyText(
     var lines = std.mem.tokenizeScalar(u8, source, '\n');
     var task_specs: std.ArrayList(types.TaskSpec) = .empty;
     errdefer {
-        for (task_specs.items) |task| allocator.free(task.id);
+        for (task_specs.items) |*task| task.deinit(allocator);
         task_specs.deinit(allocator);
     }
 
@@ -215,24 +226,78 @@ fn parseScenarioZon(
 
     var task_specs: std.ArrayList(types.TaskSpec) = .empty;
     errdefer {
-        for (task_specs.items) |task| allocator.free(task.id);
+        for (task_specs.items) |*task| task.deinit(allocator);
         task_specs.deinit(allocator);
     }
 
     for (parsed.tasks) |task| {
-        try task_specs.append(allocator, .{
-            .id = try allocator.dupe(u8, task.id),
-            .arrival_tick = task.arrival_tick,
-            .burst_ticks = task.burst_ticks,
-            .weight = resolveTaskWeight(task.weight),
-            .sleep_after_ticks = task.sleep_after_ticks,
-            .sleep_duration = resolveSleepDuration(task.sleep_duration),
-        });
+        try task_specs.append(allocator, try buildParsedTaskSpec(allocator, task));
     }
 
     const owned_task_specs = task_specs;
     task_specs = .empty;
     return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_task_specs, expected_name);
+}
+
+fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types.TaskSpec {
+    if (task.phases != null and (task.sleep_after_ticks != null or task.sleep_duration != null)) {
+        return error.InvalidTaskPhases;
+    }
+
+    if (task.phases) |phases| {
+        const owned_phases = try allocator.alloc(types.TaskPhase, phases.len);
+        errdefer allocator.free(owned_phases);
+
+        var total_cpu_ticks: u32 = 0;
+        for (phases, 0..) |phase, index| {
+            owned_phases[index] = .{
+                .kind = switch (phase.kind) {
+                    .cpu => .cpu,
+                    .wait => .wait,
+                },
+                .ticks = phase.ticks,
+            };
+            if (phase.kind == .cpu) total_cpu_ticks += phase.ticks;
+        }
+
+        return .{
+            .id = try allocator.dupe(u8, task.id),
+            .arrival_tick = task.arrival_tick,
+            .burst_ticks = total_cpu_ticks,
+            .weight = resolveTaskWeight(task.weight),
+            .phases = owned_phases,
+        };
+    }
+
+    const burst_ticks = task.burst_ticks orelse return error.ZeroBurstTicks;
+
+    if (task.sleep_after_ticks) |sleep_after_ticks| {
+        const sleep_duration = resolveSleepDuration(task.sleep_duration);
+        const remaining_cpu_ticks = burst_ticks - sleep_after_ticks;
+        const phases = try allocator.alloc(types.TaskPhase, 3);
+        errdefer allocator.free(phases);
+        phases[0] = .{ .kind = .cpu, .ticks = sleep_after_ticks };
+        phases[1] = .{ .kind = .wait, .ticks = sleep_duration };
+        phases[2] = .{ .kind = .cpu, .ticks = remaining_cpu_ticks };
+        return .{
+            .id = try allocator.dupe(u8, task.id),
+            .arrival_tick = task.arrival_tick,
+            .burst_ticks = burst_ticks,
+            .weight = resolveTaskWeight(task.weight),
+            .sleep_after_ticks = sleep_after_ticks,
+            .sleep_duration = sleep_duration,
+            .phases = phases,
+        };
+    }
+
+    if (task.sleep_duration != null) return error.InvalidSleepDuration;
+
+    return .{
+        .id = try allocator.dupe(u8, task.id),
+        .arrival_tick = task.arrival_tick,
+        .burst_ticks = burst_ticks,
+        .weight = resolveTaskWeight(task.weight),
+    };
 }
 
 fn finalizeScenario(
@@ -252,7 +317,7 @@ fn finalizeScenario(
     var mutable_task_specs = task_specs;
     const tasks = try mutable_task_specs.toOwnedSlice(allocator);
     errdefer {
-        for (tasks) |task| allocator.free(task.id);
+        for (tasks) |*task| task.deinit(allocator);
         allocator.free(tasks);
     }
 

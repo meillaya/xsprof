@@ -26,6 +26,7 @@ Current repo scope does **not** include:
 | Arrival tick | When a task becomes runnable in the simulation | initial enqueue into a runnable set | No interrupts or wakeup races |
 | Burst ticks | CPU demand required to complete a task | CPU time demand / runtime | No syscalls or real execution |
 | Deterministic sleep/wakeup | Optional single blocked interval declared in the scenario | simplified sleep / wakeup mental model | No wait queues, interrupts, I/O completion, or Linux wakeup fidelity |
+| Multi-phase workload | Alternating `cpu` / `wait` segments within one task | simplified CPU burst plus I/O wait intuition | No syscalls, devices, async completion, or Linux task-state fidelity |
 | Ready queue / runnable set | Tasks eligible to run | run queue / runnable tasks | Simplified per-core run queues, not Linux runqueue fidelity |
 | Dispatch | Selecting the next runnable task | scheduler pick-next decision | No context-switch overhead modeling |
 | Tick execution | One unit of CPU progress | time accounting / runtime accumulation | Fixed discrete ticks, not kernel timing precision |

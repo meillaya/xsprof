@@ -1,0 +1,14 @@
+.{
+    .name = "multi-phase-io",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .phases = .{
+            .{ .kind = .cpu, .ticks = 2 },
+            .{ .kind = .wait, .ticks = 2 },
+            .{ .kind = .cpu, .ticks = 1 },
+            .{ .kind = .wait, .ticks = 1 },
+            .{ .kind = .cpu, .ticks = 2 },
+        } },
+        .{ .id = "B", .arrival_tick = 1, .burst_ticks = 2 },
+    },
+}

@@ -49,9 +49,10 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
             try writer.writeAll("sleep_after=- ");
         }
         try writer.print(
-            "sleep_duration={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} blocked={d} response={d}\n",
+            "sleep_duration={d} phase_count={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} blocked={d} response={d}\n",
             .{
                 task.sleep_duration,
+                task.phase_count,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.turnaround_time,

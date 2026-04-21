@@ -32,6 +32,7 @@ const ParsedReport = struct {
         weight: u32,
         sleep_after_ticks: ?u32,
         sleep_duration: u32,
+        phase_count: u32,
         input_order: u32,
         first_dispatch_tick: u32,
         completion_time: u32,
@@ -232,6 +233,7 @@ test "public report field lists stay frozen for version 1" {
         "weight",
         "sleep_after_ticks",
         "sleep_duration",
+        "phase_count",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
@@ -320,6 +322,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(u32, 512), parsed.value.tasks[0].weight);
     try std.testing.expectEqual(@as(?u32, null), parsed.value.tasks[0].sleep_after_ticks);
     try std.testing.expectEqual(@as(u32, 0), parsed.value.tasks[0].sleep_duration);
+    try std.testing.expectEqual(@as(u32, 1), parsed.value.tasks[0].phase_count);
     try std.testing.expectEqual(@as(u32, 0), parsed.value.tasks[0].blocked_time);
     try std.testing.expectEqual(@as(u32, 4), parsed.value.tasks[1].burst_ticks);
     try std.testing.expectEqual(@as(u32, 2), parsed.value.tasks[2].total_executed);
@@ -365,6 +368,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "weight",
         "sleep_after_ticks",
         "sleep_duration",
+        "phase_count",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
@@ -448,4 +452,19 @@ test "blocked-state JSON export exposes sleep and blocked metrics" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"sleep_after_ticks\":2") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"sleep_duration\":2") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"blocked_time\":2") != null);
+}
+
+test "multi-phase JSON export exposes derived phase counts" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/multi-phase-io.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    const rendered = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/multi-phase-io.zon" }, &scenario, &result);
+    defer allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"phase_count\":5") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"blocked_time\":3") != null);
 }

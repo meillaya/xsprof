@@ -67,6 +67,11 @@ M6 adds one intentionally simple blocked-state model: a task may declare a singl
 
 This is an educational deterministic model only. It does not attempt to reproduce Linux wakeup races, interrupt timing, wait queues, or I/O completion behavior.
 
+### Multi-phase workload model
+M7 extends the object-style scenario surface with explicit `phases` arrays so a task can alternate CPU and wait segments deterministically. Each task phase sequence must start with `cpu`, alternate between `cpu` and `wait`, and end with `cpu`.
+
+For backward compatibility, the earlier M6 `sleep_after_ticks` / `sleep_duration` pair is still accepted and normalized to an equivalent three-phase `cpu -> wait -> cpu` plan. Existing single-burst scenarios remain valid with no migration.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`
@@ -120,6 +125,7 @@ Per-task fields:
 - `weight`
 - `sleep_after_ticks`
 - `sleep_duration`
+- `phase_count`
 - `input_order`
 - `first_dispatch_tick`
 - `completion_time`
@@ -142,7 +148,7 @@ These field lists define the required version `1` baseline. Any later version-`1
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`
 - `turnaround_time = completion_time - arrival_tick`
-- `blocked_time = number of ticks spent in the deterministic blocked state before wakeup`
+- `blocked_time = number of ticks spent in deterministic wait phases before wakeup`
 - `waiting_time = turnaround_time - burst_ticks - blocked_time`
 - `response_time = first_dispatch_tick - arrival_tick`
 - `throughput = completed_task_count / (last_completion_tick - earliest_arrival_tick)`

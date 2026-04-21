@@ -12,6 +12,7 @@ const RuntimeTask = struct {
     weight: u32,
     sleep_after_ticks: ?u32,
     sleep_duration: u32,
+    phases: ?[]const types.TaskPhase,
     input_order: u32,
     assigned_core: types.CoreId = 0,
     remaining_ticks: u32,
@@ -22,8 +23,14 @@ const RuntimeTask = struct {
     wake_tick: ?u32 = null,
     last_execution_tick: ?u32 = null,
     vruntime: u64 = 0,
-    did_sleep: bool = false,
+    phase_index: usize = 0,
+    phase_remaining_ticks: u32,
     state: types.TaskState = .pending,
+
+    fn phaseCount(self: RuntimeTask) u32 {
+        if (self.phases) |phases| return @intCast(phases.len);
+        return 1;
+    }
 };
 
 const CoreState = struct {
@@ -133,6 +140,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .core_id = single_core_id });
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
+            runtimes[current_index].phase_remaining_ticks -= 1;
             runtimes[current_index].last_execution_tick = tick;
             current_quantum += 1;
             if (policy == .cfs_like) {
@@ -147,10 +155,9 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .core_id = single_core_id });
                 current = null;
                 current_quantum = 0;
-            } else if (shouldBlockAfterExecution(runtimes[current_index])) {
-                runtimes[current_index].did_sleep = true;
+            } else if (try shouldBlockAfterExecution(&runtimes[current_index])) {
                 runtimes[current_index].state = .blocked;
-                runtimes[current_index].wake_tick = tick + 1 + runtimes[current_index].sleep_duration;
+                runtimes[current_index].wake_tick = tick + 1 + runtimes[current_index].phase_remaining_ticks;
                 current = null;
                 current_quantum = 0;
                 try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .core_id = single_core_id });
@@ -206,8 +213,10 @@ fn initRuntimes(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             .weight = task.weight,
             .sleep_after_ticks = task.sleep_after_ticks,
             .sleep_duration = task.sleep_duration,
+            .phases = task.phases,
             .input_order = task.input_order,
             .remaining_ticks = task.burst_ticks,
+            .phase_remaining_ticks = initialPhaseTicks(task),
         };
     }
     return runtimes;
@@ -236,6 +245,7 @@ fn finalizeResult(
             .weight = task.weight,
             .sleep_after_ticks = task.sleep_after_ticks,
             .sleep_duration = task.sleep_duration,
+            .phase_count = task.phaseCount(),
             .input_order = task.input_order,
             .first_dispatch_tick = first_dispatch_tick,
             .completion_time = completion_time,
@@ -276,6 +286,7 @@ fn processBlockedSingleCore(
     for (runtimes.*, 0..) |*task, index| {
         if (task.state != .blocked) continue;
         if (task.wake_tick == tick) {
+            try advancePhaseAfterWake(task);
             task.state = .ready;
             task.assigned_core = single_core_id;
             task.wake_tick = null;
@@ -315,6 +326,7 @@ fn processBlockedMulticore(
     for (runtimes.*, 0..) |*task, index| {
         if (task.state != .blocked) continue;
         if (task.wake_tick == tick) {
+            try advancePhaseAfterWake(task);
             const core_index: usize = if (task.assigned_core < cores.len) @intCast(task.assigned_core) else 0;
             task.state = .ready;
             task.wake_tick = null;
@@ -457,6 +469,7 @@ fn executeMulticore(
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
             runtimes.*[current_index].remaining_ticks -= 1;
             runtimes.*[current_index].total_executed += 1;
+            runtimes.*[current_index].phase_remaining_ticks -= 1;
             runtimes.*[current_index].last_execution_tick = tick;
             core.current_quantum += 1;
             if (policy == .cfs_like) {
@@ -470,10 +483,9 @@ fn executeMulticore(
                 try completed_this_tick.append(allocator, current_index);
                 core.current = null;
                 core.current_quantum = 0;
-            } else if (shouldBlockAfterExecution(runtimes.*[current_index])) {
-                runtimes.*[current_index].did_sleep = true;
+            } else if (try shouldBlockAfterExecution(&runtimes.*[current_index])) {
                 runtimes.*[current_index].state = .blocked;
-                runtimes.*[current_index].wake_tick = tick + 1 + runtimes.*[current_index].sleep_duration;
+                runtimes.*[current_index].wake_tick = tick + 1 + runtimes.*[current_index].phase_remaining_ticks;
                 core.current = null;
                 core.current_quantum = 0;
                 try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
@@ -487,6 +499,22 @@ fn executeMulticore(
         try completion_order.append(allocator, task_index);
         try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes.*[task_index].id, .core_id = runtimes.*[task_index].assigned_core });
     }
+}
+
+fn initialPhaseTicks(task: types.TaskSpec) u32 {
+    if (task.phases) |phases| return phases[0].ticks;
+    return task.burst_ticks;
+}
+
+fn advancePhaseAfterWake(task: *RuntimeTask) !void {
+    const phases = task.phases orelse {
+        task.phase_remaining_ticks = task.remaining_ticks;
+        return;
+    };
+    if (task.phase_index + 1 >= phases.len) return error.InvalidTaskPhaseTransition;
+    task.phase_index += 1;
+    if (phases[task.phase_index].kind != .cpu) return error.InvalidTaskPhaseTransition;
+    task.phase_remaining_ticks = phases[task.phase_index].ticks;
 }
 
 fn chooseArrivalCore(cores: []const CoreState) usize {
@@ -544,8 +572,12 @@ fn chooseBestReadyTask(runtimes: []const RuntimeTask, ready_queue: []const usize
     return best;
 }
 
-fn shouldBlockAfterExecution(task: RuntimeTask) bool {
-    if (task.did_sleep) return false;
-    const sleep_after_ticks = task.sleep_after_ticks orelse return false;
-    return task.total_executed == sleep_after_ticks;
+fn shouldBlockAfterExecution(task: *RuntimeTask) !bool {
+    const phases = task.phases orelse return false;
+    if (task.phase_remaining_ticks != 0) return false;
+    if (task.phase_index + 1 >= phases.len) return false;
+    task.phase_index += 1;
+    if (phases[task.phase_index].kind != .wait) return error.InvalidTaskPhaseTransition;
+    task.phase_remaining_ticks = phases[task.phase_index].ticks;
+    return true;
 }

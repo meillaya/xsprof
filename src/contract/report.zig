@@ -42,6 +42,7 @@ pub const task_fields = [_][]const u8{
     "weight",
     "sleep_after_ticks",
     "sleep_duration",
+    "phase_count",
     "input_order",
     "first_dispatch_tick",
     "completion_time",

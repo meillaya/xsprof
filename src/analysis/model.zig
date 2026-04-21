@@ -31,6 +31,7 @@ pub const TaskMetrics = struct {
     weight: u32,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: u32 = 0,
+    phase_count: u32 = 1,
     input_order: u32,
     first_dispatch_tick: u32,
     completion_time: u32,

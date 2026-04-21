@@ -28,6 +28,7 @@ zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
 zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 zig build bench
@@ -82,11 +83,13 @@ The parser keeps task declaration order as the deterministic tie-break fallback 
 
 Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS and Round Robin accept the field but ignore it.
 
-Object-style ZON tasks may also include a single deterministic blocked transition via:
-- `sleep_after_ticks` — how many executed ticks the task runs before blocking
-- `sleep_duration` — how many ticks the task remains blocked before a deterministic wakeup
+Object-style ZON tasks may model workload phases in two ways:
+- compatibility single-sleep fields: `sleep_after_ticks` and `sleep_duration`
+- explicit multi-phase arrays: `phases = .{ .{ .kind = .cpu, .ticks = ... }, .{ .kind = .wait, .ticks = ... }, ... }`
 
-This is an educational simulator model, not a Linux-faithful sleep/wakeup implementation. Legacy line-oriented `.zon` input remains supported, but the blocked/wakeup fields are documented only for the canonical object-style format.
+The multi-phase form is the canonical M7 surface for alternating CPU and wait segments. The older single-sleep fields remain supported as a compatibility shorthand for one `cpu -> wait -> cpu` transition.
+
+This is an educational simulator model, not a Linux-faithful sleep/wakeup or I/O implementation. Legacy line-oriented `.zon` input remains supported, but blocked/wakeup and multi-phase fields are documented only for the canonical object-style format.
 
 ## Output contract
 Every text-mode run prints:
@@ -133,7 +136,7 @@ Committed baseline artifacts live at:
 
 These numbers are deterministic simulator-local output-size/trace-volume baselines over committed fixtures. They are not Linux performance claims.
 
-The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions.
+The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions, and `scenarios/basic/multi-phase-io.zon` is the canonical M7 example for alternating CPU/wait phases.
 
 See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, and Linux relevance notes.
 

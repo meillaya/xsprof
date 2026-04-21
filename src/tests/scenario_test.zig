@@ -85,6 +85,20 @@ test "canonical object style scenario files parse deterministic sleep and wake c
     try expectTaskWithSleep(scenario.tasks[1], "B", 1, 2, scheduler.default_task_weight, null, 0, 1);
 }
 
+test "canonical object style scenario files parse multi-phase workloads" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/multi-phase-io.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("multi-phase-io", scenario.name);
+    try std.testing.expectEqual(@as(usize, 2), scenario.tasks.len);
+    try std.testing.expectEqual(@as(u32, 5), scenario.tasks[0].burst_ticks);
+    try std.testing.expectEqual(@as(u32, 5), scenario.tasks[0].phaseCount());
+    try std.testing.expectEqual(@as(?u32, null), scenario.tasks[0].sleep_after_ticks);
+    try std.testing.expect(scenario.tasks[0].phases != null);
+    try std.testing.expectEqual(scheduler.TaskPhaseKind.cpu, scenario.tasks[0].phases.?[0].kind);
+    try std.testing.expectEqual(scheduler.TaskPhaseKind.wait, scenario.tasks[0].phases.?[1].kind);
+}
+
 test "sleep configuration requires positive duration and a valid post-dispatch point" {
     const missing_duration =
         \\.{
@@ -123,7 +137,9 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     defer allocator.free(linux_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "sleep_after_ticks") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "phases") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/multi-phase-io.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);

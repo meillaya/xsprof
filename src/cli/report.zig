@@ -118,6 +118,8 @@ pub const SimulationReport = struct {
             try jw.write(task.sleep_after_ticks);
             try jw.objectField("sleep_duration");
             try jw.write(task.sleep_duration);
+            try jw.objectField("phase_count");
+            try jw.write(task.phase_count);
             try jw.objectField("input_order");
             try jw.write(task.input_order);
             try jw.objectField("first_dispatch_tick");

@@ -39,6 +39,16 @@ pub const TaskState = enum {
     complete,
 };
 
+pub const TaskPhaseKind = enum {
+    cpu,
+    wait,
+};
+
+pub const TaskPhase = struct {
+    kind: TaskPhaseKind,
+    ticks: u32,
+};
+
 pub const ValidationError = error{
     EmptyScenarioName,
     NoTasks,
@@ -55,6 +65,8 @@ pub const ValidationError = error{
     InvalidWeight,
     InvalidSleepAfterTicks,
     InvalidSleepDuration,
+    InvalidTaskPhases,
+    InvalidPhaseTicks,
     ScenarioNameMismatch,
     UnknownScenario,
 };
@@ -66,8 +78,20 @@ pub const TaskSpec = struct {
     weight: u32 = default_task_weight,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: u32 = 0,
+    phases: ?[]TaskPhase = null,
     input_order: u32 = 0,
     order: u32 = 0,
+
+    pub fn deinit(self: *TaskSpec, allocator: std.mem.Allocator) void {
+        allocator.free(self.id);
+        if (self.phases) |phases| allocator.free(phases);
+        self.* = undefined;
+    }
+
+    pub fn phaseCount(self: TaskSpec) u32 {
+        if (self.phases) |phases| return @intCast(phases.len);
+        return 1;
+    }
 
     pub fn validate(self: TaskSpec) ValidationError!void {
         if (self.id.len == 0) return error.EmptyTaskId;
@@ -81,6 +105,24 @@ pub const TaskSpec = struct {
         } else if (self.sleep_duration != 0) {
             return error.InvalidSleepDuration;
         }
+
+        if (self.phases) |phases| {
+            if (phases.len == 0) return error.InvalidTaskPhases;
+            if (phases[0].kind != .cpu or phases[phases.len - 1].kind != .cpu) return error.InvalidTaskPhases;
+
+            var expected_kind: TaskPhaseKind = .cpu;
+            var total_cpu_ticks: u32 = 0;
+            for (phases) |phase| {
+                if (phase.kind != expected_kind) return error.InvalidTaskPhases;
+                if (phase.ticks == 0) return error.InvalidPhaseTicks;
+                if (phase.kind == .cpu) total_cpu_ticks += phase.ticks;
+                expected_kind = switch (expected_kind) {
+                    .cpu => .wait,
+                    .wait => .cpu,
+                };
+            }
+            if (total_cpu_ticks != self.burst_ticks) return error.InvalidTaskPhases;
+        }
     }
 };
 
@@ -92,8 +134,8 @@ pub const ScenarioOwned = struct {
     tasks: []TaskSpec,
 
     pub fn deinit(self: *ScenarioOwned) void {
-        for (self.tasks) |task| {
-            self.allocator.free(task.id);
+        for (self.tasks) |*task| {
+            task.deinit(self.allocator);
         }
         self.allocator.free(self.tasks);
         self.allocator.free(self.name);
@@ -131,6 +173,7 @@ pub const TaskMetrics = struct {
     weight: u32,
     sleep_after_ticks: ?u32,
     sleep_duration: u32,
+    phase_count: u32,
     input_order: u32,
     first_dispatch_tick: u32,
     completion_time: u32,

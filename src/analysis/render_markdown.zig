@@ -57,9 +57,10 @@ pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary
             try writer.writeAll("-");
         }
         try writer.print(
-            " | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
+            " | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
             .{
                 task.sleep_duration,
+                task.phase_count,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.waiting_time,
