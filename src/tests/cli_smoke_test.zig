@@ -327,6 +327,56 @@ test "report contract validation rejects missing or unsupported schema and versi
     try std.testing.expectError(error.UnsupportedVersion, sim.cli.assertSupportedContract(sim.cli.schema_name, sim.cli.schema_version + 1));
 }
 
+test "public report field lists stay aligned with additive core identity contract" {
+    const expected_top_level = [_][]const u8{
+        "schema",
+        "version",
+        "source",
+        "scenario",
+        "policy",
+        "core_count",
+        "completion_order",
+        "trace",
+        "tasks",
+        "aggregate",
+        "notes",
+    };
+    const expected_trace_entry = [_][]const u8{
+        "tick",
+        "kind",
+        "task_id",
+        "core_id",
+    };
+    const expected_task_fields = [_][]const u8{
+        "id",
+        "arrival_tick",
+        "burst_ticks",
+        "weight",
+        "input_order",
+        "first_dispatch_tick",
+        "completion_time",
+        "turnaround_time",
+        "waiting_time",
+        "response_time",
+        "total_executed",
+    };
+
+    try std.testing.expectEqual(expected_top_level.len, sim.cli.top_level_fields.len);
+    for (expected_top_level, sim.cli.top_level_fields) |lhs, rhs| {
+        try std.testing.expectEqualStrings(lhs, rhs);
+    }
+
+    try std.testing.expectEqual(expected_trace_entry.len, sim.cli.trace_entry_fields.len);
+    for (expected_trace_entry, sim.cli.trace_entry_fields) |lhs, rhs| {
+        try std.testing.expectEqualStrings(lhs, rhs);
+    }
+
+    try std.testing.expectEqual(expected_task_fields.len, sim.cli.task_fields.len);
+    for (expected_task_fields, sim.cli.task_fields) |lhs, rhs| {
+        try std.testing.expectEqualStrings(lhs, rhs);
+    }
+}
+
 test "public trace taxonomy stays frozen" {
     const expected = [_]sim.TraceEventKind{
         .arrival,
