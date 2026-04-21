@@ -295,6 +295,105 @@ test "duplicate task ids are rejected" {
     );
 }
 
+test "generated scenario helper emits valid scenarios across deterministic seeds" {
+    const allocator = std.testing.allocator;
+
+    for (0..8) |seed| {
+        const source = try buildGeneratedScenarioSource(allocator, @intCast(seed));
+        defer allocator.free(source);
+
+        const expected_name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+        defer allocator.free(expected_name);
+
+        var scenario = try scheduler.parseScenarioText(allocator, source, expected_name);
+        defer scenario.deinit();
+
+        try scenario.validate();
+        try std.testing.expectEqualStrings(expected_name, scenario.name);
+        try std.testing.expect(scenario.tasks.len >= 3);
+        try std.testing.expect(scenario.round_robin_quantum >= 1);
+
+        if (scenario.core_count > 1) {
+            try std.testing.expectEqual(@as(usize, @intCast(scenario.core_count)), scenario.domains.len);
+        }
+
+        for (scenario.tasks) |task| {
+            try std.testing.expect(task.deadline_tick != null);
+            if (task.group_id) |group_id| {
+                try std.testing.expect(scenario.groupById(group_id) != null);
+            }
+            if (task.phases) |phases| {
+                try std.testing.expect(phases.len >= 3);
+                try std.testing.expectEqual(scheduler.TaskPhaseKind.cpu, phases[0].kind);
+                try std.testing.expectEqual(scheduler.TaskPhaseKind.cpu, phases[phases.len - 1].kind);
+            }
+        }
+    }
+}
+
+fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+
+    const name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    defer allocator.free(name);
+
+    const core_count: u32 = if (seed % 2 == 0) 1 else 2;
+    const use_groups = seed % 3 != 1;
+
+    try buffer.appendSlice(allocator, ".{\n");
+    var writer = buffer.writer(allocator);
+    try writer.print("    .name = \"{s}\",\n", .{name});
+    try writer.print("    .rr_quantum = {d},\n", .{1 + (seed % 3)});
+    if (core_count > 1) {
+        try writer.print("    .core_count = {d},\n", .{core_count});
+        try buffer.appendSlice(allocator, "    .topology_domains = .{\n");
+        for (0..core_count) |core_id| {
+            try writer.print("        .{{ .id = \"node{d}\", .cores = .{{ {d} }} }},\n", .{ core_id, core_id });
+        }
+        try buffer.appendSlice(allocator, "    },\n");
+    }
+    if (use_groups) {
+        try buffer.appendSlice(allocator, "    .groups = .{\n");
+        try buffer.appendSlice(allocator, "        .{ .id = \"interactive\", .weight = 2048, .quota_ticks = 1 },\n");
+        try buffer.appendSlice(allocator, "        .{ .id = \"batch\", .weight = 1024 },\n");
+        try buffer.appendSlice(allocator, "    },\n");
+    }
+    try buffer.appendSlice(allocator, "    .tasks = .{\n");
+    const task_count: u32 = 3 + (seed % 3);
+    for (0..task_count) |task_index| {
+        const arrival_tick: u32 = @intCast((seed + task_index * 2) % 5);
+        const burst_ticks: u32 = 2 + @as(u32, @intCast((seed * 5 + task_index * 7) % 4));
+        const weight: u32 = switch ((seed + @as(u32, @intCast(task_index))) % 3) {
+            0 => 512,
+            1 => scheduler.default_task_weight,
+            else => 2048,
+        };
+        const deadline_tick = arrival_tick + burst_ticks + 2 + @as(u32, @intCast((seed + task_index) % 3));
+        const use_phases = ((seed + @as(u32, @intCast(task_index))) % 2) == 0;
+
+        try writer.print("        .{{ .id = \"T{d}\", .arrival_tick = {d}, ", .{ task_index, arrival_tick });
+        if (use_phases) {
+            try writer.print(
+                ".burst_ticks = {d}, .phases = .{{ .{{ .kind = .cpu, .ticks = 1 }}, .{{ .kind = .wait, .ticks = 1 }}, .{{ .kind = .cpu, .ticks = {d} }} }}, ",
+                .{ burst_ticks, burst_ticks - 1 },
+            );
+        } else {
+            try writer.print(".burst_ticks = {d}, ", .{burst_ticks});
+        }
+        try writer.print(".weight = {d}, ", .{weight});
+        if (use_groups) {
+            const group_id = if (task_index % 2 == 0) "interactive" else "batch";
+            try writer.print(".group_id = \"{s}\", ", .{group_id});
+        }
+        try writer.print(".deadline_tick = {d} }},\n", .{deadline_tick});
+    }
+    try buffer.appendSlice(allocator, "    },\n");
+    try buffer.appendSlice(allocator, "}\n");
+
+    return try buffer.toOwnedSlice(allocator);
+}
+
 fn expectTask(
     task: scheduler.TaskSpec,
     expected_id: []const u8,

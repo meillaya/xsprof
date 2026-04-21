@@ -498,3 +498,171 @@ test "multicore RR fixture emits deterministic core-local preemption" {
     }
     try std.testing.expect(saw_preempt);
 }
+
+test "generated scenarios satisfy accounting invariants across policies" {
+    const allocator = std.testing.allocator;
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like, .deadline };
+
+    for (0..8) |seed| {
+        var scenario = try loadGeneratedScenario(allocator, @intCast(seed));
+        defer scenario.deinit();
+
+        for (policies) |policy| {
+            var result = try sim.simulate(allocator, &scenario, policy);
+            defer result.deinit();
+
+            try reconcileExecutionAccounting(allocator, result);
+            try expectCompletionOrderCoversEachTaskExactlyOnce(result);
+        }
+    }
+}
+
+test "generated scenarios stay deterministic across repeated runs" {
+    const allocator = std.testing.allocator;
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like, .deadline };
+
+    for (0..8) |seed| {
+        var scenario = try loadGeneratedScenario(allocator, @intCast(seed));
+        defer scenario.deinit();
+
+        for (policies) |policy| {
+            var first = try sim.simulate(allocator, &scenario, policy);
+            defer first.deinit();
+            var second = try sim.simulate(allocator, &scenario, policy);
+            defer second.deinit();
+
+            try expectEquivalentResults(first, second);
+        }
+    }
+}
+
+fn loadGeneratedScenario(allocator: std.mem.Allocator, seed: u32) !sim.ScenarioOwned {
+    const source = try buildGeneratedScenarioSource(allocator, seed);
+    defer allocator.free(source);
+
+    const expected_name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    defer allocator.free(expected_name);
+
+    return sim.parseScenarioText(allocator, source, expected_name);
+}
+
+fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+
+    const name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    defer allocator.free(name);
+
+    const core_count: u32 = if (seed % 2 == 0) 1 else 2;
+    const use_groups = seed % 3 != 1;
+
+    try buffer.appendSlice(allocator, ".{\n");
+    var writer = buffer.writer(allocator);
+    try writer.print("    .name = \"{s}\",\n", .{name});
+    try writer.print("    .rr_quantum = {d},\n", .{1 + (seed % 3)});
+    if (core_count > 1) {
+        try writer.print("    .core_count = {d},\n", .{core_count});
+        try buffer.appendSlice(allocator, "    .topology_domains = .{\n");
+        for (0..core_count) |core_id| {
+            try writer.print("        .{{ .id = \"node{d}\", .cores = .{{ {d} }} }},\n", .{ core_id, core_id });
+        }
+        try buffer.appendSlice(allocator, "    },\n");
+    }
+    if (use_groups) {
+        try buffer.appendSlice(allocator, "    .groups = .{\n");
+        try buffer.appendSlice(allocator, "        .{ .id = \"interactive\", .weight = 2048, .quota_ticks = 1 },\n");
+        try buffer.appendSlice(allocator, "        .{ .id = \"batch\", .weight = 1024 },\n");
+        try buffer.appendSlice(allocator, "    },\n");
+    }
+    try buffer.appendSlice(allocator, "    .tasks = .{\n");
+    const task_count: u32 = 3 + (seed % 3);
+    for (0..task_count) |task_index| {
+        const arrival_tick: u32 = @intCast((seed + task_index * 2) % 5);
+        const burst_ticks: u32 = 2 + @as(u32, @intCast((seed * 5 + task_index * 7) % 4));
+        const weight: u32 = switch ((seed + @as(u32, @intCast(task_index))) % 3) {
+            0 => 512,
+            1 => sim.default_task_weight,
+            else => 2048,
+        };
+        const deadline_tick = arrival_tick + burst_ticks + 2 + @as(u32, @intCast((seed + task_index) % 3));
+        const use_phases = ((seed + @as(u32, @intCast(task_index))) % 2) == 0;
+
+        try writer.print("        .{{ .id = \"T{d}\", .arrival_tick = {d}, ", .{ task_index, arrival_tick });
+        if (use_phases) {
+            try writer.print(
+                ".burst_ticks = {d}, .phases = .{{ .{{ .kind = .cpu, .ticks = 1 }}, .{{ .kind = .wait, .ticks = 1 }}, .{{ .kind = .cpu, .ticks = {d} }} }}, ",
+                .{ burst_ticks, burst_ticks - 1 },
+            );
+        } else {
+            try writer.print(".burst_ticks = {d}, ", .{burst_ticks});
+        }
+        try writer.print(".weight = {d}, ", .{weight});
+        if (use_groups) {
+            const group_id = if (task_index % 2 == 0) "interactive" else "batch";
+            try writer.print(".group_id = \"{s}\", ", .{group_id});
+        }
+        try writer.print(".deadline_tick = {d} }},\n", .{deadline_tick});
+    }
+    try buffer.appendSlice(allocator, "    },\n");
+    try buffer.appendSlice(allocator, "}\n");
+
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn expectCompletionOrderCoversEachTaskExactlyOnce(result: sim.SimulationResult) !void {
+    try std.testing.expectEqual(result.tasks.len, result.completion_order.len);
+
+    var seen = try std.testing.allocator.alloc(bool, result.tasks.len);
+    defer std.testing.allocator.free(seen);
+    @memset(seen, false);
+
+    for (result.completion_order) |task_index| {
+        try std.testing.expect(task_index < result.tasks.len);
+        try std.testing.expect(!seen[task_index]);
+        seen[task_index] = true;
+    }
+
+    for (seen) |did_see| try std.testing.expect(did_see);
+}
+
+fn expectEquivalentResults(first: sim.SimulationResult, second: sim.SimulationResult) !void {
+    try std.testing.expectEqualStrings(first.scenario_name, second.scenario_name);
+    try std.testing.expectEqual(first.policy, second.policy);
+    try std.testing.expectEqual(first.quantum, second.quantum);
+    try std.testing.expectEqual(first.core_count, second.core_count);
+    try std.testing.expectEqual(first.final_tick, second.final_tick);
+    try std.testing.expectEqual(first.completion_order.len, second.completion_order.len);
+    try std.testing.expectEqual(first.trace.len, second.trace.len);
+    try std.testing.expectEqual(first.tasks.len, second.tasks.len);
+
+    for (first.completion_order, second.completion_order) |lhs, rhs| {
+        try std.testing.expectEqual(lhs, rhs);
+    }
+    for (first.trace, second.trace) |lhs, rhs| {
+        try std.testing.expectEqual(lhs.tick, rhs.tick);
+        try std.testing.expectEqual(lhs.kind, rhs.kind);
+        try std.testing.expectEqual(lhs.core_id, rhs.core_id);
+        try std.testing.expectEqualStrings(lhs.task_id orelse "", rhs.task_id orelse "");
+        try std.testing.expectEqualStrings(lhs.group_id orelse "", rhs.group_id orelse "");
+        try std.testing.expectEqualStrings(lhs.domain_id orelse "", rhs.domain_id orelse "");
+    }
+    for (first.tasks, second.tasks) |lhs, rhs| {
+        try std.testing.expectEqualStrings(lhs.id, rhs.id);
+        try std.testing.expectEqual(lhs.arrival_tick, rhs.arrival_tick);
+        try std.testing.expectEqual(lhs.burst_ticks, rhs.burst_ticks);
+        try std.testing.expectEqual(lhs.weight, rhs.weight);
+        try std.testing.expectEqualStrings(lhs.group_id orelse "", rhs.group_id orelse "");
+        try std.testing.expectEqual(lhs.sleep_after_ticks, rhs.sleep_after_ticks);
+        try std.testing.expectEqual(lhs.sleep_duration, rhs.sleep_duration);
+        try std.testing.expectEqual(lhs.phase_count, rhs.phase_count);
+        try std.testing.expectEqual(lhs.deadline_tick, rhs.deadline_tick);
+        try std.testing.expectEqual(lhs.input_order, rhs.input_order);
+        try std.testing.expectEqual(lhs.first_dispatch_tick, rhs.first_dispatch_tick);
+        try std.testing.expectEqual(lhs.completion_time, rhs.completion_time);
+        try std.testing.expectEqual(lhs.turnaround_time, rhs.turnaround_time);
+        try std.testing.expectEqual(lhs.waiting_time, rhs.waiting_time);
+        try std.testing.expectEqual(lhs.blocked_time, rhs.blocked_time);
+        try std.testing.expectEqual(lhs.response_time, rhs.response_time);
+        try std.testing.expectEqual(lhs.total_executed, rhs.total_executed);
+    }
+}
