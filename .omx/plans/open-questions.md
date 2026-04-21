@@ -1,0 +1,2 @@
+- [x] M5 decided the repo remains simulator-only in current implementation while the roadmap broadens into a scheduler lab with gated optional branches; see `docs/adr/0001-m5-project-identity.md`.
+- [ ] For M4 delivery, decide whether generated analysis artifacts should be committed to the repo or regenerated on demand in docs/examples only.

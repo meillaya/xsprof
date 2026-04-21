@@ -46,4 +46,5 @@ test {
     _ = @import("tests/policies_test.zig");
     _ = @import("tests/scenarios_test.zig");
     _ = @import("tests/cli_smoke_test.zig");
+    _ = @import("tests/identity_gate_test.zig");
 }

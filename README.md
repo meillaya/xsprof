@@ -2,6 +2,14 @@
 
 A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
 
+Per `docs/adr/0001-m5-project-identity.md`, the current implementation remains simulator-only while the repository roadmap is now explicitly a broader scheduler laboratory with a simulator-only mainline and gated optional branches.
+
+## Project identity after M5
+- Current shipped implementation: deterministic simulator only
+- Approved roadmap identity: broader scheduler laboratory with a simulator-only mainline
+- Optional Linux-facing, distribution, research, library, and production-like branches remain explicitly gated
+- ADR: `docs/adr/0001-m5-project-identity.md`
+
 ## Phase 1 scope
 - In-process simulator only
 - FCFS/FIFO, Round Robin, and a simplified CFS-inspired policy
@@ -90,7 +98,6 @@ The committed M4 example fixture lives at `docs/examples/exports/multicore-conte
 Render the deterministic Markdown analysis surface:
 ```sh
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
-zig build bench
 ```
 
 Render the deterministic SVG chart surface:
