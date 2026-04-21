@@ -104,6 +104,7 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     defer terminal.deinit();
 
     var size = normalizeInteractiveSize(terminal.size(), default_interactive_size);
+    normalizeLayoutState(&app, size);
     var needs_redraw = true;
 
     while (true) {
@@ -127,6 +128,7 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
         const next_size = normalizeInteractiveSize(terminal.size(), size);
         if (!term_mod.eqlSize(size, next_size)) {
             size = next_size;
+            normalizeLayoutState(&app, size);
             needs_redraw = true;
         }
 
@@ -138,11 +140,13 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
                 }
             },
             .char => |ch| {
-                if (try handleChar(&app, ch)) break;
+                if (try handleChar(&app, ch, size)) break;
+                normalizeLayoutState(&app, size);
                 needs_redraw = true;
             },
             else => {
-                if (try handleEvent(&app, event)) break;
+                if (try handleEvent(&app, event, size)) break;
+                normalizeLayoutState(&app, size);
                 needs_redraw = true;
             },
         }
@@ -216,21 +220,33 @@ fn renderSnapshotAlloc(allocator: std.mem.Allocator, app: *App, options: Options
     return try render.renderSnapshotFrame(allocator, options.snapshot_width, options.snapshot_height, appView(app));
 }
 
-fn handleEvent(app: *App, event: term_mod.Event) !bool {
+fn activeContract(app: *App, size: term_mod.Size) render.ViewLayoutContract {
+    return render.viewContract(app.view, size.cols, size.rows, app.compare() != null);
+}
+
+fn normalizeLayoutState(app: *App, size: term_mod.Size) void {
+    const contract = activeContract(app, size);
+    if (render.normalizedFocus(app.focus, contract)) |focus| {
+        app.focus = focus;
+    }
+}
+
+fn handleEvent(app: *App, event: term_mod.Event, size: term_mod.Size) !bool {
+    const contract = activeContract(app, size);
     switch (event) {
         .left => moveCursor(app, -1),
         .right => moveCursor(app, 1),
-        .up => try moveSelection(app, -1),
-        .down => try moveSelection(app, 1),
+        .up => try moveSelection(app, -1, contract),
+        .down => try moveSelection(app, 1, contract),
         .home => app.cursor = 0,
         .end => {
             if (app.report()) |report| app.cursor = lastTick(report);
         },
-        .enter => try handleEnter(app),
-        .tab => cycleFocus(app),
-        .backtab => cycleFocusReverse(app),
+        .enter => try handleEnter(app, contract),
+        .tab => cycleFocus(app, contract),
+        .backtab => cycleFocusReverse(app, contract),
         .space => {
-            if (app.view == .explorer) app.playing = !app.playing;
+            if (app.view == .explorer and contract.tier != .too_small) app.playing = !app.playing;
         },
         .escape => handleEscape(app),
         else => {},
@@ -238,15 +254,20 @@ fn handleEvent(app: *App, event: term_mod.Event) !bool {
     return false;
 }
 
-fn handleChar(app: *App, ch: u8) !bool {
+fn handleChar(app: *App, ch: u8, size: term_mod.Size) !bool {
+    const contract = activeContract(app, size);
     switch (ch) {
         'q' => return true,
-        'j' => try moveTask(app, 1),
-        'k' => try moveTask(app, -1),
-        'd' => try toggleDiff(app),
+        'j' => if (contract.tier != .too_small) try moveTask(app, 1),
+        'k' => if (contract.tier != .too_small) try moveTask(app, -1),
+        'd' => if (app.view != .explorer or contract.tier != .too_small) try toggleDiff(app, contract),
         's' => togglePicker(app),
         'w' => app.theme = if (app.theme == .dark) .light else .dark,
-        '?' => app.view = if (app.view == .help) if (app.report() != null) .explorer else .picker else .help,
+        '?' => {
+            if (contract.help_mode != .disabled or app.view == .help) {
+                app.view = if (app.view == .help) if (app.report() != null) .explorer else .picker else .help;
+            }
+        },
         'p' => if (app.view == .picker) cyclePickerPolicy(app),
         else => {},
     }
@@ -266,7 +287,7 @@ fn advanceCursor(app: *App) void {
     app.cursor = if (app.cursor >= end) 0 else app.cursor + 1;
 }
 
-fn moveSelection(app: *App, delta: i32) !void {
+fn moveSelection(app: *App, delta: i32, contract: render.ViewLayoutContract) !void {
     if (app.view == .picker) {
         const len = app.picker_entries.len;
         if (len == 0) return;
@@ -277,6 +298,7 @@ fn moveSelection(app: *App, delta: i32) !void {
         }
         return;
     }
+    if (contract.tier == .too_small) return;
     try moveTask(app, delta);
 }
 
@@ -290,11 +312,11 @@ fn moveTask(app: *App, delta: i32) !void {
     app.focus = .tasks;
 }
 
-fn handleEnter(app: *App) !void {
+fn handleEnter(app: *App, contract: render.ViewLayoutContract) !void {
     switch (app.view) {
         .picker => try openPickerSelection(app),
         .explorer => {
-            if (app.selected_task_index != null) app.view = .drawer;
+            if (contract.can_enter_drawer and app.selected_task_index != null) app.view = .drawer;
         },
         .drawer => {},
         .diff => {},
@@ -313,22 +335,12 @@ fn handleEscape(app: *App) void {
     }
 }
 
-fn cycleFocus(app: *App) void {
-    app.focus = switch (app.focus) {
-        .gantt => .tasks,
-        .tasks => .events,
-        .events => .tick,
-        .tick => .gantt,
-    };
+fn cycleFocus(app: *App, contract: render.ViewLayoutContract) void {
+    if (render.nextFocus(app.focus, contract, false)) |focus| app.focus = focus;
 }
 
-fn cycleFocusReverse(app: *App) void {
-    app.focus = switch (app.focus) {
-        .gantt => .tick,
-        .tasks => .gantt,
-        .events => .tasks,
-        .tick => .events,
-    };
+fn cycleFocusReverse(app: *App, contract: render.ViewLayoutContract) void {
+    if (render.nextFocus(app.focus, contract, true)) |focus| app.focus = focus;
 }
 
 fn togglePicker(app: *App) void {
@@ -336,11 +348,12 @@ fn togglePicker(app: *App) void {
     app.playing = false;
 }
 
-fn toggleDiff(app: *App) !void {
+fn toggleDiff(app: *App, contract: render.ViewLayoutContract) !void {
     if (app.view == .diff) {
         app.view = .explorer;
         return;
     }
+    if (contract.tier == .too_small) return;
     if (app.report() == null) return;
     try ensureCompareReport(app);
     if (app.compare() != null) app.view = .diff;
@@ -542,6 +555,26 @@ test "usage text mentions explicit snapshot mode" {
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-scheduler-tui") != null);
 }
 
+test "layout tiers classify mixed width and height cases deterministically" {
+    try std.testing.expectEqual(render.LayoutTier.large, render.classifyLayout(100, 30));
+    try std.testing.expectEqual(render.LayoutTier.medium, render.classifyLayout(95, 40));
+    try std.testing.expectEqual(render.LayoutTier.medium, render.classifyLayout(100, 29));
+    try std.testing.expectEqual(render.LayoutTier.compact, render.classifyLayout(120, 24));
+    try std.testing.expectEqual(render.LayoutTier.compact, render.classifyLayout(89, 40));
+    try std.testing.expectEqual(render.LayoutTier.too_small, render.classifyLayout(79, 23));
+}
+
+test "explorer focus contract skips hidden panes in too-small tier" {
+    const compact_contract = render.viewContract(.explorer, 80, 24, true);
+    try std.testing.expectEqual(@as(?PaneFocus, .gantt), render.normalizedFocus(.gantt, compact_contract));
+    try std.testing.expectEqual(@as(?PaneFocus, .tasks), render.nextFocus(.gantt, compact_contract, false));
+    try std.testing.expectEqual(@as(?PaneFocus, .tick), render.nextFocus(.gantt, compact_contract, true));
+
+    const too_small_contract = render.viewContract(.explorer, 79, 23, true);
+    try std.testing.expectEqual(@as(?PaneFocus, null), render.normalizedFocus(.gantt, too_small_contract));
+    try std.testing.expectEqual(@as(?PaneFocus, null), render.nextFocus(.gantt, too_small_contract, false));
+}
+
 test "snapshot render is deterministic for fixture report" {
     var app = App{
         .allocator = std.testing.allocator,
@@ -572,6 +605,140 @@ test "snapshot render is deterministic for fixture report" {
     try std.testing.expect(std.mem.indexOf(u8, first, "non-interactive render") != null);
     try std.testing.expect(std.mem.indexOf(u8, first, "q quit") == null);
     try std.testing.expect(std.mem.indexOf(u8, first, "space play") == null);
+}
+
+test "snapshot render adapts across large medium compact and too-small tiers" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    defer std.testing.allocator.free(bytes);
+    try loadReportBytes(&app, bytes);
+
+    const large = try renderSnapshotAlloc(std.testing.allocator, &app, .{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 100,
+        .snapshot_height = 30,
+    });
+    defer std.testing.allocator.free(large);
+    try std.testing.expect(std.mem.indexOf(u8, large, "aggregate") != null);
+
+    const medium = try renderSnapshotAlloc(std.testing.allocator, &app, .{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 90,
+        .snapshot_height = 26,
+    });
+    defer std.testing.allocator.free(medium);
+    try std.testing.expect(std.mem.indexOf(u8, medium, "trace · cpu lanes") != null);
+    try std.testing.expect(std.mem.indexOf(u8, medium, "aggregate") != null);
+
+    const compact = try renderSnapshotAlloc(std.testing.allocator, &app, .{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 80,
+        .snapshot_height = 24,
+    });
+    defer std.testing.allocator.free(compact);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "trace · cpu lanes") != null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "tasks") != null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "tick") != null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "events 28 total") == null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, " w ") == null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "group") == null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "dL") == null);
+    try std.testing.expect(std.mem.indexOf(u8, compact, "turn") == null);
+
+    const too_small = try renderSnapshotAlloc(std.testing.allocator, &app, .{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 79,
+        .snapshot_height = 23,
+    });
+    defer std.testing.allocator.free(too_small);
+    try std.testing.expect(std.mem.indexOf(u8, too_small, "80 columns × 24 rows") != null);
+    try std.testing.expect(std.mem.indexOf(u8, too_small, "trace · cpu lanes") == null);
+}
+
+test "compact picker, help, drawer, and diff snapshots stay usable" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    defer std.testing.allocator.free(bytes);
+    try loadReportBytes(&app, bytes);
+    try ensureCompareReport(&app);
+
+    const base_options = Options{
+        .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
+        .runtime_mode = .snapshot,
+        .snapshot_width = 80,
+        .snapshot_height = 24,
+    };
+
+    app.view = .picker;
+    const picker = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
+    defer std.testing.allocator.free(picker);
+    try std.testing.expect(std.mem.indexOf(u8, picker, "scenarios") != null);
+    try std.testing.expect(std.mem.indexOf(u8, picker, "sources") != null);
+
+    app.view = .help;
+    const help = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
+    defer std.testing.allocator.free(help);
+    try std.testing.expect(std.mem.indexOf(u8, help, "KEY BINDINGS") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help, "NAVIGATION") != null);
+
+    app.view = .drawer;
+    app.selected_task_index = 0;
+    const drawer = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
+    defer std.testing.allocator.free(drawer);
+    try std.testing.expect(std.mem.indexOf(u8, drawer, "waiting profile") != null);
+    try std.testing.expect(std.mem.indexOf(u8, drawer, "events · this task") != null);
+
+    app.view = .diff;
+    const diff = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
+    defer std.testing.allocator.free(diff);
+    try std.testing.expect(std.mem.indexOf(u8, diff, "per-task deltas") != null);
+    try std.testing.expect(std.mem.indexOf(u8, diff, "aggregate") != null);
+}
+
+test "compact and too-small contracts gate explorer actions" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = pickerEntries(),
+    };
+    defer app.deinit();
+
+    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    defer std.testing.allocator.free(bytes);
+    try loadReportBytes(&app, bytes);
+    try ensureCompareReport(&app);
+
+    app.view = .explorer;
+    app.selected_task_index = 0;
+    const compact_size: term_mod.Size = .{ .cols = 80, .rows = 24 };
+    const compact_contract = activeContract(&app, compact_size);
+    try handleEnter(&app, compact_contract);
+    try std.testing.expectEqual(View.drawer, app.view);
+
+    app.view = .explorer;
+    _ = try handleChar(&app, 'd', compact_size);
+    try std.testing.expectEqual(View.diff, app.view);
+
+    app.view = .explorer;
+    const too_small_size: term_mod.Size = .{ .cols = 79, .rows = 23 };
+    const too_small_contract = activeContract(&app, too_small_size);
+    try handleEnter(&app, too_small_contract);
+    try std.testing.expectEqual(View.explorer, app.view);
+    _ = try handleChar(&app, 'd', too_small_size);
+    try std.testing.expectEqual(View.explorer, app.view);
 }
 
 test "snapshot render works from simulation path" {
