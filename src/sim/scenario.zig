@@ -18,6 +18,7 @@ pub const ScenarioPackMeta = struct {
 
 pub const ScenarioPackEntryMeta = struct {
     pack: ScenarioPack,
+    builtin_id: ?BuiltinScenario = null,
     key: []const u8,
     file_name: []const u8,
     description: []const u8,
@@ -36,27 +37,6 @@ pub const BuiltinScenarioMeta = struct {
     description: []const u8,
 };
 
-const builtin_scenarios = [_]BuiltinScenarioMeta{
-    .{
-        .id = .staggered_arrivals,
-        .key = "staggered-arrivals",
-        .path = core_basic_pack_directory ++ "/staggered-arrivals.zon",
-        .description = "Staggered arrivals for deterministic waiting-time comparisons",
-    },
-    .{
-        .id = .equal_arrival_contention,
-        .key = "equal-arrival-contention",
-        .path = core_basic_pack_directory ++ "/equal-arrival-contention.zon",
-        .description = "Equal-arrival contention to compare ordering and fairness",
-    },
-    .{
-        .id = .short_vs_long,
-        .key = "short-vs-long",
-        .path = core_basic_pack_directory ++ "/short-vs-long.zon",
-        .description = "Golden-oracle short-job versus long-job contention",
-    },
-};
-
 const scenario_packs = [_]ScenarioPackMeta{
     .{
         .id = .core_basic,
@@ -70,22 +50,31 @@ const scenario_packs = [_]ScenarioPackMeta{
 const core_basic_pack_entries = [_]ScenarioPackEntryMeta{
     .{
         .pack = .core_basic,
+        .builtin_id = .staggered_arrivals,
         .key = "staggered-arrivals",
         .file_name = "staggered-arrivals.zon",
         .description = "Staggered arrivals for deterministic waiting-time comparisons",
     },
     .{
         .pack = .core_basic,
+        .builtin_id = .equal_arrival_contention,
         .key = "equal-arrival-contention",
         .file_name = "equal-arrival-contention.zon",
         .description = "Equal-arrival contention to compare ordering and fairness",
     },
     .{
         .pack = .core_basic,
+        .builtin_id = .short_vs_long,
         .key = "short-vs-long",
         .file_name = "short-vs-long.zon",
         .description = "Golden-oracle short-job versus long-job contention",
     },
+};
+
+const builtin_scenarios = [_]BuiltinScenarioMeta{
+    builtinScenarioMeta(core_basic_pack_entries[0]),
+    builtinScenarioMeta(core_basic_pack_entries[1]),
+    builtinScenarioMeta(core_basic_pack_entries[2]),
 };
 
 const legacy_aliases = [_]struct {
@@ -463,6 +452,21 @@ fn parseLegacyTaskWeight(weight_text: ?[]const u8) !u32 {
         std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger
     else
         types.default_task_weight;
+}
+
+fn builtinScenarioMeta(comptime entry: ScenarioPackEntryMeta) BuiltinScenarioMeta {
+    return .{
+        .id = entry.builtin_id orelse @compileError("builtin scenario entry missing builtin_id"),
+        .key = entry.key,
+        .path = comptimeScenarioPackEntryPath(entry),
+        .description = entry.description,
+    };
+}
+
+fn comptimeScenarioPackEntryPath(comptime entry: ScenarioPackEntryMeta) []const u8 {
+    return switch (entry.pack) {
+        .core_basic => core_basic_pack_directory ++ "/" ++ entry.file_name,
+    };
 }
 
 const QualifiedScenarioName = struct {
