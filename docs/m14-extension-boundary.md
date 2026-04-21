@@ -42,3 +42,9 @@ The repository docs and examples should continue to reflect the actual CLI contr
 - `--scenario-file` is the extension path for pack-style fixtures
 - scenario fixtures remain canonical `.zon`
 - policy-extension language should describe a simulator architecture boundary, not a production plugin system
+
+## Registry helpers
+
+The current boundary is exercised through small library helpers such as `loadPackScenario(...)` and registry/listing helpers for builtin and optional packs.
+
+Optional packs may live under paths such as `scenarios/regressions/` without being required for core execution.

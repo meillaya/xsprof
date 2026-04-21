@@ -1,196 +1,121 @@
-# Zig Scheduler Simulator
+# zig-scheduler
 
-A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
+A deterministic CPU scheduling simulator in Zig.
 
-Per `docs/adr/0001-m5-project-identity.md`, the current implementation remains simulator-only while the repository roadmap is now explicitly a broader scheduler laboratory with a simulator-only mainline and gated optional branches.
+It is a teaching and experimentation project, not a kernel scheduler, daemon,
+or production automation system.
 
-## Project identity after M5
-- Current shipped implementation: deterministic simulator only
-- Approved roadmap identity: broader scheduler laboratory with a simulator-only mainline
-- Optional Linux-facing, distribution, research, library, and production-like branches remain explicitly gated
-- ADR: `docs/adr/0001-m5-project-identity.md`
+## What it does
 
-## Phase 1 scope
-- In-process simulator only
-- FCFS/FIFO, Round Robin, a simplified CFS-inspired policy, and a deterministic deadline-inspired teaching policy
-- Deterministic traces, per-task metrics, and aggregate metrics
-- Linux-inspired learning aid, not a kernel-faithful scheduler
-- No kernel integration, real process execution, or daemon behavior
-- Simplified deterministic multicore / SMP simulation, not faithful Linux SMP scheduling
-- Optional per-task weights that affect only the CFS-inspired policy
-- Optional deterministic single-sleep transitions (`sleep_after_ticks`, `sleep_duration`) for blocked/wakeup teaching scenarios
-- Policy handling is routed through an explicit scheduling-class boundary so additional policy families can be added without tangling engine core
+- runs deterministic scheduling scenarios
+- supports FCFS, Round Robin, CFS-inspired, and deadline-inspired policies
+- models multicore, blocked/wakeup, multi-phase workloads, groups, and topology domains
+- exports versioned JSON reports
+- includes analysis, benchmark, and property-testing tooling
 
-## Quick start
+## Build
+
 ```sh
-zig build test
-zig build run -- --scenario short-vs-long --policy fcfs
-zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
-zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
-zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
-zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy fcfs
-zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy fcfs
-zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy rr
-zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline
-zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs-like
-zig build run -- --scenario-file scenarios/basic/topology-domains.zon --policy fcfs
-zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
-zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
-zig build bench
+zig build
 ```
 
-## Public CLI contract
-Use exactly one scenario source for `run`:
-- `--scenario <builtin-name>` for built-in fixtures
-- `--scenario-file <path>` for direct file input
+## Run
+
+Built-in scenario:
+
+```sh
+zig build run -- --scenario short-vs-long --policy fcfs
+```
+
+Scenario file:
+
+```sh
+zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs-like
+```
+
+JSON export:
+
+```sh
+zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
+```
+
+## Test
+
+```sh
+zig build test --summary all
+```
+
+
+## CLI surface
+
+Use exactly one scenario source:
+
+- `--scenario <builtin-name>`
+- `--scenario-file <path>`
 
 These flags are mutually exclusive.
 
-Output formats:
-- `--format text` (default)
-- `--format json`
+## Tooling
 
-The JSON contract is versioned with:
-- `schema: "zig-scheduler/report"`
-- `version: 1`
+Analysis:
 
-Version `1` now includes additive core-identity fields:
-- top-level `core_count`
-- per-trace-entry `core_id` when the engine has assigned the event to a core
-
-## Scenario fixtures
-The canonical external scenario-file dialect is object-style ZON:
-
-```zig
-.{
-    .name = "arrivals",
-    .quantum = 2,
-    .tasks = .{
-        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
-        .{ .id = "B", .arrival_tick = 2, .burst_ticks = 3 },
-        .{ .id = "C", .arrival_tick = 4, .burst_ticks = 2 },
-        .{ .id = "D", .arrival_tick = 6, .burst_ticks = 1 },
-    },
-}
-```
-
-Legacy line-oriented `.zon` input remains readable as a backward-compatible format:
-
-```text
-name: short-vs-long
-rr_quantum: 2
-task: L 0 8
-task: S1 1 2
-task: S2 2 1
-```
-
-The parser keeps task declaration order as the deterministic tie-break fallback for every policy.
-
-Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS, Round Robin, and the deadline-inspired policy accept the field but ignore it for scheduling decisions.
-
-Tasks may also include an optional absolute `deadline_tick` for the deadline-inspired teaching policy. Lower deadlines win, tie-breaking by stable scenario order. This is a deterministic experimental teaching surface, not a Linux real-time scheduler implementation.
-
-Object-style ZON tasks may model workload phases in two ways:
-- compatibility single-sleep fields: `sleep_after_ticks` and `sleep_duration`
-- explicit multi-phase arrays: `phases = .{ .{ .kind = .cpu, .ticks = ... }, .{ .kind = .wait, .ticks = ... }, ... }`
-
-The multi-phase form is the canonical M7 surface for alternating CPU and wait segments. The older single-sleep fields remain supported as a compatibility shorthand for one `cpu -> wait -> cpu` transition.
-
-This is an educational simulator model, not a Linux-faithful sleep/wakeup or I/O implementation. Legacy line-oriented `.zon` input remains supported, but blocked/wakeup and multi-phase fields are documented only for the canonical object-style format.
-
-## Scenario packs and extension boundary
-M14 keeps scenario-pack support intentionally light-weight:
-- the curated built-in registry in `src/sim/scenario.zig` maps `--scenario <builtin-name>` to committed teaching fixtures under `scenarios/basic/`
-- any additional scenario pack remains just a directory of canonical `.zon` fixtures that can be loaded through `--scenario-file <path>` or `loadScenarioFile`
-- the core simulator does not require plugin loaders, dependency injection, or optional-pack registration to remain usable
-
-Policy extension remains behind the scheduling-class boundary in `src/policies/class.zig`. `src/sim/engine.zig` depends on that boundary rather than direct per-policy imports, so new policy families can be reviewed as boundary changes instead of engine rewrites.
-
-See `docs/m14-extension-boundary.md` for the scenario-pack convention, boundary expectations, and docs/examples audit notes.
-
-## Output contract
-Every text-mode run prints:
-- scenario name
-- policy name
-- core count
-- completion order
-- raw trace events, including `core=<id>` on core-scoped lines
-- explicit `block` / `wakeup` trace events when a task uses deterministic sleep
-- per-task completion, turnaround, runnable waiting, blocked-time, and response metrics
-- aggregate average waiting time, average response time, throughput, waiting-time spread, and max waiting/response probe metrics
-
-JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
-
-## Export -> analysis workflow
-The committed M4 example fixture lives at `docs/examples/exports/multicore-contention-fcfs.report.json`.
-
-Render the deterministic Markdown analysis surface:
 ```sh
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 ```
 
-Render the deterministic SVG chart surface:
-```sh
-zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json --format svg
-```
+Benchmarks:
 
-Reference artifacts are committed at:
-- `docs/examples/analysis/multicore-contention-fcfs.md`
-- `docs/examples/analysis/multicore-contention-fcfs.svg`
-
-The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
-
-## Topology-aware multicore teaching fixture
-M12 adds `scenarios/basic/topology-domains.zon` to represent a simple two-domain topology over four cores.
-
-The current topology model is intentionally narrow: scenarios may declare `topology_domains`, trace events carry `domain_id`, and multicore placement/rebalance rules prefer same-domain behavior before cross-domain movement. This is a deterministic teaching simplification, not Linux NUMA or scheduler-domain fidelity.
-
-## Group scheduling teaching fixture
-M11 adds `scenarios/basic/group-fairness.zon` to model group membership, group weights, and quota-like caps in a simulator-safe way.
-
-The current group model is intentionally narrow: tasks may reference declared groups, groups carry `weight` and `quota_ticks`, and the CFS-inspired policy uses those values to create deterministic group-fairness pressure. This is a teaching analogy, not Linux cgroups or kernel group scheduling fidelity.
-
-## Deadline-inspired teaching policy
-M10 adds `--policy deadline` (also aliased as `edf`) for deterministic deadline-oriented teaching experiments. The canonical fixture is `scenarios/basic/deadline-priority.zon`.
-
-This policy is intentionally narrow: it prefers the runnable task with the earliest declared absolute deadline and preempts when a newly runnable task has an earlier deadline. It is useful for teaching deadline pressure and latency tradeoffs, but it does not claim Linux real-time scheduler fidelity.
-
-## Fairness and latency probe fixtures
-M8 adds dedicated experiment fixtures for evidence-based fairness discussions:
-- `scenarios/basic/latency-probe.zon` — batch plus short arrivals for latency comparisons
-- `scenarios/basic/starvation-pressure.zon` — weighted equal-arrival contention that exposes starvation pressure on low-weight work
-
-Useful probe metrics now include `max_waiting_time`, `max_response_time`, and `response_time_spread` in addition to the existing averages and waiting-time spread. These are simulator-local experiment aids, not formal scheduler guarantees.
-
-## Scenario generator and property harness
-M13 adds a deterministic seed-driven property harness in `src/testing/property.zig`.
-
-The harness generates valid object-style ZON scenarios, materializes them through the canonical parser, runs engine/export invariant checks, and can greedily shrink failing cases before saving them as regression `.zon` fixtures.
-
-See `docs/m13-property-testing.md` for the generator/shrinker workflow and verification notes.
-
-## Benchmark baselines
-Use the reproducible M4.5 harness to regenerate simulator-local baseline artifacts:
 ```sh
 zig build bench
-zig build bench -- --format json
 ```
 
-Committed baseline artifacts live at:
-- `docs/benchmarks/m45-baselines.md`
-- `docs/benchmarks/m45-baselines.json`
+## Key teaching fixtures
 
-These numbers are deterministic simulator-local output-size/trace-volume baselines over committed fixtures. They are not Linux performance claims.
+- `scenarios/basic/sleep-wakeup.zon`
+- `scenarios/basic/multi-phase-io.zon`
+- `scenarios/basic/latency-probe.zon`
+- `scenarios/basic/starvation-pressure.zon`
+- `scenarios/basic/deadline-priority.zon`
+- `scenarios/basic/group-fairness.zon`
+- `scenarios/basic/topology-domains.zon`
 
-The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions, and `scenarios/basic/multi-phase-io.zon` is the canonical M7 example for alternating CPU/wait phases.
+These fixtures exercise `sleep_after_ticks`, `phases`, deadlines, groups, and
+simple topology distinctions.
 
-See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, `docs/m8-fairness-probes.md`, `docs/m10-deadline-policy.md`, `docs/m11-group-scheduling.md`, `docs/m12-topology-simulation.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, fairness probe guidance, deadline-policy notes, group-scheduling guidance, topology notes, and Linux relevance notes.
+## Scenario generator and property harness
 
-## Multicore fixture corpus
-Committed multicore proof fixtures now include:
-- `multicore-contention` — baseline two-core contention
-- `multicore-balancing` — idle-core steal/rebalance behavior
-- `multicore-staggered` — staggered arrivals with multicore idle/restart patterns
-- `multicore-weighted` — multicore weighted fairness stress for the CFS-inspired path
-- `multicore-simultaneous-complete` — deterministic same-tick completion ordering
-- `multicore-rr-quantum` — multicore round-robin preemption pressure
+The repo includes a deterministic generator/shrinker/property harness in:
+
+```text
+src/testing/property.zig
+src/tests/property_test.zig
+```
+
+It generates valid scenarios, shrinks failing cases, and saves minimized
+regressions under:
+
+```text
+scenarios/regressions/
+```
+
+## Scenario packs and extension boundary
+
+M14 keeps extension points narrow and reviewable.
+
+- curated built-ins remain registered in the core scenario registry
+- external or optional packs are just canonical `.zon` trees loaded by path
+- policy extension remains routed through `src/policies/class.zig`
+- core behavior stays operable without optional packs
+
+## Documentation
+
+Start here for the full project write-up:
+
+- `docs/project-architecture-and-status.md`
+
+Other useful docs:
+
+- `docs/phase1-simulator.md`
+- `docs/m14-extension-boundary.md`
+- `docs/m13-property-testing.md`
+- `docs/adr/0001-m5-project-identity.md`
