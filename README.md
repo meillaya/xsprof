@@ -5,6 +5,11 @@ A deterministic CPU scheduling simulator in Zig.
 It is a teaching and experimentation project, not a kernel scheduler, daemon,
 or production automation system.
 
+The current implementation remains simulator-only. Under `docs/adr/0002-m18-linux-observability-gate.md`,
+any future Linux-observability branch is limited to **offline,
+observability-only, version-pinned snapshot fixtures** — not live capture,
+tooling automation, replay, or Linux-performance claims.
+
 ## What it does
 
 - runs deterministic scheduling scenarios
@@ -162,3 +167,4 @@ Other useful docs:
 - `docs/m14-extension-boundary.md`
 - `docs/m13-property-testing.md`
 - `docs/adr/0001-m5-project-identity.md`
+- `docs/adr/0002-m18-linux-observability-gate.md`

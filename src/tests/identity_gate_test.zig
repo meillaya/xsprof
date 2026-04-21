@@ -19,6 +19,31 @@ test "M5 ADR is linked from README and roadmap" {
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0001-m5-project-identity.md") != null);
 }
 
+test "M18 ADR is linked from README and roadmap and keeps observability offline-only" {
+    const allocator = std.testing.allocator;
+    const adr = try readFileAlloc(allocator, "docs/adr/0002-m18-linux-observability-gate.md");
+    defer allocator.free(adr);
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    defer allocator.free(roadmap);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, adr, "Status: Approved") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "offline, observability-only") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "version-pinned, scrubbed snapshot fixtures") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "live tracing in the repo") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "capture tooling or automation in the repo") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/adr/0002-m18-linux-observability-gate.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0002-m18-linux-observability-gate.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/adr/0002-m18-linux-observability-gate.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "not live capture") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "tooling automation, replay, or Linux-performance claims") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "offline snapshot fixtures only") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "M19 remains blocked") != null);
+}
+
 test "M5 track classification is explicit" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0001-m5-project-identity.md");
@@ -50,4 +75,33 @@ test "M5 open question is resolved" {
 
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "[x] M5 decided") != null);
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "[ ] For optional M5") == null);
+}
+
+test "M18 gate proof surfaces and branch blocking are explicit" {
+    const allocator = std.testing.allocator;
+    const adr = try readFileAlloc(allocator, "docs/adr/0002-m18-linux-observability-gate.md");
+    defer allocator.free(adr);
+    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    defer allocator.free(roadmap);
+    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m18-linux-observability-gate.md");
+    defer allocator.free(test_spec);
+    const open_questions = try readFileAlloc(allocator, ".omx/plans/open-questions.md");
+    defer allocator.free(open_questions);
+
+    const adr_required = [_][]const u8{
+        "offline snapshot fixtures only",
+        "approved capture families only",
+        "Unsupported tuples are **out of scope by default**",
+        "committed",
+        "scrubbed",
+        "manifest",
+    };
+    for (adr_required) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, adr, needle) != null);
+    }
+
+    try std.testing.expect(std.mem.indexOf(u8, roadmap, "M19 remains blocked until milestone-specific PRD/test-spec artifacts exist") != null);
+    try std.testing.expect(std.mem.indexOf(u8, test_spec, "offline observability-only wording is present") != null);
+    try std.testing.expect(std.mem.indexOf(u8, test_spec, "live capture, automation, and in-repo perf/ftrace execution workflows are explicitly rejected") != null);
+    try std.testing.expect(std.mem.indexOf(u8, open_questions, "docs/adr/0002-m18-linux-observability-gate.md") != null);
 }

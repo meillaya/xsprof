@@ -7,11 +7,15 @@ It is designed as a teaching and experimentation environment, not as a
 kernel component, daemon, or production scheduler.
 
 The current project identity is fixed by
-`docs/adr/0001-m5-project-identity.md`:
+`docs/adr/0001-m5-project-identity.md` and
+`docs/adr/0002-m18-linux-observability-gate.md`:
 
 - the **implementation today** is simulator-only
 - the **roadmap** is a broader scheduler laboratory with a simulator-only mainline
 - Linux-facing, productized, and research-heavy branches remain explicitly gated
+- any future Linux-observability branch is limited to **offline,
+  observability-only, version-pinned snapshot fixtures** unless a later gate
+  re-charters it
 
 ## Theory in one page
 
@@ -399,8 +403,23 @@ and as a stable automated regression surface.
 
 ### M18 — Linux-observability planning gate
 
-Before any Linux-facing import/calibration work, pass the next explicit scope
-and evidence gate.
+M18 is now approved in `docs/adr/0002-m18-linux-observability-gate.md`.
+
+The approved outcome is intentionally narrow:
+- offline snapshot fixtures only
+- observability-only wording only
+- approved capture families only
+- explicit version tuples only
+- committed scrubbed fixtures + manifests only
+
+Still out of scope after M18:
+- live tracing in-repo
+- capture tooling/automation in-repo
+- replay-fidelity claims
+- Linux-performance or calibration claims
+
+M19 remains blocked until milestone-specific PRD/test-spec artifacts are
+approved under this gate.
 
 ## Notes on implementation philosophy
 

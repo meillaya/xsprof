@@ -476,6 +476,11 @@ Decide whether the repo may ingest or reference real Linux scheduler traces/data
 **Preferred execution mode**
 - planning/architect lane.
 
+**Approved outcome**
+- `docs/adr/0002-m18-linux-observability-gate.md` approves only an
+  **offline, observability-only, version-pinned snapshot-fixture path**.
+- M19 remains blocked until milestone-specific PRD/test-spec artifacts exist.
+
 ### M19 — [Optional Linux-observability branch] import real scheduler trace snapshots (observability-only)
 **Goal**
 Allow optional import of curated real-world traces for comparison, without claiming replay fidelity.
