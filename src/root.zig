@@ -1,6 +1,6 @@
 const types = @import("sim/types.zig");
 
-pub const cli = @import("cli/output.zig");
+pub const cli = @import("cli/root.zig");
 pub const engine = @import("sim/engine.zig");
 pub const metrics = @import("sim/metrics.zig");
 pub const policies = struct {

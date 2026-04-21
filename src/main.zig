@@ -1,19 +1,6 @@
 const std = @import("std");
 const scheduler = @import("zig_scheduler");
 
-const Command = enum {
-    list,
-    show,
-    run,
-};
-
-const Options = struct {
-    command: Command = .list,
-    scenario_name: ?[]const u8 = null,
-    policy: ?scheduler.PolicyKind = null,
-    quantum_override: ?u32 = null,
-};
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -22,7 +9,7 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    const options = try parseArgs(args[1..]);
+    const options = try scheduler.cli.parseArgs(args[1..]);
 
     var stdout_buffer: [8192]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
@@ -30,7 +17,7 @@ pub fn main() !void {
 
     switch (options.command) {
         .list => try writeScenarioList(stdout),
-        .show => try writeScenarioDetails(stdout, allocator, options.scenario_name.?),
+        .show => try writeScenarioDetails(stdout, allocator, options.show_name.?),
         .run => try runSimulation(stdout, allocator, options),
     }
 
@@ -59,8 +46,9 @@ fn writeScenarioDetails(writer: anytype, allocator: std.mem.Allocator, name: []c
     }
 }
 
-fn runSimulation(writer: anytype, allocator: std.mem.Allocator, options: Options) !void {
-    var scenario = try scheduler.loadScenarioByName(allocator, options.scenario_name.?);
+fn runSimulation(writer: anytype, allocator: std.mem.Allocator, options: scheduler.cli.Options) !void {
+    const input_source = options.input_source.?;
+    var scenario = try loadScenarioForRun(allocator, input_source);
     defer scenario.deinit();
 
     if (options.quantum_override) |quantum| {
@@ -70,59 +58,25 @@ fn runSimulation(writer: anytype, allocator: std.mem.Allocator, options: Options
     var result = try scheduler.simulate(allocator, &scenario, options.policy.?);
     defer result.deinit();
 
-    try scheduler.cli.writeSimulationReport(writer, &scenario, &result);
-}
-
-fn parseArgs(args: []const []const u8) !Options {
-    var options = Options{};
-    if (args.len == 0 or std.mem.eql(u8, args[0], "list")) return options;
-    if (std.mem.eql(u8, args[0], "show")) {
-        if (args.len != 2) return error.InvalidArguments;
-        options.command = .show;
-        options.scenario_name = args[1];
-        return options;
+    const report = scheduler.cli.SimulationReport.init(sourceInfoFromInput(input_source), &scenario, &result);
+    switch (options.output_format) {
+        .text => try scheduler.cli.writeHumanReport(writer, report),
+        .json => try scheduler.cli.writeJsonReport(writer, report),
     }
-
-    options.command = .run;
-
-    var index: usize = 0;
-    while (index < args.len) : (index += 1) {
-        const arg = args[index];
-        if (std.mem.eql(u8, arg, "--scenario")) {
-            options.scenario_name = try nextArg(args, &index);
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--policy")) {
-            options.policy = parsePolicy(try nextArg(args, &index)) orelse return error.InvalidPolicy;
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--quantum")) {
-            options.quantum_override = std.fmt.parseInt(u32, try nextArg(args, &index), 10) catch return error.InvalidArguments;
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--help")) return error.InvalidArguments;
-        return error.InvalidArguments;
-    }
-
-    if (options.scenario_name == null or options.policy == null) return error.InvalidArguments;
-    return options;
 }
 
-fn nextArg(args: []const []const u8, index: *usize) ![]const u8 {
-    index.* += 1;
-    if (index.* >= args.len) return error.InvalidArguments;
-    return args[index.*];
+fn loadScenarioForRun(allocator: std.mem.Allocator, input_source: scheduler.cli.InputSource) !scheduler.ScenarioOwned {
+    return switch (input_source) {
+        .builtin => |name| scheduler.loadScenarioByName(allocator, name),
+        .file => |path| scheduler.loadScenarioFile(allocator, path),
+    };
 }
 
-fn parsePolicy(value: []const u8) ?scheduler.PolicyKind {
-    if (std.mem.eql(u8, value, "fcfs")) return .fcfs;
-    if (std.mem.eql(u8, value, "rr")) return .round_robin;
-    if (std.mem.eql(u8, value, "round-robin")) return .round_robin;
-    if (std.mem.eql(u8, value, "round_robin")) return .round_robin;
-    if (std.mem.eql(u8, value, "cfs")) return .cfs_like;
-    if (std.mem.eql(u8, value, "cfs-like")) return .cfs_like;
-    if (std.mem.eql(u8, value, "cfs_like")) return .cfs_like;
-    return null;
+fn sourceInfoFromInput(input_source: scheduler.cli.InputSource) scheduler.cli.SourceInfo {
+    return switch (input_source) {
+        .builtin => |name| .{ .kind = .builtin, .value = name },
+        .file => |path| .{ .kind = .file, .value = path },
+    };
 }
 
 test "list command metadata stays stable" {
@@ -131,33 +85,4 @@ test "list command metadata stays stable" {
     try std.testing.expectEqualStrings("staggered-arrivals", scenarios[0].key);
     try std.testing.expectEqualStrings("equal-arrival-contention", scenarios[1].key);
     try std.testing.expectEqualStrings("short-vs-long", scenarios[2].key);
-}
-
-test "policy aliases parse" {
-    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, parsePolicy("rr").?);
-    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, parsePolicy("round-robin").?);
-    try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, parsePolicy("cfs-like").?);
-    try std.testing.expect(parsePolicy("bogus") == null);
-}
-
-test "show command parsing stays stable" {
-    const options = try parseArgs(&.{ "show", "short-vs-long" });
-    try std.testing.expectEqual(Command.show, options.command);
-    try std.testing.expectEqualStrings("short-vs-long", options.scenario_name.?);
-    try std.testing.expect(options.policy == null);
-    try std.testing.expect(options.quantum_override == null);
-}
-
-test "run command parsing stays stable" {
-    const options = try parseArgs(&.{ "--scenario", "short-vs-long", "--policy", "rr", "--quantum", "2" });
-    try std.testing.expectEqual(Command.run, options.command);
-    try std.testing.expectEqualStrings("short-vs-long", options.scenario_name.?);
-    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, options.policy.?);
-    try std.testing.expectEqual(@as(u32, 2), options.quantum_override.?);
-}
-
-test "invalid argument parsing stays rejected" {
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "show" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario", "short-vs-long" }));
-    try std.testing.expectError(error.InvalidPolicy, parseArgs(&.{ "--scenario", "short-vs-long", "--policy", "bogus" }));
 }

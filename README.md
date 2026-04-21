@@ -12,11 +12,42 @@ A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
 ```sh
 zig build test
 zig build run -- --scenario short-vs-long --policy fcfs
-zig build run -- --scenario equal-arrival-contention --policy rr --quantum 2
+zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
+zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 ```
 
+## Public CLI contract
+Use exactly one scenario source for `run`:
+- `--scenario <builtin-name>` for built-in fixtures
+- `--scenario-file <path>` for direct file input
+
+These flags are mutually exclusive.
+
+Output formats:
+- `--format text` (default)
+- `--format json`
+
+The JSON contract is versioned with:
+- `schema: "zig-scheduler/report"`
+- `version: 1`
+
 ## Scenario fixtures
-Scenario fixtures live in `scenarios/basic/*.zon` and use a compact, line-oriented text format:
+The canonical external scenario-file dialect is object-style ZON:
+
+```zig
+.{
+    .name = "arrivals",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "B", .arrival_tick = 2, .burst_ticks = 3 },
+        .{ .id = "C", .arrival_tick = 4, .burst_ticks = 2 },
+        .{ .id = "D", .arrival_tick = 6, .burst_ticks = 1 },
+    },
+}
+```
+
+Legacy line-oriented `.zon` input remains readable as a backward-compatible format:
 
 ```text
 name: short-vs-long
@@ -29,12 +60,14 @@ task: S2 2 1
 The parser keeps task declaration order as the deterministic tie-break fallback for every policy.
 
 ## Output contract
-Every run prints:
+Every text-mode run prints:
 - scenario name
 - policy name
 - completion order
 - raw trace events
 - per-task completion, turnaround, waiting, and response metrics
 - aggregate average waiting time, average response time, throughput, and waiting-time spread
+
+JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
 
 See `docs/phase1-simulator.md` and `docs/linux-mapping.md` for semantics and Linux relevance notes.

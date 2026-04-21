@@ -43,6 +43,7 @@ pub const ValidationError = error{
     InvalidLine,
     InvalidTaskLine,
     InvalidInteger,
+    InvalidZon,
     ScenarioNameMismatch,
     UnknownScenario,
 };

@@ -43,6 +43,20 @@ const legacy_aliases = [_]struct {
     .{ .alias = "contention", .canonical = .equal_arrival_contention },
 };
 
+const ParsedZonTask = struct {
+    id: []const u8,
+    arrival_tick: u32,
+    burst_ticks: u32,
+};
+
+const ParsedZonScenario = struct {
+    name: []const u8,
+    description: ?[]const u8 = null,
+    quantum: ?u32 = null,
+    rr_quantum: ?u32 = null,
+    tasks: []const ParsedZonTask,
+};
+
 pub fn listBuiltinScenarios() []const BuiltinScenarioMeta {
     return builtin_scenarios[0..];
 }
@@ -68,6 +82,37 @@ pub fn loadScenarioFile(allocator: std.mem.Allocator, path: []const u8) !types.S
 }
 
 pub fn parseScenarioText(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+    expected_name: []const u8,
+) !types.ScenarioOwned {
+    const trimmed = std.mem.trimLeft(u8, source, " \t\r\n");
+    if (trimmed.len != 0 and trimmed[0] == '.') {
+        return parseScenarioZon(allocator, source, expected_name);
+    }
+    return parseScenarioLegacyText(allocator, source, expected_name);
+}
+
+pub fn parseScenario(allocator: std.mem.Allocator, source: []const u8) !types.ScenarioOwned {
+    return parseScenarioText(allocator, source, "");
+}
+
+pub fn freeScenario(_: std.mem.Allocator, scenario: types.ScenarioOwned) void {
+    var owned = scenario;
+    owned.deinit();
+}
+
+fn loadScenarioFileWithName(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    expected_name: []const u8,
+) !types.ScenarioOwned {
+    const source = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    defer allocator.free(source);
+    return parseScenarioText(allocator, source, expected_name);
+}
+
+fn parseScenarioLegacyText(
     allocator: std.mem.Allocator,
     source: []const u8,
     expected_name: []const u8,
@@ -122,11 +167,65 @@ pub fn parseScenarioText(
     }
 
     const name = maybe_name orelse return error.MissingName;
+    maybe_name = null;
+    const owned_task_specs = task_specs;
+    task_specs = .empty;
+    return finalizeScenario(allocator, name, quantum, owned_task_specs, expected_name);
+}
+
+fn parseScenarioZon(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+    expected_name: []const u8,
+) !types.ScenarioOwned {
+    const source_z = try allocator.dupeZ(u8, source);
+    defer allocator.free(source_z);
+
+    var diag: std.zon.parse.Diagnostics = .{};
+    const parsed = std.zon.parse.fromSlice(ParsedZonScenario, allocator, source_z, &diag, .{}) catch |err| {
+        diag.deinit(allocator);
+        if (err == error.ParseZon) return error.InvalidZon;
+        return err;
+    };
+    defer diag.deinit(allocator);
+    defer std.zon.parse.free(allocator, parsed);
+
+    const quantum = try resolveParsedQuantum(parsed);
+
+    var task_specs: std.ArrayList(types.TaskSpec) = .empty;
+    errdefer {
+        for (task_specs.items) |task| allocator.free(task.id);
+        task_specs.deinit(allocator);
+    }
+
+    for (parsed.tasks) |task| {
+        try task_specs.append(allocator, .{
+            .id = try allocator.dupe(u8, task.id),
+            .arrival_tick = task.arrival_tick,
+            .burst_ticks = task.burst_ticks,
+        });
+    }
+
+    const owned_task_specs = task_specs;
+    task_specs = .empty;
+    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, owned_task_specs, expected_name);
+}
+
+fn finalizeScenario(
+    allocator: std.mem.Allocator,
+    name: []u8,
+    quantum: u32,
+    task_specs: std.ArrayList(types.TaskSpec),
+    expected_name: []const u8,
+) !types.ScenarioOwned {
+    errdefer allocator.free(name);
+
     if (expected_name.len != 0 and !std.mem.eql(u8, expected_name, name)) {
         return error.ScenarioNameMismatch;
     }
 
-    const tasks = try task_specs.toOwnedSlice(allocator);
+    var mutable_task_specs = task_specs;
+    const tasks = try mutable_task_specs.toOwnedSlice(allocator);
     errdefer {
         for (tasks) |task| allocator.free(task.id);
         allocator.free(tasks);
@@ -142,23 +241,15 @@ pub fn parseScenarioText(
     return scenario;
 }
 
-pub fn parseScenario(allocator: std.mem.Allocator, source: []const u8) !types.ScenarioOwned {
-    return parseScenarioText(allocator, source, "");
-}
-
-pub fn freeScenario(_: std.mem.Allocator, scenario: types.ScenarioOwned) void {
-    var owned = scenario;
-    owned.deinit();
-}
-
-fn loadScenarioFileWithName(
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    expected_name: []const u8,
-) !types.ScenarioOwned {
-    const source = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
-    defer allocator.free(source);
-    return parseScenarioText(allocator, source, expected_name);
+fn resolveParsedQuantum(parsed: ParsedZonScenario) !u32 {
+    if (parsed.quantum) |quantum| {
+        if (parsed.rr_quantum) |legacy_quantum| {
+            if (legacy_quantum != quantum) return error.InvalidQuantum;
+        }
+        return quantum;
+    }
+    if (parsed.rr_quantum) |legacy_quantum| return legacy_quantum;
+    return 1;
 }
 
 fn resolveBuiltinByName(name: []const u8) ?BuiltinScenario {

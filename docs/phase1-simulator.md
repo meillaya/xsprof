@@ -16,6 +16,22 @@ Each simulation tick follows the same deterministic sequence:
 ## Round Robin rule
 If a task reaches a quantum boundary and also finishes on that tick, completion wins and no preemption event is emitted.
 
+## Scenario input contract
+The public run surface supports exactly one scenario source:
+- `--scenario <builtin-name>`
+- `--scenario-file <path>`
+
+The canonical external scenario-file dialect is object-style ZON. Legacy line-oriented `.zon` input remains readable as a backward-compatible format during roadmap execution.
+
+## Output contract
+Text output remains the default human-readable report.
+
+Machine-readable export is versioned JSON with:
+- `schema = "zig-scheduler/report"`
+- `version = 1`
+
+Version `1` is stable for consumers, but later milestones may add backward-compatible fields or introduce a new schema version for breaking changes.
+
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`
 - `turnaround_time = completion_time - arrival_tick`

@@ -22,6 +22,36 @@ test "named scenario loader resolves arrivals fixture" {
     try std.testing.expectEqual(@as(usize, 3), scenario.tasks.len);
 }
 
+test "canonical object style scenario files load by path" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/arrivals.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("arrivals", scenario.name);
+    try std.testing.expectEqual(@as(u32, 2), scenario.round_robin_quantum);
+    try std.testing.expectEqual(@as(usize, 4), scenario.tasks.len);
+    try expectTask(scenario.tasks[0], "A", 0, 5, 0);
+    try expectTask(scenario.tasks[3], "D", 6, 1, 3);
+}
+
+test "legacy line oriented scenario text remains supported" {
+    const source =
+        \\name: legacy-demo
+        \\rr_quantum: 3
+        \\task: A 0 2
+        \\task: B 1 1
+        \\
+    ;
+
+    var scenario = try scheduler.parseScenarioText(std.testing.allocator, source, "legacy-demo");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("legacy-demo", scenario.name);
+    try std.testing.expectEqual(@as(u32, 3), scenario.round_robin_quantum);
+    try std.testing.expectEqual(@as(usize, 2), scenario.tasks.len);
+    try expectTask(scenario.tasks[0], "A", 0, 2, 0);
+    try expectTask(scenario.tasks[1], "B", 1, 1, 1);
+}
+
 test "duplicate task ids are rejected" {
     const source =
         \\name: duplicate-task-ids

@@ -1,8 +1,8 @@
 # Phase 1 Verification Checklist
 
 Use this checklist when reviewing the implementation against:
-- `.omx/plans/prd-phase1-zig-scheduler-simulator.md`
-- `.omx/plans/test-spec-phase1-zig-scheduler-simulator.md`
+- `.omx/plans/prd-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
+- `.omx/plans/test-spec-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
 
 ## 1. Build and project scaffold
 
@@ -52,6 +52,8 @@ Suggested review search terms for accidental phase creep:
 - [ ] CLI output includes completion order
 - [ ] CLI output includes per-task metrics
 - [ ] CLI output includes aggregate metrics
+- [ ] CLI supports mutually exclusive `--scenario` / `--scenario-file` run inputs
+- [ ] JSON export includes the expected schema/version markers
 
 Required per-task metrics:
 - [ ] completion time
@@ -128,14 +130,9 @@ Run these once implementation lands in the integration branch:
 ```sh
 zig build
 zig build test
-```
-
-If the CLI exposes named scenarios/policies, add smoke checks such as:
-
-```sh
 zig build run -- --scenario short-vs-long --policy fcfs
-zig build run -- --scenario short-vs-long --policy rr --quantum 2
-zig build run -- --scenario short-vs-long --policy cfs-like
+zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
+zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 ```
 
 ## 10. Review outcome template
