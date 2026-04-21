@@ -152,6 +152,13 @@ M8 adds dedicated experiment fixtures for evidence-based fairness discussions:
 
 Useful probe metrics now include `max_waiting_time`, `max_response_time`, and `response_time_spread` in addition to the existing averages and waiting-time spread. These are simulator-local experiment aids, not formal scheduler guarantees.
 
+## Scenario generator and property harness
+M13 adds a deterministic seed-driven property harness in `src/testing/property.zig`.
+
+The harness generates valid object-style ZON scenarios, materializes them through the canonical parser, runs engine/export invariant checks, and can greedily shrink failing cases before saving them as regression `.zon` fixtures.
+
+See `docs/m13-property-testing.md` for the generator/shrinker workflow and verification notes.
+
 ## Benchmark baselines
 Use the reproducible M4.5 harness to regenerate simulator-local baseline artifacts:
 ```sh
