@@ -1,0 +1,13 @@
+.{
+    .name = "group-fairness",
+    .description = "Two groups with different weights and quotas for deterministic group-fairness teaching checks.",
+    .groups = .{
+        .{ .id = "interactive", .weight = 2048, .quota_ticks = 1 },
+        .{ .id = "batch", .weight = 512, .quota_ticks = 1 },
+    },
+    .tasks = .{
+        .{ .id = "uiA", .arrival_tick = 0, .burst_ticks = 3, .group_id = "interactive" },
+        .{ .id = "uiB", .arrival_tick = 0, .burst_ticks = 3, .group_id = "interactive" },
+        .{ .id = "bg", .arrival_tick = 0, .burst_ticks = 6, .group_id = "batch" },
+    },
+}

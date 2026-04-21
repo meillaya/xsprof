@@ -8,6 +8,11 @@ const RuntimeTask = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32,
+    effective_weight: u32,
+    group_id: ?[]const u8,
+    group_index: ?usize,
+    group_weight: u32,
+    group_quota_ticks: u32,
     sleep_after_ticks: ?u32,
     sleep_duration: u32,
     phases: ?[]const types.TaskPhase,
@@ -36,6 +41,8 @@ const CoreState = struct {
     ready_queue: std.ArrayList(usize) = .empty,
     current: ?usize = null,
     current_quantum: u32 = 0,
+    current_group_index: ?usize = null,
+    current_group_run_ticks: u32 = 0,
 
     fn deinit(self: *CoreState, allocator: std.mem.Allocator) void {
         self.ready_queue.deinit(allocator);
@@ -67,24 +74,35 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
 
     var current: ?usize = null;
     var current_quantum: u32 = 0;
+    var current_group_index: ?usize = null;
+    var current_group_run_ticks: u32 = 0;
     var completed: usize = 0;
     var tick: u32 = 0;
 
     while (completed < runtimes.len) : (tick += 1) {
+        var excluded_group_index: ?usize = null;
         try processBlockedSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
         try enqueueArrivalsSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
 
-        if (policy_class.shouldPreemptSingle(current, current_quantum, scenario.round_robin_quantum, ready_queue.items.len, runtimes)) {
+        if (policy_class.shouldPreemptSingle(current, current_quantum, scenario.round_robin_quantum, ready_queue.items.len, runtimes) or shouldPreemptForGroupQuota(policy, current, current_group_run_ticks, runtimes)) {
             const current_index = current.?;
             runtimes[current_index].state = .ready;
             if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, current_index);
+            if (policy == .cfs_like and shouldPreemptForGroupQuota(policy, current, current_group_run_ticks, runtimes)) {
+                excluded_group_index = runtimes[current_index].group_index;
+            }
             current = null;
             current_quantum = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
+            current_group_index = null;
+            current_group_run_ticks = 0;
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
         }
 
         if (current == null) {
-            const next = policy_class.selectNextSingle(&ready_queue, runtimes);
+            const next = if (excluded_group_index != null)
+                policy_class.selectNextSingleExcludingGroup(&ready_queue, runtimes, excluded_group_index.?)
+            else
+                policy_class.selectNextSingle(&ready_queue, runtimes);
 
             if (next) |next_index| {
                 if (policy_class.keepsRunningSelection(runtimes[next_index])) {
@@ -97,7 +115,9 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                     }
                     current = next_index;
                     current_quantum = 0;
-                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id, .core_id = single_core_id });
+                    if (current_group_index != runtimes[next_index].group_index) current_group_run_ticks = 0;
+                    current_group_index = runtimes[next_index].group_index;
+                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id, .group_id = runtimes[next_index].group_id, .core_id = single_core_id });
                 }
             }
         }
@@ -110,12 +130,13 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 return error.TaskExecutedTwiceInSameTick;
             }
 
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
             runtimes[current_index].phase_remaining_ticks -= 1;
             runtimes[current_index].last_execution_tick = tick;
             current_quantum += 1;
+            current_group_run_ticks += 1;
             policy_class.onTaskTick(&runtimes[current_index]);
 
             if (runtimes[current_index].remaining_ticks == 0) {
@@ -123,15 +144,19 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 runtimes[current_index].state = .complete;
                 completed += 1;
                 try completion_order.append(allocator, current_index);
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .core_id = single_core_id });
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
                 current = null;
                 current_quantum = 0;
+                current_group_index = null;
+                current_group_run_ticks = 0;
             } else if (try shouldBlockAfterExecution(&runtimes[current_index])) {
                 runtimes[current_index].state = .blocked;
                 runtimes[current_index].wake_tick = tick + 1 + runtimes[current_index].phase_remaining_ticks;
                 current = null;
                 current_quantum = 0;
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .core_id = single_core_id });
+                current_group_index = null;
+                current_group_run_ticks = 0;
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = single_core_id });
@@ -179,11 +204,20 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
 fn initRuntimes(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwned) ![]RuntimeTask {
     var runtimes = try allocator.alloc(RuntimeTask, scenario.tasks.len);
     for (scenario.tasks, 0..) |task, index| {
+        const group_info = if (task.group_id) |group_id|
+            findGroupInfo(scenario, group_id)
+        else
+            null;
         runtimes[index] = .{
             .id = task.id,
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
             .weight = task.weight,
+            .effective_weight = combineWeight(task.weight, if (group_info) |info| info.group.weight else types.default_group_weight),
+            .group_id = task.group_id,
+            .group_index = if (group_info) |info| info.index else null,
+            .group_weight = if (group_info) |info| info.group.weight else types.default_group_weight,
+            .group_quota_ticks = if (group_info) |info| info.group.quota_ticks else 0,
             .sleep_after_ticks = task.sleep_after_ticks,
             .sleep_duration = task.sleep_duration,
             .phases = task.phases,
@@ -217,6 +251,7 @@ fn finalizeResult(
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
             .weight = task.weight,
+            .group_id = if (task.group_id) |group_id| try allocator.dupe(u8, group_id) else null,
             .sleep_after_ticks = task.sleep_after_ticks,
             .sleep_duration = task.sleep_duration,
             .phase_count = task.phaseCount(),
@@ -236,12 +271,16 @@ fn finalizeResult(
         allocator.free(task_metrics);
     }
 
+    const groups = try dupGroups(allocator, scenario.groups);
+    errdefer freeGroups(allocator, groups);
+
     return .{
         .allocator = allocator,
         .scenario_name = try allocator.dupe(u8, scenario.name),
         .policy = policy,
         .quantum = scenario.round_robin_quantum,
         .core_count = scenario.core_count,
+        .groups = groups,
         .trace = try trace_entries.toOwnedSlice(allocator),
         .tasks = task_metrics,
         .completion_order = try completion_order.toOwnedSlice(allocator),
@@ -266,7 +305,7 @@ fn processBlockedSingleCore(
             task.assigned_core = single_core_id;
             task.wake_tick = null;
             if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .core_id = single_core_id });
         } else {
             task.blocked_time += 1;
         }
@@ -286,7 +325,7 @@ fn enqueueArrivalsSingleCore(
             task.assigned_core = single_core_id;
             task.state = .ready;
             if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .core_id = single_core_id });
         }
     }
 }
@@ -306,7 +345,7 @@ fn processBlockedMulticore(
             task.state = .ready;
             task.wake_tick = null;
             try cores[core_index].ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .core_id = @intCast(core_index) });
         } else {
             task.blocked_time += 1;
         }
@@ -326,7 +365,7 @@ fn enqueueArrivalsMulticore(
             task.assigned_core = @intCast(core_index);
             task.state = .ready;
             try cores[core_index].ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .core_id = @intCast(core_index) });
         }
     }
 }
@@ -347,7 +386,7 @@ fn preemptMulticore(
             try core.ready_queue.append(allocator, current_index);
             core.current = null;
             core.current_quantum = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
         }
     }
 }
@@ -387,9 +426,11 @@ fn dispatchMulticore(
             if (runtimes.*[task_index].first_dispatch_tick == null) {
                 runtimes.*[task_index].first_dispatch_tick = tick;
             }
+            if (core.current_group_index != runtimes.*[task_index].group_index) core.current_group_run_ticks = 0;
+            core.current_group_index = runtimes.*[task_index].group_index;
             core.current = task_index;
             core.current_quantum = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes.*[task_index].id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .core_id = @intCast(core_index) });
         }
     }
 }
@@ -413,12 +454,13 @@ fn executeMulticore(
                 return error.TaskExecutedTwiceInSameTick;
             }
 
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
             runtimes.*[current_index].remaining_ticks -= 1;
             runtimes.*[current_index].total_executed += 1;
             runtimes.*[current_index].phase_remaining_ticks -= 1;
             runtimes.*[current_index].last_execution_tick = tick;
             core.current_quantum += 1;
+            core.current_group_run_ticks += 1;
             policy_class.onTaskTick(&runtimes.*[current_index]);
 
             if (runtimes.*[current_index].remaining_ticks == 0) {
@@ -428,12 +470,16 @@ fn executeMulticore(
                 try completed_this_tick.append(allocator, current_index);
                 core.current = null;
                 core.current_quantum = 0;
+                core.current_group_index = null;
+                core.current_group_run_ticks = 0;
             } else if (try shouldBlockAfterExecution(&runtimes.*[current_index])) {
                 runtimes.*[current_index].state = .blocked;
                 runtimes.*[current_index].wake_tick = tick + 1 + runtimes.*[current_index].phase_remaining_ticks;
                 core.current = null;
                 core.current_quantum = 0;
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
+                core.current_group_index = null;
+                core.current_group_run_ticks = 0;
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = @intCast(core_index) });
@@ -442,8 +488,56 @@ fn executeMulticore(
 
     for (completed_this_tick.items) |task_index| {
         try completion_order.append(allocator, task_index);
-        try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes.*[task_index].id, .core_id = runtimes.*[task_index].assigned_core });
+        try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .core_id = runtimes.*[task_index].assigned_core });
     }
+}
+
+fn combineWeight(task_weight: u32, group_weight: u32) u32 {
+    const combined = (@as(u64, task_weight) * @as(u64, group_weight)) / types.default_group_weight;
+    const bounded = @max(@as(u64, 1), @min(combined, types.max_task_weight));
+    return @intCast(bounded);
+}
+
+const GroupInfo = struct {
+    index: usize,
+    group: *const types.GroupSpec,
+};
+
+fn findGroupInfo(scenario: *const types.ScenarioOwned, id: []const u8) ?GroupInfo {
+    for (scenario.groups, 0..) |*group, index| {
+        if (std.mem.eql(u8, group.id, id)) return .{ .index = index, .group = group };
+    }
+    return null;
+}
+
+fn dupGroups(allocator: std.mem.Allocator, groups: []const types.GroupSpec) ![]types.GroupSpec {
+    const duped = try allocator.alloc(types.GroupSpec, groups.len);
+    errdefer allocator.free(duped);
+    for (groups, 0..) |group, index| {
+        duped[index] = .{ .id = try allocator.dupe(u8, group.id), .weight = group.weight, .quota_ticks = group.quota_ticks };
+    }
+    return duped;
+}
+
+fn freeGroups(allocator: std.mem.Allocator, groups: []types.GroupSpec) void {
+    for (groups) |group| allocator.free(group.id);
+    allocator.free(groups);
+}
+
+fn hasReadyTaskInOtherGroup(runtimes: []const RuntimeTask, current_group_index: ?usize) bool {
+    for (runtimes) |task| {
+        if (task.state != .ready) continue;
+        if (task.group_index != current_group_index) return true;
+    }
+    return false;
+}
+
+fn shouldPreemptForGroupQuota(policy: types.PolicyKind, current: ?usize, current_group_run_ticks: u32, runtimes: []const RuntimeTask) bool {
+    const current_index = current orelse return false;
+    if (policy != .cfs_like) return false;
+    const quota = runtimes[current_index].group_quota_ticks;
+    if (quota == 0 or current_group_run_ticks < quota) return false;
+    return hasReadyTaskInOtherGroup(runtimes, runtimes[current_index].group_index);
 }
 
 fn initialPhaseTicks(task: types.TaskSpec) u32 {

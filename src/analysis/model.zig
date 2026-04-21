@@ -11,6 +11,12 @@ pub const Scenario = struct {
     round_robin_quantum: u32,
 };
 
+pub const Group = struct {
+    id: []const u8,
+    weight: u32,
+    quota_ticks: u32,
+};
+
 pub const Policy = struct {
     kind: contract.PolicyKind,
     display_name: []const u8,
@@ -21,6 +27,7 @@ pub const TraceEntry = struct {
     tick: u32,
     kind: contract.TraceEventKind,
     task_id: ?[]const u8,
+    group_id: ?[]const u8 = null,
     core_id: ?u32,
 };
 
@@ -29,6 +36,7 @@ pub const TaskMetrics = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32,
+    group_id: ?[]const u8 = null,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: u32 = 0,
     phase_count: u32 = 1,
@@ -62,6 +70,7 @@ pub const Report = struct {
     scenario: Scenario,
     policy: Policy,
     core_count: u32,
+    groups: []const Group = &.{},
     completion_order: []const []const u8,
     trace: []const TraceEntry,
     tasks: []const TaskMetrics,

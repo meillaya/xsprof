@@ -7,6 +7,7 @@ pub const schema_version = contract.schema_version;
 pub const top_level_fields = contract.top_level_fields;
 pub const source_fields = contract.source_fields;
 pub const scenario_fields = contract.scenario_fields;
+pub const group_fields = contract.group_fields;
 pub const policy_fields = contract.policy_fields;
 pub const trace_entry_fields = contract.trace_entry_fields;
 pub const task_fields = contract.task_fields;
@@ -79,6 +80,20 @@ pub const SimulationReport = struct {
         try jw.objectField("core_count");
         try jw.write(self.result.core_count);
 
+        try jw.objectField("groups");
+        try jw.beginArray();
+        for (self.result.groups) |group| {
+            try jw.beginObject();
+            try jw.objectField("id");
+            try jw.write(group.id);
+            try jw.objectField("weight");
+            try jw.write(group.weight);
+            try jw.objectField("quota_ticks");
+            try jw.write(group.quota_ticks);
+            try jw.endObject();
+        }
+        try jw.endArray();
+
         try jw.objectField("completion_order");
         try jw.beginArray();
         for (self.result.completion_order) |task_index| {
@@ -96,6 +111,8 @@ pub const SimulationReport = struct {
             try jw.write(entry.kind);
             try jw.objectField("task_id");
             try jw.write(entry.task_id);
+            try jw.objectField("group_id");
+            try jw.write(entry.group_id);
             try jw.objectField("core_id");
             try jw.write(entry.core_id);
             try jw.endObject();
@@ -114,6 +131,8 @@ pub const SimulationReport = struct {
             try jw.write(task.burst_ticks);
             try jw.objectField("weight");
             try jw.write(task.weight);
+            try jw.objectField("group_id");
+            try jw.write(task.group_id);
             try jw.objectField("sleep_after_ticks");
             try jw.write(task.sleep_after_ticks);
             try jw.objectField("sleep_duration");
@@ -175,4 +194,5 @@ const report_notes = [_][]const u8{
     "Phase 1 is an in-process simulator only; it does not spawn or control real processes.",
     "The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.",
     "The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.",
+    "The group scheduling model is a simulator-safe teaching analogy, not Linux cgroups or kernel group scheduling fidelity.",
 };

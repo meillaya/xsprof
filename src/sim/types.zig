@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const default_task_weight: u32 = 1024;
 pub const max_task_weight: u32 = 4096;
+pub const default_group_weight: u32 = 1024;
 pub const CoreId = u32;
 
 pub const PolicyKind = enum {
@@ -57,14 +58,19 @@ pub const ValidationError = error{
     InvalidQuantum,
     InvalidCoreCount,
     EmptyTaskId,
+    EmptyGroupId,
     ZeroBurstTicks,
     DuplicateTaskId,
+    DuplicateGroupId,
+    UnknownGroup,
     MissingName,
     InvalidLine,
     InvalidTaskLine,
     InvalidInteger,
     InvalidZon,
     InvalidWeight,
+    InvalidGroupWeight,
+    InvalidGroupQuota,
     InvalidSleepAfterTicks,
     InvalidSleepDuration,
     InvalidTaskPhases,
@@ -74,11 +80,29 @@ pub const ValidationError = error{
     UnknownScenario,
 };
 
+pub const GroupSpec = struct {
+    id: []const u8,
+    weight: u32 = default_group_weight,
+    quota_ticks: u32 = 0,
+
+    pub fn deinit(self: *GroupSpec, allocator: std.mem.Allocator) void {
+        allocator.free(self.id);
+        self.* = undefined;
+    }
+
+    pub fn validate(self: GroupSpec) ValidationError!void {
+        if (self.id.len == 0) return error.EmptyGroupId;
+        if (self.weight == 0 or self.weight > max_task_weight) return error.InvalidGroupWeight;
+        if (self.quota_ticks > 0 and self.quota_ticks > 64) return error.InvalidGroupQuota;
+    }
+};
+
 pub const TaskSpec = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32 = default_task_weight,
+    group_id: ?[]const u8 = null,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: u32 = 0,
     phases: ?[]TaskPhase = null,
@@ -88,6 +112,7 @@ pub const TaskSpec = struct {
 
     pub fn deinit(self: *TaskSpec, allocator: std.mem.Allocator) void {
         allocator.free(self.id);
+        if (self.group_id) |group_id| allocator.free(group_id);
         if (self.phases) |phases| allocator.free(phases);
         self.* = undefined;
     }
@@ -102,6 +127,9 @@ pub const TaskSpec = struct {
         if (self.burst_ticks == 0) return error.ZeroBurstTicks;
         if (self.weight == 0) return error.InvalidWeight;
         if (self.weight > max_task_weight) return error.InvalidWeight;
+        if (self.group_id) |group_id| {
+            if (group_id.len == 0) return error.EmptyGroupId;
+        }
 
         if (self.sleep_after_ticks) |sleep_after_ticks| {
             if (sleep_after_ticks == 0 or sleep_after_ticks >= self.burst_ticks) return error.InvalidSleepAfterTicks;
@@ -139,9 +167,14 @@ pub const ScenarioOwned = struct {
     name: []const u8,
     round_robin_quantum: u32 = 1,
     core_count: u32 = 1,
+    groups: []GroupSpec,
     tasks: []TaskSpec,
 
     pub fn deinit(self: *ScenarioOwned) void {
+        for (self.groups) |*group| {
+            group.deinit(self.allocator);
+        }
+        self.allocator.free(self.groups);
         for (self.tasks) |*task| {
             task.deinit(self.allocator);
         }
@@ -156,12 +189,29 @@ pub const ScenarioOwned = struct {
         if (self.core_count == 0) return error.InvalidCoreCount;
         if (self.tasks.len == 0) return error.NoTasks;
 
+        for (self.groups, 0..) |group, index| {
+            try group.validate();
+            for (self.groups[index + 1 ..]) |other| {
+                if (std.mem.eql(u8, group.id, other.id)) return error.DuplicateGroupId;
+            }
+        }
+
         for (self.tasks, 0..) |task, index| {
             try task.validate();
+            if (task.group_id) |group_id| {
+                if (self.groupById(group_id) == null) return error.UnknownGroup;
+            }
             for (self.tasks[index + 1 ..]) |other| {
                 if (std.mem.eql(u8, task.id, other.id)) return error.DuplicateTaskId;
             }
         }
+    }
+
+    pub fn groupById(self: *const ScenarioOwned, id: []const u8) ?*const GroupSpec {
+        for (self.groups) |*group| {
+            if (std.mem.eql(u8, group.id, id)) return group;
+        }
+        return null;
     }
 };
 
@@ -171,6 +221,7 @@ pub const TraceEntry = struct {
     tick: u32,
     kind: TraceEventKind,
     task_id: ?[]const u8,
+    group_id: ?[]const u8 = null,
     core_id: ?CoreId = null,
 };
 
@@ -179,6 +230,7 @@ pub const TaskMetrics = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32,
+    group_id: ?[]const u8,
     sleep_after_ticks: ?u32,
     sleep_duration: u32,
     phase_count: u32,
@@ -211,6 +263,7 @@ pub const SimulationResult = struct {
     policy: PolicyKind,
     quantum: u32,
     core_count: u32 = 1,
+    groups: []GroupSpec,
     trace: []TraceEntry,
     tasks: []TaskMetrics,
     completion_order: []usize,
@@ -219,8 +272,13 @@ pub const SimulationResult = struct {
 
     pub fn deinit(self: *SimulationResult) void {
         self.allocator.free(self.scenario_name);
+        for (self.groups) |*group| {
+            self.allocator.free(group.id);
+        }
+        self.allocator.free(self.groups);
         for (self.tasks) |task| {
             self.allocator.free(task.id);
+            if (task.group_id) |group_id| self.allocator.free(group_id);
         }
         self.allocator.free(self.tasks);
         self.allocator.free(self.trace);

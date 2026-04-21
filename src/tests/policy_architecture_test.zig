@@ -7,6 +7,7 @@ const MockRuntimeTask = struct {
     input_order: u32,
     weight: u32,
     deadline_tick: ?u32 = null,
+    group_index: ?usize = null,
 };
 
 test "scheduler class selects and updates policy behavior through one boundary" {
@@ -18,9 +19,9 @@ test "scheduler class selects and updates policy behavior through one boundary" 
     try ready_queue.append(std.testing.allocator, 2);
 
     const runtimes = [_]MockRuntimeTask{
-        .{ .state = .running, .vruntime = 4, .input_order = 0, .weight = sim.default_task_weight, .deadline_tick = 9 },
-        .{ .state = .ready, .vruntime = 2, .input_order = 1, .weight = sim.default_task_weight, .deadline_tick = 5 },
-        .{ .state = .ready, .vruntime = 1, .input_order = 2, .weight = sim.default_task_weight * 2, .deadline_tick = 3 },
+        .{ .state = .running, .vruntime = 4, .input_order = 0, .weight = sim.default_task_weight, .deadline_tick = 9, .group_index = 0 },
+        .{ .state = .ready, .vruntime = 2, .input_order = 1, .weight = sim.default_task_weight, .deadline_tick = 5, .group_index = 1 },
+        .{ .state = .ready, .vruntime = 1, .input_order = 2, .weight = sim.default_task_weight * 2, .deadline_tick = 3, .group_index = 1 },
     };
 
     const fcfs = Class.resolve(.fcfs);
@@ -42,7 +43,7 @@ test "scheduler class selects and updates policy behavior through one boundary" 
     try std.testing.expect(!deadline.useSingleCoreReadyQueue());
     try std.testing.expectEqual(@as(?usize, 2), deadline.selectNextSingle(&ready_queue, runtimes[0..]));
 
-    var task = MockRuntimeTask{ .state = .running, .vruntime = 0, .input_order = 0, .weight = sim.default_task_weight, .deadline_tick = 10 };
+    var task = MockRuntimeTask{ .state = .running, .vruntime = 0, .input_order = 0, .weight = sim.default_task_weight, .deadline_tick = 10, .group_index = 0 };
     cfs.onTaskTick(&task);
     try std.testing.expect(task.vruntime != 0);
     const unchanged = task.vruntime;

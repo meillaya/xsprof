@@ -53,11 +53,18 @@ const ParsedZonTaskPhase = struct {
     ticks: u32,
 };
 
+const ParsedZonGroup = struct {
+    id: []const u8,
+    weight: ?u32 = null,
+    quota_ticks: ?u32 = null,
+};
+
 const ParsedZonTask = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: ?u32 = null,
     weight: ?u32 = null,
+    group_id: ?[]const u8 = null,
     sleep_after_ticks: ?u32 = null,
     sleep_duration: ?u32 = null,
     phases: ?[]const ParsedZonTaskPhase = null,
@@ -71,6 +78,7 @@ const ParsedZonScenario = struct {
     rr_quantum: ?u32 = null,
     core_count: ?u32 = null,
     cpu_count: ?u32 = null,
+    groups: ?[]const ParsedZonGroup = null,
     tasks: []const ParsedZonTask,
 };
 
@@ -202,7 +210,9 @@ fn parseScenarioLegacyText(
     maybe_name = null;
     const owned_task_specs = task_specs;
     task_specs = .empty;
-    return finalizeScenario(allocator, name, quantum, core_count, owned_task_specs, expected_name);
+
+    const groups: std.ArrayList(types.GroupSpec) = .empty;
+    return finalizeScenario(allocator, name, quantum, core_count, groups, owned_task_specs, expected_name);
 }
 
 fn parseScenarioZon(
@@ -225,6 +235,21 @@ fn parseScenarioZon(
     const quantum = try resolveParsedQuantum(parsed);
     const core_count = try resolveParsedCoreCount(parsed);
 
+    var groups: std.ArrayList(types.GroupSpec) = .empty;
+    errdefer {
+        for (groups.items) |*group| group.deinit(allocator);
+        groups.deinit(allocator);
+    }
+    if (parsed.groups) |parsed_groups| {
+        for (parsed_groups) |group| {
+            try groups.append(allocator, .{
+                .id = try allocator.dupe(u8, group.id),
+                .weight = group.weight orelse types.default_group_weight,
+                .quota_ticks = group.quota_ticks orelse 0,
+            });
+        }
+    }
+
     var task_specs: std.ArrayList(types.TaskSpec) = .empty;
     errdefer {
         for (task_specs.items) |*task| task.deinit(allocator);
@@ -235,9 +260,11 @@ fn parseScenarioZon(
         try task_specs.append(allocator, try buildParsedTaskSpec(allocator, task));
     }
 
+    const owned_groups = groups;
+    groups = .empty;
     const owned_task_specs = task_specs;
     task_specs = .empty;
-    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_task_specs, expected_name);
+    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_groups, owned_task_specs, expected_name);
 }
 
 fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types.TaskSpec {
@@ -266,6 +293,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
             .arrival_tick = task.arrival_tick,
             .burst_ticks = total_cpu_ticks,
             .weight = resolveTaskWeight(task.weight),
+            .group_id = if (task.group_id) |group_id| try allocator.dupe(u8, group_id) else null,
             .phases = owned_phases,
             .deadline_tick = task.deadline_tick,
         };
@@ -286,6 +314,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
             .arrival_tick = task.arrival_tick,
             .burst_ticks = burst_ticks,
             .weight = resolveTaskWeight(task.weight),
+            .group_id = if (task.group_id) |group_id| try allocator.dupe(u8, group_id) else null,
             .sleep_after_ticks = sleep_after_ticks,
             .sleep_duration = sleep_duration,
             .phases = phases,
@@ -300,6 +329,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
         .arrival_tick = task.arrival_tick,
         .burst_ticks = burst_ticks,
         .weight = resolveTaskWeight(task.weight),
+        .group_id = if (task.group_id) |group_id| try allocator.dupe(u8, group_id) else null,
         .deadline_tick = task.deadline_tick,
     };
 }
@@ -309,6 +339,7 @@ fn finalizeScenario(
     name: []u8,
     quantum: u32,
     core_count: u32,
+    groups: std.ArrayList(types.GroupSpec),
     task_specs: std.ArrayList(types.TaskSpec),
     expected_name: []const u8,
 ) !types.ScenarioOwned {
@@ -316,6 +347,13 @@ fn finalizeScenario(
 
     if (expected_name.len != 0 and !std.mem.eql(u8, expected_name, name)) {
         return error.ScenarioNameMismatch;
+    }
+
+    var mutable_groups = groups;
+    const owned_groups = try mutable_groups.toOwnedSlice(allocator);
+    errdefer {
+        for (owned_groups) |*group| group.deinit(allocator);
+        allocator.free(owned_groups);
     }
 
     var mutable_task_specs = task_specs;
@@ -330,6 +368,7 @@ fn finalizeScenario(
         .name = name,
         .round_robin_quantum = quantum,
         .core_count = core_count,
+        .groups = owned_groups,
         .tasks = tasks,
     };
     try normalizeAndValidate(&scenario);

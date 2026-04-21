@@ -29,6 +29,14 @@ pub fn SchedulerClass(comptime RuntimeTask: type) type {
             };
         }
 
+        pub fn selectNextSingleExcludingGroup(self: @This(), ready_queue: *std.ArrayList(usize), runtimes: []const RuntimeTask, excluded_group_index: usize) ?usize {
+            return switch (self.policy) {
+                .fcfs, .round_robin => self.selectNextSingle(ready_queue, runtimes),
+                .cfs_like => chooseRunnableByVruntimeExcludingGroup(RuntimeTask, runtimes, excluded_group_index),
+                .deadline => chooseRunnableByDeadlineExcludingGroup(RuntimeTask, runtimes, excluded_group_index),
+            };
+        }
+
         pub fn selectNextCore(self: @This(), ready_queue: *std.ArrayList(usize), runtimes: []const RuntimeTask) ?usize {
             return switch (self.policy) {
                 .fcfs => fcfs.selectNext(ready_queue),
@@ -100,10 +108,43 @@ pub fn SchedulerClass(comptime RuntimeTask: type) type {
 
         pub fn onTaskTick(self: @This(), task: *RuntimeTask) void {
             if (self.policy == .cfs_like) {
-                task.vruntime += cfs_like.vruntimeDelta(task.weight);
+                const effective_weight = if (@hasField(RuntimeTask, "effective_weight")) task.effective_weight else task.weight;
+                task.vruntime += cfs_like.vruntimeDelta(effective_weight);
             }
         }
     };
+}
+
+fn chooseRunnableByVruntimeExcludingGroup(comptime RuntimeTask: type, runtimes: []const RuntimeTask, excluded_group_index: usize) ?usize {
+    var best_index: ?usize = null;
+    var best_vruntime: u64 = 0;
+    var best_order: u32 = 0;
+    for (runtimes, 0..) |task, index| {
+        if (task.state != .ready and task.state != .running) continue;
+        if (task.group_index == excluded_group_index) continue;
+        if (best_index == null or cfs_like.betterCandidate(task.vruntime, task.input_order, best_vruntime, best_order)) {
+            best_index = index;
+            best_vruntime = task.vruntime;
+            best_order = task.input_order;
+        }
+    }
+    return best_index;
+}
+
+fn chooseRunnableByDeadlineExcludingGroup(comptime RuntimeTask: type, runtimes: []const RuntimeTask, excluded_group_index: usize) ?usize {
+    var best_index: ?usize = null;
+    var best_deadline: ?u32 = null;
+    var best_order: u32 = 0;
+    for (runtimes, 0..) |task, index| {
+        if (task.state != .ready and task.state != .running) continue;
+        if (task.group_index == excluded_group_index) continue;
+        if (best_index == null or deadline.betterCandidate(task.deadline_tick, task.input_order, best_deadline, best_order)) {
+            best_index = index;
+            best_deadline = task.deadline_tick;
+            best_order = task.input_order;
+        }
+    }
+    return best_index;
 }
 
 const ReadyChoice = struct {

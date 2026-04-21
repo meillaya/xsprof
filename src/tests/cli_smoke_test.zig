@@ -18,11 +18,17 @@ const ParsedReport = struct {
         quantum: ?u32,
     },
     core_count: u32,
+    groups: []const struct {
+        id: []const u8,
+        weight: u32,
+        quota_ticks: u32,
+    },
     completion_order: []const []const u8,
     trace: []const struct {
         tick: u32,
         kind: sim.TraceEventKind,
         task_id: ?[]const u8,
+        group_id: ?[]const u8,
         core_id: ?sim.CoreId,
     },
     tasks: []const struct {
@@ -30,6 +36,7 @@ const ParsedReport = struct {
         arrival_tick: u32,
         burst_ticks: u32,
         weight: u32,
+        group_id: ?[]const u8,
         sleep_after_ticks: ?u32,
         sleep_duration: u32,
         phase_count: u32,
@@ -205,6 +212,7 @@ test "public report field lists stay frozen for version 1" {
         "scenario",
         "policy",
         "core_count",
+        "groups",
         "completion_order",
         "trace",
         "tasks",
@@ -219,6 +227,11 @@ test "public report field lists stay frozen for version 1" {
         "name",
         "round_robin_quantum",
     };
+    const expected_group_fields = [_][]const u8{
+        "id",
+        "weight",
+        "quota_ticks",
+    };
     const expected_policy_fields = [_][]const u8{
         "kind",
         "display_name",
@@ -228,6 +241,7 @@ test "public report field lists stay frozen for version 1" {
         "tick",
         "kind",
         "task_id",
+        "group_id",
         "core_id",
     };
     const expected_task_fields = [_][]const u8{
@@ -235,6 +249,7 @@ test "public report field lists stay frozen for version 1" {
         "arrival_tick",
         "burst_ticks",
         "weight",
+        "group_id",
         "sleep_after_ticks",
         "sleep_duration",
         "phase_count",
@@ -263,6 +278,7 @@ test "public report field lists stay frozen for version 1" {
     try expectStringFieldSet(expected_top_level_fields[0..], sim.cli.top_level_fields[0..]);
     try expectStringFieldSet(expected_source_fields[0..], sim.cli.source_fields[0..]);
     try expectStringFieldSet(expected_scenario_fields[0..], sim.cli.scenario_fields[0..]);
+    try expectStringFieldSet(expected_group_fields[0..], sim.cli.group_fields[0..]);
     try expectStringFieldSet(expected_policy_fields[0..], sim.cli.policy_fields[0..]);
     try expectStringFieldSet(expected_trace_entry_fields[0..], sim.cli.trace_entry_fields[0..]);
     try expectStringFieldSet(expected_task_fields[0..], sim.cli.task_fields[0..]);
@@ -289,6 +305,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try expectJsonObjectFields(parsed_value.value.object.get("source").?, sim.cli.source_fields[0..]);
     try expectJsonObjectFields(parsed_value.value.object.get("scenario").?, sim.cli.scenario_fields[0..]);
     try expectJsonObjectFields(parsed_value.value.object.get("policy").?, sim.cli.policy_fields[0..]);
+    try std.testing.expectEqual(@as(usize, 0), parsed_value.value.object.get("groups").?.array.items.len);
     try std.testing.expect(parsed_value.value.object.get("trace").?.array.items.len != 0);
     try expectJsonObjectFields(parsed_value.value.object.get("trace").?.array.items[0], sim.cli.trace_entry_fields[0..]);
     try std.testing.expect(parsed_value.value.object.get("tasks").?.array.items.len != 0);
@@ -305,6 +322,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqualStrings("CFS-inspired", parsed.value.policy.display_name);
     try std.testing.expect(parsed.value.policy.quantum == null);
     try std.testing.expectEqual(@as(u32, 1), parsed.value.core_count);
+    try std.testing.expectEqual(@as(usize, 0), parsed.value.groups.len);
 
     try std.testing.expectEqual(@as(usize, 3), parsed.value.completion_order.len);
     try std.testing.expectEqualStrings("default", parsed.value.completion_order[0]);
@@ -315,6 +333,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(u32, 0), parsed.value.trace[0].tick);
     try std.testing.expectEqual(sim.TraceEventKind.arrival, parsed.value.trace[0].kind);
     try std.testing.expectEqualStrings("light", parsed.value.trace[0].task_id.?);
+    try std.testing.expect(parsed.value.trace[0].group_id == null);
     try std.testing.expectEqual(@as(?sim.CoreId, 0), parsed.value.trace[0].core_id);
     var saw_core_identity = false;
     for (parsed.value.trace) |entry| {
@@ -327,6 +346,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
 
     try std.testing.expectEqual(@as(usize, 3), parsed.value.tasks.len);
     try std.testing.expectEqualStrings("light", parsed.value.tasks[0].id);
+    try std.testing.expect(parsed.value.tasks[0].group_id == null);
     try std.testing.expectEqual(@as(u32, 512), parsed.value.tasks[0].weight);
     try std.testing.expectEqual(@as(?u32, null), parsed.value.tasks[0].sleep_after_ticks);
     try std.testing.expectEqual(@as(u32, 0), parsed.value.tasks[0].sleep_duration);
@@ -371,6 +391,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "scenario",
         "policy",
         "core_count",
+        "groups",
         "completion_order",
         "trace",
         "tasks",
@@ -381,6 +402,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "tick",
         "kind",
         "task_id",
+        "group_id",
         "core_id",
     };
     const expected_task_fields = [_][]const u8{
@@ -388,6 +410,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "arrival_tick",
         "burst_ticks",
         "weight",
+        "group_id",
         "sleep_after_ticks",
         "sleep_duration",
         "phase_count",
@@ -505,4 +528,23 @@ test "deadline-inspired JSON export exposes task deadlines" {
 
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"policy\":{\"kind\":\"deadline\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"deadline_tick\":3") != null);
+}
+
+test "group-aware JSON export exposes groups and task group ids" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/group-fairness.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .cfs_like);
+    defer result.deinit();
+
+    const rendered = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/group-fairness.zon" }, &scenario, &result);
+    defer allocator.free(rendered);
+    var parsed = try parseJsonReport(allocator, rendered);
+    defer parsed.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.value.groups.len);
+    try std.testing.expectEqualStrings("interactive", parsed.value.groups[0].id);
+    try std.testing.expectEqual(@as(u32, 2048), parsed.value.groups[0].weight);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"group_id\":\"interactive\"") != null);
 }

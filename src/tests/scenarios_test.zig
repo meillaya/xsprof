@@ -174,3 +174,31 @@ test "deadline-inspired policy prioritizes earlier deadlines deterministically" 
     const urgent_deadline = deadline_result.taskById("urgent2").?;
     try std.testing.expect(urgent_deadline.response_time < urgent_fcfs.response_time);
 }
+
+test "group-aware CFS-inspired scheduling keeps batch work visible while favoring the interactive group" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/group-fairness.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .cfs_like);
+    defer result.deinit();
+
+    const ui_a = result.taskById("uiA").?;
+    const ui_b = result.taskById("uiB").?;
+    const bg = result.taskById("bg").?;
+
+    try std.testing.expect(ui_a.completion_time < bg.completion_time);
+    try std.testing.expect(ui_b.completion_time < bg.completion_time);
+
+    var saw_batch_tick_before_interactive_complete = false;
+    var interactive_complete_tick: ?u32 = null;
+    for (result.trace) |entry| {
+        if (entry.kind == .complete and entry.group_id != null and std.mem.eql(u8, entry.group_id.?, "interactive")) {
+            if (interactive_complete_tick == null or entry.tick < interactive_complete_tick.?) interactive_complete_tick = entry.tick;
+        }
+        if (entry.kind == .tick and entry.group_id != null and std.mem.eql(u8, entry.group_id.?, "batch")) {
+            if (interactive_complete_tick == null) saw_batch_tick_before_interactive_complete = true;
+        }
+    }
+    try std.testing.expect(saw_batch_tick_before_interactive_complete);
+}

@@ -15,6 +15,14 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     if (report.result.policy == .round_robin) {
         try writer.print("Round Robin Quantum: {d}\n", .{report.result.quantum});
     }
+    if (report.result.groups.len != 0) {
+        try writer.writeAll("Groups:\n");
+        for (report.result.groups) |group| {
+            try writer.print("- {s}: weight={d} quota_ticks={d}\n", .{ group.id, group.weight, group.quota_ticks });
+        }
+        try writer.writeByte('\n');
+    }
+
     try writer.writeAll("Completion Order: ");
     for (report.result.completion_order, 0..) |task_index, index| {
         if (index != 0) try writer.writeAll(" -> ");
@@ -24,9 +32,9 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     for (report.result.trace) |entry| {
         if (entry.task_id) |task_id| {
             if (entry.core_id) |core_id| {
-                try writer.print("- t={d}: {s} {s} core={d}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id, core_id });
+                try writer.print("- t={d}: {s} {s} group={any} core={d}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id, entry.group_id, core_id });
             } else {
-                try writer.print("- t={d}: {s} {s}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id });
+                try writer.print("- t={d}: {s} {s} group={any}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id, entry.group_id });
             }
         } else {
             if (entry.core_id) |core_id| {
@@ -40,8 +48,8 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     try writer.writeAll("\nPer-Task Metrics:\n");
     for (report.result.tasks) |task| {
         try writer.print(
-            "- {s}: arrival={d} burst={d} weight={d} ",
-            .{ task.id, task.arrival_tick, task.burst_ticks, task.weight },
+            "- {s}: arrival={d} burst={d} weight={d} group={any} ",
+            .{ task.id, task.arrival_tick, task.burst_ticks, task.weight, task.group_id },
         );
         if (task.sleep_after_ticks) |sleep_after_ticks| {
             try writer.print("sleep_after={d} ", .{sleep_after_ticks});

@@ -10,6 +10,7 @@ pub const top_level_fields = [_][]const u8{
     "scenario",
     "policy",
     "core_count",
+    "groups",
     "completion_order",
     "trace",
     "tasks",
@@ -24,6 +25,11 @@ pub const scenario_fields = [_][]const u8{
     "name",
     "round_robin_quantum",
 };
+pub const group_fields = [_][]const u8{
+    "id",
+    "weight",
+    "quota_ticks",
+};
 pub const policy_fields = [_][]const u8{
     "kind",
     "display_name",
@@ -33,6 +39,7 @@ pub const trace_entry_fields = [_][]const u8{
     "tick",
     "kind",
     "task_id",
+    "group_id",
     "core_id",
 };
 pub const task_fields = [_][]const u8{
@@ -40,6 +47,7 @@ pub const task_fields = [_][]const u8{
     "arrival_tick",
     "burst_ticks",
     "weight",
+    "group_id",
     "sleep_after_ticks",
     "sleep_duration",
     "phase_count",

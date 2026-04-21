@@ -140,3 +140,16 @@ Important caveat:
 - this is not Linux SCHED_DEADLINE or any kernel real-time class
 - no admission control, runtime budgets, replenishment, or utilization guarantees are modeled
 - deadlines are teaching inputs, not correctness proofs
+
+### Group scheduling analogy
+
+The group scheduling model is intentionally narrow:
+- tasks may belong to declared groups
+- groups may carry a teaching `weight` and `quota_ticks` cap
+- the current implementation uses those values only as deterministic simulator heuristics for group fairness discussion
+
+Important caveat:
+- this is not Linux cgroups, CFS group scheduling, or kernel bandwidth control
+- no hierarchy depth beyond one declared group layer is modeled
+- no kernel accounting, throttling periods, or controller integration is modeled
+

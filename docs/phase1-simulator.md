@@ -78,6 +78,13 @@ M10 adds a deterministic deadline-inspired policy. Tasks may declare `deadline_t
 
 This is an educational policy only. It does not model Linux deadline scheduling, admission control, runtime budgets, or real-time guarantees.
 
+### group-level scheduling ideas
+M11 adds a simulator-safe group model. Scenarios may declare top-level `groups`, and tasks may reference a `group_id`. Groups currently carry:
+- `weight`
+- `quota_ticks`
+
+In the current mainline implementation, the CFS-inspired policy uses group weight as part of effective fairness accounting and uses quota-like caps to keep other runnable groups visible in deterministic experiments. This is an analogy to group fairness ideas, not Linux cgroups or kernel group scheduling fidelity.
+
 ### Scheduling-class boundary
 M9 refactors the engine so policy-specific selection, preemption, and tick-accounting hooks flow through an explicit scheduling-class boundary (`src/policies/class.zig`). The engine still owns common simulation state and trace/metric production, while policy families provide their own scheduling decisions behind that boundary.
 
@@ -102,6 +109,7 @@ Top-level fields:
 - `scenario`
 - `policy`
 - `core_count`
+- `groups`
 - `completion_order`
 - `trace`
 - `tasks`

@@ -108,6 +108,33 @@ test "canonical object style scenario files parse task deadlines" {
     try std.testing.expectEqual(@as(?u32, 3), scenario.tasks[1].deadline_tick);
 }
 
+test "canonical object style scenario files parse group membership and group weights" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/group-fairness.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("group-fairness", scenario.name);
+    try std.testing.expectEqual(@as(usize, 2), scenario.groups.len);
+    try std.testing.expectEqualStrings("interactive", scenario.groups[0].id);
+    try std.testing.expectEqual(@as(u32, 2048), scenario.groups[0].weight);
+    try std.testing.expectEqual(@as(u32, 1), scenario.groups[0].quota_ticks);
+    try std.testing.expectEqualStrings("interactive", scenario.tasks[0].group_id.?);
+    try std.testing.expectEqualStrings("batch", scenario.tasks[2].group_id.?);
+}
+
+test "group references must resolve to declared groups" {
+    const source =
+        \\.{
+        \\    .name = "unknown-group",
+        \\    .groups = .{ .{ .id = "interactive" } },
+        \\    .tasks = .{ .{ .id = "A", .arrival_tick = 0, .burst_ticks = 2, .group_id = "missing" } },
+        \\}
+    ;
+    try std.testing.expectError(
+        error.UnknownGroup,
+        scheduler.parseScenarioText(std.testing.allocator, source, "unknown-group"),
+    );
+}
+
 test "sleep configuration requires positive duration and a valid post-dispatch point" {
     const missing_duration =
         \\.{
@@ -148,10 +175,12 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     try std.testing.expect(std.mem.indexOf(u8, readme, "sleep_after_ticks") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "phases") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "deadline-priority") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "group-fairness") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/multi-phase-io.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "group-level scheduling ideas") != null);
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
 }
 

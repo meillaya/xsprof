@@ -21,6 +21,7 @@ pub const schema_version = report.schema_version;
 pub const top_level_fields = report.top_level_fields;
 pub const source_fields = report.source_fields;
 pub const scenario_fields = report.scenario_fields;
+pub const group_fields = report.group_fields;
 pub const policy_fields = report.policy_fields;
 pub const trace_entry_fields = report.trace_entry_fields;
 pub const task_fields = report.task_fields;
