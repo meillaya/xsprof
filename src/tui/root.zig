@@ -63,6 +63,16 @@ const App = struct {
     }
 };
 
+const default_interactive_size: term_mod.Size = .{ .cols = 120, .rows = 40 };
+const max_render_area: usize = 400_000;
+
+fn normalizeInteractiveSize(raw: term_mod.Size, fallback: term_mod.Size) term_mod.Size {
+    if (raw.cols == 0 or raw.rows == 0) return fallback;
+    const area = @as(usize, raw.cols) * @as(usize, raw.rows);
+    if (area > max_render_area) return fallback;
+    return raw;
+}
+
 pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     var app = App{
         .allocator = allocator,
@@ -93,12 +103,19 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     var terminal = try term_mod.Terminal.init();
     defer terminal.deinit();
 
-    var size = terminal.size();
+    var size = normalizeInteractiveSize(terminal.size(), default_interactive_size);
     var needs_redraw = true;
 
     while (true) {
         if (needs_redraw) {
-            const frame = try render.renderFrame(allocator, size.cols, size.rows, appView(&app));
+            const frame = render.renderFrame(allocator, size.cols, size.rows, appView(&app)) catch |err| switch (err) {
+                error.OutOfMemory => {
+                    size = default_interactive_size;
+                    needs_redraw = true;
+                    continue;
+                },
+                else => return err,
+            };
             defer allocator.free(frame);
             try terminal.writeFrame(frame);
             needs_redraw = false;
@@ -107,7 +124,7 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
         const timeout: i32 = if (app.playing and app.view == .explorer) 200 else 100;
         const event = try terminal.readEvent(timeout);
 
-        const next_size = terminal.size();
+        const next_size = normalizeInteractiveSize(terminal.size(), size);
         if (!term_mod.eqlSize(size, next_size)) {
             size = next_size;
             needs_redraw = true;
@@ -481,6 +498,13 @@ test "terminal size equality helper is exact" {
     try std.testing.expect(term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 120, .rows = 40 }));
     try std.testing.expect(!term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 121, .rows = 40 }));
     try std.testing.expect(!term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 120, .rows = 41 }));
+}
+
+test "normalize interactive size falls back for zero or absurd area" {
+    try std.testing.expectEqual(default_interactive_size, normalizeInteractiveSize(.{ .cols = 0, .rows = 40 }, default_interactive_size));
+    try std.testing.expectEqual(default_interactive_size, normalizeInteractiveSize(.{ .cols = 120, .rows = 0 }, default_interactive_size));
+    try std.testing.expectEqual(default_interactive_size, normalizeInteractiveSize(.{ .cols = 2000, .rows = 500 }, default_interactive_size));
+    try std.testing.expectEqual(term_mod.Size{ .cols = 160, .rows = 48 }, normalizeInteractiveSize(.{ .cols = 160, .rows = 48 }, default_interactive_size));
 }
 
 test "interactive picker rejects missing tty without snapshot" {
