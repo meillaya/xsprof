@@ -37,6 +37,7 @@ Current repo scope does **not** include:
 | Response time | First dispatch minus arrival | initial scheduling latency | Ignores wakeup and migration overhead after the first dispatch |
 | Blocked time | Ticks spent in the deterministic blocked state | blocked / sleeping time intuition | Educational accounting only, not a Linux KPI |
 | Waiting-time spread | Fairness visibility across tasks | fairness/latency skew intuition | Educational proxy, not a Linux scheduler KPI |
+| Max waiting / response probe metrics | Worst-case latency pressure in a deterministic scenario | starvation/latency discussion aid | Probe-only metrics, not Linux scheduler guarantees |
 
 ## Policy mapping
 

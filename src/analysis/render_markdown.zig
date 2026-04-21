@@ -25,7 +25,10 @@ pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary
     try writer.print("| average_response_time | {d:.3} |\n", .{report.aggregate.average_response_time});
     try writer.print("| throughput | {d:.3} |\n", .{report.aggregate.throughput});
     try writer.print("| throughput_ratio | {d}/{d} |\n", .{ report.aggregate.throughput_numerator, report.aggregate.throughput_denominator });
-    try writer.print("| waiting_time_spread | {d} |\n\n", .{report.aggregate.waiting_time_spread});
+    try writer.print("| waiting_time_spread | {d} |\n", .{report.aggregate.waiting_time_spread});
+    try writer.print("| max_waiting_time | {d} |\n", .{report.aggregate.max_waiting_time});
+    try writer.print("| max_response_time | {d} |\n", .{report.aggregate.max_response_time});
+    try writer.print("| response_time_spread | {d} |\n\n", .{report.aggregate.response_time_spread});
 
     try writer.writeAll("## Trace event counts\n\n");
     try writer.writeAll("| event | count |\n");

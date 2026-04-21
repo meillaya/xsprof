@@ -49,6 +49,9 @@ pub const AggregateMetrics = struct {
     throughput_numerator: u32,
     throughput_denominator: u32,
     waiting_time_spread: u32,
+    max_waiting_time: u32 = 0,
+    max_response_time: u32 = 0,
+    response_time_spread: u32 = 0,
 };
 
 pub const Report = struct {

@@ -1,0 +1,12 @@
+.{
+    .name = "latency-probe",
+    .description = "Batch task plus repeated short arrivals to expose latency tradeoffs across policies.",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "batch", .arrival_tick = 0, .burst_ticks = 10 },
+        .{ .id = "s1", .arrival_tick = 1, .burst_ticks = 1 },
+        .{ .id = "s2", .arrival_tick = 2, .burst_ticks = 1 },
+        .{ .id = "s3", .arrival_tick = 3, .burst_ticks = 1 },
+        .{ .id = "s4", .arrival_tick = 4, .burst_ticks = 1 },
+    },
+}

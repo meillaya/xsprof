@@ -59,6 +59,9 @@ pub const aggregate_fields = [_][]const u8{
     "throughput_numerator",
     "throughput_denominator",
     "waiting_time_spread",
+    "max_waiting_time",
+    "max_response_time",
+    "response_time_spread",
 };
 
 pub const ContractError = error{

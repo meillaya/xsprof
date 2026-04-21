@@ -71,6 +71,9 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
         .{ report.result.aggregate.throughput, report.result.aggregate.throughput_numerator, report.result.aggregate.throughput_denominator },
     );
     try writer.print("- waiting_time_spread: {d}\n", .{report.result.aggregate.waiting_time_spread});
+    try writer.print("- max_waiting_time: {d}\n", .{report.result.aggregate.max_waiting_time});
+    try writer.print("- max_response_time: {d}\n", .{report.result.aggregate.max_response_time});
+    try writer.print("- response_time_spread: {d}\n", .{report.result.aggregate.response_time_spread});
 
     try writer.writeAll("\nNotes:\n");
     for (report_mod.SimulationReport.notes()) |note| {

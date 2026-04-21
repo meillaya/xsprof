@@ -142,8 +142,19 @@ Aggregate fields:
 - `throughput_numerator`
 - `throughput_denominator`
 - `waiting_time_spread`
+- `max_waiting_time`
+- `max_response_time`
+- `response_time_spread`
 
 These field lists define the required version `1` baseline. Any later version-`1` extension must remain additive, be documented here, and land with regression coverage for the new fields.
+
+### Fairness / latency probe metrics
+M8 adds a few explicit experiment-oriented aggregate metrics:
+- `max_waiting_time`
+- `max_response_time`
+- `response_time_spread`
+
+These are probe metrics for comparing deterministic scenarios across policies. They are evidence surfaces for fairness/latency discussion, not formal starvation or Linux scheduler guarantees.
 
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`

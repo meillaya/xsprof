@@ -17,6 +17,9 @@
 | throughput | 0.500 |
 | throughput_ratio | 4/8 |
 | waiting_time_spread | 4 |
+| max_waiting_time | 4 |
+| max_response_time | 4 |
+| response_time_spread | 4 |
 
 ## Trace event counts
 

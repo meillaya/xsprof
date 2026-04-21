@@ -49,6 +49,9 @@ const ParsedReport = struct {
         throughput_numerator: u32,
         throughput_denominator: u32,
         waiting_time_spread: u32,
+        max_waiting_time: u32,
+        max_response_time: u32,
+        response_time_spread: u32,
     },
     notes: []const []const u8,
 };
@@ -250,6 +253,9 @@ test "public report field lists stay frozen for version 1" {
         "throughput_numerator",
         "throughput_denominator",
         "waiting_time_spread",
+        "max_waiting_time",
+        "max_response_time",
+        "response_time_spread",
     };
 
     try expectStringFieldSet(expected_top_level_fields[0..], sim.cli.top_level_fields[0..]);
@@ -330,6 +336,20 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(u32, 3), parsed.value.aggregate.throughput_numerator);
     try std.testing.expectEqual(@as(u32, 10), parsed.value.aggregate.throughput_denominator);
     try std.testing.expectEqual(@as(u32, 3), parsed.value.aggregate.waiting_time_spread);
+    var computed_max_waiting: u32 = 0;
+    var computed_min_response: ?u32 = null;
+    var computed_max_response: u32 = 0;
+    for (parsed.value.tasks) |task| {
+        computed_max_waiting = @max(computed_max_waiting, task.waiting_time);
+        computed_max_response = @max(computed_max_response, task.response_time);
+        computed_min_response = if (computed_min_response) |current|
+            @min(current, task.response_time)
+        else
+            task.response_time;
+    }
+    try std.testing.expectEqual(computed_max_waiting, parsed.value.aggregate.max_waiting_time);
+    try std.testing.expectEqual(computed_max_response, parsed.value.aggregate.max_response_time);
+    try std.testing.expectEqual(computed_max_response - computed_min_response.?, parsed.value.aggregate.response_time_spread);
     try std.testing.expect(parsed.value.notes.len >= 2);
 }
 

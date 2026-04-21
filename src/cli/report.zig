@@ -154,6 +154,12 @@ pub const SimulationReport = struct {
         try jw.write(self.result.aggregate.throughput_denominator);
         try jw.objectField("waiting_time_spread");
         try jw.write(self.result.aggregate.waiting_time_spread);
+        try jw.objectField("max_waiting_time");
+        try jw.write(self.result.aggregate.max_waiting_time);
+        try jw.objectField("max_response_time");
+        try jw.write(self.result.aggregate.max_response_time);
+        try jw.objectField("response_time_spread");
+        try jw.write(self.result.aggregate.response_time_spread);
         try jw.endObject();
 
         try jw.objectField("notes");

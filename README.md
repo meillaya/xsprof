@@ -29,6 +29,7 @@ zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy 
 zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy rr
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 zig build bench
@@ -100,7 +101,7 @@ Every text-mode run prints:
 - raw trace events, including `core=<id>` on core-scoped lines
 - explicit `block` / `wakeup` trace events when a task uses deterministic sleep
 - per-task completion, turnaround, runnable waiting, blocked-time, and response metrics
-- aggregate average waiting time, average response time, throughput, and waiting-time spread
+- aggregate average waiting time, average response time, throughput, waiting-time spread, and max waiting/response probe metrics
 
 JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
 
@@ -123,6 +124,13 @@ Reference artifacts are committed at:
 
 The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
 
+## Fairness and latency probe fixtures
+M8 adds dedicated experiment fixtures for evidence-based fairness discussions:
+- `scenarios/basic/latency-probe.zon` — batch plus short arrivals for latency comparisons
+- `scenarios/basic/starvation-pressure.zon` — weighted equal-arrival contention that exposes starvation pressure on low-weight work
+
+Useful probe metrics now include `max_waiting_time`, `max_response_time`, and `response_time_spread` in addition to the existing averages and waiting-time spread. These are simulator-local experiment aids, not formal scheduler guarantees.
+
 ## Benchmark baselines
 Use the reproducible M4.5 harness to regenerate simulator-local baseline artifacts:
 ```sh
@@ -138,7 +146,7 @@ These numbers are deterministic simulator-local output-size/trace-volume baselin
 
 The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions, and `scenarios/basic/multi-phase-io.zon` is the canonical M7 example for alternating CPU/wait phases.
 
-See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, and Linux relevance notes.
+See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, `docs/m8-fairness-probes.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, fairness probe guidance, and Linux relevance notes.
 
 ## Multicore fixture corpus
 Committed multicore proof fixtures now include:

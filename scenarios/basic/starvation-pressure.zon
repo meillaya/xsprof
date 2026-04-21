@@ -1,0 +1,10 @@
+.{
+    .name = "starvation-pressure",
+    .description = "Equal-arrival weighted contention that exposes starvation pressure on low-weight work.",
+    .tasks = .{
+        .{ .id = "low", .arrival_tick = 0, .burst_ticks = 12, .weight = 256 },
+        .{ .id = "heavyA", .arrival_tick = 0, .burst_ticks = 4, .weight = 2048 },
+        .{ .id = "heavyB", .arrival_tick = 0, .burst_ticks = 4, .weight = 2048 },
+        .{ .id = "heavyC", .arrival_tick = 0, .burst_ticks = 4, .weight = 2048 },
+    },
+}
