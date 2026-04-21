@@ -98,6 +98,16 @@ The multi-phase form is the canonical M7 surface for alternating CPU and wait se
 
 This is an educational simulator model, not a Linux-faithful sleep/wakeup or I/O implementation. Legacy line-oriented `.zon` input remains supported, but blocked/wakeup and multi-phase fields are documented only for the canonical object-style format.
 
+## Scenario packs and extension boundary
+M14 keeps scenario-pack support intentionally light-weight:
+- the curated built-in registry in `src/sim/scenario.zig` maps `--scenario <builtin-name>` to committed teaching fixtures under `scenarios/basic/`
+- any additional scenario pack remains just a directory of canonical `.zon` fixtures that can be loaded through `--scenario-file <path>` or `loadScenarioFile`
+- the core simulator does not require plugin loaders, dependency injection, or optional-pack registration to remain usable
+
+Policy extension remains behind the scheduling-class boundary in `src/policies/class.zig`. `src/sim/engine.zig` depends on that boundary rather than direct per-policy imports, so new policy families can be reviewed as boundary changes instead of engine rewrites.
+
+See `docs/m14-extension-boundary.md` for the scenario-pack convention, boundary expectations, and docs/examples audit notes.
+
 ## Output contract
 Every text-mode run prints:
 - scenario name

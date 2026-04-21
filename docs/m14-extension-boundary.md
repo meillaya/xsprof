@@ -1,46 +1,44 @@
-# M14 scenario packs and policy extension boundary
+# M14 Scenario Pack and Policy Extension Boundary
 
-M14 keeps the simulator core reviewable by defining **registry conventions** instead of introducing runtime plugin dependencies.
+M14 defines a reviewable extension boundary without turning the simulator into a plugin host.
 
-## Scenario pack layout
+## Scenario pack convention
 
-Scenario packs are registered in `src/sim/scenario_pack.zig` and point at committed directories:
+The simulator supports two scenario-loading paths:
+- curated built-ins via `--scenario <builtin-name>`
+- arbitrary fixture files via `--scenario-file <path>`
 
-- `core` -> `scenarios/basic`
-- `regressions` -> `scenarios/regressions`
+The built-in registry lives in `src/sim/scenario.zig` and points at committed teaching fixtures under `scenarios/basic/`.
 
-Each entry records:
+Additional scenario packs follow a directory convention rather than a runtime plugin API:
+- keep fixtures in canonical object-style `.zon`
+- organize them under any contributor-owned directory that can be addressed by path
+- load them through `--scenario-file <path>` or the library surface `loadScenarioFile`
 
-- a stable scenario key
-- the committed `.zon` path
-- a short teaching/regression description
-
-Loaders should use the registry boundary instead of hard-coding extra paths:
-
-```zig
-const sim = @import("root.zig");
-
-var scenario = try sim.scenario_packs.loadPackScenario(allocator, "core", "weighted-fairness");
-defer scenario.deinit();
-```
-
-The `regressions` pack is intentionally marked as one of the optional packs. Core fixtures must continue to load even when no extra regression scenarios have been committed yet.
+That means a "scenario pack" is just a portable fixture tree. The core simulator does not need dynamic discovery, dependency injection, or optional-pack registration to stay usable.
 
 ## Policy extension boundary
 
-Policy modules continue to stay behind `src/policies/class.zig`, while `src/policies/extension.zig` now defines the documented contract for extension-friendly policy modules:
+The policy boundary is the scheduling class in `src/policies/class.zig`.
 
-- queue-style modules may export `selectNext(...)`
-- chooser-style modules may export `chooseRunnable(...)`
-- optional hooks such as `shouldPreempt(...)`, `onTaskTick(...)`, and `keeps_running_selection` refine behavior without changing engine ownership
+Current expectation:
+- `src/sim/engine.zig` depends on the scheduling-class boundary instead of importing individual policy modules directly
+- policy modules remain responsible for policy-specific selection, preemption, and tick-accounting behavior
+- engine-owned concerns stay centralized in the simulator core: lifecycle flow, trace production, aggregate metrics, and shared deterministic state handling
 
-This keeps `src/sim/engine.zig` free of direct concrete-policy imports and gives future policy experiments one explicit boundary to satisfy before they are wired into the class resolver.
+This keeps policy growth reviewable: adding or refining a policy should mostly change the policy module plus the scheduling-class surface, not scatter policy logic throughout the engine.
 
-## Verification focus
+## Core-without-optional-packs rule
 
-The M14 tests cover:
+Optional packs must remain optional:
+- the default regression suite should keep passing without external packs
+- README quick-start examples should continue to work with committed fixtures
+- core package review should not depend on loading non-core fixture trees
 
-- registry discovery for the committed scenario packs
-- extension loading through `loadPackScenario`
-- contract checks for built-in policy modules
-- adapter defaults for queue-style and chooser-style policy modules
+## Docs/examples audit summary
+
+The repository docs and examples should continue to reflect the actual CLI contract:
+- `--scenario` is only for curated built-ins
+- `--scenario-file` is the extension path for pack-style fixtures
+- scenario fixtures remain canonical `.zon`
+- policy-extension language should describe a simulator architecture boundary, not a production plugin system

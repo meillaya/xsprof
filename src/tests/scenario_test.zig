@@ -255,6 +255,40 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
 }
 
+test "M14 registry and docs describe scenario-pack and policy extension boundaries" {
+    const allocator = std.testing.allocator;
+    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
+    defer allocator.free(readme);
+    const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
+    defer allocator.free(phase_doc);
+    const extension_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m14-extension-boundary.md", std.math.maxInt(usize));
+    defer allocator.free(extension_doc);
+
+    const builtins = scheduler.listBuiltinScenarios();
+    try std.testing.expect(builtins.len >= 3);
+
+    var saw_short_vs_long = false;
+    for (builtins) |entry| {
+        try std.testing.expect(entry.key.len != 0);
+        try std.testing.expect(entry.description.len != 0);
+        try std.testing.expect(std.mem.startsWith(u8, entry.path, "scenarios/basic/"));
+        if (std.mem.eql(u8, entry.key, "short-vs-long")) {
+            saw_short_vs_long = true;
+            try std.testing.expectEqualStrings("scenarios/basic/short-vs-long.zon", entry.path);
+        }
+    }
+    try std.testing.expect(saw_short_vs_long);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "Scenario packs and extension boundary") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "--scenario-file <path>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "src/policies/class.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Scenario-pack convention and extension boundary") != null);
+    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "Scenario pack convention") != null);
+    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "src/sim/scenario.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "src/sim/engine.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "core simulator does not need dynamic discovery") != null);
+}
+
 test "legacy line oriented scenario text remains supported" {
     const source =
         \\name: legacy-demo

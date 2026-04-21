@@ -100,6 +100,21 @@ M9 refactors the engine so policy-specific selection, preemption, and tick-accou
 
 This is an internal architecture cleanup only: current FCFS, Round Robin, and CFS-inspired behavior should remain semantically unchanged.
 
+### Scenario-pack convention and extension boundary
+M14 keeps extension points narrow and reviewable instead of adding a plugin runtime.
+
+Scenario-pack convention:
+- curated built-ins stay registered in `src/sim/scenario.zig`
+- built-in metadata points at committed fixtures under `scenarios/basic/`
+- external or optional packs are just canonical `.zon` files loaded through `--scenario-file <path>` or `loadScenarioFile`
+
+Policy-extension boundary:
+- `src/sim/engine.zig` stays coupled to `src/policies/class.zig`, not to individual policy modules
+- policy families remain responsible for their own selection, preemption, and tick-accounting behavior behind that boundary
+- optional scenario packs must not be required for the core simulator, test suite, or basic CLI workflows to operate
+
+This keeps the mainline core operable without optional extras while still leaving a documented path for new teaching fixtures or policy families.
+
 ### M13 scenario generation and regression workflow
 M13 extends verification expectations around the existing public scenario surface: generated cases should still serialize to the canonical object-style ZON dialect, shrinking should preserve a clear failing predicate, and minimized failures should be saved under `scenarios/regressions/` rather than mixed into the curated teaching corpus.
 
