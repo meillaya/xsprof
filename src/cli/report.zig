@@ -1,4 +1,4 @@
-const contract = @import("../contract/report.zig");
+const contract = @import("report_contract");
 const trace = @import("../sim/trace.zig");
 const types = @import("../sim/types.zig");
 

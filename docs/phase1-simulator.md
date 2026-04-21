@@ -57,6 +57,11 @@ M4 analysis/report tooling consumes only the exported `zig-scheduler/report` JSO
 
 Use `zig build analyze -- --input <report.json>` for the Markdown surface or add `--format svg` for the visualization surface. Consumers must keep the same schema/version gate and reject unsupported export versions instead of guessing.
 
+### Simulator-local benchmark baselines
+M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/m45-baselines.md` and `docs/benchmarks/m45-baselines.json`.
+
+These baselines are simulator-local only: they help compare fixtures/policies within this project, and they must not be presented as Linux scheduler performance measurements.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`

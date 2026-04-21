@@ -4,14 +4,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib_mod = b.addModule("zig_scheduler", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-    });
-
     const contract_mod = b.addModule("zig_scheduler_report_contract", .{
         .root_source_file = b.path("src/contract/report.zig"),
         .target = target,
+    });
+
+    const lib_mod = b.addModule("zig_scheduler", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "report_contract", .module = contract_mod },
+        },
     });
 
     const analysis_mod = b.addModule("zig_scheduler_analysis", .{
@@ -19,6 +22,15 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .imports = &.{
             .{ .name = "report_contract", .module = contract_mod },
+        },
+    });
+
+    const bench_mod = b.addModule("zig_scheduler_bench", .{
+        .root_source_file = b.path("src/bench/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "analysis_root", .module = analysis_mod },
         },
     });
 
@@ -46,8 +58,21 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const bench_exe = b.addExecutable(.{
+        .name = "zig-scheduler-bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bench/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "bench_root", .module = bench_mod },
+            },
+        }),
+    });
+
     b.installArtifact(exe);
     b.installArtifact(analysis_exe);
+    b.installArtifact(bench_exe);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -67,6 +92,15 @@ pub fn build(b: *std.Build) void {
     const analyze_step = b.step("analyze", "Analyze exported zig-scheduler/report JSON");
     analyze_step.dependOn(&analyze_cmd.step);
 
+    const bench_cmd = b.addRunArtifact(bench_exe);
+    bench_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        bench_cmd.addArgs(args);
+    }
+
+    const bench_step = b.step("bench", "Render reproducible simulator-local benchmark baselines");
+    bench_step.dependOn(&bench_cmd.step);
+
     const lib_tests = b.addTest(.{
         .root_module = lib_mod,
     });
@@ -77,13 +111,19 @@ pub fn build(b: *std.Build) void {
     });
     const run_analysis_tests = b.addRunArtifact(analysis_tests);
 
+    const bench_tests = b.addTest(.{
+        .root_module = bench_mod,
+    });
+    const run_bench_tests = b.addRunArtifact(bench_tests);
+
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
-    const test_step = b.step("test", "Run library, analysis, and CLI tests");
+    const test_step = b.step("test", "Run library, analysis, benchmark, and CLI tests");
     test_step.dependOn(&run_lib_tests.step);
     test_step.dependOn(&run_analysis_tests.step);
+    test_step.dependOn(&run_bench_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 }

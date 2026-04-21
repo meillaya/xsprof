@@ -20,6 +20,7 @@ zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy 
 zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
+zig build bench
 ```
 
 ## Public CLI contract
@@ -89,6 +90,7 @@ The committed M4 example fixture lives at `docs/examples/exports/multicore-conte
 Render the deterministic Markdown analysis surface:
 ```sh
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
+zig build bench
 ```
 
 Render the deterministic SVG chart surface:
@@ -102,7 +104,20 @@ Reference artifacts are committed at:
 
 The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
 
-See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, and Linux relevance notes.
+## Benchmark baselines
+Use the reproducible M4.5 harness to regenerate simulator-local baseline artifacts:
+```sh
+zig build bench
+zig build bench -- --format json
+```
+
+Committed baseline artifacts live at:
+- `docs/benchmarks/m45-baselines.md`
+- `docs/benchmarks/m45-baselines.json`
+
+These numbers are deterministic simulator-local output-size/trace-volume baselines over committed fixtures. They are not Linux performance claims.
+
+See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, and Linux relevance notes.
 
 ## Multicore fixture corpus
 Committed multicore proof fixtures now include:
