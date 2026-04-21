@@ -100,6 +100,13 @@ M9 refactors the engine so policy-specific selection, preemption, and tick-accou
 
 This is an internal architecture cleanup only: current FCFS, Round Robin, and CFS-inspired behavior should remain semantically unchanged.
 
+### M13 scenario generation and regression workflow
+M13 extends verification expectations around the existing public scenario surface: generated cases should still serialize to the canonical object-style ZON dialect, shrinking should preserve a clear failing predicate, and minimized failures should be saved under `scenarios/regressions/` rather than mixed into the curated teaching corpus.
+
+These checks are simulator-local only. They increase confidence in parser, engine, and export invariants, but they do not by themselves justify Linux scheduler fidelity or production-hardening claims.
+
+See `docs/m13-scenario-generator-workflow.md` for the workflow and save-path guidance.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`

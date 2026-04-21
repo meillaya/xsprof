@@ -152,6 +152,11 @@ M8 adds dedicated experiment fixtures for evidence-based fairness discussions:
 
 Useful probe metrics now include `max_waiting_time`, `max_response_time`, and `response_time_spread` in addition to the existing averages and waiting-time spread. These are simulator-local experiment aids, not formal scheduler guarantees.
 
+## M13 property/regression workflow
+M13's scenario-generation lane should keep outputs inside the existing simulator scenario contract, shrink failures into smaller deterministic fixtures, and save minimized regressions under `scenarios/regressions/`. Keep these artifacts separate from the curated `scenarios/basic/` teaching corpus.
+
+See `docs/m13-scenario-generator-workflow.md` and `scenarios/regressions/README.md` for the bounded workflow and naming guidance.
+
 ## Benchmark baselines
 Use the reproducible M4.5 harness to regenerate simulator-local baseline artifacts:
 ```sh
