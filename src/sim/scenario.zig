@@ -1,6 +1,29 @@
 const std = @import("std");
 const types = @import("types.zig");
 
+const core_basic_pack_key = "core/basic";
+const core_basic_pack_directory = "scenarios/basic";
+
+pub const ScenarioPack = enum {
+    core_basic,
+};
+
+pub const ScenarioPackMeta = struct {
+    id: ScenarioPack,
+    key: []const u8,
+    directory: []const u8,
+    description: []const u8,
+    optional: bool,
+};
+
+pub const ScenarioPackEntryMeta = struct {
+    pack: ScenarioPack,
+    builtin_id: ?BuiltinScenario = null,
+    key: []const u8,
+    file_name: []const u8,
+    description: []const u8,
+};
+
 pub const BuiltinScenario = enum {
     staggered_arrivals,
     equal_arrival_contention,
@@ -14,25 +37,44 @@ pub const BuiltinScenarioMeta = struct {
     description: []const u8,
 };
 
-const builtin_scenarios = [_]BuiltinScenarioMeta{
+const scenario_packs = [_]ScenarioPackMeta{
     .{
-        .id = .staggered_arrivals,
+        .id = .core_basic,
+        .key = core_basic_pack_key,
+        .directory = core_basic_pack_directory,
+        .description = "Reviewable built-in simulator fixtures that ship with the core package",
+        .optional = false,
+    },
+};
+
+const core_basic_pack_entries = [_]ScenarioPackEntryMeta{
+    .{
+        .pack = .core_basic,
+        .builtin_id = .staggered_arrivals,
         .key = "staggered-arrivals",
-        .path = "scenarios/basic/staggered-arrivals.zon",
+        .file_name = "staggered-arrivals.zon",
         .description = "Staggered arrivals for deterministic waiting-time comparisons",
     },
     .{
-        .id = .equal_arrival_contention,
+        .pack = .core_basic,
+        .builtin_id = .equal_arrival_contention,
         .key = "equal-arrival-contention",
-        .path = "scenarios/basic/equal-arrival-contention.zon",
+        .file_name = "equal-arrival-contention.zon",
         .description = "Equal-arrival contention to compare ordering and fairness",
     },
     .{
-        .id = .short_vs_long,
+        .pack = .core_basic,
+        .builtin_id = .short_vs_long,
         .key = "short-vs-long",
-        .path = "scenarios/basic/short-vs-long.zon",
+        .file_name = "short-vs-long.zon",
         .description = "Golden-oracle short-job versus long-job contention",
     },
+};
+
+const builtin_scenarios = [_]BuiltinScenarioMeta{
+    builtinScenarioMeta(core_basic_pack_entries[0]),
+    builtinScenarioMeta(core_basic_pack_entries[1]),
+    builtinScenarioMeta(core_basic_pack_entries[2]),
 };
 
 const legacy_aliases = [_]struct {
@@ -88,9 +130,25 @@ pub fn listBuiltinScenarios() []const BuiltinScenarioMeta {
     return builtin_scenarios[0..];
 }
 
+pub fn listScenarioPacks() []const ScenarioPackMeta {
+    return scenario_packs[0..];
+}
+
+pub fn listScenarioPackEntries(pack: ScenarioPack) []const ScenarioPackEntryMeta {
+    return switch (pack) {
+        .core_basic => core_basic_pack_entries[0..],
+    };
+}
+
 pub fn loadBuiltinScenario(allocator: std.mem.Allocator, builtin: BuiltinScenario) !types.ScenarioOwned {
     const entry = builtinMeta(builtin);
     return loadScenarioFileWithName(allocator, entry.path, entry.key);
+}
+
+pub fn loadScenarioPackEntry(allocator: std.mem.Allocator, pack_key: []const u8, name: []const u8) !types.ScenarioOwned {
+    const pack = resolveScenarioPackByKey(pack_key) orelse return error.UnknownScenarioPack;
+    const entry = findScenarioPackEntry(pack, name) orelse return error.UnknownScenario;
+    return loadScenarioPackEntryMeta(allocator, entry);
 }
 
 pub fn loadScenarioByName(allocator: std.mem.Allocator, name: []const u8) !types.ScenarioOwned {
@@ -98,6 +156,10 @@ pub fn loadScenarioByName(allocator: std.mem.Allocator, name: []const u8) !types
 }
 
 pub fn loadNamedScenario(allocator: std.mem.Allocator, name: []const u8) !types.ScenarioOwned {
+    if (splitQualifiedScenarioName(name)) |qualified| {
+        return loadScenarioPackEntry(allocator, qualified.pack_key, qualified.scenario_key);
+    }
+    if (resolveUnqualifiedScenarioPackEntry(name)) |entry| return loadScenarioPackEntryMeta(allocator, entry);
     if (resolveBuiltinByName(name)) |builtin| return loadBuiltinScenario(allocator, builtin);
     return error.UnknownScenario;
 }
@@ -390,6 +452,73 @@ fn parseLegacyTaskWeight(weight_text: ?[]const u8) !u32 {
         std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger
     else
         types.default_task_weight;
+}
+
+fn builtinScenarioMeta(comptime entry: ScenarioPackEntryMeta) BuiltinScenarioMeta {
+    return .{
+        .id = entry.builtin_id orelse @compileError("builtin scenario entry missing builtin_id"),
+        .key = entry.key,
+        .path = comptimeScenarioPackEntryPath(entry),
+        .description = entry.description,
+    };
+}
+
+fn comptimeScenarioPackEntryPath(comptime entry: ScenarioPackEntryMeta) []const u8 {
+    return switch (entry.pack) {
+        .core_basic => core_basic_pack_directory ++ "/" ++ entry.file_name,
+    };
+}
+
+const QualifiedScenarioName = struct {
+    pack_key: []const u8,
+    scenario_key: []const u8,
+};
+
+fn splitQualifiedScenarioName(name: []const u8) ?QualifiedScenarioName {
+    const separator = std.mem.indexOfScalar(u8, name, ':') orelse return null;
+    const pack_key = name[0..separator];
+    const scenario_key = name[separator + 1 ..];
+    if (pack_key.len == 0 or scenario_key.len == 0) return null;
+    return .{ .pack_key = pack_key, .scenario_key = scenario_key };
+}
+
+fn resolveScenarioPackByKey(key: []const u8) ?ScenarioPack {
+    for (scenario_packs) |pack| {
+        if (std.mem.eql(u8, pack.key, key)) return pack.id;
+    }
+    return null;
+}
+
+fn resolveUnqualifiedScenarioPackEntry(name: []const u8) ?ScenarioPackEntryMeta {
+    for (scenario_packs) |pack| {
+        if (findScenarioPackEntry(pack.id, name)) |entry| return entry;
+    }
+    return null;
+}
+
+fn findScenarioPackEntry(pack: ScenarioPack, name: []const u8) ?ScenarioPackEntryMeta {
+    for (listScenarioPackEntries(pack)) |entry| {
+        if (std.mem.eql(u8, entry.key, name)) return entry;
+    }
+    return null;
+}
+
+fn loadScenarioPackEntryMeta(allocator: std.mem.Allocator, entry: ScenarioPackEntryMeta) !types.ScenarioOwned {
+    const path = try scenarioPackEntryPathAlloc(allocator, entry);
+    defer allocator.free(path);
+    return loadScenarioFileWithName(allocator, path, entry.key);
+}
+
+fn scenarioPackEntryPathAlloc(allocator: std.mem.Allocator, entry: ScenarioPackEntryMeta) ![]u8 {
+    const pack = scenarioPackMeta(entry.pack);
+    return std.fmt.allocPrint(allocator, "{s}/{s}", .{ pack.directory, entry.file_name });
+}
+
+fn scenarioPackMeta(pack: ScenarioPack) ScenarioPackMeta {
+    for (scenario_packs) |entry| {
+        if (entry.id == pack) return entry;
+    }
+    unreachable;
 }
 
 fn resolveBuiltinByName(name: []const u8) ?BuiltinScenario {
