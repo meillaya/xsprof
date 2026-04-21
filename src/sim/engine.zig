@@ -81,8 +81,8 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
 
     while (completed < runtimes.len) : (tick += 1) {
         var excluded_group_index: ?usize = null;
-        try processBlockedSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
-        try enqueueArrivalsSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
+        try processBlockedSingleCore(allocator, scenario, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
+        try enqueueArrivalsSingleCore(allocator, scenario, &runtimes, &ready_queue, &trace_entries, tick, policy_class);
 
         if (policy_class.shouldPreemptSingle(current, current_quantum, scenario.round_robin_quantum, ready_queue.items.len, runtimes) or shouldPreemptForGroupQuota(policy, current, current_group_run_ticks, runtimes)) {
             const current_index = current.?;
@@ -95,7 +95,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
             current_quantum = 0;
             current_group_index = null;
             current_group_run_ticks = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
         }
 
         if (current == null) {
@@ -117,7 +117,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                     current_quantum = 0;
                     if (current_group_index != runtimes[next_index].group_index) current_group_run_ticks = 0;
                     current_group_index = runtimes[next_index].group_index;
-                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id, .group_id = runtimes[next_index].group_id, .core_id = single_core_id });
+                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id, .group_id = runtimes[next_index].group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
                 }
             }
         }
@@ -130,7 +130,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 return error.TaskExecutedTwiceInSameTick;
             }
 
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
             runtimes[current_index].phase_remaining_ticks -= 1;
@@ -144,7 +144,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 runtimes[current_index].state = .complete;
                 completed += 1;
                 try completion_order.append(allocator, current_index);
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
                 current = null;
                 current_quantum = 0;
                 current_group_index = null;
@@ -156,7 +156,7 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 current_quantum = 0;
                 current_group_index = null;
                 current_group_run_ticks = 0;
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .core_id = single_core_id });
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .group_id = runtimes[current_index].group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = single_core_id });
@@ -190,12 +190,12 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
     var tick: u32 = 0;
 
     while (completed < runtimes.len) : (tick += 1) {
-        try processBlockedMulticore(allocator, &runtimes, cores, &trace_entries, tick);
-        try enqueueArrivalsMulticore(allocator, &runtimes, cores, &trace_entries, tick);
+        try processBlockedMulticore(allocator, scenario, &runtimes, cores, &trace_entries, tick);
+        try enqueueArrivalsMulticore(allocator, scenario, &runtimes, cores, &trace_entries, tick);
         try preemptMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, tick);
-        try rebalanceReadyQueues(allocator, &runtimes, cores);
-        try dispatchMulticore(allocator, policy_class, &runtimes, cores, &trace_entries, tick);
-        try executeMulticore(allocator, policy_class, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
+        try rebalanceReadyQueues(allocator, scenario, &runtimes, cores);
+        try dispatchMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, tick);
+        try executeMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
     }
 
     return finalizeResult(allocator, scenario, policy, &trace_entries, &completion_order, runtimes, tick);
@@ -271,6 +271,8 @@ fn finalizeResult(
         allocator.free(task_metrics);
     }
 
+    const domains = try dupDomains(allocator, scenario.domains);
+    errdefer freeDomains(allocator, domains);
     const groups = try dupGroups(allocator, scenario.groups);
     errdefer freeGroups(allocator, groups);
 
@@ -280,6 +282,7 @@ fn finalizeResult(
         .policy = policy,
         .quantum = scenario.round_robin_quantum,
         .core_count = scenario.core_count,
+        .domains = domains,
         .groups = groups,
         .trace = try trace_entries.toOwnedSlice(allocator),
         .tasks = task_metrics,
@@ -291,6 +294,7 @@ fn finalizeResult(
 
 fn processBlockedSingleCore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     runtimes: *[]RuntimeTask,
     ready_queue: *std.ArrayList(usize),
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -305,7 +309,7 @@ fn processBlockedSingleCore(
             task.assigned_core = single_core_id;
             task.wake_tick = null;
             if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
         } else {
             task.blocked_time += 1;
         }
@@ -314,6 +318,7 @@ fn processBlockedSingleCore(
 
 fn enqueueArrivalsSingleCore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     runtimes: *[]RuntimeTask,
     ready_queue: *std.ArrayList(usize),
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -325,13 +330,14 @@ fn enqueueArrivalsSingleCore(
             task.assigned_core = single_core_id;
             task.state = .ready;
             if (policy_class.useSingleCoreReadyQueue()) try ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .core_id = single_core_id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .domain_id = domainIdForCore(scenario, single_core_id), .core_id = single_core_id });
         }
     }
 }
 
 fn processBlockedMulticore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -345,7 +351,7 @@ fn processBlockedMulticore(
             task.state = .ready;
             task.wake_tick = null;
             try cores[core_index].ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .group_id = task.group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
         } else {
             task.blocked_time += 1;
         }
@@ -354,6 +360,7 @@ fn processBlockedMulticore(
 
 fn enqueueArrivalsMulticore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
@@ -361,11 +368,11 @@ fn enqueueArrivalsMulticore(
 ) !void {
     for (runtimes.*, 0..) |*task, index| {
         if (task.state == .pending and task.arrival_tick == tick) {
-            const core_index = chooseArrivalCore(cores);
+            const core_index = chooseArrivalCore(scenario, cores);
             task.assigned_core = @intCast(core_index);
             task.state = .ready;
             try cores[core_index].ready_queue.append(allocator, index);
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .group_id = task.group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
         }
     }
 }
@@ -386,18 +393,19 @@ fn preemptMulticore(
             try core.ready_queue.append(allocator, current_index);
             core.current = null;
             core.current_quantum = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
         }
     }
 }
 
 fn rebalanceReadyQueues(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
 ) !void {
     while (firstIdleCore(cores)) |recipient_index| {
-        const donor_index = busiestReadyCore(cores, recipient_index) orelse break;
+        const donor_index = chooseDonorCore(scenario, cores, recipient_index) orelse break;
         const donor = &cores[donor_index];
         if (donor.ready_queue.items.len == 0 or coreLoad(donor.*) <= 1) break;
 
@@ -409,6 +417,7 @@ fn rebalanceReadyQueues(
 
 fn dispatchMulticore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
@@ -430,13 +439,14 @@ fn dispatchMulticore(
             core.current_group_index = runtimes.*[task_index].group_index;
             core.current = task_index;
             core.current_quantum = 0;
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
         }
     }
 }
 
 fn executeMulticore(
     allocator: std.mem.Allocator,
+    scenario: *const types.ScenarioOwned,
     policy_class: policy_class_mod.SchedulerClass(RuntimeTask),
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
@@ -454,7 +464,7 @@ fn executeMulticore(
                 return error.TaskExecutedTwiceInSameTick;
             }
 
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
             runtimes.*[current_index].remaining_ticks -= 1;
             runtimes.*[current_index].total_executed += 1;
             runtimes.*[current_index].phase_remaining_ticks -= 1;
@@ -479,7 +489,7 @@ fn executeMulticore(
                 core.current_quantum = 0;
                 core.current_group_index = null;
                 core.current_group_run_ticks = 0;
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .core_id = @intCast(core_index) });
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .group_id = runtimes.*[current_index].group_id, .domain_id = domainIdForCore(scenario, @intCast(core_index)), .core_id = @intCast(core_index) });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = @intCast(core_index) });
@@ -488,7 +498,7 @@ fn executeMulticore(
 
     for (completed_this_tick.items) |task_index| {
         try completion_order.append(allocator, task_index);
-        try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .core_id = runtimes.*[task_index].assigned_core });
+        try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes.*[task_index].id, .group_id = runtimes.*[task_index].group_id, .domain_id = domainIdForCore(scenario, runtimes.*[task_index].assigned_core), .core_id = runtimes.*[task_index].assigned_core });
     }
 }
 
@@ -556,17 +566,92 @@ fn advancePhaseAfterWake(task: *RuntimeTask) !void {
     task.phase_remaining_ticks = phases[task.phase_index].ticks;
 }
 
-fn chooseArrivalCore(cores: []const CoreState) usize {
-    var best_index: usize = 0;
-    var best_load: usize = coreLoad(cores[0]);
-    for (cores[1..], 1..) |core, index| {
-        const load = coreLoad(core);
-        if (load < best_load) {
-            best_load = load;
+fn dupDomains(allocator: std.mem.Allocator, domains: []const types.DomainSpec) ![]types.DomainSpec {
+    const duped = try allocator.alloc(types.DomainSpec, domains.len);
+    errdefer allocator.free(duped);
+    for (domains, 0..) |domain, index| {
+        const cores = try allocator.dupe(types.CoreId, domain.cores);
+        errdefer allocator.free(cores);
+        duped[index] = .{ .id = try allocator.dupe(u8, domain.id), .cores = cores };
+    }
+    return duped;
+}
+
+fn freeDomains(allocator: std.mem.Allocator, domains: []types.DomainSpec) void {
+    for (domains) |*domain| domain.deinit(allocator);
+    allocator.free(domains);
+}
+
+fn domainIdForCore(scenario: *const types.ScenarioOwned, core_id: types.CoreId) ?[]const u8 {
+    const domain = scenario.domainByCore(core_id) orelse return null;
+    return domain.id;
+}
+
+fn domainLoad(scenario: *const types.ScenarioOwned, cores: []const CoreState, domain: types.DomainSpec) usize {
+    var load: usize = 0;
+    for (domain.cores) |core_id| load += coreLoad(cores[core_id]);
+    _ = scenario;
+    return load;
+}
+
+fn chooseDonorCore(scenario: *const types.ScenarioOwned, cores: []const CoreState, recipient_index: usize) ?usize {
+    if (scenario.domainByCore(@intCast(recipient_index))) |recipient_domain| {
+        if (busiestReadyCoreInDomain(cores, recipient_domain, recipient_index)) |same_domain| return same_domain;
+    }
+    return busiestReadyCore(cores, recipient_index);
+}
+
+fn busiestReadyCoreInDomain(cores: []const CoreState, domain: *const types.DomainSpec, exclude: usize) ?usize {
+    var best_index: ?usize = null;
+    var best_ready_len: usize = 0;
+    for (domain.cores) |core_id| {
+        const index: usize = @intCast(core_id);
+        if (index == exclude) continue;
+        if (cores[index].ready_queue.items.len == 0) continue;
+        if (best_index == null or cores[index].ready_queue.items.len > best_ready_len) {
             best_index = index;
+            best_ready_len = cores[index].ready_queue.items.len;
         }
     }
     return best_index;
+}
+
+fn chooseArrivalCore(scenario: *const types.ScenarioOwned, cores: []const CoreState) usize {
+    if (scenario.domains.len == 0) {
+        var best_index: usize = 0;
+        var best_load: usize = coreLoad(cores[0]);
+        for (cores[1..], 1..) |core, index| {
+            const load = coreLoad(core);
+            if (load < best_load) {
+                best_load = load;
+                best_index = index;
+            }
+        }
+        return best_index;
+    }
+
+    var best_domain_index: usize = 0;
+    var best_domain_load: usize = domainLoad(scenario, cores, scenario.domains[0]);
+    for (scenario.domains[1..], 1..) |domain, index| {
+        const load = domainLoad(scenario, cores, domain);
+        if (load < best_domain_load) {
+            best_domain_load = load;
+            best_domain_index = index;
+        }
+    }
+
+    const domain = scenario.domains[best_domain_index];
+    var best_core: usize = @intCast(domain.cores[0]);
+    var best_core_load: usize = coreLoad(cores[best_core]);
+    for (domain.cores[1..]) |core_id| {
+        const index: usize = @intCast(core_id);
+        const load = coreLoad(cores[index]);
+        if (load < best_core_load) {
+            best_core = index;
+            best_core_load = load;
+        }
+    }
+    return best_core;
 }
 
 fn coreLoad(core: CoreState) usize {

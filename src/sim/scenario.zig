@@ -43,14 +43,15 @@ const legacy_aliases = [_]struct {
     .{ .alias = "contention", .canonical = .equal_arrival_contention },
 };
 
-const ParsedZonTaskPhaseKind = enum {
-    cpu,
-    wait,
-};
-
+const ParsedZonTaskPhaseKind = enum { cpu, wait };
 const ParsedZonTaskPhase = struct {
     kind: ParsedZonTaskPhaseKind,
     ticks: u32,
+};
+
+const ParsedZonDomain = struct {
+    id: []const u8,
+    cores: []const u32,
 };
 
 const ParsedZonGroup = struct {
@@ -78,6 +79,7 @@ const ParsedZonScenario = struct {
     rr_quantum: ?u32 = null,
     core_count: ?u32 = null,
     cpu_count: ?u32 = null,
+    topology_domains: ?[]const ParsedZonDomain = null,
     groups: ?[]const ParsedZonGroup = null,
     tasks: []const ParsedZonTask,
 };
@@ -96,9 +98,7 @@ pub fn loadScenarioByName(allocator: std.mem.Allocator, name: []const u8) !types
 }
 
 pub fn loadNamedScenario(allocator: std.mem.Allocator, name: []const u8) !types.ScenarioOwned {
-    if (resolveBuiltinByName(name)) |builtin| {
-        return loadBuiltinScenario(allocator, builtin);
-    }
+    if (resolveBuiltinByName(name)) |builtin| return loadBuiltinScenario(allocator, builtin);
     return error.UnknownScenario;
 }
 
@@ -106,15 +106,9 @@ pub fn loadScenarioFile(allocator: std.mem.Allocator, path: []const u8) !types.S
     return loadScenarioFileWithName(allocator, path, "");
 }
 
-pub fn parseScenarioText(
-    allocator: std.mem.Allocator,
-    source: []const u8,
-    expected_name: []const u8,
-) !types.ScenarioOwned {
+pub fn parseScenarioText(allocator: std.mem.Allocator, source: []const u8, expected_name: []const u8) !types.ScenarioOwned {
     const trimmed = std.mem.trimLeft(u8, source, " \t\r\n");
-    if (trimmed.len != 0 and trimmed[0] == '.') {
-        return parseScenarioZon(allocator, source, expected_name);
-    }
+    if (trimmed.len != 0 and trimmed[0] == '.') return parseScenarioZon(allocator, source, expected_name);
     return parseScenarioLegacyText(allocator, source, expected_name);
 }
 
@@ -127,21 +121,13 @@ pub fn freeScenario(_: std.mem.Allocator, scenario: types.ScenarioOwned) void {
     owned.deinit();
 }
 
-fn loadScenarioFileWithName(
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    expected_name: []const u8,
-) !types.ScenarioOwned {
+fn loadScenarioFileWithName(allocator: std.mem.Allocator, path: []const u8, expected_name: []const u8) !types.ScenarioOwned {
     const source = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
     defer allocator.free(source);
     return parseScenarioText(allocator, source, expected_name);
 }
 
-fn parseScenarioLegacyText(
-    allocator: std.mem.Allocator,
-    source: []const u8,
-    expected_name: []const u8,
-) !types.ScenarioOwned {
+fn parseScenarioLegacyText(allocator: std.mem.Allocator, source: []const u8, expected_name: []const u8) !types.ScenarioOwned {
     var lines = std.mem.tokenizeScalar(u8, source, '\n');
     var task_specs: std.ArrayList(types.TaskSpec) = .empty;
     errdefer {
@@ -166,25 +152,18 @@ fn parseScenarioLegacyText(
             maybe_name = try allocator.dupe(u8, value);
             continue;
         }
-
         if (std.mem.startsWith(u8, line, "rr_quantum:")) {
-            const value = std.mem.trim(u8, line["rr_quantum:".len..], " \t");
-            quantum = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
+            quantum = std.fmt.parseInt(u32, std.mem.trim(u8, line["rr_quantum:".len..], " \t"), 10) catch return error.InvalidInteger;
             continue;
         }
-
         if (std.mem.startsWith(u8, line, "core_count:")) {
-            const value = std.mem.trim(u8, line["core_count:".len..], " \t");
-            core_count = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
+            core_count = std.fmt.parseInt(u32, std.mem.trim(u8, line["core_count:".len..], " \t"), 10) catch return error.InvalidInteger;
             continue;
         }
-
         if (std.mem.startsWith(u8, line, "cpu_count:")) {
-            const value = std.mem.trim(u8, line["cpu_count:".len..], " \t");
-            core_count = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
+            core_count = std.fmt.parseInt(u32, std.mem.trim(u8, line["cpu_count:".len..], " \t"), 10) catch return error.InvalidInteger;
             continue;
         }
-
         if (std.mem.startsWith(u8, line, "task:")) {
             const payload = std.mem.trim(u8, line["task:".len..], " \t");
             var parts = std.mem.tokenizeAny(u8, payload, " \t");
@@ -202,7 +181,6 @@ fn parseScenarioLegacyText(
             });
             continue;
         }
-
         return error.InvalidLine;
     }
 
@@ -210,16 +188,12 @@ fn parseScenarioLegacyText(
     maybe_name = null;
     const owned_task_specs = task_specs;
     task_specs = .empty;
-
-    const groups: std.ArrayList(types.GroupSpec) = .empty;
-    return finalizeScenario(allocator, name, quantum, core_count, groups, owned_task_specs, expected_name);
+    const empty_domains: std.ArrayList(types.DomainSpec) = .empty;
+    const empty_groups: std.ArrayList(types.GroupSpec) = .empty;
+    return finalizeScenario(allocator, name, quantum, core_count, empty_domains, empty_groups, owned_task_specs, expected_name);
 }
 
-fn parseScenarioZon(
-    allocator: std.mem.Allocator,
-    source: []const u8,
-    expected_name: []const u8,
-) !types.ScenarioOwned {
+fn parseScenarioZon(allocator: std.mem.Allocator, source: []const u8, expected_name: []const u8) !types.ScenarioOwned {
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
@@ -235,6 +209,20 @@ fn parseScenarioZon(
     const quantum = try resolveParsedQuantum(parsed);
     const core_count = try resolveParsedCoreCount(parsed);
 
+    var domains: std.ArrayList(types.DomainSpec) = .empty;
+    errdefer {
+        for (domains.items) |*domain| domain.deinit(allocator);
+        domains.deinit(allocator);
+    }
+    if (parsed.topology_domains) |parsed_domains| {
+        for (parsed_domains) |domain| {
+            const cores = try allocator.alloc(types.CoreId, domain.cores.len);
+            errdefer allocator.free(cores);
+            for (domain.cores, 0..) |core_id, index| cores[index] = core_id;
+            try domains.append(allocator, .{ .id = try allocator.dupe(u8, domain.id), .cores = cores });
+        }
+    }
+
     var groups: std.ArrayList(types.GroupSpec) = .empty;
     errdefer {
         for (groups.items) |*group| group.deinit(allocator);
@@ -242,11 +230,7 @@ fn parseScenarioZon(
     }
     if (parsed.groups) |parsed_groups| {
         for (parsed_groups) |group| {
-            try groups.append(allocator, .{
-                .id = try allocator.dupe(u8, group.id),
-                .weight = group.weight orelse types.default_group_weight,
-                .quota_ticks = group.quota_ticks orelse 0,
-            });
+            try groups.append(allocator, .{ .id = try allocator.dupe(u8, group.id), .weight = group.weight orelse types.default_group_weight, .quota_ticks = group.quota_ticks orelse 0 });
         }
     }
 
@@ -255,39 +239,31 @@ fn parseScenarioZon(
         for (task_specs.items) |*task| task.deinit(allocator);
         task_specs.deinit(allocator);
     }
+    for (parsed.tasks) |task| try task_specs.append(allocator, try buildParsedTaskSpec(allocator, task));
 
-    for (parsed.tasks) |task| {
-        try task_specs.append(allocator, try buildParsedTaskSpec(allocator, task));
-    }
-
+    const owned_domains = domains;
+    domains = .empty;
     const owned_groups = groups;
     groups = .empty;
     const owned_task_specs = task_specs;
     task_specs = .empty;
-    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_groups, owned_task_specs, expected_name);
+    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_domains, owned_groups, owned_task_specs, expected_name);
 }
 
 fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types.TaskSpec {
-    if (task.phases != null and (task.sleep_after_ticks != null or task.sleep_duration != null)) {
-        return error.InvalidTaskPhases;
-    }
+    if (task.phases != null and (task.sleep_after_ticks != null or task.sleep_duration != null)) return error.InvalidTaskPhases;
 
     if (task.phases) |phases| {
         const owned_phases = try allocator.alloc(types.TaskPhase, phases.len);
         errdefer allocator.free(owned_phases);
-
         var total_cpu_ticks: u32 = 0;
         for (phases, 0..) |phase, index| {
-            owned_phases[index] = .{
-                .kind = switch (phase.kind) {
-                    .cpu => .cpu,
-                    .wait => .wait,
-                },
-                .ticks = phase.ticks,
-            };
+            owned_phases[index] = .{ .kind = switch (phase.kind) {
+                .cpu => .cpu,
+                .wait => .wait,
+            }, .ticks = phase.ticks };
             if (phase.kind == .cpu) total_cpu_ticks += phase.ticks;
         }
-
         return .{
             .id = try allocator.dupe(u8, task.id),
             .arrival_tick = task.arrival_tick,
@@ -300,7 +276,6 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
     }
 
     const burst_ticks = task.burst_ticks orelse return error.ZeroBurstTicks;
-
     if (task.sleep_after_ticks) |sleep_after_ticks| {
         const sleep_duration = resolveSleepDuration(task.sleep_duration);
         const remaining_cpu_ticks = burst_ticks - sleep_after_ticks;
@@ -321,7 +296,6 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
             .deadline_tick = task.deadline_tick,
         };
     }
-
     if (task.sleep_duration != null) return error.InvalidSleepDuration;
 
     return .{
@@ -339,14 +313,19 @@ fn finalizeScenario(
     name: []u8,
     quantum: u32,
     core_count: u32,
+    domains: std.ArrayList(types.DomainSpec),
     groups: std.ArrayList(types.GroupSpec),
     task_specs: std.ArrayList(types.TaskSpec),
     expected_name: []const u8,
 ) !types.ScenarioOwned {
     errdefer allocator.free(name);
+    if (expected_name.len != 0 and !std.mem.eql(u8, expected_name, name)) return error.ScenarioNameMismatch;
 
-    if (expected_name.len != 0 and !std.mem.eql(u8, expected_name, name)) {
-        return error.ScenarioNameMismatch;
+    var mutable_domains = domains;
+    const owned_domains = try mutable_domains.toOwnedSlice(allocator);
+    errdefer {
+        for (owned_domains) |*domain| domain.deinit(allocator);
+        allocator.free(owned_domains);
     }
 
     var mutable_groups = groups;
@@ -368,6 +347,7 @@ fn finalizeScenario(
         .name = name,
         .round_robin_quantum = quantum,
         .core_count = core_count,
+        .domains = owned_domains,
         .groups = owned_groups,
         .tasks = tasks,
     };

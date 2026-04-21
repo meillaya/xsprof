@@ -7,6 +7,7 @@ pub const schema_version = contract.schema_version;
 pub const top_level_fields = contract.top_level_fields;
 pub const source_fields = contract.source_fields;
 pub const scenario_fields = contract.scenario_fields;
+pub const domain_fields = contract.domain_fields;
 pub const group_fields = contract.group_fields;
 pub const policy_fields = contract.policy_fields;
 pub const trace_entry_fields = contract.trace_entry_fields;
@@ -31,11 +32,7 @@ pub const SimulationReport = struct {
     result: *const types.SimulationResult,
 
     pub fn init(source: SourceInfo, scenario: *const types.ScenarioOwned, result: *const types.SimulationResult) SimulationReport {
-        return .{
-            .source = source,
-            .scenario = scenario,
-            .result = result,
-        };
+        return .{ .source = source, .scenario = scenario, .result = result };
     }
 
     pub fn notes() []const []const u8 {
@@ -44,10 +41,8 @@ pub const SimulationReport = struct {
 
     pub fn jsonStringify(self: SimulationReport, jw: anytype) !void {
         try jw.beginObject();
-
         try jw.objectField("schema");
         try jw.write(schema_name);
-
         try jw.objectField("version");
         try jw.write(schema_version);
 
@@ -80,6 +75,18 @@ pub const SimulationReport = struct {
         try jw.objectField("core_count");
         try jw.write(self.result.core_count);
 
+        try jw.objectField("topology_domains");
+        try jw.beginArray();
+        for (self.result.domains) |domain| {
+            try jw.beginObject();
+            try jw.objectField("id");
+            try jw.write(domain.id);
+            try jw.objectField("cores");
+            try jw.write(domain.cores);
+            try jw.endObject();
+        }
+        try jw.endArray();
+
         try jw.objectField("groups");
         try jw.beginArray();
         for (self.result.groups) |group| {
@@ -96,9 +103,7 @@ pub const SimulationReport = struct {
 
         try jw.objectField("completion_order");
         try jw.beginArray();
-        for (self.result.completion_order) |task_index| {
-            try jw.write(self.result.tasks[task_index].id);
-        }
+        for (self.result.completion_order) |task_index| try jw.write(self.result.tasks[task_index].id);
         try jw.endArray();
 
         try jw.objectField("trace");
@@ -113,6 +118,8 @@ pub const SimulationReport = struct {
             try jw.write(entry.task_id);
             try jw.objectField("group_id");
             try jw.write(entry.group_id);
+            try jw.objectField("domain_id");
+            try jw.write(entry.domain_id);
             try jw.objectField("core_id");
             try jw.write(entry.core_id);
             try jw.endObject();
@@ -185,7 +192,6 @@ pub const SimulationReport = struct {
 
         try jw.objectField("notes");
         try jw.write(notes());
-
         try jw.endObject();
     }
 };
@@ -195,4 +201,5 @@ const report_notes = [_][]const u8{
     "The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.",
     "The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.",
     "The group scheduling model is a simulator-safe teaching analogy, not Linux cgroups or kernel group scheduling fidelity.",
+    "The topology model is a deterministic teaching simplification, not Linux NUMA or scheduler-domain fidelity.",
 };

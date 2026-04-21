@@ -33,6 +33,41 @@ fn loadMulticoreRrFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-rr-quantum.zon");
 }
 
+fn loadTopologyFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/topology-domains.zon");
+}
+
+test "topology-aware placement spreads equal-arrival work across topology domains deterministically" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadTopologyFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), result.domains.len);
+    try std.testing.expectEqualStrings("node0", result.domains[0].id);
+
+    var arrivals_node0: u32 = 0;
+    var arrivals_node1: u32 = 0;
+    var e_arrival_core: ?sim.CoreId = null;
+    var e_dispatch_core: ?sim.CoreId = null;
+    for (result.trace) |entry| {
+        if (entry.kind == .arrival and entry.domain_id != null) {
+            if (std.mem.eql(u8, entry.domain_id.?, "node0")) arrivals_node0 += 1;
+            if (std.mem.eql(u8, entry.domain_id.?, "node1")) arrivals_node1 += 1;
+        }
+        if (entry.task_id != null and std.mem.eql(u8, entry.task_id.?, "E")) {
+            if (entry.kind == .arrival) e_arrival_core = entry.core_id;
+            if (entry.kind == .dispatch and e_dispatch_core == null) e_dispatch_core = entry.core_id;
+        }
+    }
+    try std.testing.expect(arrivals_node0 >= 2);
+    try std.testing.expect(arrivals_node1 >= 2);
+    try std.testing.expectEqual(@as(?sim.CoreId, 0), e_arrival_core);
+    try std.testing.expectEqual(@as(?sim.CoreId, 1), e_dispatch_core);
+}
+
 fn loadSleepWakeFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/sleep-wakeup.zon");
 }

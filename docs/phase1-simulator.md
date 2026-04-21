@@ -78,6 +78,16 @@ M10 adds a deterministic deadline-inspired policy. Tasks may declare `deadline_t
 
 This is an educational policy only. It does not model Linux deadline scheduling, admission control, runtime budgets, or real-time guarantees.
 
+### Topology-aware multicore model
+M12 adds an explicit `topology_domains` surface so multicore scenarios can group cores into one higher-level topology distinction such as a simplified NUMA node or cache domain.
+
+Current deterministic rules:
+- arrivals choose the least-loaded topology domain first, then the least-loaded core within that domain
+- idle-core stealing prefers same-domain donors before falling back to cross-domain donors
+- trace events now carry `domain_id` alongside `core_id` when a task is placed or moved
+
+This is a teaching simplification only. It does not model Linux scheduler domains, NUMA balancing, cache hierarchies, or kernel migration cost fidelity.
+
 ### group-level scheduling ideas
 M11 adds a simulator-safe group model. Scenarios may declare top-level `groups`, and tasks may reference a `group_id`. Groups currently carry:
 - `weight`
@@ -109,6 +119,7 @@ Top-level fields:
 - `scenario`
 - `policy`
 - `core_count`
+- `topology_domains`
 - `groups`
 - `completion_order`
 - `trace`

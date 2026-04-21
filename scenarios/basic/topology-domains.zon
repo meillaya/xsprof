@@ -1,0 +1,16 @@
+.{
+    .name = "topology-domains",
+    .description = "Four-core topology with two domains for deterministic placement and rebalance checks.",
+    .core_count = 4,
+    .topology_domains = .{
+        .{ .id = "node0", .cores = .{ 0, 1 } },
+        .{ .id = "node1", .cores = .{ 2, 3 } },
+    },
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "B", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "C", .arrival_tick = 0, .burst_ticks = 1 },
+        .{ .id = "D", .arrival_tick = 0, .burst_ticks = 5 },
+        .{ .id = "E", .arrival_tick = 0, .burst_ticks = 4 },
+    },
+}

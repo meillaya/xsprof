@@ -153,3 +153,16 @@ Important caveat:
 - no hierarchy depth beyond one declared group layer is modeled
 - no kernel accounting, throttling periods, or controller integration is modeled
 
+
+### Topology-aware multicore analogy
+
+The topology model is intentionally narrow:
+- cores may be grouped into declared topology domains
+- arrival placement first chooses a least-loaded domain, then a least-loaded core within that domain
+- idle-core steals prefer same-domain donors before cross-domain steals
+
+Important caveat:
+- this is not Linux scheduler-domain logic, NUMA balancing, or cache-affinity fidelity
+- no memory locality costs or hardware discovery are modeled
+- domain ids are teaching labels, not measured hardware topology
+

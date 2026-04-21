@@ -56,3 +56,4 @@
 - The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.
 - The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.
 - The group scheduling model is a simulator-safe teaching analogy, not Linux cgroups or kernel group scheduling fidelity.
+- The topology model is a deterministic teaching simplification, not Linux NUMA or scheduler-domain fidelity.

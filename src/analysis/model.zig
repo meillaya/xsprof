@@ -11,6 +11,11 @@ pub const Scenario = struct {
     round_robin_quantum: u32,
 };
 
+pub const Domain = struct {
+    id: []const u8,
+    cores: []const u32,
+};
+
 pub const Group = struct {
     id: []const u8,
     weight: u32,
@@ -28,6 +33,7 @@ pub const TraceEntry = struct {
     kind: contract.TraceEventKind,
     task_id: ?[]const u8,
     group_id: ?[]const u8 = null,
+    domain_id: ?[]const u8 = null,
     core_id: ?u32,
 };
 
@@ -70,6 +76,7 @@ pub const Report = struct {
     scenario: Scenario,
     policy: Policy,
     core_count: u32,
+    topology_domains: []const Domain = &.{},
     groups: []const Group = &.{},
     completion_order: []const []const u8,
     trace: []const TraceEntry,
@@ -84,13 +91,9 @@ const ReportHeader = struct {
 };
 
 pub fn parseReport(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Report) {
-    var header = try std.json.parseFromSlice(ReportHeader, allocator, bytes, .{
-        .ignore_unknown_fields = true,
-    });
+    var header = try std.json.parseFromSlice(ReportHeader, allocator, bytes, .{ .ignore_unknown_fields = true });
     defer header.deinit();
     try contract.assertSupportedContract(header.value.schema, header.value.version);
 
-    return try std.json.parseFromSlice(Report, allocator, bytes, .{
-        .ignore_unknown_fields = true,
-    });
+    return try std.json.parseFromSlice(Report, allocator, bytes, .{ .ignore_unknown_fields = true });
 }

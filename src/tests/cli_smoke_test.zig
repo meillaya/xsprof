@@ -18,6 +18,10 @@ const ParsedReport = struct {
         quantum: ?u32,
     },
     core_count: u32,
+    topology_domains: []const struct {
+        id: []const u8,
+        cores: []const sim.CoreId,
+    },
     groups: []const struct {
         id: []const u8,
         weight: u32,
@@ -29,6 +33,7 @@ const ParsedReport = struct {
         kind: sim.TraceEventKind,
         task_id: ?[]const u8,
         group_id: ?[]const u8,
+        domain_id: ?[]const u8,
         core_id: ?sim.CoreId,
     },
     tasks: []const struct {
@@ -212,6 +217,7 @@ test "public report field lists stay frozen for version 1" {
         "scenario",
         "policy",
         "core_count",
+        "topology_domains",
         "groups",
         "completion_order",
         "trace",
@@ -226,6 +232,10 @@ test "public report field lists stay frozen for version 1" {
     const expected_scenario_fields = [_][]const u8{
         "name",
         "round_robin_quantum",
+    };
+    const expected_domain_fields = [_][]const u8{
+        "id",
+        "cores",
     };
     const expected_group_fields = [_][]const u8{
         "id",
@@ -242,6 +252,7 @@ test "public report field lists stay frozen for version 1" {
         "kind",
         "task_id",
         "group_id",
+        "domain_id",
         "core_id",
     };
     const expected_task_fields = [_][]const u8{
@@ -278,6 +289,7 @@ test "public report field lists stay frozen for version 1" {
     try expectStringFieldSet(expected_top_level_fields[0..], sim.cli.top_level_fields[0..]);
     try expectStringFieldSet(expected_source_fields[0..], sim.cli.source_fields[0..]);
     try expectStringFieldSet(expected_scenario_fields[0..], sim.cli.scenario_fields[0..]);
+    try expectStringFieldSet(expected_domain_fields[0..], sim.cli.domain_fields[0..]);
     try expectStringFieldSet(expected_group_fields[0..], sim.cli.group_fields[0..]);
     try expectStringFieldSet(expected_policy_fields[0..], sim.cli.policy_fields[0..]);
     try expectStringFieldSet(expected_trace_entry_fields[0..], sim.cli.trace_entry_fields[0..]);
@@ -305,6 +317,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try expectJsonObjectFields(parsed_value.value.object.get("source").?, sim.cli.source_fields[0..]);
     try expectJsonObjectFields(parsed_value.value.object.get("scenario").?, sim.cli.scenario_fields[0..]);
     try expectJsonObjectFields(parsed_value.value.object.get("policy").?, sim.cli.policy_fields[0..]);
+    try std.testing.expectEqual(@as(usize, 0), parsed_value.value.object.get("topology_domains").?.array.items.len);
     try std.testing.expectEqual(@as(usize, 0), parsed_value.value.object.get("groups").?.array.items.len);
     try std.testing.expect(parsed_value.value.object.get("trace").?.array.items.len != 0);
     try expectJsonObjectFields(parsed_value.value.object.get("trace").?.array.items[0], sim.cli.trace_entry_fields[0..]);
@@ -334,6 +347,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(sim.TraceEventKind.arrival, parsed.value.trace[0].kind);
     try std.testing.expectEqualStrings("light", parsed.value.trace[0].task_id.?);
     try std.testing.expect(parsed.value.trace[0].group_id == null);
+    try std.testing.expect(parsed.value.trace[0].domain_id == null);
     try std.testing.expectEqual(@as(?sim.CoreId, 0), parsed.value.trace[0].core_id);
     var saw_core_identity = false;
     for (parsed.value.trace) |entry| {
@@ -391,6 +405,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "scenario",
         "policy",
         "core_count",
+        "topology_domains",
         "groups",
         "completion_order",
         "trace",
@@ -403,6 +418,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "kind",
         "task_id",
         "group_id",
+        "domain_id",
         "core_id",
     };
     const expected_task_fields = [_][]const u8{
@@ -547,4 +563,23 @@ test "group-aware JSON export exposes groups and task group ids" {
     try std.testing.expectEqualStrings("interactive", parsed.value.groups[0].id);
     try std.testing.expectEqual(@as(u32, 2048), parsed.value.groups[0].weight);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"group_id\":\"interactive\"") != null);
+}
+
+test "topology-aware JSON export exposes topology domains and domain-tagged trace events" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/topology-domains.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    const rendered = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/topology-domains.zon" }, &scenario, &result);
+    defer allocator.free(rendered);
+    var parsed = try parseJsonReport(allocator, rendered);
+    defer parsed.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.value.topology_domains.len);
+    try std.testing.expectEqualStrings("node0", parsed.value.topology_domains[0].id);
+    try std.testing.expectEqual(@as(sim.CoreId, 0), parsed.value.topology_domains[0].cores[0]);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"domain_id\":\"node0\"") != null);
 }

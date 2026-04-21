@@ -33,6 +33,7 @@ zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy fcf
 zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy rr
 zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline
 zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs-like
+zig build run -- --scenario-file scenarios/basic/topology-domains.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 zig build bench
@@ -129,6 +130,11 @@ Reference artifacts are committed at:
 
 The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
 
+## Topology-aware multicore teaching fixture
+M12 adds `scenarios/basic/topology-domains.zon` to represent a simple two-domain topology over four cores.
+
+The current topology model is intentionally narrow: scenarios may declare `topology_domains`, trace events carry `domain_id`, and multicore placement/rebalance rules prefer same-domain behavior before cross-domain movement. This is a deterministic teaching simplification, not Linux NUMA or scheduler-domain fidelity.
+
 ## Group scheduling teaching fixture
 M11 adds `scenarios/basic/group-fairness.zon` to model group membership, group weights, and quota-like caps in a simulator-safe way.
 
@@ -161,7 +167,7 @@ These numbers are deterministic simulator-local output-size/trace-volume baselin
 
 The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions, and `scenarios/basic/multi-phase-io.zon` is the canonical M7 example for alternating CPU/wait phases.
 
-See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, `docs/m8-fairness-probes.md`, `docs/m10-deadline-policy.md`, `docs/m11-group-scheduling.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, fairness probe guidance, deadline-policy notes, group-scheduling guidance, and Linux relevance notes.
+See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, `docs/m8-fairness-probes.md`, `docs/m10-deadline-policy.md`, `docs/m11-group-scheduling.md`, `docs/m12-topology-simulation.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, fairness probe guidance, deadline-policy notes, group-scheduling guidance, topology notes, and Linux relevance notes.
 
 ## Multicore fixture corpus
 Committed multicore proof fixtures now include:

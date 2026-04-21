@@ -121,6 +121,33 @@ test "canonical object style scenario files parse group membership and group wei
     try std.testing.expectEqualStrings("batch", scenario.tasks[2].group_id.?);
 }
 
+test "canonical object style scenario files parse topology domains" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/topology-domains.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("topology-domains", scenario.name);
+    try std.testing.expectEqual(@as(u32, 4), scenario.core_count);
+    try std.testing.expectEqual(@as(usize, 2), scenario.domains.len);
+    try std.testing.expectEqualStrings("node0", scenario.domains[0].id);
+    try std.testing.expectEqual(@as(scheduler.CoreId, 0), scenario.domains[0].cores[0]);
+    try std.testing.expectEqual(@as(scheduler.CoreId, 3), scenario.domains[1].cores[1]);
+}
+
+test "topology domains must cover each core exactly once" {
+    const source =
+        \\.{
+        \\    .name = "bad-topology",
+        \\    .core_count = 4,
+        \\    .topology_domains = .{
+        \\        .{ .id = "node0", .cores = .{ 0, 1 } },
+        \\        .{ .id = "node1", .cores = .{ 1, 2 } },
+        \\    },
+        \\    .tasks = .{ .{ .id = "A", .arrival_tick = 0, .burst_ticks = 2 } },
+        \\}
+    ;
+    try std.testing.expectError(error.DuplicateDomainCore, scheduler.parseScenarioText(std.testing.allocator, source, "bad-topology"));
+}
+
 test "group references must resolve to declared groups" {
     const source =
         \\.{
@@ -176,11 +203,13 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     try std.testing.expect(std.mem.indexOf(u8, readme, "phases") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "deadline-priority") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "group-fairness") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "topology-domains") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/multi-phase-io.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "group-level scheduling ideas") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Topolog") != null);
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
 }
 

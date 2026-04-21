@@ -59,9 +59,11 @@ pub const ValidationError = error{
     InvalidCoreCount,
     EmptyTaskId,
     EmptyGroupId,
+    EmptyDomainId,
     ZeroBurstTicks,
     DuplicateTaskId,
     DuplicateGroupId,
+    DuplicateDomainId,
     UnknownGroup,
     MissingName,
     InvalidLine,
@@ -76,8 +78,30 @@ pub const ValidationError = error{
     InvalidTaskPhases,
     InvalidDeadlineTick,
     InvalidPhaseTicks,
+    InvalidDomainCore,
+    MissingDomainCoreCoverage,
+    DuplicateDomainCore,
     ScenarioNameMismatch,
     UnknownScenario,
+};
+
+pub const DomainSpec = struct {
+    id: []const u8,
+    cores: []CoreId,
+
+    pub fn deinit(self: *DomainSpec, allocator: std.mem.Allocator) void {
+        allocator.free(self.id);
+        allocator.free(self.cores);
+        self.* = undefined;
+    }
+
+    pub fn validate(self: DomainSpec, core_count: u32) ValidationError!void {
+        if (self.id.len == 0) return error.EmptyDomainId;
+        if (self.cores.len == 0) return error.InvalidDomainCore;
+        for (self.cores) |core_id| {
+            if (core_id >= core_count) return error.InvalidDomainCore;
+        }
+    }
 };
 
 pub const GroupSpec = struct {
@@ -167,17 +191,16 @@ pub const ScenarioOwned = struct {
     name: []const u8,
     round_robin_quantum: u32 = 1,
     core_count: u32 = 1,
+    domains: []DomainSpec,
     groups: []GroupSpec,
     tasks: []TaskSpec,
 
     pub fn deinit(self: *ScenarioOwned) void {
-        for (self.groups) |*group| {
-            group.deinit(self.allocator);
-        }
+        for (self.domains) |*domain| domain.deinit(self.allocator);
+        self.allocator.free(self.domains);
+        for (self.groups) |*group| group.deinit(self.allocator);
         self.allocator.free(self.groups);
-        for (self.tasks) |*task| {
-            task.deinit(self.allocator);
-        }
+        for (self.tasks) |*task| task.deinit(self.allocator);
         self.allocator.free(self.tasks);
         self.allocator.free(self.name);
         self.* = undefined;
@@ -188,6 +211,30 @@ pub const ScenarioOwned = struct {
         if (self.round_robin_quantum == 0) return error.InvalidQuantum;
         if (self.core_count == 0) return error.InvalidCoreCount;
         if (self.tasks.len == 0) return error.NoTasks;
+
+        if (self.domains.len != 0) {
+            for (self.domains, 0..) |domain, index| {
+                try domain.validate(self.core_count);
+                for (self.domains[index + 1 ..]) |other| {
+                    if (std.mem.eql(u8, domain.id, other.id)) return error.DuplicateDomainId;
+                }
+                for (domain.cores, 0..) |core_id, core_index| {
+                    for (domain.cores[core_index + 1 ..]) |other_core_id| {
+                        if (core_id == other_core_id) return error.DuplicateDomainCore;
+                    }
+                }
+            }
+            for (0..self.core_count) |core_id| {
+                var matches: u32 = 0;
+                for (self.domains) |domain| {
+                    for (domain.cores) |member_core_id| {
+                        if (member_core_id == core_id) matches += 1;
+                    }
+                }
+                if (matches == 0) return error.MissingDomainCoreCoverage;
+                if (matches > 1) return error.DuplicateDomainCore;
+            }
+        }
 
         for (self.groups, 0..) |group, index| {
             try group.validate();
@@ -213,6 +260,15 @@ pub const ScenarioOwned = struct {
         }
         return null;
     }
+
+    pub fn domainByCore(self: *const ScenarioOwned, core_id: CoreId) ?*const DomainSpec {
+        for (self.domains) |*domain| {
+            for (domain.cores) |member_core_id| {
+                if (member_core_id == core_id) return domain;
+            }
+        }
+        return null;
+    }
 };
 
 pub const Scenario = ScenarioOwned;
@@ -222,6 +278,7 @@ pub const TraceEntry = struct {
     kind: TraceEventKind,
     task_id: ?[]const u8,
     group_id: ?[]const u8 = null,
+    domain_id: ?[]const u8 = null,
     core_id: ?CoreId = null,
 };
 
@@ -263,6 +320,7 @@ pub const SimulationResult = struct {
     policy: PolicyKind,
     quantum: u32,
     core_count: u32 = 1,
+    domains: []DomainSpec,
     groups: []GroupSpec,
     trace: []TraceEntry,
     tasks: []TaskMetrics,
@@ -272,9 +330,9 @@ pub const SimulationResult = struct {
 
     pub fn deinit(self: *SimulationResult) void {
         self.allocator.free(self.scenario_name);
-        for (self.groups) |*group| {
-            self.allocator.free(group.id);
-        }
+        for (self.domains) |*domain| domain.deinit(self.allocator);
+        self.allocator.free(self.domains);
+        for (self.groups) |*group| group.deinit(self.allocator);
         self.allocator.free(self.groups);
         for (self.tasks) |task| {
             self.allocator.free(task.id);
