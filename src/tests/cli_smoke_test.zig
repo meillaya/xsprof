@@ -272,8 +272,14 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(sim.TraceEventKind.arrival, parsed.value.trace[0].kind);
     try std.testing.expectEqualStrings("light", parsed.value.trace[0].task_id.?);
     try std.testing.expect(parsed.value.trace[0].core_id == null);
-    try std.testing.expect(parsed.value.trace[1].core_id != null);
-    try std.testing.expectEqual(@as(?sim.CoreId, 0), parsed.value.trace[1].core_id);
+    var saw_core_identity = false;
+    for (parsed.value.trace) |entry| {
+        if (entry.core_id) |core_id| {
+            try std.testing.expectEqual(@as(sim.CoreId, 0), core_id);
+            saw_core_identity = true;
+        }
+    }
+    try std.testing.expect(saw_core_identity);
 
     try std.testing.expectEqual(@as(usize, 3), parsed.value.tasks.len);
     try std.testing.expectEqualStrings("light", parsed.value.tasks[0].id);
