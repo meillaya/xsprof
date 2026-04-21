@@ -15,6 +15,7 @@ const RuntimeTask = struct {
     total_executed: u32 = 0,
     first_dispatch_tick: ?u32 = null,
     completion_time: ?u32 = null,
+    last_execution_tick: ?u32 = null,
     vruntime: u64 = 0,
     state: types.TaskState = .pending,
 };
@@ -112,10 +113,14 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             if (runtimes[current_index].first_dispatch_tick == null) {
                 runtimes[current_index].first_dispatch_tick = tick;
             }
+            if (runtimes[current_index].last_execution_tick == tick) {
+                return error.TaskExecutedTwiceInSameTick;
+            }
 
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id });
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
+            runtimes[current_index].last_execution_tick = tick;
             current_quantum += 1;
             if (policy == .cfs_like) runtimes[current_index].vruntime += cfs_like.vruntimeDelta(runtimes[current_index].weight);
 
