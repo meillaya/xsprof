@@ -1,91 +1,28 @@
-const std = @import("std");
+const contract = @import("../contract/report.zig");
 const trace = @import("../sim/trace.zig");
 const types = @import("../sim/types.zig");
 
-pub const schema_name = "zig-scheduler/report";
-pub const schema_version: u32 = 1;
-pub const top_level_fields = [_][]const u8{
-    "schema",
-    "version",
-    "source",
-    "scenario",
-    "policy",
-    "core_count",
-    "completion_order",
-    "trace",
-    "tasks",
-    "aggregate",
-    "notes",
-};
-pub const source_fields = [_][]const u8{
-    "kind",
-    "value",
-};
-pub const scenario_fields = [_][]const u8{
-    "name",
-    "round_robin_quantum",
-};
-pub const policy_fields = [_][]const u8{
-    "kind",
-    "display_name",
-    "quantum",
-};
-pub const trace_entry_fields = [_][]const u8{
-    "tick",
-    "kind",
-    "task_id",
-    "core_id",
-};
-pub const task_fields = [_][]const u8{
-    "id",
-    "arrival_tick",
-    "burst_ticks",
-    "weight",
-    "input_order",
-    "first_dispatch_tick",
-    "completion_time",
-    "turnaround_time",
-    "waiting_time",
-    "response_time",
-    "total_executed",
-};
-pub const aggregate_fields = [_][]const u8{
-    "average_waiting_time",
-    "average_response_time",
-    "throughput",
-    "throughput_numerator",
-    "throughput_denominator",
-    "waiting_time_spread",
-};
+pub const schema_name = contract.schema_name;
+pub const schema_version = contract.schema_version;
+pub const top_level_fields = contract.top_level_fields;
+pub const source_fields = contract.source_fields;
+pub const scenario_fields = contract.scenario_fields;
+pub const policy_fields = contract.policy_fields;
+pub const trace_entry_fields = contract.trace_entry_fields;
+pub const task_fields = contract.task_fields;
+pub const aggregate_fields = contract.aggregate_fields;
+pub const ContractError = contract.ContractError;
+pub const SourceKind = contract.SourceKind;
+pub const assertSupportedContract = contract.assertSupportedContract;
 
-pub const ContractError = error{
-    MissingSchema,
-    UnsupportedSchema,
-    MissingVersion,
-    UnsupportedVersion,
-};
-
-pub const SourceKind = enum {
-    builtin,
-    file,
-};
+pub fn publicTraceEventKinds() []const types.TraceEventKind {
+    return trace.public_event_kinds[0..];
+}
 
 pub const SourceInfo = struct {
     kind: SourceKind,
     value: []const u8,
 };
-
-pub fn assertSupportedContract(schema: ?[]const u8, version: ?u32) ContractError!void {
-    const actual_schema = schema orelse return error.MissingSchema;
-    if (!std.mem.eql(u8, actual_schema, schema_name)) return error.UnsupportedSchema;
-
-    const actual_version = version orelse return error.MissingVersion;
-    if (actual_version != schema_version) return error.UnsupportedVersion;
-}
-
-pub fn publicTraceEventKinds() []const types.TraceEventKind {
-    return trace.public_event_kinds[0..];
-}
 
 pub const SimulationReport = struct {
     source: SourceInfo,

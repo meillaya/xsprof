@@ -19,6 +19,7 @@ zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
 zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
+zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 ```
 
 ## Public CLI contract
@@ -82,7 +83,26 @@ Every text-mode run prints:
 
 JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
 
-See `docs/phase1-simulator.md` and `docs/linux-mapping.md` for semantics and Linux relevance notes.
+## Export -> analysis workflow
+The committed M4 example fixture lives at `docs/examples/exports/multicore-contention-fcfs.report.json`.
+
+Render the deterministic Markdown analysis surface:
+```sh
+zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
+```
+
+Render the deterministic SVG chart surface:
+```sh
+zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json --format svg
+```
+
+Reference artifacts are committed at:
+- `docs/examples/analysis/multicore-contention-fcfs.md`
+- `docs/examples/analysis/multicore-contention-fcfs.svg`
+
+The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
+
+See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, and Linux relevance notes.
 
 ## Multicore fixture corpus
 Committed multicore proof fixtures now include:

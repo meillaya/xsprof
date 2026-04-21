@@ -52,6 +52,11 @@ Consumers should treat the export as supported only when:
 
 Missing schema/version fields or unsupported values should be rejected rather than guessed.
 
+### Downstream analysis workflow
+M4 analysis/report tooling consumes only the exported `zig-scheduler/report` JSON. The canonical committed example export is `docs/examples/exports/multicore-contention-fcfs.report.json`, with paired deterministic outputs at `docs/examples/analysis/multicore-contention-fcfs.md` and `docs/examples/analysis/multicore-contention-fcfs.svg`.
+
+Use `zig build analyze -- --input <report.json>` for the Markdown surface or add `--format svg` for the visualization surface. Consumers must keep the same schema/version gate and reject unsupported export versions instead of guessing.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`
