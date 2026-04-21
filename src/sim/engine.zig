@@ -20,6 +20,8 @@ const RuntimeTask = struct {
     state: types.TaskState = .pending,
 };
 
+const single_core_id: types.CoreId = 0;
+
 pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwned, policy: types.PolicyKind) !types.SimulationResult {
     if (scenario.tasks.len == 0) return error.EmptyScenario;
 
@@ -68,7 +70,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
                         try ready_queue.append(allocator, current_index);
                         current = null;
                         current_quantum = 0;
-                        try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id });
+                        try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
                     }
                 }
             },
@@ -80,7 +82,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
                             runtimes[current_index].state = .ready;
                             current = null;
                             current_quantum = 0;
-                            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id });
+                            try trace_entries.append(allocator, .{ .tick = tick, .kind = .preempt, .task_id = runtimes[current_index].id, .core_id = single_core_id });
                         }
                     }
                 }
@@ -104,7 +106,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
                     }
                     current = next_index;
                     current_quantum = 0;
-                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id });
+                    try trace_entries.append(allocator, .{ .tick = tick, .kind = .dispatch, .task_id = runtimes[next_index].id, .core_id = single_core_id });
                 }
             }
         }
@@ -117,7 +119,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
                 return error.TaskExecutedTwiceInSameTick;
             }
 
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .tick, .task_id = runtimes[current_index].id, .core_id = single_core_id });
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
             runtimes[current_index].last_execution_tick = tick;
@@ -129,12 +131,12 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
                 runtimes[current_index].state = .complete;
                 completed += 1;
                 try completion_order.append(allocator, current_index);
-                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id });
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .core_id = single_core_id });
                 current = null;
                 current_quantum = 0;
             }
         } else {
-            try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null });
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = single_core_id });
         }
     }
 
@@ -169,6 +171,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
         .scenario_name = try allocator.dupe(u8, scenario.name),
         .policy = policy,
         .quantum = scenario.round_robin_quantum,
+        .core_count = 1,
         .trace = try trace_entries.toOwnedSlice(allocator),
         .tasks = task_metrics,
         .completion_order = try completion_order.toOwnedSlice(allocator),

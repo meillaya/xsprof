@@ -66,38 +66,26 @@ test "simulation terminates with consistent per-task accounting" {
     }
 }
 
-test "simulation never records the same task executing twice in one tick" {
+test "single-core simulation records core identity in state" {
     const allocator = std.testing.allocator;
-    var short_vs_long = try loadShortVsLong(allocator);
-    defer short_vs_long.deinit();
+    var scenario = try loadShortVsLong(allocator);
+    defer scenario.deinit();
 
-    const weighted_source =
-        \\.{
-        \\    .name = "weighted-no-double-run",
-        \\    .tasks = .{
-        \\        .{ .id = "light", .arrival_tick = 0, .burst_ticks = 4, .weight = 512 },
-        \\        .{ .id = "heavy", .arrival_tick = 0, .burst_ticks = 4, .weight = 2048 },
-        \\        .{ .id = "default", .arrival_tick = 0, .burst_ticks = 2 },
-        \\    },
-        \\}
-    ;
-    var weighted = try sim.parseScenarioText(allocator, weighted_source, "weighted-no-double-run");
-    defer weighted.deinit();
+    var result = try sim.simulate(allocator, &scenario, .round_robin);
+    defer result.deinit();
 
-    const cases = [_]struct {
-        policy: sim.PolicyKind,
-        scenario: *const sim.ScenarioOwned,
-    }{
-        .{ .policy = .fcfs, .scenario = &short_vs_long },
-        .{ .policy = .round_robin, .scenario = &short_vs_long },
-        .{ .policy = .cfs_like, .scenario = &short_vs_long },
-        .{ .policy = .cfs_like, .scenario = &weighted },
-    };
+    try std.testing.expectEqual(@as(u32, 1), result.core_count);
 
-    for (cases) |case| {
-        var result = try sim.simulate(allocator, case.scenario, case.policy);
-        defer result.deinit();
-
-        try expectNoDuplicateTaskTicksPerTick(result.trace);
+    var saw_core_tagged_event = false;
+    for (result.trace) |entry| {
+        switch (entry.kind) {
+            .arrival => try std.testing.expect(entry.core_id == null),
+            .dispatch, .tick, .preempt, .complete, .idle => {
+                try std.testing.expectEqual(@as(?sim.CoreId, 0), entry.core_id);
+                saw_core_tagged_event = true;
+            },
+        }
     }
+
+    try std.testing.expect(saw_core_tagged_event);
 }

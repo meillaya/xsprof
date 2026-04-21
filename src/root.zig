@@ -14,6 +14,7 @@ pub const trace = @import("sim/trace.zig");
 pub const AggregateMetrics = types.AggregateMetrics;
 pub const BuiltinScenario = scenario.BuiltinScenario;
 pub const BuiltinScenarioMeta = scenario.BuiltinScenarioMeta;
+pub const CoreId = types.CoreId;
 pub const PolicyKind = types.PolicyKind;
 pub const PolicyName = types.PolicyName;
 pub const Scenario = types.Scenario;

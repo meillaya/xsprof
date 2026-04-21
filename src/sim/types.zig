@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const default_task_weight: u32 = 1024;
 pub const max_task_weight: u32 = 4096;
+pub const CoreId = u32;
 
 pub const PolicyKind = enum {
     fcfs,
@@ -106,6 +107,7 @@ pub const TraceEntry = struct {
     tick: u32,
     kind: TraceEventKind,
     task_id: ?[]const u8,
+    core_id: ?CoreId = null,
 };
 
 pub const TaskMetrics = struct {
@@ -136,6 +138,7 @@ pub const SimulationResult = struct {
     scenario_name: []const u8,
     policy: PolicyKind,
     quantum: u32,
+    core_count: u32 = 1,
     trace: []TraceEntry,
     tasks: []TaskMetrics,
     completion_order: []usize,
