@@ -164,3 +164,55 @@ test "per-core execution reconciliation matches task totals and total work" {
         try std.testing.expectEqual(expected_total_work, total_tick_events);
     }
 }
+
+test "per-core execution reconciliation matches task totals and total work" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadWeightedFixture(allocator);
+    defer scenario.deinit();
+
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
+    for (policies) |policy| {
+        var result = try sim.simulate(allocator, &scenario, policy);
+        defer result.deinit();
+
+        const core_count: usize = @intCast(result.core_count);
+        try std.testing.expect(core_count >= 1);
+
+        const per_core = try allocator.alloc(u32, core_count);
+        defer allocator.free(per_core);
+        @memset(per_core, 0);
+
+        const per_task = try allocator.alloc(u32, result.tasks.len);
+        defer allocator.free(per_task);
+        @memset(per_task, 0);
+
+        var total_tick_events: u32 = 0;
+        for (result.trace) |entry| {
+            if (entry.kind != .tick) continue;
+
+            const core_id = entry.core_id orelse return error.MissingCoreIdentity;
+            try std.testing.expect(core_id < result.core_count);
+
+            const core_index: usize = @intCast(core_id);
+            per_core[core_index] += 1;
+            total_tick_events += 1;
+
+            const task_id = entry.task_id orelse return error.MissingTaskId;
+            const task_index = taskIndexById(result.tasks, task_id) orelse return error.UnknownTaskId;
+            per_task[task_index] += 1;
+        }
+
+        var summed_core_ticks: u32 = 0;
+        for (per_core) |count| summed_core_ticks += count;
+        try std.testing.expectEqual(total_tick_events, summed_core_ticks);
+
+        var expected_total_work: u32 = 0;
+        for (result.tasks, per_task) |task, counted_ticks| {
+            expected_total_work += task.burst_ticks;
+            try std.testing.expectEqual(task.total_executed, counted_ticks);
+            try std.testing.expectEqual(task.burst_ticks, counted_ticks);
+        }
+
+        try std.testing.expectEqual(expected_total_work, total_tick_events);
+    }
+}
