@@ -11,6 +11,7 @@ pub fn writeSimulationReport(writer: anytype, scenario: *const types.ScenarioOwn
 pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !void {
     try writer.print("Scenario: {s}\n", .{report.scenario.name});
     try writer.print("Policy: {s}\n", .{report.result.policy.displayName()});
+    try writer.print("Core Count: {d}\n", .{report.result.core_count});
     if (report.result.policy == .round_robin) {
         try writer.print("Round Robin Quantum: {d}\n", .{report.result.quantum});
     }
@@ -22,9 +23,17 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     try writer.writeAll("\n\nTrace:\n");
     for (report.result.trace) |entry| {
         if (entry.task_id) |task_id| {
-            try writer.print("- t={d}: {s} {s}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id });
+            if (entry.core_id) |core_id| {
+                try writer.print("- t={d}: {s} {s} core={d}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id, core_id });
+            } else {
+                try writer.print("- t={d}: {s} {s}\n", .{ entry.tick, trace.eventLabel(entry.kind), task_id });
+            }
         } else {
-            try writer.print("- t={d}: {s}\n", .{ entry.tick, trace.eventLabel(entry.kind) });
+            if (entry.core_id) |core_id| {
+                try writer.print("- t={d}: {s} core={d}\n", .{ entry.tick, trace.eventLabel(entry.kind), core_id });
+            } else {
+                try writer.print("- t={d}: {s}\n", .{ entry.tick, trace.eventLabel(entry.kind) });
+            }
         }
     }
 

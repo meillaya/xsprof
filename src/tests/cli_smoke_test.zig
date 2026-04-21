@@ -107,10 +107,36 @@ test "CLI report includes required sections" {
     const rendered = buffer.items;
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Scenario:") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Policy:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "Core Count:") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Completion Order:") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Trace:") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Per-Task Metrics:") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "Aggregate Metrics:") != null);
+}
+
+test "CLI and JSON smoke expose core identity" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioByName(allocator, "short-vs-long");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .round_robin);
+    defer result.deinit();
+
+    const report = sim.cli.SimulationReport.init(.{ .kind = .builtin, .value = "short-vs-long" }, &scenario, &result);
+
+    var human_buffer: std.ArrayList(u8) = .empty;
+    defer human_buffer.deinit(allocator);
+    var human_writer = human_buffer.writer(allocator);
+    try sim.cli.writeHumanReport(&human_writer, report);
+
+    try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "Core Count: 1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "core=0") != null);
+
+    const rendered_json = try renderJson(allocator, .{ .kind = .builtin, .value = "short-vs-long" }, &scenario, &result);
+    defer allocator.free(rendered_json);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_count\":1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_id\":0") != null);
 }
 
 test "JSON export includes schema and version" {
