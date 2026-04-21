@@ -30,7 +30,7 @@ FCFS and Round Robin accept the weight field as part of the scenario contract bu
 
 ## Scenario input contract
 The public run surface supports exactly one scenario source:
-- `--scenario <builtin-name>`
+- `--scenario <core/basic-name>`
 - `--scenario-file <path>`
 
 The canonical external scenario-file dialect is object-style ZON. Legacy line-oriented `.zon` input remains readable as a backward-compatible format during roadmap execution.
@@ -71,6 +71,20 @@ the same curated artifact pack outside the committed docs tree.
 M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/m45-baselines.md` and `docs/benchmarks/m45-baselines.json`.
 
 These baselines are simulator-local only: they help compare fixtures/policies within this project, and they must not be presented as Linux scheduler performance measurements.
+
+### M17 canonical scenario corpus
+M17 promotes the strongest teaching fixtures into an explicit curriculum-grade
+corpus with stable metadata, explanation docs, and demo/regression guidance.
+
+Required coverage in the canonical corpus includes:
+- convoy-style waiting-time contrast (`short-vs-long`)
+- blocked/wakeup and phased burstiness (`sleep-wakeup`, `multi-phase-io`)
+- starvation pressure (`starvation-pressure`)
+- deterministic multicore rebalancing (`multicore-balancing`)
+- topology-aware placement (`topology-domains`)
+
+See `docs/m17-scenario-corpus.md` for the index, recommended policies, and
+manual-demo commands.
 
 ### Deterministic blocked / wakeup model
 M6 adds one intentionally simple blocked-state model: a task may declare a single `sleep_after_ticks` / `sleep_duration` pair in object-style ZON. After the task accumulates `sleep_after_ticks` executed ticks, it emits a `block` trace event, becomes unrunnable for `sleep_duration` ticks, then emits a `wakeup` trace event and re-enters the runnable set.
@@ -113,7 +127,8 @@ This is an internal architecture cleanup only: current FCFS, Round Robin, and CF
 M14 keeps extension points narrow and reviewable instead of adding a plugin runtime.
 
 Scenario-pack convention:
-- curated built-ins stay registered in `src/sim/scenario.zig`
+- curated built-ins and pack-qualified names stay registered in `src/sim/scenario.zig`
+- curriculum-grade corpus metadata is indexed in `src/sim/scenario_pack.zig`
 - built-in metadata points at committed fixtures under `scenarios/basic/`
 - external or optional packs are just canonical `.zon` files loaded through `--scenario-file <path>` or `loadScenarioFile`
 

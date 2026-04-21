@@ -31,10 +31,25 @@ test "scenario pack registry keeps the core/basic layout explicit" {
     try std.testing.expect(!packs[0].optional);
 
     const entries = scheduler.listScenarioPackEntries(.core_basic);
-    try std.testing.expectEqual(@as(usize, 3), entries.len);
+    try std.testing.expect(entries.len >= 15);
     try std.testing.expectEqualStrings("staggered-arrivals", entries[0].key);
     try std.testing.expectEqualStrings("staggered-arrivals.zon", entries[0].file_name);
     try std.testing.expectEqualStrings("short-vs-long", entries[2].key);
+}
+
+test "every public core/basic pack entry is loadable by pack-qualified and unqualified name" {
+    for (scheduler.listScenarioPackEntries(.core_basic)) |entry| {
+        const qualified_name = try std.fmt.allocPrint(std.testing.allocator, "core/basic:{s}", .{entry.key});
+        defer std.testing.allocator.free(qualified_name);
+
+        var qualified = try scheduler.loadNamedScenario(std.testing.allocator, qualified_name);
+        defer qualified.deinit();
+        try std.testing.expectEqualStrings(entry.key, qualified.name);
+
+        var unqualified = try scheduler.loadNamedScenario(std.testing.allocator, entry.key);
+        defer unqualified.deinit();
+        try std.testing.expectEqualStrings(entry.key, unqualified.name);
+    }
 }
 
 test "pack-qualified names load through the scenario pack registry" {

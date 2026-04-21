@@ -1,5 +1,7 @@
 # Phase 1 Scenario C Walkthrough
 
+Canonical fixture: `scenarios/basic/short-vs-long.zon`
+
 Scenario C from the approved test spec is the best explanatory example for Phase 1 because it makes latency and fairness tradeoffs visible with a very small workload.
 
 ## Scenario definition

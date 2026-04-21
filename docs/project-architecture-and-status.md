@@ -380,7 +380,22 @@ wording and deterministic contract checks established by earlier milestones.
 
 ### M17 — scenario corpus expansion and curriculum-grade examples
 
-Broaden the curated fixture set into a more intentional teaching corpus.
+M17 adds an explicit canonical scenario corpus on top of the existing fixture
+set. The core pack now identifies curriculum-grade scenarios with stable
+metadata (theme, explanation doc, recommended policy, demo/regression role),
+and the repo documents the corpus in `docs/m17-scenario-corpus.md`.
+
+The canonical scenarios cover:
+
+- convoy effects (`short-vs-long`)
+- bursty blocked/wakeup and phased I/O (`sleep-wakeup`, `multi-phase-io`)
+- starvation pressure (`starvation-pressure`)
+- deterministic multicore rebalancing (`multicore-balancing`)
+- topology-aware placement (`topology-domains`)
+- plus deadline, group-fairness, and latency/fairness comparison examples
+
+The intent is to make the scenario corpus usable both as a teaching/demo lane
+and as a stable automated regression surface.
 
 ### M18 — Linux-observability planning gate
 

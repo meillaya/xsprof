@@ -5,10 +5,10 @@ M14 defines a reviewable extension boundary without turning the simulator into a
 ## Scenario pack convention
 
 The simulator supports two scenario-loading paths:
-- curated built-ins via `--scenario <builtin-name>`
+- curated named scenarios via `--scenario <name>`
 - arbitrary fixture files via `--scenario-file <path>`
 
-The built-in registry lives in `src/sim/scenario.zig` and points at committed teaching fixtures under `scenarios/basic/`.
+The named-loading registry lives in `src/sim/scenario.zig` and points at committed teaching fixtures under `scenarios/basic/`. The broader curriculum metadata index added later lives alongside it in `src/sim/scenario_pack.zig`.
 
 Additional scenario packs follow a directory convention rather than a runtime plugin API:
 - keep fixtures in canonical object-style `.zon`
@@ -38,7 +38,7 @@ Optional packs must remain optional:
 ## Docs/examples audit summary
 
 The repository docs and examples should continue to reflect the actual CLI contract:
-- `--scenario` is only for curated built-ins
+- `--scenario` is for curated named scenarios from the committed core corpus
 - `--scenario-file` is the extension path for pack-style fixtures
 - scenario fixtures remain canonical `.zon`
 - policy-extension language should describe a simulator architecture boundary, not a production plugin system

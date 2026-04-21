@@ -60,7 +60,7 @@ zig build test --summary all
 The default `zig-scheduler` entrypoint is now TUI-first.
 
 TUI input flags:
-- `--scenario <builtin-name>`
+- `--scenario <core/basic-name>`
 - `--scenario-file <path>`
 - `--input <report.json>`
 - `--stdin`
@@ -106,16 +106,22 @@ zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --poli
 
 ## Key teaching fixtures
 
-- `scenarios/basic/sleep-wakeup.zon`
-- `scenarios/basic/multi-phase-io.zon`
-- `scenarios/basic/latency-probe.zon`
-- `scenarios/basic/starvation-pressure.zon`
-- `scenarios/basic/deadline-priority.zon`
-- `scenarios/basic/group-fairness.zon`
-- `scenarios/basic/topology-domains.zon`
+- `scenarios/basic/short-vs-long.zon` — convoy-style waiting-time contrast
+- `scenarios/basic/sleep-wakeup.zon` — blocked/wakeup burstiness
+- `scenarios/basic/multi-phase-io.zon` — phased bursty I/O
+- `scenarios/basic/latency-probe.zon` — latency/fairness spread
+- `scenarios/basic/starvation-pressure.zon` — starvation pressure
+- `scenarios/basic/deadline-priority.zon` — deadline-oriented comparison
+- `scenarios/basic/group-fairness.zon` — group fairness
+- `scenarios/basic/multicore-balancing.zon` — idle-core rebalance
+- `scenarios/basic/topology-domains.zon` — topology-aware placement
 
 These fixtures exercise `sleep_after_ticks`, `phases`, deadlines, groups, and
 simple topology distinctions.
+
+The full curriculum-grade corpus index and demo guidance lives in:
+
+- `docs/m17-scenario-corpus.md`
 
 ## Scenario generator and property harness
 
@@ -137,7 +143,7 @@ scenarios/regressions/
 
 M14 keeps extension points narrow and reviewable.
 
-- curated built-ins remain registered in the core scenario registry
+- curated named scenarios remain registered in the core scenario registry
 - external or optional packs are just canonical `.zon` trees loaded by path
 - policy extension remains routed through `src/policies/class.zig`
 - core behavior stays operable without optional packs
@@ -151,6 +157,7 @@ Start here for the full project write-up:
 Other useful docs:
 
 - `docs/phase1-simulator.md`
+- `docs/m17-scenario-corpus.md`
 - `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`
 - `docs/m13-property-testing.md`

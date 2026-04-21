@@ -1,5 +1,6 @@
 .{
     .name = "multi-phase-io",
+    .description = "Alternating CPU and wait phases for deterministic bursty-I/O and wakeup instruction.",
     .quantum = 2,
     .tasks = .{
         .{ .id = "A", .arrival_tick = 0, .phases = .{

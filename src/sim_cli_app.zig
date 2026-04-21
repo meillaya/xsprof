@@ -26,9 +26,9 @@ pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
 
 fn writeScenarioList(writer: anytype) !void {
     try writer.writeAll("Phase 1 scenario packs:\n");
-    for (scheduler.listScenarioPacks()) |pack| {
+    for (scheduler.scenario_packs.listScenarioPacks()) |pack| {
         try writer.print("Pack {s} ({s})\n", .{ pack.key, pack.directory });
-        for (scheduler.listScenarioPackEntries(pack.id)) |entry| {
+        for (pack.scenarios) |entry| {
             try writer.print("  - {s} [{s}:{s}]: {s}\n", .{ entry.key, pack.key, entry.key, entry.description });
         }
     }
@@ -101,6 +101,8 @@ test "list command exposes scenario pack registry layout" {
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Phase 1 scenario packs:") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Pack core/basic (scenarios/basic)") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "short-vs-long [core/basic:short-vs-long]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "starvation-pressure [core/basic:starvation-pressure]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "topology-domains [core/basic:topology-domains]") != null);
 }
 
 test "usage text advertises sim entrypoint" {

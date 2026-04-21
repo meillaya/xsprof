@@ -483,14 +483,17 @@ fn lastTick(report: *const analysis.model.Report) u32 {
 
 fn pickerEntries() []const PickerEntry {
     return &.{
+        .{ .scenario_key = "scenarios/basic/short-vs-long.zon", .scenario_label = "short-vs-long", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "convoy-style long job ahead of short arrivals", .cores = 1, .tasks = 3, .ticks = 12 },
         .{ .scenario_key = "scenarios/basic/multicore-contention.zon", .scenario_label = "multicore-contention", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "two cores, equal arrivals, unbounded bursts", .cores = 2, .tasks = 4, .ticks = 9 },
-        .{ .scenario_key = "scenarios/basic/multicore-contention.zon", .scenario_label = "multicore-contention", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "same scenario, q=2 preemptive quantum", .cores = 2, .tasks = 4, .ticks = 9 },
-        .{ .scenario_key = "scenarios/basic/deadline-priority.zon", .scenario_label = "deadline-priority", .pack = "core/basic", .policy = .deadline, .policy_label = "deadline", .description = "edf-style ordering, missed-deadline probe", .cores = 1, .tasks = 3, .ticks = 12 },
-        .{ .scenario_key = "scenarios/basic/group-fairness.zon", .scenario_label = "group-fairness", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "two groups, latency vs batch weighting", .cores = 2, .tasks = 5, .ticks = 11 },
-        .{ .scenario_key = "scenarios/basic/sleep-wakeup.zon", .scenario_label = "sleep-wakeup", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "blocked/wakeup transitions, single phase", .cores = 1, .tasks = 3, .ticks = 14 },
-        .{ .scenario_key = "scenarios/basic/starvation-pressure.zon", .scenario_label = "starvation-pressure", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "long-running low-priority task under rr", .cores = 1, .tasks = 4, .ticks = 18 },
-        .{ .scenario_key = "scenarios/basic/topology-domains.zon", .scenario_label = "topology-domains", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "domain-aware placement + work stealing", .cores = 4, .tasks = 6, .ticks = 12 },
-        .{ .scenario_key = "scenarios/basic/latency-probe.zon", .scenario_label = "latency-probe", .pack = "core/basic", .policy = .deadline, .policy_label = "deadline", .description = "response-time spread under mixed loads", .cores = 2, .tasks = 4, .ticks = 10 },
+        .{ .scenario_key = "scenarios/basic/multicore-contention.zon", .scenario_label = "multicore-contention", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "same scenario, q=2 preemptive quantum", .cores = 2, .tasks = 4, .ticks = 8 },
+        .{ .scenario_key = "scenarios/basic/multi-phase-io.zon", .scenario_label = "multi-phase-io", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "bursty CPU/wait phases with deterministic wakeups", .cores = 1, .tasks = 2, .ticks = 9 },
+        .{ .scenario_key = "scenarios/basic/multicore-balancing.zon", .scenario_label = "multicore-balancing", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "idle core steals queued work deterministically", .cores = 2, .tasks = 3, .ticks = 6 },
+        .{ .scenario_key = "scenarios/basic/deadline-priority.zon", .scenario_label = "deadline-priority", .pack = "core/basic", .policy = .deadline, .policy_label = "deadline", .description = "edf-style ordering, missed-deadline probe", .cores = 1, .tasks = 4, .ticks = 11 },
+        .{ .scenario_key = "scenarios/basic/group-fairness.zon", .scenario_label = "group-fairness", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "two groups, latency vs batch weighting", .cores = 1, .tasks = 3, .ticks = 13 },
+        .{ .scenario_key = "scenarios/basic/sleep-wakeup.zon", .scenario_label = "sleep-wakeup", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "blocked/wakeup transitions, single phase", .cores = 1, .tasks = 2, .ticks = 8 },
+        .{ .scenario_key = "scenarios/basic/starvation-pressure.zon", .scenario_label = "starvation-pressure", .pack = "core/basic", .policy = .cfs_like, .policy_label = "cfs-like", .description = "long-running low-priority task under cfs-like", .cores = 1, .tasks = 4, .ticks = 25 },
+        .{ .scenario_key = "scenarios/basic/topology-domains.zon", .scenario_label = "topology-domains", .pack = "core/basic", .policy = .fcfs, .policy_label = "fcfs", .description = "domain-aware placement + work stealing", .cores = 4, .tasks = 5, .ticks = 6 },
+        .{ .scenario_key = "scenarios/basic/latency-probe.zon", .scenario_label = "latency-probe", .pack = "core/basic", .policy = .round_robin, .policy_label = "round_robin", .description = "response-time spread under mixed loads", .cores = 1, .tasks = 5, .ticks = 15 },
     };
 }
 
@@ -500,11 +503,44 @@ test {
 
 test "picker metadata matches mockup lanes" {
     const entries = pickerEntries();
-    try std.testing.expectEqual(@as(usize, 8), entries.len);
-    try std.testing.expectEqualStrings("scenarios/basic/multicore-contention.zon", entries[0].scenario_key);
+    try std.testing.expectEqual(@as(usize, 11), entries.len);
+    try std.testing.expectEqualStrings("scenarios/basic/short-vs-long.zon", entries[0].scenario_key);
     try std.testing.expectEqual(scheduler.PolicyKind.fcfs, entries[0].policy);
-    try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", entries[3].scenario_key);
-    try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[3].policy);
+    try std.testing.expectEqualStrings("scenarios/basic/multi-phase-io.zon", entries[3].scenario_key);
+    try std.testing.expectEqual(scheduler.PolicyKind.round_robin, entries[3].policy);
+    try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", entries[6].scenario_key);
+    try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[6].policy);
+}
+
+test "picker metadata stays aligned with canonical scenario files" {
+    const allocator = std.testing.allocator;
+    const entries = pickerEntries();
+
+    for (entries) |entry| {
+        var scenario = try scheduler.loadScenarioFile(allocator, entry.scenario_key);
+        defer scenario.deinit();
+        try std.testing.expectEqual(entry.cores, scenario.core_count);
+        try std.testing.expectEqual(entry.tasks, scenario.tasks.len);
+
+        var result = try scheduler.simulate(allocator, &scenario, entry.policy);
+        defer result.deinit();
+
+        var last_tick: u32 = 0;
+        for (result.trace) |event| last_tick = @max(last_tick, event.tick);
+        try std.testing.expectEqual(entry.ticks, last_tick + 1);
+    }
+}
+
+test "picker policy presets stay aligned with canonical scenario recommendations" {
+    const canonical_entries = scheduler.scenario_packs.listScenarioPackEntries("core/basic").?;
+
+    for (pickerEntries()) |picker_entry| {
+        for (canonical_entries) |canonical_entry| {
+            if (!canonical_entry.canonical) continue;
+            if (!std.mem.eql(u8, picker_entry.scenario_key, canonical_entry.path)) continue;
+            try std.testing.expectEqual(canonical_entry.recommended_policy.?, picker_entry.policy);
+        }
+    }
 }
 
 test "terminal size equality helper is exact" {

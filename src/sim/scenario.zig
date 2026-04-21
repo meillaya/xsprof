@@ -69,6 +69,102 @@ const core_basic_pack_entries = [_]ScenarioPackEntryMeta{
         .file_name = "short-vs-long.zon",
         .description = "Golden-oracle short-job versus long-job contention",
     },
+    .{
+        .pack = .core_basic,
+        .key = "arrivals",
+        .file_name = "arrivals.zon",
+        .description = "Canonical object-style arrival ordering fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "contention",
+        .file_name = "contention.zon",
+        .description = "Equal-arrival contention teaching fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "deadline-priority",
+        .file_name = "deadline-priority.zon",
+        .description = "Deadline-inspired comparison fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "group-fairness",
+        .file_name = "group-fairness.zon",
+        .description = "Group scheduling teaching fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "latency-probe",
+        .file_name = "latency-probe.zon",
+        .description = "Latency comparison teaching fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multi-phase-io",
+        .file_name = "multi-phase-io.zon",
+        .description = "Deterministic CPU/wait phase fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-balancing",
+        .file_name = "multicore-balancing.zon",
+        .description = "Idle-core rebalance fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-contention",
+        .file_name = "multicore-contention.zon",
+        .description = "Baseline deterministic multicore fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-rr-quantum",
+        .file_name = "multicore-rr-quantum.zon",
+        .description = "Multicore Round Robin preemption fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-simultaneous-complete",
+        .file_name = "multicore-simultaneous-complete.zon",
+        .description = "Deterministic same-tick completion fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-staggered",
+        .file_name = "multicore-staggered.zon",
+        .description = "Staggered multicore arrival fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "multicore-weighted",
+        .file_name = "multicore-weighted.zon",
+        .description = "Weighted multicore fairness fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "sleep-wakeup",
+        .file_name = "sleep-wakeup.zon",
+        .description = "Blocked/wakeup teaching fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "starvation-pressure",
+        .file_name = "starvation-pressure.zon",
+        .description = "Weighted starvation-pressure probe fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "topology-domains",
+        .file_name = "topology-domains.zon",
+        .description = "Topology-aware multicore teaching fixture",
+    },
+    .{
+        .pack = .core_basic,
+        .key = "weighted-fairness",
+        .file_name = "weighted-fairness.zon",
+        .description = "Single-core weight-aware fairness fixture",
+    },
 };
 
 const builtin_scenarios = [_]BuiltinScenarioMeta{

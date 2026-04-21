@@ -1,5 +1,6 @@
 .{
     .name = "sleep-wakeup",
+    .description = "Single blocked/wakeup transition for deterministic bursty-I/O teaching checks.",
     .quantum = 2,
     .tasks = .{
         .{ .id = "A", .arrival_tick = 0, .burst_ticks = 4, .sleep_after_ticks = 2, .sleep_duration = 2 },
