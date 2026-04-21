@@ -180,7 +180,7 @@ test "M13 shrinker reduces and saves regression fixtures" {
     generated.allocator.free(generated.groups);
     generated.groups = try generated.allocator.alloc(sim.property.GeneratedGroup, 0);
     generated.allocator.free(generated.tasks);
-    generated.tasks = try generated.allocator.dupe(sim.property.GeneratedTask, &. {
+    generated.tasks = try generated.allocator.dupe(sim.property.GeneratedTask, &.{
         .{ .arrival_tick = 0, .burst_ticks = 6 },
         .{ .arrival_tick = 1, .burst_ticks = 2 },
         .{ .arrival_tick = 2, .burst_ticks = 1 },
