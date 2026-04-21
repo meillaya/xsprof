@@ -22,6 +22,10 @@ pub const Size = struct {
     rows: u16,
 };
 
+pub fn eqlSize(lhs: Size, rhs: Size) bool {
+    return lhs.cols == rhs.cols and lhs.rows == rhs.rows;
+}
+
 pub const Terminal = struct {
     stdin: std.fs.File,
     stdout: std.fs.File,

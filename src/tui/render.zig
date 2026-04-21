@@ -340,7 +340,7 @@ fn renderTooSmall(canvas: *Canvas, _: Theme, width: usize, height: usize) void {
         "Resize the terminal to at least 100 columns × 30 rows.",
         "The Claude mockup is intentionally dense and needs room for its panes.",
     };
-    var y = height / 2 - 2;
+    var y: usize = if (height > 4) height / 2 - 2 else 0;
     for (lines) |line| {
         const x = if (width > line.len) (width - line.len) / 2 else 0;
         canvas.drawText(x, y, line, .{ .fg = .fg, .bg = .bg, .bold = true });
@@ -1292,6 +1292,28 @@ fn executionCountOnCpu(report: *const Report, task_id: []const u8, cpu_index: u3
 fn findTask(report: *const Report, task_id: []const u8) ?TaskMetrics {
     for (report.tasks) |task| if (std.mem.eql(u8, task.id, task_id)) return task;
     return null;
+}
+
+test "too-small renderer handles tiny heights without underflow" {
+    const app: AppView = .{
+        .theme = .dark,
+        .view = .picker,
+        .focus = .gantt,
+        .cursor = 0,
+        .selected_task_index = null,
+        .picker_index = 0,
+        .playing = false,
+        .report = null,
+        .compare_report = null,
+        .picker_entries = &.{},
+        .history = &.{},
+    };
+
+    const allocator = std.testing.allocator;
+    inline for ([_]usize{ 0, 1, 2, 3, 4, 5 }) |height| {
+        const frame = try renderSnapshotFrame(allocator, 20, height, app);
+        defer allocator.free(frame);
+    }
 }
 
 fn styleEq(a: Style, b: Style) bool {

@@ -93,18 +93,41 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     var terminal = try term_mod.Terminal.init();
     defer terminal.deinit();
 
-    while (true) {
-        const size = terminal.size();
-        const frame = try render.renderFrame(allocator, size.cols, size.rows, appView(&app));
-        defer allocator.free(frame);
-        try terminal.writeFrame(frame);
+    var size = terminal.size();
+    var needs_redraw = true;
 
-        const timeout: i32 = if (app.playing and app.view == .explorer) 200 else -1;
+    while (true) {
+        if (needs_redraw) {
+            const frame = try render.renderFrame(allocator, size.cols, size.rows, appView(&app));
+            defer allocator.free(frame);
+            try terminal.writeFrame(frame);
+            needs_redraw = false;
+        }
+
+        const timeout: i32 = if (app.playing and app.view == .explorer) 200 else 100;
         const event = try terminal.readEvent(timeout);
+
+        const next_size = terminal.size();
+        if (!term_mod.eqlSize(size, next_size)) {
+            size = next_size;
+            needs_redraw = true;
+        }
+
         switch (event) {
-            .none => if (app.playing and app.view == .explorer) advanceCursor(&app) else {},
-            .char => |ch| if (try handleChar(&app, ch)) break,
-            else => if (try handleEvent(&app, event)) break,
+            .none => {
+                if (app.playing and app.view == .explorer) {
+                    advanceCursor(&app);
+                    needs_redraw = true;
+                }
+            },
+            .char => |ch| {
+                if (try handleChar(&app, ch)) break;
+                needs_redraw = true;
+            },
+            else => {
+                if (try handleEvent(&app, event)) break;
+                needs_redraw = true;
+            },
         }
     }
 }
@@ -452,6 +475,12 @@ test "picker metadata matches mockup lanes" {
     try std.testing.expectEqual(scheduler.PolicyKind.fcfs, entries[0].policy);
     try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", entries[3].scenario_key);
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[3].policy);
+}
+
+test "terminal size equality helper is exact" {
+    try std.testing.expect(term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 120, .rows = 40 }));
+    try std.testing.expect(!term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 121, .rows = 40 }));
+    try std.testing.expect(!term_mod.eqlSize(.{ .cols = 120, .rows = 40 }, .{ .cols = 120, .rows = 41 }));
 }
 
 test "interactive picker rejects missing tty without snapshot" {
