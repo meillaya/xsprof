@@ -1,0 +1,12 @@
+.{
+    .name = "multicore-weighted",
+    .description = "Two-core weighted contention for deterministic multicore CFS-inspired regressions.",
+    .quantum = 2,
+    .core_count = 2,
+    .tasks = .{
+        .{ .id = "heavy", .arrival_tick = 0, .burst_ticks = 5, .weight = 2048 },
+        .{ .id = "light", .arrival_tick = 0, .burst_ticks = 5, .weight = 512 },
+        .{ .id = "midA", .arrival_tick = 1, .burst_ticks = 3, .weight = 1024 },
+        .{ .id = "midB", .arrival_tick = 1, .burst_ticks = 2, .weight = 1024 },
+    },
+}

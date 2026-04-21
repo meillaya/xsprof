@@ -77,6 +77,15 @@ Required aggregate metrics:
 
 ## 6. Scenario coverage
 
+Committed multicore fixture corpus to exercise during M3.5:
+- [ ] multicore-contention
+- [ ] multicore-balancing
+- [ ] multicore-staggered
+- [ ] multicore-weighted
+- [ ] multicore-simultaneous-complete
+- [ ] multicore-rr-quantum
+
+
 - [ ] Scenario A: staggered arrivals
 - [ ] Scenario B: equal-arrival contention
 - [ ] Scenario C: short-job versus long-job contention

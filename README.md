@@ -83,3 +83,12 @@ Every text-mode run prints:
 JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
 
 See `docs/phase1-simulator.md` and `docs/linux-mapping.md` for semantics and Linux relevance notes.
+
+## Multicore fixture corpus
+Committed multicore proof fixtures now include:
+- `multicore-contention` — baseline two-core contention
+- `multicore-balancing` — idle-core steal/rebalance behavior
+- `multicore-staggered` — staggered arrivals with multicore idle/restart patterns
+- `multicore-weighted` — multicore weighted fairness stress for the CFS-inspired path
+- `multicore-simultaneous-complete` — deterministic same-tick completion ordering
+- `multicore-rr-quantum` — multicore round-robin preemption pressure

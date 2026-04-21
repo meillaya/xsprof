@@ -33,6 +33,28 @@ test "canonical object style scenario files load by path" {
     try expectTask(scenario.tasks[3], "D", 6, 1, 3);
 }
 
+test "committed multicore fixture corpus parses with explicit core counts" {
+    const fixtures = [_]struct {
+        path: []const u8,
+        name: []const u8,
+    }{
+        .{ .path = "scenarios/basic/multicore-contention.zon", .name = "multicore-contention" },
+        .{ .path = "scenarios/basic/multicore-balancing.zon", .name = "multicore-balancing" },
+        .{ .path = "scenarios/basic/multicore-staggered.zon", .name = "multicore-staggered" },
+        .{ .path = "scenarios/basic/multicore-weighted.zon", .name = "multicore-weighted" },
+        .{ .path = "scenarios/basic/multicore-simultaneous-complete.zon", .name = "multicore-simultaneous-complete" },
+        .{ .path = "scenarios/basic/multicore-rr-quantum.zon", .name = "multicore-rr-quantum" },
+    };
+
+    for (fixtures) |fixture| {
+        var scenario = try scheduler.loadScenarioFile(std.testing.allocator, fixture.path);
+        defer scenario.deinit();
+        try std.testing.expectEqualStrings(fixture.name, scenario.name);
+        try std.testing.expectEqual(@as(u32, 2), scenario.core_count);
+        try std.testing.expect(scenario.tasks.len >= 3);
+    }
+}
+
 test "canonical object style scenario files parse core counts" {
     var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/multicore-contention.zon");
     defer scenario.deinit();

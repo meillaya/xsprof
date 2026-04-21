@@ -1,0 +1,11 @@
+.{
+    .name = "multicore-simultaneous-complete",
+    .description = "Two-core workload where independent tasks complete on the same tick for deterministic completion-order checks.",
+    .quantum = 2,
+    .core_count = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 3 },
+        .{ .id = "B", .arrival_tick = 0, .burst_ticks = 3 },
+        .{ .id = "C", .arrival_tick = 4, .burst_ticks = 1 },
+    },
+}

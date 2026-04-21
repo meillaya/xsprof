@@ -138,3 +138,11 @@ Rules:
 - before dispatch, an idle core may steal the oldest ready task from the busiest ready queue
 - arrival, dispatch, tick, preempt, complete, and idle trace events carry `core_id` where the engine has assigned a core
 - no distinct migration event kind is added in version 1; migration is inferred when a later dispatch core differs from the task's earlier arrival/dispatched core
+
+### Committed multicore fixture corpus
+- `multicore-contention` — baseline deterministic two-core contention
+- `multicore-balancing` — deterministic oldest-ready-task steal onto an idle core
+- `multicore-staggered` — staggered arrivals and multicore idle gaps
+- `multicore-weighted` — weighted multicore contention for the CFS-inspired path
+- `multicore-simultaneous-complete` — same-tick completion ordering across cores
+- `multicore-rr-quantum` — round-robin preemption pressure on multicore queues

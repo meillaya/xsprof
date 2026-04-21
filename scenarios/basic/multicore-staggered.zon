@@ -1,0 +1,12 @@
+.{
+    .name = "multicore-staggered",
+    .description = "Two-core staggered arrivals with idle gaps for deterministic multicore regression coverage.",
+    .quantum = 2,
+    .core_count = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 2 },
+        .{ .id = "B", .arrival_tick = 3, .burst_ticks = 3 },
+        .{ .id = "C", .arrival_tick = 3, .burst_ticks = 1 },
+        .{ .id = "D", .arrival_tick = 6, .burst_ticks = 2 },
+    },
+}

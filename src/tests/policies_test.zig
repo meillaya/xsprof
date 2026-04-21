@@ -13,6 +13,17 @@ fn loadMulticoreFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-contention.zon");
 }
 
+fn multicoreFixturePaths() []const []const u8 {
+    return &.{
+        "scenarios/basic/multicore-contention.zon",
+        "scenarios/basic/multicore-balancing.zon",
+        "scenarios/basic/multicore-staggered.zon",
+        "scenarios/basic/multicore-weighted.zon",
+        "scenarios/basic/multicore-simultaneous-complete.zon",
+        "scenarios/basic/multicore-rr-quantum.zon",
+    };
+}
+
 test "fcfs preserves equal-arrival input order" {
     const allocator = std.testing.allocator;
     var scenario = try loadScenario(allocator, "equal-arrival-contention");
@@ -103,29 +114,52 @@ test "weighted scenarios stay deterministic across repeated runs for every polic
     }
 }
 
-test "multicore fixtures stay deterministic across repeated runs for every policy" {
+test "multicore fixture corpus stays deterministic across repeated runs for every policy" {
     const allocator = std.testing.allocator;
-    var scenario = try loadMulticoreFixture(allocator);
-    defer scenario.deinit();
-
     const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
-    for (policies) |policy| {
-        var first = try sim.simulate(allocator, &scenario, policy);
-        defer first.deinit();
-        var second = try sim.simulate(allocator, &scenario, policy);
-        defer second.deinit();
 
-        try std.testing.expectEqual(first.core_count, second.core_count);
-        try std.testing.expectEqual(first.trace.len, second.trace.len);
-        for (first.trace, second.trace) |lhs, rhs| {
-            try std.testing.expectEqual(lhs.tick, rhs.tick);
-            try std.testing.expectEqual(lhs.kind, rhs.kind);
-            try std.testing.expectEqual(lhs.core_id, rhs.core_id);
-            if (lhs.task_id) |lhs_id| {
-                try std.testing.expectEqualStrings(lhs_id, rhs.task_id.?);
-            } else {
-                try std.testing.expect(rhs.task_id == null);
+    for (multicoreFixturePaths()) |path| {
+        var scenario = try sim.loadScenarioFile(allocator, path);
+        defer scenario.deinit();
+
+        for (policies) |policy| {
+            var first = try sim.simulate(allocator, &scenario, policy);
+            defer first.deinit();
+            var second = try sim.simulate(allocator, &scenario, policy);
+            defer second.deinit();
+
+            try std.testing.expectEqual(first.core_count, second.core_count);
+            try std.testing.expectEqual(first.trace.len, second.trace.len);
+            for (first.trace, second.trace) |lhs, rhs| {
+                try std.testing.expectEqual(lhs.tick, rhs.tick);
+                try std.testing.expectEqual(lhs.kind, rhs.kind);
+                try std.testing.expectEqual(lhs.core_id, rhs.core_id);
+                if (lhs.task_id) |lhs_id| {
+                    try std.testing.expectEqualStrings(lhs_id, rhs.task_id.?);
+                } else {
+                    try std.testing.expect(rhs.task_id == null);
+                }
             }
         }
     }
+}
+
+test "multicore round robin preemption stays core-local under queue pressure" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/multicore-rr-quantum.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .round_robin);
+    defer result.deinit();
+
+    var saw_core_zero_preempt = false;
+    var saw_core_one_preempt = false;
+    for (result.trace) |entry| {
+        if (entry.kind != .preempt) continue;
+        if (entry.core_id == 0) saw_core_zero_preempt = true;
+        if (entry.core_id == 1) saw_core_one_preempt = true;
+    }
+
+    try std.testing.expect(saw_core_zero_preempt or saw_core_one_preempt);
+    try std.testing.expect(!(saw_core_zero_preempt and saw_core_one_preempt));
 }
