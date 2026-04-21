@@ -10,6 +10,7 @@ pub const top_level_fields = [_][]const u8{
     "source",
     "scenario",
     "policy",
+    "core_count",
     "completion_order",
     "trace",
     "tasks",
@@ -33,6 +34,7 @@ pub const trace_entry_fields = [_][]const u8{
     "tick",
     "kind",
     "task_id",
+    "core_id",
 };
 pub const task_fields = [_][]const u8{
     "id",
@@ -137,6 +139,9 @@ pub const SimulationReport = struct {
         try jw.write(if (self.result.policy == .round_robin) @as(?u32, self.result.quantum) else null);
         try jw.endObject();
 
+        try jw.objectField("core_count");
+        try jw.write(self.result.core_count);
+
         try jw.objectField("completion_order");
         try jw.beginArray();
         for (self.result.completion_order) |task_index| {
@@ -154,6 +159,8 @@ pub const SimulationReport = struct {
             try jw.write(entry.kind);
             try jw.objectField("task_id");
             try jw.write(entry.task_id);
+            try jw.objectField("core_id");
+            try jw.write(entry.core_id);
             try jw.endObject();
         }
         try jw.endArray();

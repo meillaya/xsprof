@@ -17,11 +17,13 @@ const ParsedReport = struct {
         display_name: []const u8,
         quantum: ?u32,
     },
+    core_count: u32,
     completion_order: []const []const u8,
     trace: []const struct {
         tick: u32,
         kind: sim.TraceEventKind,
         task_id: ?[]const u8,
+        core_id: ?sim.CoreId,
     },
     tasks: []const struct {
         id: []const u8,
@@ -125,6 +127,7 @@ test "JSON export includes schema and version" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"schema\":\"zig-scheduler/report\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"version\":1") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"source\":{\"kind\":\"builtin\",\"value\":\"short-vs-long\"}") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"core_count\":1") != null);
 }
 
 test "JSON export includes file source metadata" {
@@ -257,6 +260,7 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(sim.PolicyKind.cfs_like, parsed.value.policy.kind);
     try std.testing.expectEqualStrings("CFS-inspired", parsed.value.policy.display_name);
     try std.testing.expect(parsed.value.policy.quantum == null);
+    try std.testing.expectEqual(@as(u32, 1), parsed.value.core_count);
 
     try std.testing.expectEqual(@as(usize, 3), parsed.value.completion_order.len);
     try std.testing.expectEqualStrings("default", parsed.value.completion_order[0]);
@@ -267,6 +271,9 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(u32, 0), parsed.value.trace[0].tick);
     try std.testing.expectEqual(sim.TraceEventKind.arrival, parsed.value.trace[0].kind);
     try std.testing.expectEqualStrings("light", parsed.value.trace[0].task_id.?);
+    try std.testing.expect(parsed.value.trace[0].core_id == null);
+    try std.testing.expect(parsed.value.trace[1].core_id != null);
+    try std.testing.expectEqual(@as(?sim.CoreId, 0), parsed.value.trace[1].core_id);
 
     try std.testing.expectEqual(@as(usize, 3), parsed.value.tasks.len);
     try std.testing.expectEqualStrings("light", parsed.value.tasks[0].id);
