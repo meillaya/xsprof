@@ -9,8 +9,10 @@ pub const policies = struct {
     pub const cfs_like = @import("policies/cfs_like.zig");
     pub const deadline = @import("policies/deadline.zig");
     pub const class = @import("policies/class.zig");
+    pub const extension = @import("policies/extension.zig");
 };
 pub const scenario = @import("sim/scenario.zig");
+pub const scenario_packs = @import("sim/scenario_pack.zig");
 pub const trace = @import("sim/trace.zig");
 pub const property = @import("testing/property.zig");
 
@@ -62,4 +64,6 @@ test {
     _ = @import("tests/fairness_probe_test.zig");
     _ = @import("tests/property_test.zig");
     _ = @import("tests/policy_architecture_test.zig");
+    _ = @import("tests/scenario_pack_test.zig");
+    _ = @import("tests/policy_extension_boundary_test.zig");
 }

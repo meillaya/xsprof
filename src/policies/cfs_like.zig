@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("../sim/types.zig");
 
 pub const vruntime_scale: u64 = 4096;
+pub const keeps_running_selection = true;
 
 pub fn vruntimeDelta(weight: u32) u64 {
     const divisor = @as(u64, weight);
@@ -27,6 +28,12 @@ pub fn chooseRunnable(comptime RuntimeTask: type, tasks: []const RuntimeTask) ?u
     }
 
     return best_index;
+}
+
+pub fn onTaskTick(task: anytype) void {
+    const Task = @TypeOf(task.*);
+    const effective_weight = if (@hasField(Task, "effective_weight")) task.effective_weight else task.weight;
+    task.vruntime += vruntimeDelta(effective_weight);
 }
 
 test "cfs tie breaker falls back to input order" {

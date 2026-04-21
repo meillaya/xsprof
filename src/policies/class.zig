@@ -1,6 +1,7 @@
 const std = @import("std");
 const cfs_like = @import("cfs_like.zig");
 const deadline = @import("deadline.zig");
+const extension = @import("extension.zig");
 const fcfs = @import("fcfs.zig");
 const round_robin = @import("round_robin.zig");
 const types = @import("../sim/types.zig");
@@ -15,17 +16,19 @@ pub fn SchedulerClass(comptime RuntimeTask: type) type {
 
         pub fn useSingleCoreReadyQueue(self: @This()) bool {
             return switch (self.policy) {
-                .fcfs, .round_robin => true,
-                .cfs_like, .deadline => false,
+                .fcfs => extension.usesSingleCoreReadyQueue(fcfs),
+                .round_robin => extension.usesSingleCoreReadyQueue(round_robin),
+                .cfs_like => extension.usesSingleCoreReadyQueue(cfs_like),
+                .deadline => extension.usesSingleCoreReadyQueue(deadline),
             };
         }
 
         pub fn selectNextSingle(self: @This(), ready_queue: *std.ArrayList(usize), runtimes: []const RuntimeTask) ?usize {
             return switch (self.policy) {
-                .fcfs => fcfs.selectNext(ready_queue),
-                .round_robin => round_robin.selectNext(ready_queue),
-                .cfs_like => cfs_like.chooseRunnable(RuntimeTask, runtimes),
-                .deadline => deadline.chooseRunnable(RuntimeTask, runtimes),
+                .fcfs => extension.selectNextSingle(RuntimeTask, fcfs, ready_queue, runtimes),
+                .round_robin => extension.selectNextSingle(RuntimeTask, round_robin, ready_queue, runtimes),
+                .cfs_like => extension.selectNextSingle(RuntimeTask, cfs_like, ready_queue, runtimes),
+                .deadline => extension.selectNextSingle(RuntimeTask, deadline, ready_queue, runtimes),
             };
         }
 
@@ -60,18 +63,11 @@ pub fn SchedulerClass(comptime RuntimeTask: type) type {
             ready_len: usize,
             runtimes: []const RuntimeTask,
         ) bool {
-            const current_index = current orelse return false;
             return switch (self.policy) {
-                .fcfs => false,
-                .round_robin => round_robin.shouldPreempt(current_quantum, quantum, ready_len),
-                .cfs_like => blk: {
-                    const best_index = cfs_like.chooseRunnable(RuntimeTask, runtimes) orelse break :blk false;
-                    break :blk best_index != current_index;
-                },
-                .deadline => blk: {
-                    const best_index = deadline.chooseRunnable(RuntimeTask, runtimes) orelse break :blk false;
-                    break :blk best_index != current_index;
-                },
+                .fcfs => extension.shouldPreemptSingle(RuntimeTask, fcfs, current, current_quantum, quantum, ready_len, runtimes),
+                .round_robin => extension.shouldPreemptSingle(RuntimeTask, round_robin, current, current_quantum, quantum, ready_len, runtimes),
+                .cfs_like => extension.shouldPreemptSingle(RuntimeTask, cfs_like, current, current_quantum, quantum, ready_len, runtimes),
+                .deadline => extension.shouldPreemptSingle(RuntimeTask, deadline, current, current_quantum, quantum, ready_len, runtimes),
             };
         }
 
@@ -103,13 +99,20 @@ pub fn SchedulerClass(comptime RuntimeTask: type) type {
         }
 
         pub fn keepsRunningSelection(self: @This(), task: RuntimeTask) bool {
-            return (self.policy == .cfs_like or self.policy == .deadline) and task.state == .running;
+            return switch (self.policy) {
+                .fcfs => extension.keepsRunningSelection(fcfs) and task.state == .running,
+                .round_robin => extension.keepsRunningSelection(round_robin) and task.state == .running,
+                .cfs_like => extension.keepsRunningSelection(cfs_like) and task.state == .running,
+                .deadline => extension.keepsRunningSelection(deadline) and task.state == .running,
+            };
         }
 
         pub fn onTaskTick(self: @This(), task: *RuntimeTask) void {
-            if (self.policy == .cfs_like) {
-                const effective_weight = if (@hasField(RuntimeTask, "effective_weight")) task.effective_weight else task.weight;
-                task.vruntime += cfs_like.vruntimeDelta(effective_weight);
+            switch (self.policy) {
+                .fcfs => extension.onTaskTick(fcfs, task),
+                .round_robin => extension.onTaskTick(round_robin, task),
+                .cfs_like => extension.onTaskTick(cfs_like, task),
+                .deadline => extension.onTaskTick(deadline, task),
             }
         }
     };
