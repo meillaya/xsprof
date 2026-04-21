@@ -7,15 +7,16 @@ It is designed as a teaching and experimentation environment, not as a
 kernel component, daemon, or production scheduler.
 
 The current project identity is fixed by
-`docs/adr/0001-m5-project-identity.md` and
-`docs/adr/0002-m18-linux-observability-gate.md`:
+`docs/adr/0001-m5-project-identity.md`,
+`docs/adr/0002-m18-linux-observability-gate.md`, and the M19 execution
+boundary documented in `docs/m19-curated-linux-observability.md`:
 
-- the **implementation today** is simulator-only
-- the **roadmap** is a broader scheduler laboratory with a simulator-only mainline
+- the **main simulator path** remains deterministic and simulator-first
+- the **roadmap** is a broader scheduler laboratory with a simulator-first mainline
 - Linux-facing, productized, and research-heavy branches remain explicitly gated
-- any future Linux-observability branch is limited to **offline,
-  observability-only, version-pinned snapshot fixtures** unless a later gate
-  re-charters it
+- the M19 Linux-observability lane is limited to **offline,
+  observability-only, version-pinned snapshot fixtures** ending at a bounded
+  observability summary, unless a later gate re-charters it
 
 ## Theory in one page
 
@@ -418,8 +419,50 @@ Still out of scope after M18:
 - replay-fidelity claims
 - Linux-performance or calibration claims
 
-M19 remains blocked until milestone-specific PRD/test-spec artifacts are
-approved under this gate.
+M19 now executes only inside the milestone-specific PRD/test-spec boundary
+summarized in `docs/m19-curated-linux-observability.md`.
+
+### M19 — curated Linux-observability snapshots
+
+M19 is the first implementation cut inside the optional Linux-observability
+branch. Its contract is intentionally narrower than the simulator/report
+mainline:
+
+- admit only committed scrubbed fixtures under `fixtures/linux-observability/`
+- admit only the `tracefs-sched-snapshot` capture family in the initial cut
+- pin loading to one approved literal tuple and fail closed on anything else
+- stop at manifest validation plus an observability-only normalized summary
+- keep imported Linux fixtures separate from `scenarios/` and simulator-native
+  regression assets
+
+The initial approved tuple is fixed to:
+
+- `family = tracefs-sched-snapshot`
+- `kernel_release = linux-6.6`
+- `tool_version = tracefs-kernel-6.6`
+- `tracefs_root = /sys/kernel/tracing`
+- `capture_recipe = instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1`
+- `trace_clock = global`
+- `enabled_sched_events = sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit`
+- `scope = system-wide dedicated instance`
+- `mode = snapshot`
+- `time_window = single bounded snapshot`
+- `snapshot_format_version = tracefs-sched-text-v1`
+- `scrub_policy_version = linux-observability-scrub-v1`
+
+Still out of scope in M19:
+
+- live tracing or capture tooling in the repo
+- `perf sched`, generic `perf.data`, `perf script`, `trace_pipe`, or non-sched tracepoint families
+- replay-fidelity, calibration, or Linux-performance claims
+- widening the existing `zig-scheduler/report` contract or `src/analysis` surfaces
+
+The documentation/proof surfaces for this boundary are:
+
+- `docs/adr/0002-m18-linux-observability-gate.md`
+- `docs/m19-curated-linux-observability.md`
+- `README.md`
+- this project status document
 
 ## Notes on implementation philosophy
 
