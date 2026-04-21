@@ -45,6 +45,25 @@ test "pack-qualified names load through the scenario pack registry" {
     try std.testing.expectEqual(@as(usize, 3), scenario.tasks.len);
 }
 
+test "scenario pack boundary keeps unqualified compatibility and rejects unknown packs" {
+    var direct = try scheduler.loadScenarioPackEntry(std.testing.allocator, "core/basic", "short-vs-long");
+    defer direct.deinit();
+    try std.testing.expectEqualStrings("short-vs-long", direct.name);
+
+    var unqualified = try scheduler.loadNamedScenario(std.testing.allocator, "short-vs-long");
+    defer unqualified.deinit();
+    try std.testing.expectEqualStrings("short-vs-long", unqualified.name);
+
+    try std.testing.expectError(
+        error.UnknownScenarioPack,
+        scheduler.loadScenarioPackEntry(std.testing.allocator, "optional/demo", "short-vs-long"),
+    );
+    try std.testing.expectError(
+        error.UnknownScenario,
+        scheduler.loadScenarioPackEntry(std.testing.allocator, "core/basic", "missing"),
+    );
+}
+
 test "canonical object style scenario files load by path" {
     var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/arrivals.zon");
     defer scenario.deinit();
