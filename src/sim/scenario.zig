@@ -55,6 +55,8 @@ const ParsedZonScenario = struct {
     description: ?[]const u8 = null,
     quantum: ?u32 = null,
     rr_quantum: ?u32 = null,
+    core_count: ?u32 = null,
+    cpu_count: ?u32 = null,
     tasks: []const ParsedZonTask,
 };
 
@@ -129,6 +131,7 @@ fn parseScenarioLegacyText(
     errdefer if (maybe_name) |name| allocator.free(name);
 
     var quantum: u32 = 1;
+    var core_count: u32 = 1;
 
     while (lines.next()) |raw_line| {
         const line = std.mem.trim(u8, raw_line, " \t\r");
@@ -145,6 +148,18 @@ fn parseScenarioLegacyText(
         if (std.mem.startsWith(u8, line, "rr_quantum:")) {
             const value = std.mem.trim(u8, line["rr_quantum:".len..], " \t");
             quantum = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
+            continue;
+        }
+
+        if (std.mem.startsWith(u8, line, "core_count:")) {
+            const value = std.mem.trim(u8, line["core_count:".len..], " \t");
+            core_count = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
+            continue;
+        }
+
+        if (std.mem.startsWith(u8, line, "cpu_count:")) {
+            const value = std.mem.trim(u8, line["cpu_count:".len..], " \t");
+            core_count = std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger;
             continue;
         }
 
@@ -173,7 +188,7 @@ fn parseScenarioLegacyText(
     maybe_name = null;
     const owned_task_specs = task_specs;
     task_specs = .empty;
-    return finalizeScenario(allocator, name, quantum, owned_task_specs, expected_name);
+    return finalizeScenario(allocator, name, quantum, core_count, owned_task_specs, expected_name);
 }
 
 fn parseScenarioZon(
@@ -194,6 +209,7 @@ fn parseScenarioZon(
     defer std.zon.parse.free(allocator, parsed);
 
     const quantum = try resolveParsedQuantum(parsed);
+    const core_count = try resolveParsedCoreCount(parsed);
 
     var task_specs: std.ArrayList(types.TaskSpec) = .empty;
     errdefer {
@@ -212,13 +228,14 @@ fn parseScenarioZon(
 
     const owned_task_specs = task_specs;
     task_specs = .empty;
-    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, owned_task_specs, expected_name);
+    return finalizeScenario(allocator, try allocator.dupe(u8, parsed.name), quantum, core_count, owned_task_specs, expected_name);
 }
 
 fn finalizeScenario(
     allocator: std.mem.Allocator,
     name: []u8,
     quantum: u32,
+    core_count: u32,
     task_specs: std.ArrayList(types.TaskSpec),
     expected_name: []const u8,
 ) !types.ScenarioOwned {
@@ -239,6 +256,7 @@ fn finalizeScenario(
         .allocator = allocator,
         .name = name,
         .round_robin_quantum = quantum,
+        .core_count = core_count,
         .tasks = tasks,
     };
     try normalizeAndValidate(&scenario);
@@ -253,6 +271,17 @@ fn resolveParsedQuantum(parsed: ParsedZonScenario) !u32 {
         return quantum;
     }
     if (parsed.rr_quantum) |legacy_quantum| return legacy_quantum;
+    return 1;
+}
+
+fn resolveParsedCoreCount(parsed: ParsedZonScenario) !u32 {
+    if (parsed.core_count) |core_count| {
+        if (parsed.cpu_count) |cpu_count| {
+            if (cpu_count != core_count) return error.InvalidCoreCount;
+        }
+        return core_count;
+    }
+    if (parsed.cpu_count) |cpu_count| return cpu_count;
     return 1;
 }
 
