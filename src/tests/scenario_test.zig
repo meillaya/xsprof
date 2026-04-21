@@ -22,6 +22,29 @@ test "named scenario loader resolves arrivals fixture" {
     try std.testing.expectEqual(@as(usize, 3), scenario.tasks.len);
 }
 
+test "scenario pack registry keeps the core/basic layout explicit" {
+    const packs = scheduler.listScenarioPacks();
+    try std.testing.expectEqual(@as(usize, 1), packs.len);
+    try std.testing.expectEqual(scheduler.ScenarioPack.core_basic, packs[0].id);
+    try std.testing.expectEqualStrings("core/basic", packs[0].key);
+    try std.testing.expectEqualStrings("scenarios/basic", packs[0].directory);
+    try std.testing.expect(!packs[0].optional);
+
+    const entries = scheduler.listScenarioPackEntries(.core_basic);
+    try std.testing.expectEqual(@as(usize, 3), entries.len);
+    try std.testing.expectEqualStrings("staggered-arrivals", entries[0].key);
+    try std.testing.expectEqualStrings("staggered-arrivals.zon", entries[0].file_name);
+    try std.testing.expectEqualStrings("short-vs-long", entries[2].key);
+}
+
+test "pack-qualified names load through the scenario pack registry" {
+    var scenario = try scheduler.loadNamedScenario(std.testing.allocator, "core/basic:short-vs-long");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("short-vs-long", scenario.name);
+    try std.testing.expectEqual(@as(usize, 3), scenario.tasks.len);
+}
+
 test "canonical object style scenario files load by path" {
     var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/arrivals.zon");
     defer scenario.deinit();
