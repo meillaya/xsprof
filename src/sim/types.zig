@@ -1,5 +1,8 @@
 const std = @import("std");
 
+pub const default_task_weight: u32 = 1024;
+pub const max_task_weight: u32 = 4096;
+
 pub const PolicyKind = enum {
     fcfs,
     round_robin,
@@ -44,6 +47,7 @@ pub const ValidationError = error{
     InvalidTaskLine,
     InvalidInteger,
     InvalidZon,
+    InvalidWeight,
     ScenarioNameMismatch,
     UnknownScenario,
 };
@@ -52,12 +56,15 @@ pub const TaskSpec = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: u32,
+    weight: u32 = default_task_weight,
     input_order: u32 = 0,
     order: u32 = 0,
 
     pub fn validate(self: TaskSpec) ValidationError!void {
         if (self.id.len == 0) return error.EmptyTaskId;
         if (self.burst_ticks == 0) return error.ZeroBurstTicks;
+        if (self.weight == 0) return error.InvalidWeight;
+        if (self.weight > max_task_weight) return error.InvalidWeight;
     }
 };
 
@@ -102,6 +109,7 @@ pub const TaskMetrics = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: u32,
+    weight: u32,
     input_order: u32,
     first_dispatch_tick: u32,
     completion_time: u32,

@@ -7,12 +7,14 @@ A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
 - FCFS/FIFO, Round Robin, and a simplified CFS-inspired policy
 - Deterministic traces, per-task metrics, and aggregate metrics
 - Linux-inspired learning aid, not a kernel-faithful scheduler
+- Optional per-task weights that affect only the CFS-inspired policy
 
 ## Quick start
 ```sh
 zig build test
 zig build run -- --scenario short-vs-long --policy fcfs
 zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 ```
 
@@ -58,6 +60,8 @@ task: S2 2 1
 ```
 
 The parser keeps task declaration order as the deterministic tie-break fallback for every policy.
+
+Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS and Round Robin accept the field but ignore it.
 
 ## Output contract
 Every text-mode run prints:

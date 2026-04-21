@@ -9,6 +9,7 @@ const RuntimeTask = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: u32,
+    weight: u32,
     input_order: u32,
     remaining_ticks: u32,
     total_executed: u32 = 0,
@@ -28,6 +29,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             .id = task.id,
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
+            .weight = task.weight,
             .input_order = task.input_order,
             .remaining_ticks = task.burst_ticks,
         };
@@ -115,7 +117,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             runtimes[current_index].remaining_ticks -= 1;
             runtimes[current_index].total_executed += 1;
             current_quantum += 1;
-            if (policy == .cfs_like) runtimes[current_index].vruntime += 1;
+            if (policy == .cfs_like) runtimes[current_index].vruntime += cfs_like.vruntimeDelta(runtimes[current_index].weight);
 
             if (runtimes[current_index].remaining_ticks == 0) {
                 runtimes[current_index].completion_time = tick + 1;
@@ -142,6 +144,7 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             .id = try allocator.dupe(u8, task.id),
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
+            .weight = task.weight,
             .input_order = task.input_order,
             .first_dispatch_tick = first_dispatch_tick,
             .completion_time = completion_time,

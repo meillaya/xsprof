@@ -1,6 +1,13 @@
 const std = @import("std");
 const types = @import("../sim/types.zig");
 
+pub const vruntime_scale: u64 = 4096;
+
+pub fn vruntimeDelta(weight: u32) u64 {
+    const divisor = @as(u64, weight);
+    return @divFloor(vruntime_scale + divisor - 1, divisor);
+}
+
 pub fn betterCandidate(vruntime_a: u64, order_a: u32, vruntime_b: u64, order_b: u32) bool {
     return vruntime_a < vruntime_b or (vruntime_a == vruntime_b and order_a < order_b);
 }
@@ -26,4 +33,14 @@ test "cfs tie breaker falls back to input order" {
     try std.testing.expect(betterCandidate(1, 0, 1, 1));
     try std.testing.expect(!betterCandidate(2, 0, 1, 1));
     _ = types.TaskState.ready;
+}
+
+test "higher weights accumulate vruntime more slowly" {
+    try std.testing.expect(vruntimeDelta(types.default_task_weight * 2) < vruntimeDelta(types.default_task_weight));
+    try std.testing.expect(vruntimeDelta(types.default_task_weight / 2) > vruntimeDelta(types.default_task_weight));
+}
+
+test "vruntime weights use bounded integer buckets" {
+    try std.testing.expectEqual(vruntimeDelta(2048), vruntimeDelta(2049));
+    try std.testing.expect(vruntimeDelta(2048) < vruntimeDelta(1024));
 }

@@ -47,6 +47,7 @@ const ParsedZonTask = struct {
     id: []const u8,
     arrival_tick: u32,
     burst_ticks: u32,
+    weight: ?u32 = null,
 };
 
 const ParsedZonScenario = struct {
@@ -153,12 +154,14 @@ fn parseScenarioLegacyText(
             const id = parts.next() orelse return error.InvalidTaskLine;
             const arrival_text = parts.next() orelse return error.InvalidTaskLine;
             const burst_text = parts.next() orelse return error.InvalidTaskLine;
+            const weight_text = parts.next();
             if (parts.next() != null) return error.InvalidTaskLine;
 
             try task_specs.append(allocator, .{
                 .id = try allocator.dupe(u8, id),
                 .arrival_tick = std.fmt.parseInt(u32, arrival_text, 10) catch return error.InvalidInteger,
                 .burst_ticks = std.fmt.parseInt(u32, burst_text, 10) catch return error.InvalidInteger,
+                .weight = try parseLegacyTaskWeight(weight_text),
             });
             continue;
         }
@@ -203,6 +206,7 @@ fn parseScenarioZon(
             .id = try allocator.dupe(u8, task.id),
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
+            .weight = resolveTaskWeight(task.weight),
         });
     }
 
@@ -250,6 +254,17 @@ fn resolveParsedQuantum(parsed: ParsedZonScenario) !u32 {
     }
     if (parsed.rr_quantum) |legacy_quantum| return legacy_quantum;
     return 1;
+}
+
+fn resolveTaskWeight(weight: ?u32) u32 {
+    return weight orelse types.default_task_weight;
+}
+
+fn parseLegacyTaskWeight(weight_text: ?[]const u8) !u32 {
+    return if (weight_text) |value|
+        std.fmt.parseInt(u32, value, 10) catch return error.InvalidInteger
+    else
+        types.default_task_weight;
 }
 
 fn resolveBuiltinByName(name: []const u8) ?BuiltinScenario {

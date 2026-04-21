@@ -97,6 +97,8 @@ pub const SimulationReport = struct {
             try jw.write(task.arrival_tick);
             try jw.objectField("burst_ticks");
             try jw.write(task.burst_ticks);
+            try jw.objectField("weight");
+            try jw.write(task.weight);
             try jw.objectField("input_order");
             try jw.write(task.input_order);
             try jw.objectField("first_dispatch_tick");

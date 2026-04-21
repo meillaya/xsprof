@@ -31,11 +31,12 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     try writer.writeAll("\nPer-Task Metrics:\n");
     for (report.result.tasks) |task| {
         try writer.print(
-            "- {s}: arrival={d} burst={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} response={d}\n",
+            "- {s}: arrival={d} burst={d} weight={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} response={d}\n",
             .{
                 task.id,
                 task.arrival_tick,
                 task.burst_ticks,
+                task.weight,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.turnaround_time,

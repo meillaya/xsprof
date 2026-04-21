@@ -5,6 +5,10 @@ fn loadScenario(allocator: std.mem.Allocator, name: []const u8) !sim.ScenarioOwn
     return sim.loadScenarioByName(allocator, name);
 }
 
+fn loadWeightedFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/weighted-fairness.zon");
+}
+
 test "fcfs preserves equal-arrival input order" {
     const allocator = std.testing.allocator;
     var scenario = try loadScenario(allocator, "equal-arrival-contention");
@@ -55,6 +59,42 @@ test "cfs inspired policy is deterministic across repeated runs" {
             try std.testing.expectEqualStrings(lhs_id, rhs.task_id.?);
         } else {
             try std.testing.expect(rhs.task_id == null);
+        }
+    }
+}
+
+test "weighted scenarios stay deterministic across repeated runs for every policy" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadWeightedFixture(allocator);
+    defer scenario.deinit();
+
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
+    for (policies) |policy| {
+        var first = try sim.simulate(allocator, &scenario, policy);
+        defer first.deinit();
+        var second = try sim.simulate(allocator, &scenario, policy);
+        defer second.deinit();
+
+        try std.testing.expectEqual(first.trace.len, second.trace.len);
+        try std.testing.expectEqual(first.tasks.len, second.tasks.len);
+        try std.testing.expectEqual(first.completion_order.len, second.completion_order.len);
+
+        for (first.trace, second.trace) |lhs, rhs| {
+            try std.testing.expectEqual(lhs.kind, rhs.kind);
+            try std.testing.expectEqual(lhs.tick, rhs.tick);
+            if (lhs.task_id) |lhs_id| {
+                try std.testing.expectEqualStrings(lhs_id, rhs.task_id.?);
+            } else {
+                try std.testing.expect(rhs.task_id == null);
+            }
+        }
+
+        for (first.tasks, second.tasks) |lhs, rhs| {
+            try std.testing.expectEqualStrings(lhs.id, rhs.id);
+            try std.testing.expectEqual(lhs.weight, rhs.weight);
+            try std.testing.expectEqual(lhs.completion_time, rhs.completion_time);
+            try std.testing.expectEqual(lhs.waiting_time, rhs.waiting_time);
+            try std.testing.expectEqual(lhs.response_time, rhs.response_time);
         }
     }
 }

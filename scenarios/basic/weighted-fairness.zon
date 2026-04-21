@@ -1,0 +1,10 @@
+.{
+    .name = "weighted-fairness",
+    .description = "Equal-arrival contention with uneven task weights for deterministic CFS-inspired fairness checks.",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "light", .arrival_tick = 0, .burst_ticks = 4, .weight = 512 },
+        .{ .id = "heavy", .arrival_tick = 0, .burst_ticks = 4, .weight = 2048 },
+        .{ .id = "default", .arrival_tick = 0, .burst_ticks = 2 },
+    },
+}

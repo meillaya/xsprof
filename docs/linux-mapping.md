@@ -63,9 +63,9 @@ Important caveat:
 
 ### Simplified CFS-inspired policy
 
-The CFS-inspired policy in Phase 1 is intentionally narrow:
+The CFS-inspired policy is intentionally narrow:
 - runnable task with the lowest virtual runtime wins
-- each executed tick adds `1` to that task's virtual runtime
+- each executed tick adds a deterministic weight-adjusted amount to that task's virtual runtime over a bounded simulator weight range
 - equal virtual runtimes fall back to scenario declaration order
 
 This is **not** faithful Linux CFS.
@@ -75,7 +75,7 @@ Linux relevance:
 - demonstrates why fairness accounting changes completion order relative to FCFS
 
 Explicit omissions:
-- nice weights
+- Linux's full nice-to-weight table
 - sleeper bonuses
 - SMP or multi-core balancing
 - per-CPU run queues

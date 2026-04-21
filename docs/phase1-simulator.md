@@ -16,6 +16,17 @@ Each simulation tick follows the same deterministic sequence:
 ## Round Robin rule
 If a task reaches a quantum boundary and also finishes on that tick, completion wins and no preemption event is emitted.
 
+## Weighted CFS-inspired fairness
+Tasks may include an optional `weight` field. Supported weights range from `1` to `4096`, and the default weight is `1024`.
+
+For the CFS-inspired policy only:
+- higher weights can accumulate virtual runtime more slowly within the supported range
+- lower weights accumulate virtual runtime more quickly
+- nearby weights may share the same integer vruntime step after rounding
+- equal effective virtual runtime still falls back to scenario declaration order
+
+FCFS and Round Robin accept the weight field as part of the scenario contract but ignore it when making scheduling decisions.
+
 ## Scenario input contract
 The public run surface supports exactly one scenario source:
 - `--scenario <builtin-name>`

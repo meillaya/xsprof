@@ -54,6 +54,8 @@ Suggested review search terms for accidental phase creep:
 - [ ] CLI output includes aggregate metrics
 - [ ] CLI supports mutually exclusive `--scenario` / `--scenario-file` run inputs
 - [ ] JSON export includes the expected schema/version markers
+- [ ] Weighted scenarios parse correctly and keep default weight behavior when omitted
+- [ ] CFS-inspired mode reflects weight-aware fairness without changing FCFS/RR semantics
 
 Required per-task metrics:
 - [ ] completion time
@@ -116,7 +118,7 @@ Scenario C definition:
 - [ ] docs list major omitted Linux concerns
 
 Recommended omissions to verify are named:
-- [ ] nice weights
+- [ ] Linux's full nice-to-weight table
 - [ ] sleeper bonus heuristics
 - [ ] SMP or multi-core balancing
 - [ ] per-CPU run queues
