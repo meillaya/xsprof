@@ -127,7 +127,6 @@ test "JSON export includes schema and version" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"source\":{\"kind\":\"builtin\",\"value\":\"short-vs-long\"}") != null);
 }
 
-
 test "JSON export includes file source metadata" {
     const allocator = std.testing.allocator;
     var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/arrivals.zon");
