@@ -1494,7 +1494,7 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
         "regressions scenarios/regressions",
         "",
         "load any exported report:",
-        "zig build run -- --scenario-file <path> --format json | zig build tui -- --stdin --snapshot",
+        "zig build sim -- --scenario-file <path> --format json | zig-out/bin/zig-scheduler --stdin --snapshot",
     };
     for (lines, 0..) |line, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;

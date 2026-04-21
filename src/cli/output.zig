@@ -97,4 +97,5 @@ pub fn writeJsonReport(writer: anytype, report: report_mod.SimulationReport) !vo
     try std.json.Stringify.value(report, .{}, &adapter.new_interface);
     if (adapter.err) |err| return err;
     try adapter.new_interface.flush();
+    try writer.writeAll("\n");
 }

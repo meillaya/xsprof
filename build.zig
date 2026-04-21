@@ -34,6 +34,16 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const report_pipeline_mod = b.addModule("zig_scheduler_report_pipeline", .{
+        .root_source_file = b.path("src/report_pipeline/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "analysis_root", .module = analysis_mod },
+            .{ .name = "bench_root", .module = bench_mod },
+        },
+    });
+
     const tui_mod = b.addModule("zig_scheduler_tui", .{
         .root_source_file = b.path("src/tui/root.zig"),
         .target = target,
@@ -104,6 +114,18 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const report_pipeline_exe = b.addExecutable(.{
+        .name = "zig-scheduler-reports",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/report_pipeline/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "report_pipeline_root", .module = report_pipeline_mod },
+            },
+        }),
+    });
+
     b.installArtifact(exe);
     b.installArtifact(sim_exe);
     b.installArtifact(analysis_exe);
@@ -155,6 +177,14 @@ pub fn build(b: *std.Build) void {
     const tui_step = b.step("tui", "Run the M15 interactive TUI trace explorer");
     tui_step.dependOn(&tui_cmd.step);
 
+    const report_pipeline_cmd = b.addRunArtifact(report_pipeline_exe);
+    if (b.args) |args| {
+        report_pipeline_cmd.addArgs(args);
+    }
+
+    const report_pipeline_step = b.step("reports", "Regenerate the curated reproducible report artifacts");
+    report_pipeline_step.dependOn(&report_pipeline_cmd.step);
+
     const lib_tests = b.addTest(.{
         .root_module = lib_mod,
     });
@@ -185,10 +215,16 @@ pub fn build(b: *std.Build) void {
     });
     const run_tui_tests = b.addRunArtifact(tui_tests);
 
-    const test_step = b.step("test", "Run library, analysis, benchmark, main-entry, simulator CLI, and TUI tests");
+    const report_pipeline_tests = b.addTest(.{
+        .root_module = report_pipeline_mod,
+    });
+    const run_report_pipeline_tests = b.addRunArtifact(report_pipeline_tests);
+
+    const test_step = b.step("test", "Run library, analysis, benchmark, report-pipeline, main-entry, simulator CLI, and TUI tests");
     test_step.dependOn(&run_lib_tests.step);
     test_step.dependOn(&run_analysis_tests.step);
     test_step.dependOn(&run_bench_tests.step);
+    test_step.dependOn(&run_report_pipeline_tests.step);
     test_step.dependOn(&run_exe_tests.step);
     test_step.dependOn(&run_sim_exe_tests.step);
     test_step.dependOn(&run_tui_tests.step);

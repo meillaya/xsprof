@@ -10,10 +10,20 @@ The analyzer accepts exports only when both of these are true:
 Missing schema/version fields or unsupported values fail fast. The analyzer does not guess or silently coerce unsupported exports.
 
 ## CLI workflow
+The narrow analysis commands still exist, but M16 now provides the canonical
+single-path regeneration surface for committed artifacts:
+
+```sh
+zig build reports
+```
+
+Use the M4 commands below when you intentionally want to render one analysis
+artifact by hand.
+
 Generate an export from the simulator CLI:
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json \
+zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json \
   > docs/examples/exports/multicore-contention-fcfs.report.json
 ```
 
@@ -46,3 +56,6 @@ These files are treated as deterministic goldens by the analysis test suite.
 
 ## Scope notes
 These artifacts are teaching/reporting surfaces for the simulator export contract only. They do not add Linux integration, service behavior, or kernel-faithful claims.
+
+For the multi-artifact reproducible pipeline layered on top of this workflow,
+see `docs/m16-report-pipeline.md`.

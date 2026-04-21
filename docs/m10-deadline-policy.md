@@ -10,7 +10,7 @@ M10 adds a deterministic deadline-inspired teaching policy for cross-policy comp
 
 ## CLI
 ```sh
-zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
+zig build sim -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
 ```
 
 Accepted aliases:

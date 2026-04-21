@@ -149,7 +149,7 @@ zig build
 zig build test
 zig build run -- --scenario short-vs-long --policy fcfs
 zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
-zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
+zig build sim -- --scenario short-vs-long --policy rr --quantum 2 --format json
 ```
 
 ## 10. Review outcome template

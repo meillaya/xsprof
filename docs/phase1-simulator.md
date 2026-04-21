@@ -58,6 +58,15 @@ M4 analysis/report tooling consumes only the exported `zig-scheduler/report` JSO
 
 Use `zig build analyze -- --input <report.json>` for the Markdown surface or add `--format svg` for the visualization surface. Consumers must keep the same schema/version gate and reject unsupported export versions instead of guessing.
 
+M16 adds the canonical end-to-end regeneration path:
+
+```sh
+zig build reports
+```
+
+Use `zig build reports -- --output-dir <dir>` for a smoke run that materializes
+the same curated artifact pack outside the committed docs tree.
+
 ### Simulator-local benchmark baselines
 M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/m45-baselines.md` and `docs/benchmarks/m45-baselines.json`.
 

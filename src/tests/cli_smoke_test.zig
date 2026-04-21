@@ -209,6 +209,38 @@ test "JSON export is deterministic across repeated runs" {
     try std.testing.expectEqualStrings(first_json, second_json);
 }
 
+test "JSON export bytes stay consistent across writer paths" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/multicore-contention.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    const report = sim.cli.SimulationReport.init(.{ .kind = .file, .value = "scenarios/basic/multicore-contention.zon" }, &scenario, &result);
+
+    var array_buffer: std.ArrayList(u8) = .empty;
+    defer array_buffer.deinit(allocator);
+    var array_writer = array_buffer.writer(allocator);
+    try sim.cli.writeJsonReport(&array_writer, report);
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var file = try tmp.dir.createFile("report.json", .{ .truncate = true });
+    defer file.close();
+    var file_buffer: [1024]u8 = undefined;
+    var file_writer = file.writer(&file_buffer);
+    try sim.cli.writeJsonReport(&file_writer.interface, report);
+    try file_writer.interface.flush();
+
+    const file_bytes = try tmp.dir.readFileAlloc(allocator, "report.json", std.math.maxInt(usize));
+    defer allocator.free(file_bytes);
+
+    try std.testing.expectEqualStrings(array_buffer.items, file_bytes);
+    try std.testing.expect(array_buffer.items.len != 0);
+    try std.testing.expectEqual(@as(u8, '\n'), array_buffer.items[array_buffer.items.len - 1]);
+}
+
 test "public report field lists stay frozen for version 1" {
     const expected_top_level_fields = [_][]const u8{
         "schema",

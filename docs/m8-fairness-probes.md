@@ -32,14 +32,14 @@ Use them together with:
 Compare the latency probe under FCFS and Round Robin:
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy fcfs --format json
-zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy rr --format json
+zig build sim -- --scenario-file scenarios/basic/latency-probe.zon --policy fcfs --format json
+zig build sim -- --scenario-file scenarios/basic/latency-probe.zon --policy rr --format json
 ```
 
 Compare the starvation-pressure probe under CFS-inspired scheduling:
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/starvation-pressure.zon --policy cfs-like --format json
+zig build sim -- --scenario-file scenarios/basic/starvation-pressure.zon --policy cfs-like --format json
 ```
 
 ## Evidence-based interpretation

@@ -304,7 +304,7 @@ zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs
 ### Run JSON export
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
+zig build sim -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
 ```
 
 ### Run analysis
@@ -319,6 +319,14 @@ zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.rep
 ```sh
 zig build bench
 zig build bench -- --format json
+```
+
+### Regenerate the reproducible report pack
+
+```sh
+zig build reports
+zig build reports -- --output-dir zig-out/m16-smoke
+zig build reports -- --check
 ```
 
 ### Run tests
@@ -351,8 +359,24 @@ without replacing the export/report path.
 
 ### M16 — reproducible lab notebooks / report pipeline
 
-Turn the analysis and benchmark surfaces into a more intentional reproducible
-report pipeline for teaching and research artifacts.
+M16 adds one canonical regeneration path for the curated report pack:
+
+```sh
+zig build reports
+```
+
+That command regenerates:
+
+- `docs/examples/exports/multicore-contention-fcfs.report.json`
+- `docs/examples/analysis/multicore-contention-fcfs.md`
+- `docs/examples/analysis/multicore-contention-fcfs.svg`
+- `docs/benchmarks/m45-baselines.md`
+- `docs/benchmarks/m45-baselines.json`
+- `docs/labs/reproducible-report-pack.md`
+
+The intent is to keep teaching/research artifacts reproducible from committed
+fixtures with one repo-native path, while preserving the simulator-local
+wording and deterministic contract checks established by earlier milestones.
 
 ### M17 — scenario corpus expansion and curriculum-grade examples
 

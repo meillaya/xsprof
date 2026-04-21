@@ -82,6 +82,14 @@ Benchmarks:
 zig build bench
 ```
 
+Reproducible report pack (M16):
+
+```sh
+zig build reports
+# smoke into a separate directory:
+zig build reports -- --output-dir zig-out/m16-smoke
+```
+
 TUI trace explorer (M15):
 
 ```sh
@@ -143,6 +151,7 @@ Start here for the full project write-up:
 Other useful docs:
 
 - `docs/phase1-simulator.md`
+- `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`
 - `docs/m13-property-testing.md`
 - `docs/adr/0001-m5-project-identity.md`

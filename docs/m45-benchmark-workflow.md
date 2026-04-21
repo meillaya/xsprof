@@ -8,6 +8,16 @@ M4.5 adds a reproducible benchmark harness for simulator-local baseline comparis
 - The harness is intended for fixed-input repeatability, not for publishing host-runtime performance numbers.
 
 ## Commands
+The narrow benchmark commands still exist, but M16 now makes the canonical
+multi-artifact regeneration path:
+
+```sh
+zig build reports
+```
+
+Use the M4.5 commands below when you intentionally want only the benchmark
+surfaces.
+
 Render the human-readable benchmark baseline report:
 
 ```sh
@@ -44,3 +54,6 @@ Minimum checks:
 - benchmark harness smoke
 - repeatability check over fixed fixtures
 - docs audit confirming simulator-local labeling
+
+For the end-to-end reproducible report pack that also regenerates the benchmark
+artifacts, see `docs/m16-report-pipeline.md`.

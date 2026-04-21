@@ -7,6 +7,7 @@ pub const args = @import("args.zig");
 pub const OutputFormat = args.OutputFormat;
 pub const Options = args.Options;
 pub const parseArgs = args.parseArgs;
+pub const default_cases = matrix.default_cases;
 
 pub const schema_name = "zig-scheduler/benchmark-baseline";
 pub const schema_version: u32 = 1;
@@ -53,11 +54,11 @@ const benchmark_notes = [_][]const u8{
 };
 
 pub fn run(allocator: std.mem.Allocator) !Report {
-    var cases = try allocator.alloc(CaseResult, matrix.default_cases.len);
+    var cases = try allocator.alloc(CaseResult, default_cases.len);
     errdefer allocator.free(cases);
 
     var aggregate: Aggregate = .{
-        .case_count = @intCast(matrix.default_cases.len),
+        .case_count = @intCast(default_cases.len),
         .total_export_bytes = 0,
         .total_analysis_markdown_bytes = 0,
         .total_analysis_svg_bytes = 0,
@@ -66,7 +67,7 @@ pub fn run(allocator: std.mem.Allocator) !Report {
         .max_trace_events = 0,
     };
 
-    for (matrix.default_cases, 0..) |entry, index| {
+    for (default_cases, 0..) |entry, index| {
         var scenario = try scheduler.loadScenarioFile(allocator, entry.scenario_path);
         defer scenario.deinit();
 
