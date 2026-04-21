@@ -69,6 +69,14 @@ Benchmarks:
 zig build bench
 ```
 
+TUI trace explorer (M15):
+
+```sh
+zig build tui -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
+# or, after building once:
+zig-out/bin/zig-scheduler-tui --input docs/examples/exports/multicore-contention-fcfs.report.json
+```
+
 ## Key teaching fixtures
 
 - `scenarios/basic/sleep-wakeup.zon`

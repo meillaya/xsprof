@@ -91,9 +91,9 @@ const ReportHeader = struct {
 };
 
 pub fn parseReport(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Report) {
-    var header = try std.json.parseFromSlice(ReportHeader, allocator, bytes, .{ .ignore_unknown_fields = true });
+    var header = try std.json.parseFromSlice(ReportHeader, allocator, bytes, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
     defer header.deinit();
     try contract.assertSupportedContract(header.value.schema, header.value.version);
 
-    return try std.json.parseFromSlice(Report, allocator, bytes, .{ .ignore_unknown_fields = true });
+    return try std.json.parseFromSlice(Report, allocator, bytes, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
 }

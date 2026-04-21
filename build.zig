@@ -34,6 +34,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const tui_mod = b.addModule("zig_scheduler_tui", .{
+        .root_source_file = b.path("src/tui/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "analysis_root", .module = analysis_mod },
+        },
+    });
+
     const exe = b.addExecutable(.{
         .name = "zig-scheduler",
         .root_module = b.createModule(.{
@@ -70,9 +79,22 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const tui_exe = b.addExecutable(.{
+        .name = "zig-scheduler-tui",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tui/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "tui_root", .module = tui_mod },
+            },
+        }),
+    });
+
     b.installArtifact(exe);
     b.installArtifact(analysis_exe);
     b.installArtifact(bench_exe);
+    b.installArtifact(tui_exe);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -101,6 +123,15 @@ pub fn build(b: *std.Build) void {
     const bench_step = b.step("bench", "Render reproducible simulator-local benchmark baselines");
     bench_step.dependOn(&bench_cmd.step);
 
+    const tui_cmd = b.addRunArtifact(tui_exe);
+    tui_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        tui_cmd.addArgs(args);
+    }
+
+    const tui_step = b.step("tui", "Run the M15 interactive TUI trace explorer");
+    tui_step.dependOn(&tui_cmd.step);
+
     const lib_tests = b.addTest(.{
         .root_module = lib_mod,
     });
@@ -121,9 +152,15 @@ pub fn build(b: *std.Build) void {
     });
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
-    const test_step = b.step("test", "Run library, analysis, benchmark, and CLI tests");
+    const tui_tests = b.addTest(.{
+        .root_module = tui_mod,
+    });
+    const run_tui_tests = b.addRunArtifact(tui_tests);
+
+    const test_step = b.step("test", "Run library, analysis, benchmark, CLI, and TUI tests");
     test_step.dependOn(&run_lib_tests.step);
     test_step.dependOn(&run_analysis_tests.step);
     test_step.dependOn(&run_bench_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+    test_step.dependOn(&run_tui_tests.step);
 }
