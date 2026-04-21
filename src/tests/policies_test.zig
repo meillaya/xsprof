@@ -163,3 +163,22 @@ test "multicore round robin preemption stays core-local under queue pressure" {
     try std.testing.expect(saw_core_zero_preempt or saw_core_one_preempt);
     try std.testing.expect(!(saw_core_zero_preempt and saw_core_one_preempt));
 }
+
+test "deadline-inspired policy stays deterministic across repeated runs" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/deadline-priority.zon");
+    defer scenario.deinit();
+
+    var first = try sim.simulate(allocator, &scenario, .deadline);
+    defer first.deinit();
+    var second = try sim.simulate(allocator, &scenario, .deadline);
+    defer second.deinit();
+
+    try std.testing.expectEqual(first.trace.len, second.trace.len);
+    for (first.trace, second.trace) |lhs, rhs| {
+        try std.testing.expectEqual(lhs.tick, rhs.tick);
+        try std.testing.expectEqual(lhs.kind, rhs.kind);
+        try std.testing.expectEqual(lhs.core_id, rhs.core_id);
+        try std.testing.expectEqualStrings(lhs.task_id orelse "", rhs.task_id orelse "");
+    }
+}

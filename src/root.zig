@@ -7,6 +7,7 @@ pub const policies = struct {
     pub const fcfs = @import("policies/fcfs.zig");
     pub const round_robin = @import("policies/round_robin.zig");
     pub const cfs_like = @import("policies/cfs_like.zig");
+    pub const deadline = @import("policies/deadline.zig");
     pub const class = @import("policies/class.zig");
 };
 pub const scenario = @import("sim/scenario.zig");

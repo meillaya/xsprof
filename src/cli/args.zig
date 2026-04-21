@@ -92,6 +92,9 @@ pub fn parsePolicy(value: []const u8) ?types.PolicyKind {
     if (std.mem.eql(u8, value, "cfs")) return .cfs_like;
     if (std.mem.eql(u8, value, "cfs-like")) return .cfs_like;
     if (std.mem.eql(u8, value, "cfs_like")) return .cfs_like;
+    if (std.mem.eql(u8, value, "deadline")) return .deadline;
+    if (std.mem.eql(u8, value, "edf")) return .deadline;
+    if (std.mem.eql(u8, value, "deadline-like")) return .deadline;
     return null;
 }
 
@@ -99,6 +102,7 @@ test "policy aliases parse" {
     try std.testing.expectEqual(types.PolicyKind.round_robin, parsePolicy("rr").?);
     try std.testing.expectEqual(types.PolicyKind.round_robin, parsePolicy("round-robin").?);
     try std.testing.expectEqual(types.PolicyKind.cfs_like, parsePolicy("cfs-like").?);
+    try std.testing.expectEqual(types.PolicyKind.deadline, parsePolicy("edf").?);
     try std.testing.expect(parsePolicy("bogus") == null);
 }
 
@@ -131,7 +135,7 @@ test "run command parsing supports scenario files" {
 }
 
 test "invalid argument parsing stays rejected" {
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "show" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{"show"}));
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario", "short-vs-long" }));
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario", "short-vs-long", "--scenario-file", "scenarios/basic/arrivals.zon", "--policy", "fcfs" }));
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario-file", "scenarios/basic/arrivals.zon", "--policy", "fcfs", "--format", "bogus" }));

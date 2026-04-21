@@ -128,3 +128,15 @@ Avoid wording that overclaims fidelity:
 - "real Linux scheduler"
 - "kernel-faithful"
 - "process scheduler for Linux"
+
+### Deadline-inspired teaching policy
+
+The deadline-inspired policy is intentionally small:
+- runnable task with the earliest declared absolute deadline wins
+- earlier-deadline arrivals can trigger deterministic preemption
+- ties fall back to scenario declaration order
+
+Important caveat:
+- this is not Linux SCHED_DEADLINE or any kernel real-time class
+- no admission control, runtime budgets, replenishment, or utilization guarantees are modeled
+- deadlines are teaching inputs, not correctness proofs

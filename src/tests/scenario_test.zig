@@ -99,6 +99,15 @@ test "canonical object style scenario files parse multi-phase workloads" {
     try std.testing.expectEqual(scheduler.TaskPhaseKind.wait, scenario.tasks[0].phases.?[1].kind);
 }
 
+test "canonical object style scenario files parse task deadlines" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/deadline-priority.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("deadline-priority", scenario.name);
+    try std.testing.expectEqual(@as(?u32, 12), scenario.tasks[0].deadline_tick);
+    try std.testing.expectEqual(@as(?u32, 3), scenario.tasks[1].deadline_tick);
+}
+
 test "sleep configuration requires positive duration and a valid post-dispatch point" {
     const missing_duration =
         \\.{
@@ -138,6 +147,7 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "sleep_after_ticks") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "phases") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "deadline-priority") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/multi-phase-io.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);

@@ -8,12 +8,14 @@ pub const PolicyKind = enum {
     fcfs,
     round_robin,
     cfs_like,
+    deadline,
 
     pub fn displayName(self: PolicyKind) []const u8 {
         return switch (self) {
             .fcfs => "FCFS",
             .round_robin => "Round Robin",
             .cfs_like => "CFS-inspired",
+            .deadline => "Deadline-inspired",
         };
     }
 };
@@ -66,6 +68,7 @@ pub const ValidationError = error{
     InvalidSleepAfterTicks,
     InvalidSleepDuration,
     InvalidTaskPhases,
+    InvalidDeadlineTick,
     InvalidPhaseTicks,
     ScenarioNameMismatch,
     UnknownScenario,
@@ -79,6 +82,7 @@ pub const TaskSpec = struct {
     sleep_after_ticks: ?u32 = null,
     sleep_duration: u32 = 0,
     phases: ?[]TaskPhase = null,
+    deadline_tick: ?u32 = null,
     input_order: u32 = 0,
     order: u32 = 0,
 
@@ -104,6 +108,10 @@ pub const TaskSpec = struct {
             if (self.sleep_duration == 0) return error.InvalidSleepDuration;
         } else if (self.sleep_duration != 0) {
             return error.InvalidSleepDuration;
+        }
+
+        if (self.deadline_tick) |deadline_tick| {
+            if (deadline_tick < self.arrival_tick + self.burst_ticks) return error.InvalidDeadlineTick;
         }
 
         if (self.phases) |phases| {
@@ -174,6 +182,7 @@ pub const TaskMetrics = struct {
     sleep_after_ticks: ?u32,
     sleep_duration: u32,
     phase_count: u32,
+    deadline_tick: ?u32,
     input_order: u32,
     first_dispatch_tick: u32,
     completion_time: u32,

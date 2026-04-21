@@ -61,6 +61,7 @@ const ParsedZonTask = struct {
     sleep_after_ticks: ?u32 = null,
     sleep_duration: ?u32 = null,
     phases: ?[]const ParsedZonTaskPhase = null,
+    deadline_tick: ?u32 = null,
 };
 
 const ParsedZonScenario = struct {
@@ -266,6 +267,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
             .burst_ticks = total_cpu_ticks,
             .weight = resolveTaskWeight(task.weight),
             .phases = owned_phases,
+            .deadline_tick = task.deadline_tick,
         };
     }
 
@@ -287,6 +289,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
             .sleep_after_ticks = sleep_after_ticks,
             .sleep_duration = sleep_duration,
             .phases = phases,
+            .deadline_tick = task.deadline_tick,
         };
     }
 
@@ -297,6 +300,7 @@ fn buildParsedTaskSpec(allocator: std.mem.Allocator, task: ParsedZonTask) !types
         .arrival_tick = task.arrival_tick,
         .burst_ticks = burst_ticks,
         .weight = resolveTaskWeight(task.weight),
+        .deadline_tick = task.deadline_tick,
     };
 }
 

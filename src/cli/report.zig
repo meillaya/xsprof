@@ -120,6 +120,8 @@ pub const SimulationReport = struct {
             try jw.write(task.sleep_duration);
             try jw.objectField("phase_count");
             try jw.write(task.phase_count);
+            try jw.objectField("deadline_tick");
+            try jw.write(task.deadline_tick);
             try jw.objectField("input_order");
             try jw.write(task.input_order);
             try jw.objectField("first_dispatch_tick");
@@ -172,4 +174,5 @@ pub const SimulationReport = struct {
 const report_notes = [_][]const u8{
     "Phase 1 is an in-process simulator only; it does not spawn or control real processes.",
     "The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.",
+    "The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.",
 };

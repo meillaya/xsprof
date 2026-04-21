@@ -1,0 +1,11 @@
+.{
+    .name = "deadline-priority",
+    .description = "Long task plus urgent short arrivals for deterministic deadline-inspired scheduling checks.",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "batch", .arrival_tick = 0, .burst_ticks = 6, .deadline_tick = 12 },
+        .{ .id = "urgent1", .arrival_tick = 1, .burst_ticks = 1, .deadline_tick = 3 },
+        .{ .id = "urgent2", .arrival_tick = 2, .burst_ticks = 1, .deadline_tick = 4 },
+        .{ .id = "steady", .arrival_tick = 0, .burst_ticks = 2, .deadline_tick = 8 },
+    },
+}

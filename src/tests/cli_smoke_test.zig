@@ -33,6 +33,7 @@ const ParsedReport = struct {
         sleep_after_ticks: ?u32,
         sleep_duration: u32,
         phase_count: u32,
+        deadline_tick: ?u32,
         input_order: u32,
         first_dispatch_tick: u32,
         completion_time: u32,
@@ -237,6 +238,7 @@ test "public report field lists stay frozen for version 1" {
         "sleep_after_ticks",
         "sleep_duration",
         "phase_count",
+        "deadline_tick",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
@@ -389,6 +391,7 @@ test "public report field lists stay aligned with additive core identity contrac
         "sleep_after_ticks",
         "sleep_duration",
         "phase_count",
+        "deadline_tick",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
@@ -487,4 +490,19 @@ test "multi-phase JSON export exposes derived phase counts" {
 
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"phase_count\":5") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"blocked_time\":3") != null);
+}
+
+test "deadline-inspired JSON export exposes task deadlines" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/deadline-priority.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .deadline);
+    defer result.deinit();
+
+    const rendered = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/deadline-priority.zon" }, &scenario, &result);
+    defer allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"policy\":{\"kind\":\"deadline\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"deadline_tick\":3") != null);
 }

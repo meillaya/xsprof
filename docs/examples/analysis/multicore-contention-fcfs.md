@@ -43,14 +43,15 @@
 
 ## Per-task metrics (input order)
 
-| task | arrival | burst | sleep_after | sleep_duration | first_dispatch | completion | wait | blocked | response | turnaround | executed | weight |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| A | 0 | 5 | - | 0 | 1 | 0 | 5 | 0 | 0 | 0 | 5 | 5 | 1024 |
-| B | 0 | 4 | - | 0 | 1 | 0 | 4 | 0 | 0 | 0 | 4 | 4 | 1024 |
-| C | 1 | 3 | - | 0 | 1 | 5 | 8 | 4 | 0 | 4 | 7 | 3 | 1024 |
-| D | 1 | 2 | - | 0 | 1 | 4 | 6 | 3 | 0 | 3 | 5 | 2 | 1024 |
+| task | arrival | burst | sleep_after | sleep_duration | phase_count | deadline | first_dispatch | completion | wait | blocked | response | turnaround | executed | weight |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| A | 0 | 5 | - | 0 | 1 | - | 0 | 5 | 0 | 0 | 0 | 5 | 5 | 1024 |
+| B | 0 | 4 | - | 0 | 1 | - | 0 | 4 | 0 | 0 | 0 | 4 | 4 | 1024 |
+| C | 1 | 3 | - | 0 | 1 | - | 5 | 8 | 4 | 0 | 4 | 7 | 3 | 1024 |
+| D | 1 | 2 | - | 0 | 1 | - | 4 | 6 | 3 | 0 | 3 | 5 | 2 | 1024 |
 
 ## Export notes
 
 - Phase 1 is an in-process simulator only; it does not spawn or control real processes.
 - The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.
+- The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.

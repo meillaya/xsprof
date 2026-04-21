@@ -12,7 +12,7 @@ Per `docs/adr/0001-m5-project-identity.md`, the current implementation remains s
 
 ## Phase 1 scope
 - In-process simulator only
-- FCFS/FIFO, Round Robin, and a simplified CFS-inspired policy
+- FCFS/FIFO, Round Robin, a simplified CFS-inspired policy, and a deterministic deadline-inspired teaching policy
 - Deterministic traces, per-task metrics, and aggregate metrics
 - Linux-inspired learning aid, not a kernel-faithful scheduler
 - No kernel integration, real process execution, or daemon behavior
@@ -31,6 +31,7 @@ zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --poli
 zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/latency-probe.zon --policy rr
+zig build run -- --scenario-file scenarios/basic/deadline-priority.zon --policy deadline
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 zig build bench
@@ -83,7 +84,9 @@ task: S2 2 1
 
 The parser keeps task declaration order as the deterministic tie-break fallback for every policy.
 
-Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS and Round Robin accept the field but ignore it.
+Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS, Round Robin, and the deadline-inspired policy accept the field but ignore it for scheduling decisions.
+
+Tasks may also include an optional absolute `deadline_tick` for the deadline-inspired teaching policy. Lower deadlines win, tie-breaking by stable scenario order. This is a deterministic experimental teaching surface, not a Linux real-time scheduler implementation.
 
 Object-style ZON tasks may model workload phases in two ways:
 - compatibility single-sleep fields: `sleep_after_ticks` and `sleep_duration`
@@ -124,6 +127,11 @@ Reference artifacts are committed at:
 - `docs/examples/analysis/multicore-contention-fcfs.svg`
 
 The analyzer only accepts the public export contract (`schema == "zig-scheduler/report"`, `version == 1`) and rejects missing or unsupported versions instead of guessing.
+
+## Deadline-inspired teaching policy
+M10 adds `--policy deadline` (also aliased as `edf`) for deterministic deadline-oriented teaching experiments. The canonical fixture is `scenarios/basic/deadline-priority.zon`.
+
+This policy is intentionally narrow: it prefers the runnable task with the earliest declared absolute deadline and preempts when a newly runnable task has an earlier deadline. It is useful for teaching deadline pressure and latency tradeoffs, but it does not claim Linux real-time scheduler fidelity.
 
 ## Fairness and latency probe fixtures
 M8 adds dedicated experiment fixtures for evidence-based fairness discussions:

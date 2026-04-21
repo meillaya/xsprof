@@ -12,6 +12,7 @@ Each simulation tick follows the same deterministic sequence:
 - FCFS preserves ready-queue order
 - Round Robin rotates the ready queue in deterministic FIFO order
 - the CFS-inspired policy picks the runnable task with the lowest virtual runtime, then falls back to declaration order
+- the deadline-inspired policy picks the runnable task with the earliest declared absolute deadline, then falls back to declaration order
 
 ## Round Robin rule
 If a task reaches a quantum boundary and also finishes on that tick, completion wins and no preemption event is emitted.
@@ -72,6 +73,11 @@ M7 extends the object-style scenario surface with explicit `phases` arrays so a 
 
 For backward compatibility, the earlier M6 `sleep_after_ticks` / `sleep_duration` pair is still accepted and normalized to an equivalent three-phase `cpu -> wait -> cpu` plan. Existing single-burst scenarios remain valid with no migration.
 
+### Deadline-inspired teaching policy
+M10 adds a deterministic deadline-inspired policy. Tasks may declare `deadline_tick`, and the policy chooses the runnable task with the earliest deadline, tie-breaking by stable scenario order. If an earlier-deadline task becomes runnable, the current task is preempted.
+
+This is an educational policy only. It does not model Linux deadline scheduling, admission control, runtime budgets, or real-time guarantees.
+
 ### Scheduling-class boundary
 M9 refactors the engine so policy-specific selection, preemption, and tick-accounting hooks flow through an explicit scheduling-class boundary (`src/policies/class.zig`). The engine still owns common simulation state and trace/metric production, while policy families provide their own scheduling decisions behind that boundary.
 
@@ -131,6 +137,7 @@ Per-task fields:
 - `sleep_after_ticks`
 - `sleep_duration`
 - `phase_count`
+- `deadline_tick`
 - `input_order`
 - `first_dispatch_tick`
 - `completion_time`

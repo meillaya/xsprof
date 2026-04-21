@@ -50,8 +50,8 @@ pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary
     try writer.writeAll("\n");
 
     try writer.writeAll("## Per-task metrics (input order)\n\n");
-    try writer.writeAll("| task | arrival | burst | sleep_after | sleep_duration | first_dispatch | completion | wait | blocked | response | turnaround | executed | weight |\n");
-    try writer.writeAll("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    try writer.writeAll("| task | arrival | burst | sleep_after | sleep_duration | phase_count | deadline | first_dispatch | completion | wait | blocked | response | turnaround | executed | weight |\n");
+    try writer.writeAll("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
     for (summary.tasks_by_input_order) |task| {
         try writer.print("| {s} | {d} | {d} | ", .{ task.id, task.arrival_tick, task.burst_ticks });
         if (task.sleep_after_ticks) |sleep_after_ticks| {
@@ -59,11 +59,15 @@ pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary
         } else {
             try writer.writeAll("-");
         }
+        try writer.print(" | {d} | {d} | ", .{ task.sleep_duration, task.phase_count });
+        if (task.deadline_tick) |deadline_tick| {
+            try writer.print("{d}", .{deadline_tick});
+        } else {
+            try writer.writeAll("-");
+        }
         try writer.print(
-            " | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
+            " | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
             .{
-                task.sleep_duration,
-                task.phase_count,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.waiting_time,

@@ -43,6 +43,7 @@ pub const task_fields = [_][]const u8{
     "sleep_after_ticks",
     "sleep_duration",
     "phase_count",
+    "deadline_tick",
     "input_order",
     "first_dispatch_tick",
     "completion_time",
@@ -80,6 +81,7 @@ pub const PolicyKind = enum {
     fcfs,
     round_robin,
     cfs_like,
+    deadline,
 };
 
 pub const TraceEventKind = enum {

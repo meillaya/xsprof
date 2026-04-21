@@ -155,3 +155,22 @@ test "weighted scenarios remain compatible with FCFS and Round Robin semantics" 
         }
     }
 }
+
+test "deadline-inspired policy prioritizes earlier deadlines deterministically" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/deadline-priority.zon");
+    defer scenario.deinit();
+
+    var deadline_result = try sim.simulate(allocator, &scenario, .deadline);
+    defer deadline_result.deinit();
+    var fcfs_result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer fcfs_result.deinit();
+
+    try std.testing.expectEqualStrings("urgent1", deadline_result.completionTaskId(0));
+    try std.testing.expectEqualStrings("urgent2", deadline_result.completionTaskId(1));
+    try std.testing.expectEqualStrings("steady", deadline_result.completionTaskId(2));
+
+    const urgent_fcfs = fcfs_result.taskById("urgent2").?;
+    const urgent_deadline = deadline_result.taskById("urgent2").?;
+    try std.testing.expect(urgent_deadline.response_time < urgent_fcfs.response_time);
+}
