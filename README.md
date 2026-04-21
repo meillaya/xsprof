@@ -7,6 +7,7 @@ A deterministic, user-space CPU scheduling simulator written in Zig 0.15.2.
 - FCFS/FIFO, Round Robin, and a simplified CFS-inspired policy
 - Deterministic traces, per-task metrics, and aggregate metrics
 - Linux-inspired learning aid, not a kernel-faithful scheduler
+- No kernel integration, real process execution, daemon behavior, or SMP scheduling
 - Optional per-task weights that affect only the CFS-inspired policy
 
 ## Quick start
@@ -32,6 +33,8 @@ Output formats:
 The JSON contract is versioned with:
 - `schema: "zig-scheduler/report"`
 - `version: 1`
+
+Consumers should reject missing or unsupported schema/version values instead of guessing. Later version-`1` additions are supported only when they stay additive and are documented with tests.
 
 ## Scenario fixtures
 The canonical external scenario-file dialect is object-style ZON:
