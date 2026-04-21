@@ -75,6 +75,60 @@ test "canonical object style scenario files parse task weights" {
     try expectTaskWithWeight(scenario.tasks[2], "default", 0, 2, scheduler.default_task_weight, 2);
 }
 
+test "canonical object style scenario files parse deterministic sleep and wake configuration" {
+    var scenario = try scheduler.loadScenarioFile(std.testing.allocator, "scenarios/basic/sleep-wakeup.zon");
+    defer scenario.deinit();
+
+    try std.testing.expectEqualStrings("sleep-wakeup", scenario.name);
+    try std.testing.expectEqual(@as(usize, 2), scenario.tasks.len);
+    try expectTaskWithSleep(scenario.tasks[0], "A", 0, 4, scheduler.default_task_weight, 2, 2, 0);
+    try expectTaskWithSleep(scenario.tasks[1], "B", 1, 2, scheduler.default_task_weight, null, 0, 1);
+}
+
+test "sleep configuration requires positive duration and a valid post-dispatch point" {
+    const missing_duration =
+        \\.{
+        \\    .name = "missing-sleep-duration",
+        \\    .tasks = .{
+        \\        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 4, .sleep_after_ticks = 2 },
+        \\    },
+        \\}
+    ;
+    try std.testing.expectError(
+        error.InvalidSleepDuration,
+        scheduler.parseScenarioText(std.testing.allocator, missing_duration, "missing-sleep-duration"),
+    );
+
+    const invalid_after =
+        \\.{
+        \\    .name = "invalid-sleep-after",
+        \\    .tasks = .{
+        \\        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 4, .sleep_after_ticks = 4, .sleep_duration = 1 },
+        \\    },
+        \\}
+    ;
+    try std.testing.expectError(
+        error.InvalidSleepAfterTicks,
+        scheduler.parseScenarioText(std.testing.allocator, invalid_after, "invalid-sleep-after"),
+    );
+}
+
+test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
+    const allocator = std.testing.allocator;
+    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
+    defer allocator.free(readme);
+    const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
+    defer allocator.free(phase_doc);
+    const linux_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/linux-mapping.md", std.math.maxInt(usize));
+    defer allocator.free(linux_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "sleep_after_ticks") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
+    try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
+}
+
 test "legacy line oriented scenario text remains supported" {
     const source =
         \\name: legacy-demo
@@ -165,6 +219,21 @@ fn expectTask(
     expected_order: u32,
 ) !void {
     try expectTaskWithWeight(task, expected_id, expected_arrival, expected_burst, scheduler.default_task_weight, expected_order);
+}
+
+fn expectTaskWithSleep(
+    task: scheduler.TaskSpec,
+    expected_id: []const u8,
+    expected_arrival: u32,
+    expected_burst: u32,
+    expected_weight: u32,
+    expected_sleep_after_ticks: ?u32,
+    expected_sleep_duration: u32,
+    expected_order: u32,
+) !void {
+    try expectTaskWithWeight(task, expected_id, expected_arrival, expected_burst, expected_weight, expected_order);
+    try std.testing.expectEqual(expected_sleep_after_ticks, task.sleep_after_ticks);
+    try std.testing.expectEqual(expected_sleep_duration, task.sleep_duration);
 }
 
 fn expectTaskWithWeight(

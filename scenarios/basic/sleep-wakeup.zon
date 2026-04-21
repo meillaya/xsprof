@@ -1,0 +1,8 @@
+.{
+    .name = "sleep-wakeup",
+    .quantum = 2,
+    .tasks = .{
+        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 4, .sleep_after_ticks = 2, .sleep_duration = 2 },
+        .{ .id = "B", .arrival_tick = 1, .burst_ticks = 2 },
+    },
+}

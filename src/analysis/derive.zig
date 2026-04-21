@@ -13,6 +13,8 @@ pub const CoreStats = struct {
     dispatches: u32 = 0,
     busy_ticks: u32 = 0,
     preemptions: u32 = 0,
+    blocks: u32 = 0,
+    wakeups: u32 = 0,
     completions: u32 = 0,
     idle_events: u32 = 0,
 };
@@ -94,6 +96,8 @@ fn updateCoreStats(core_stats: *CoreStats, kind: contract.TraceEventKind) void {
         .dispatch => core_stats.dispatches += 1,
         .tick => core_stats.busy_ticks += 1,
         .preempt => core_stats.preemptions += 1,
+        .block => core_stats.blocks += 1,
+        .wakeup => core_stats.wakeups += 1,
         .complete => core_stats.completions += 1,
         .idle => core_stats.idle_events += 1,
     }

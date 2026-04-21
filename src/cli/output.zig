@@ -40,16 +40,23 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
     try writer.writeAll("\nPer-Task Metrics:\n");
     for (report.result.tasks) |task| {
         try writer.print(
-            "- {s}: arrival={d} burst={d} weight={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} response={d}\n",
+            "- {s}: arrival={d} burst={d} weight={d} ",
+            .{ task.id, task.arrival_tick, task.burst_ticks, task.weight },
+        );
+        if (task.sleep_after_ticks) |sleep_after_ticks| {
+            try writer.print("sleep_after={d} ", .{sleep_after_ticks});
+        } else {
+            try writer.writeAll("sleep_after=- ");
+        }
+        try writer.print(
+            "sleep_duration={d} first_dispatch={d} completion={d} turnaround={d} waiting={d} blocked={d} response={d}\n",
             .{
-                task.id,
-                task.arrival_tick,
-                task.burst_ticks,
-                task.weight,
+                task.sleep_duration,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.turnaround_time,
                 task.waiting_time,
+                task.blocked_time,
                 task.response_time,
             },
         );

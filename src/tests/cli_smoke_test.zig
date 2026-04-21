@@ -30,11 +30,14 @@ const ParsedReport = struct {
         arrival_tick: u32,
         burst_ticks: u32,
         weight: u32,
+        sleep_after_ticks: ?u32,
+        sleep_duration: u32,
         input_order: u32,
         first_dispatch_tick: u32,
         completion_time: u32,
         turnaround_time: u32,
         waiting_time: u32,
+        blocked_time: u32,
         response_time: u32,
         total_executed: u32,
     },
@@ -227,11 +230,14 @@ test "public report field lists stay frozen for version 1" {
         "arrival_tick",
         "burst_ticks",
         "weight",
+        "sleep_after_ticks",
+        "sleep_duration",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
         "turnaround_time",
         "waiting_time",
+        "blocked_time",
         "response_time",
         "total_executed",
     };
@@ -312,6 +318,9 @@ test "JSON export preserves the documented version 1 baseline fields" {
     try std.testing.expectEqual(@as(usize, 3), parsed.value.tasks.len);
     try std.testing.expectEqualStrings("light", parsed.value.tasks[0].id);
     try std.testing.expectEqual(@as(u32, 512), parsed.value.tasks[0].weight);
+    try std.testing.expectEqual(@as(?u32, null), parsed.value.tasks[0].sleep_after_ticks);
+    try std.testing.expectEqual(@as(u32, 0), parsed.value.tasks[0].sleep_duration);
+    try std.testing.expectEqual(@as(u32, 0), parsed.value.tasks[0].blocked_time);
     try std.testing.expectEqual(@as(u32, 4), parsed.value.tasks[1].burst_ticks);
     try std.testing.expectEqual(@as(u32, 2), parsed.value.tasks[2].total_executed);
 
@@ -354,11 +363,14 @@ test "public report field lists stay aligned with additive core identity contrac
         "arrival_tick",
         "burst_ticks",
         "weight",
+        "sleep_after_ticks",
+        "sleep_duration",
         "input_order",
         "first_dispatch_tick",
         "completion_time",
         "turnaround_time",
         "waiting_time",
+        "blocked_time",
         "response_time",
         "total_executed",
     };
@@ -385,6 +397,8 @@ test "public trace taxonomy stays frozen" {
         .dispatch,
         .tick,
         .preempt,
+        .block,
+        .wakeup,
         .complete,
         .idle,
     };
@@ -416,4 +430,22 @@ test "CLI multicore smoke exposes core identity for file scenarios" {
     defer allocator.free(rendered_json);
     try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_count\":2") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered_json, "\"core_id\":1") != null);
+}
+
+test "blocked-state JSON export exposes sleep and blocked metrics" {
+    const allocator = std.testing.allocator;
+    var scenario = try sim.loadScenarioFile(allocator, "scenarios/basic/sleep-wakeup.zon");
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    const rendered = try renderJson(allocator, .{ .kind = .file, .value = "scenarios/basic/sleep-wakeup.zon" }, &scenario, &result);
+    defer allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"kind\":\"block\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"kind\":\"wakeup\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"sleep_after_ticks\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"sleep_duration\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"blocked_time\":2") != null);
 }

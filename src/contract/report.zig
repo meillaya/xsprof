@@ -40,11 +40,14 @@ pub const task_fields = [_][]const u8{
     "arrival_tick",
     "burst_ticks",
     "weight",
+    "sleep_after_ticks",
+    "sleep_duration",
     "input_order",
     "first_dispatch_tick",
     "completion_time",
     "turnaround_time",
     "waiting_time",
+    "blocked_time",
     "response_time",
     "total_executed",
 };
@@ -80,6 +83,8 @@ pub const TraceEventKind = enum {
     dispatch,
     tick,
     preempt,
+    block,
+    wakeup,
     complete,
     idle,
 };
@@ -89,6 +94,8 @@ const public_trace_event_kinds = [_]TraceEventKind{
     .dispatch,
     .tick,
     .preempt,
+    .block,
+    .wakeup,
     .complete,
     .idle,
 };

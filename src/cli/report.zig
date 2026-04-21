@@ -114,6 +114,10 @@ pub const SimulationReport = struct {
             try jw.write(task.burst_ticks);
             try jw.objectField("weight");
             try jw.write(task.weight);
+            try jw.objectField("sleep_after_ticks");
+            try jw.write(task.sleep_after_ticks);
+            try jw.objectField("sleep_duration");
+            try jw.write(task.sleep_duration);
             try jw.objectField("input_order");
             try jw.write(task.input_order);
             try jw.objectField("first_dispatch_tick");
@@ -124,6 +128,8 @@ pub const SimulationReport = struct {
             try jw.write(task.turnaround_time);
             try jw.objectField("waiting_time");
             try jw.write(task.waiting_time);
+            try jw.objectField("blocked_time");
+            try jw.write(task.blocked_time);
             try jw.objectField("response_time");
             try jw.write(task.response_time);
             try jw.objectField("total_executed");

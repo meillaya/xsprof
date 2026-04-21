@@ -25,6 +25,8 @@ pub const TraceEventKind = enum {
     dispatch,
     tick,
     preempt,
+    block,
+    wakeup,
     complete,
     idle,
 };
@@ -33,6 +35,7 @@ pub const TaskState = enum {
     pending,
     ready,
     running,
+    blocked,
     complete,
 };
 
@@ -50,6 +53,8 @@ pub const ValidationError = error{
     InvalidInteger,
     InvalidZon,
     InvalidWeight,
+    InvalidSleepAfterTicks,
+    InvalidSleepDuration,
     ScenarioNameMismatch,
     UnknownScenario,
 };
@@ -59,6 +64,8 @@ pub const TaskSpec = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32 = default_task_weight,
+    sleep_after_ticks: ?u32 = null,
+    sleep_duration: u32 = 0,
     input_order: u32 = 0,
     order: u32 = 0,
 
@@ -67,6 +74,13 @@ pub const TaskSpec = struct {
         if (self.burst_ticks == 0) return error.ZeroBurstTicks;
         if (self.weight == 0) return error.InvalidWeight;
         if (self.weight > max_task_weight) return error.InvalidWeight;
+
+        if (self.sleep_after_ticks) |sleep_after_ticks| {
+            if (sleep_after_ticks == 0 or sleep_after_ticks >= self.burst_ticks) return error.InvalidSleepAfterTicks;
+            if (self.sleep_duration == 0) return error.InvalidSleepDuration;
+        } else if (self.sleep_duration != 0) {
+            return error.InvalidSleepDuration;
+        }
     }
 };
 
@@ -115,11 +129,14 @@ pub const TaskMetrics = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32,
+    sleep_after_ticks: ?u32,
+    sleep_duration: u32,
     input_order: u32,
     first_dispatch_tick: u32,
     completion_time: u32,
     turnaround_time: u32,
     waiting_time: u32,
+    blocked_time: u32,
     response_time: u32,
     total_executed: u32,
 };

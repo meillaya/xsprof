@@ -62,12 +62,19 @@ M4.5 adds `zig build bench` for deterministic baseline generation over committed
 
 These baselines are simulator-local only: they help compare fixtures/policies within this project, and they must not be presented as Linux scheduler performance measurements.
 
+### Deterministic blocked / wakeup model
+M6 adds one intentionally simple blocked-state model: a task may declare a single `sleep_after_ticks` / `sleep_duration` pair in object-style ZON. After the task accumulates `sleep_after_ticks` executed ticks, it emits a `block` trace event, becomes unrunnable for `sleep_duration` ticks, then emits a `wakeup` trace event and re-enters the runnable set.
+
+This is an educational deterministic model only. It does not attempt to reproduce Linux wakeup races, interrupt timing, wait queues, or I/O completion behavior.
+
 ### Public trace event taxonomy
 The public trace event kinds are:
 - `arrival`
 - `dispatch`
 - `tick`
 - `preempt`
+- `block`
+- `wakeup`
 - `complete`
 - `idle`
 
@@ -111,11 +118,14 @@ Per-task fields:
 - `arrival_tick`
 - `burst_ticks`
 - `weight`
+- `sleep_after_ticks`
+- `sleep_duration`
 - `input_order`
 - `first_dispatch_tick`
 - `completion_time`
 - `turnaround_time`
 - `waiting_time`
+- `blocked_time`
 - `response_time`
 - `total_executed`
 
@@ -132,7 +142,8 @@ These field lists define the required version `1` baseline. Any later version-`1
 ## Metrics
 - `completion_time = tick immediately after the final executed tick`
 - `turnaround_time = completion_time - arrival_tick`
-- `waiting_time = turnaround_time - burst_ticks`
+- `blocked_time = number of ticks spent in the deterministic blocked state before wakeup`
+- `waiting_time = turnaround_time - burst_ticks - blocked_time`
 - `response_time = first_dispatch_tick - arrival_tick`
 - `throughput = completed_task_count / (last_completion_tick - earliest_arrival_tick)`
 - `waiting_time_spread = max(waiting_time) - min(waiting_time)`
@@ -146,7 +157,7 @@ When `core_count > 1`, the simulator runs one deterministic scheduling lane per 
 Rules:
 - arrivals are assigned to the least-loaded core, tie-breaking by lower core id
 - before dispatch, an idle core may steal the oldest ready task from the busiest ready queue
-- arrival, dispatch, tick, preempt, complete, and idle trace events carry `core_id` where the engine has assigned a core
+- arrival, dispatch, tick, preempt, block, wakeup, complete, and idle trace events carry `core_id` where the engine has assigned a core
 - no distinct migration event kind is added in version 1; migration is inferred when a later dispatch core differs from the task's earlier arrival/dispatched core
 
 ### Committed multicore fixture corpus

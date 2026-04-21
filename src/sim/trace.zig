@@ -5,6 +5,8 @@ pub const public_event_kinds = [_]types.TraceEventKind{
     .dispatch,
     .tick,
     .preempt,
+    .block,
+    .wakeup,
     .complete,
     .idle,
 };
@@ -15,6 +17,8 @@ pub fn eventLabel(kind: types.TraceEventKind) []const u8 {
         .dispatch => "dispatch",
         .tick => "tick",
         .preempt => "preempt",
+        .block => "block",
+        .wakeup => "wakeup",
         .complete => "complete",
         .idle => "idle",
     };

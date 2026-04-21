@@ -23,8 +23,9 @@ Current repo scope does **not** include:
 | Simulator concept | Phase 1 meaning | Linux concept it helps teach | Important simplification |
 | --- | --- | --- | --- |
 | Task | Simulated schedulable workload with arrival tick and CPU burst ticks | schedulable entity / `task_struct`-like mental model | Not a real process or thread |
-| Arrival tick | When a task becomes runnable in the simulation | wakeup/enqueue into a runnable set | No interrupts, blocking I/O, or wakeup races |
-| Burst ticks | CPU demand required to complete a task | CPU time demand / runtime | No syscalls, sleeps, or mixed CPU/I/O behavior |
+| Arrival tick | When a task becomes runnable in the simulation | initial enqueue into a runnable set | No interrupts or wakeup races |
+| Burst ticks | CPU demand required to complete a task | CPU time demand / runtime | No syscalls or real execution |
+| Deterministic sleep/wakeup | Optional single blocked interval declared in the scenario | simplified sleep / wakeup mental model | No wait queues, interrupts, I/O completion, or Linux wakeup fidelity |
 | Ready queue / runnable set | Tasks eligible to run | run queue / runnable tasks | Simplified per-core run queues, not Linux runqueue fidelity |
 | Dispatch | Selecting the next runnable task | scheduler pick-next decision | No context-switch overhead modeling |
 | Tick execution | One unit of CPU progress | time accounting / runtime accumulation | Fixed discrete ticks, not kernel timing precision |
@@ -32,7 +33,8 @@ Current repo scope does **not** include:
 | Preemption | Current task loses CPU before completion | scheduler preemption | No interrupt latency or kernel preemption model |
 | Completion | Task finishes all required burst ticks | task exhausts CPU demand | No exit, cleanup, signals, or wait semantics |
 | Trace entries | Ordered scheduler events | tracepoints / scheduling timeline | Educational event model, not kernel trace fidelity |
-| Response time | First dispatch minus arrival | initial scheduling latency | Ignores wakeup and migration overhead |
+| Response time | First dispatch minus arrival | initial scheduling latency | Ignores wakeup and migration overhead after the first dispatch |
+| Blocked time | Ticks spent in the deterministic blocked state | blocked / sleeping time intuition | Educational accounting only, not a Linux KPI |
 | Waiting-time spread | Fairness visibility across tasks | fairness/latency skew intuition | Educational proxy, not a Linux scheduler KPI |
 
 ## Policy mapping
@@ -77,6 +79,7 @@ Linux relevance:
 Explicit omissions:
 - Linux's full nice-to-weight table
 - sleeper bonuses
+- Linux wait-queue semantics and wakeup races
 - Linux SMP balancing heuristics, scheduler-domain behavior, and per-CPU runqueue fidelity
 - cgroups or group scheduling
 - kernel timing precision, interrupts, and scheduler-class interactions

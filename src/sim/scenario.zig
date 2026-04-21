@@ -48,6 +48,8 @@ const ParsedZonTask = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: ?u32 = null,
+    sleep_after_ticks: ?u32 = null,
+    sleep_duration: ?u32 = null,
 };
 
 const ParsedZonScenario = struct {
@@ -223,6 +225,8 @@ fn parseScenarioZon(
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
             .weight = resolveTaskWeight(task.weight),
+            .sleep_after_ticks = task.sleep_after_ticks,
+            .sleep_duration = resolveSleepDuration(task.sleep_duration),
         });
     }
 
@@ -287,6 +291,10 @@ fn resolveParsedCoreCount(parsed: ParsedZonScenario) !u32 {
 
 fn resolveTaskWeight(weight: ?u32) u32 {
     return weight orelse types.default_task_weight;
+}
+
+fn resolveSleepDuration(sleep_duration: ?u32) u32 {
+    return sleep_duration orelse 0;
 }
 
 fn parseLegacyTaskWeight(weight_text: ?[]const u8) !u32 {

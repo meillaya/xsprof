@@ -18,6 +18,7 @@ Per `docs/adr/0001-m5-project-identity.md`, the current implementation remains s
 - No kernel integration, real process execution, or daemon behavior
 - Simplified deterministic multicore / SMP simulation, not faithful Linux SMP scheduling
 - Optional per-task weights that affect only the CFS-inspired policy
+- Optional deterministic single-sleep transitions (`sleep_after_ticks`, `sleep_duration`) for blocked/wakeup teaching scenarios
 
 ## Quick start
 ```sh
@@ -26,6 +27,7 @@ zig build run -- --scenario short-vs-long --policy fcfs
 zig build run -- --scenario-file scenarios/basic/arrivals.zon --policy fcfs
 zig build run -- --scenario-file scenarios/basic/weighted-fairness.zon --policy cfs-like
 zig build run -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy fcfs
 zig build run -- --scenario short-vs-long --policy rr --quantum 2 --format json
 zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
 zig build bench
@@ -80,6 +82,12 @@ The parser keeps task declaration order as the deterministic tie-break fallback 
 
 Task entries may include an optional `weight` field. Supported weights range from `1` to `4096`, with a default of `1024`. Under the CFS-inspired policy, higher weights can reduce vruntime growth within that supported range, though nearby weights may land in the same integer bucket; FCFS and Round Robin accept the field but ignore it.
 
+Object-style ZON tasks may also include a single deterministic blocked transition via:
+- `sleep_after_ticks` — how many executed ticks the task runs before blocking
+- `sleep_duration` — how many ticks the task remains blocked before a deterministic wakeup
+
+This is an educational simulator model, not a Linux-faithful sleep/wakeup implementation. Legacy line-oriented `.zon` input remains supported, but the blocked/wakeup fields are documented only for the canonical object-style format.
+
 ## Output contract
 Every text-mode run prints:
 - scenario name
@@ -87,7 +95,8 @@ Every text-mode run prints:
 - core count
 - completion order
 - raw trace events, including `core=<id>` on core-scoped lines
-- per-task completion, turnaround, waiting, and response metrics
+- explicit `block` / `wakeup` trace events when a task uses deterministic sleep
+- per-task completion, turnaround, runnable waiting, blocked-time, and response metrics
 - aggregate average waiting time, average response time, throughput, and waiting-time spread
 
 JSON mode emits the same simulation facts in the versioned `zig-scheduler/report` schema for downstream tooling.
@@ -123,6 +132,8 @@ Committed baseline artifacts live at:
 - `docs/benchmarks/m45-baselines.json`
 
 These numbers are deterministic simulator-local output-size/trace-volume baselines over committed fixtures. They are not Linux performance claims.
+
+The `scenarios/basic/sleep-wakeup.zon` fixture is the canonical M6 example for deterministic blocked/runnable transitions.
 
 See `docs/phase1-simulator.md`, `docs/m4-analysis-workflow.md`, `docs/m45-benchmark-workflow.md`, and `docs/linux-mapping.md` for semantics, analysis workflow details, benchmark workflow details, and Linux relevance notes.
 

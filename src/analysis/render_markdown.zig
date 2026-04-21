@@ -36,29 +36,34 @@ pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary
     try writer.writeAll("\n");
 
     try writer.writeAll("## Per-core activity\n\n");
-    try writer.writeAll("| core | arrivals | dispatches | busy_ticks | completions | idle_events | preemptions |\n");
-    try writer.writeAll("| ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    try writer.writeAll("| core | arrivals | dispatches | busy_ticks | completions | idle_events | preemptions | blocks | wakeups |\n");
+    try writer.writeAll("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
     for (summary.core_stats) |entry| {
         try writer.print(
-            "| {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
-            .{ entry.core_id, entry.arrivals, entry.dispatches, entry.busy_ticks, entry.completions, entry.idle_events, entry.preemptions },
+            "| {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
+            .{ entry.core_id, entry.arrivals, entry.dispatches, entry.busy_ticks, entry.completions, entry.idle_events, entry.preemptions, entry.blocks, entry.wakeups },
         );
     }
     try writer.writeAll("\n");
 
     try writer.writeAll("## Per-task metrics (input order)\n\n");
-    try writer.writeAll("| task | arrival | burst | first_dispatch | completion | wait | response | turnaround | executed | weight |\n");
-    try writer.writeAll("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    try writer.writeAll("| task | arrival | burst | sleep_after | sleep_duration | first_dispatch | completion | wait | blocked | response | turnaround | executed | weight |\n");
+    try writer.writeAll("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
     for (summary.tasks_by_input_order) |task| {
+        try writer.print("| {s} | {d} | {d} | ", .{ task.id, task.arrival_tick, task.burst_ticks });
+        if (task.sleep_after_ticks) |sleep_after_ticks| {
+            try writer.print("{d}", .{sleep_after_ticks});
+        } else {
+            try writer.writeAll("-");
+        }
         try writer.print(
-            "| {s} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
+            " | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} | {d} |\n",
             .{
-                task.id,
-                task.arrival_tick,
-                task.burst_ticks,
+                task.sleep_duration,
                 task.first_dispatch_tick,
                 task.completion_time,
                 task.waiting_time,
+                task.blocked_time,
                 task.response_time,
                 task.turnaround_time,
                 task.total_executed,

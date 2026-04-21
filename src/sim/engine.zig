@@ -10,14 +10,19 @@ const RuntimeTask = struct {
     arrival_tick: u32,
     burst_ticks: u32,
     weight: u32,
+    sleep_after_ticks: ?u32,
+    sleep_duration: u32,
     input_order: u32,
     assigned_core: types.CoreId = 0,
     remaining_ticks: u32,
     total_executed: u32 = 0,
+    blocked_time: u32 = 0,
     first_dispatch_tick: ?u32 = null,
     completion_time: ?u32 = null,
+    wake_tick: ?u32 = null,
     last_execution_tick: ?u32 = null,
     vruntime: u64 = 0,
+    did_sleep: bool = false,
     state: types.TaskState = .pending,
 };
 
@@ -63,14 +68,8 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
     var tick: u32 = 0;
 
     while (completed < runtimes.len) : (tick += 1) {
-        for (runtimes, 0..) |*task, index| {
-            if (task.state == .pending and task.arrival_tick == tick) {
-                task.assigned_core = single_core_id;
-                task.state = .ready;
-                if (policy != .cfs_like) try ready_queue.append(allocator, index);
-                try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .core_id = single_core_id });
-            }
-        }
+        try processBlockedSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy);
+        try enqueueArrivalsSingleCore(allocator, &runtimes, &ready_queue, &trace_entries, tick, policy);
 
         switch (policy) {
             .fcfs => {},
@@ -148,6 +147,13 @@ fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.Scena
                 try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .complete, .task_id = runtimes[current_index].id, .core_id = single_core_id });
                 current = null;
                 current_quantum = 0;
+            } else if (shouldBlockAfterExecution(runtimes[current_index])) {
+                runtimes[current_index].did_sleep = true;
+                runtimes[current_index].state = .blocked;
+                runtimes[current_index].wake_tick = tick + 1 + runtimes[current_index].sleep_duration;
+                current = null;
+                current_quantum = 0;
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes[current_index].id, .core_id = single_core_id });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = single_core_id });
@@ -179,10 +185,11 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
     var tick: u32 = 0;
 
     while (completed < runtimes.len) : (tick += 1) {
+        try processBlockedMulticore(allocator, &runtimes, cores, &trace_entries, tick);
         try enqueueArrivalsMulticore(allocator, &runtimes, cores, &trace_entries, tick);
         try preemptMulticore(allocator, scenario, policy, &runtimes, cores, &trace_entries, tick);
         try rebalanceReadyQueues(allocator, &runtimes, cores);
-        try dispatchMulticore(allocator, scenario, policy, &runtimes, cores, &trace_entries, tick);
+        try dispatchMulticore(allocator, policy, &runtimes, cores, &trace_entries, tick);
         try executeMulticore(allocator, policy, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
     }
 
@@ -197,6 +204,8 @@ fn initRuntimes(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
             .weight = task.weight,
+            .sleep_after_ticks = task.sleep_after_ticks,
+            .sleep_duration = task.sleep_duration,
             .input_order = task.input_order,
             .remaining_ticks = task.burst_ticks,
         };
@@ -225,11 +234,14 @@ fn finalizeResult(
             .arrival_tick = task.arrival_tick,
             .burst_ticks = task.burst_ticks,
             .weight = task.weight,
+            .sleep_after_ticks = task.sleep_after_ticks,
+            .sleep_duration = task.sleep_duration,
             .input_order = task.input_order,
             .first_dispatch_tick = first_dispatch_tick,
             .completion_time = completion_time,
             .turnaround_time = turnaround,
-            .waiting_time = turnaround - task.burst_ticks,
+            .waiting_time = turnaround - task.burst_ticks - task.blocked_time,
+            .blocked_time = task.blocked_time,
             .response_time = response,
             .total_executed = task.total_executed,
         };
@@ -251,6 +263,67 @@ fn finalizeResult(
         .aggregate = metrics.computeAggregate(task_metrics),
         .final_tick = final_tick,
     };
+}
+
+fn processBlockedSingleCore(
+    allocator: std.mem.Allocator,
+    runtimes: *[]RuntimeTask,
+    ready_queue: *std.ArrayList(usize),
+    trace_entries: *std.ArrayList(types.TraceEntry),
+    tick: u32,
+    policy: types.PolicyKind,
+) !void {
+    for (runtimes.*, 0..) |*task, index| {
+        if (task.state != .blocked) continue;
+        if (task.wake_tick == tick) {
+            task.state = .ready;
+            task.assigned_core = single_core_id;
+            task.wake_tick = null;
+            if (policy != .cfs_like) try ready_queue.append(allocator, index);
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .core_id = single_core_id });
+        } else {
+            task.blocked_time += 1;
+        }
+    }
+}
+
+fn enqueueArrivalsSingleCore(
+    allocator: std.mem.Allocator,
+    runtimes: *[]RuntimeTask,
+    ready_queue: *std.ArrayList(usize),
+    trace_entries: *std.ArrayList(types.TraceEntry),
+    tick: u32,
+    policy: types.PolicyKind,
+) !void {
+    for (runtimes.*, 0..) |*task, index| {
+        if (task.state == .pending and task.arrival_tick == tick) {
+            task.assigned_core = single_core_id;
+            task.state = .ready;
+            if (policy != .cfs_like) try ready_queue.append(allocator, index);
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .arrival, .task_id = task.id, .core_id = single_core_id });
+        }
+    }
+}
+
+fn processBlockedMulticore(
+    allocator: std.mem.Allocator,
+    runtimes: *[]RuntimeTask,
+    cores: []CoreState,
+    trace_entries: *std.ArrayList(types.TraceEntry),
+    tick: u32,
+) !void {
+    for (runtimes.*, 0..) |*task, index| {
+        if (task.state != .blocked) continue;
+        if (task.wake_tick == tick) {
+            const core_index: usize = if (task.assigned_core < cores.len) @intCast(task.assigned_core) else 0;
+            task.state = .ready;
+            task.wake_tick = null;
+            try cores[core_index].ready_queue.append(allocator, index);
+            try trace_entries.append(allocator, .{ .tick = tick, .kind = .wakeup, .task_id = task.id, .core_id = @intCast(core_index) });
+        } else {
+            task.blocked_time += 1;
+        }
+    }
 }
 
 fn enqueueArrivalsMulticore(
@@ -331,14 +404,12 @@ fn rebalanceReadyQueues(
 
 fn dispatchMulticore(
     allocator: std.mem.Allocator,
-    scenario: *const types.ScenarioOwned,
     policy: types.PolicyKind,
     runtimes: *[]RuntimeTask,
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
     tick: u32,
 ) !void {
-    _ = scenario;
     for (cores, 0..) |*core, core_index| {
         if (core.current != null) continue;
 
@@ -399,6 +470,13 @@ fn executeMulticore(
                 try completed_this_tick.append(allocator, current_index);
                 core.current = null;
                 core.current_quantum = 0;
+            } else if (shouldBlockAfterExecution(runtimes.*[current_index])) {
+                runtimes.*[current_index].did_sleep = true;
+                runtimes.*[current_index].state = .blocked;
+                runtimes.*[current_index].wake_tick = tick + 1 + runtimes.*[current_index].sleep_duration;
+                core.current = null;
+                core.current_quantum = 0;
+                try trace_entries.append(allocator, .{ .tick = tick + 1, .kind = .block, .task_id = runtimes.*[current_index].id, .core_id = @intCast(core_index) });
             }
         } else {
             try trace_entries.append(allocator, .{ .tick = tick, .kind = .idle, .task_id = null, .core_id = @intCast(core_index) });
@@ -464,4 +542,10 @@ fn chooseBestReadyTask(runtimes: []const RuntimeTask, ready_queue: []const usize
         }
     }
     return best;
+}
+
+fn shouldBlockAfterExecution(task: RuntimeTask) bool {
+    if (task.did_sleep) return false;
+    const sleep_after_ticks = task.sleep_after_ticks orelse return false;
+    return task.total_executed == sleep_after_ticks;
 }

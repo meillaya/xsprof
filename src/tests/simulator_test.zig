@@ -33,6 +33,81 @@ fn loadMulticoreRrFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
     return sim.loadScenarioFile(allocator, "scenarios/basic/multicore-rr-quantum.zon");
 }
 
+fn loadSleepWakeFixture(allocator: std.mem.Allocator) !sim.ScenarioOwned {
+    return sim.loadScenarioFile(allocator, "scenarios/basic/sleep-wakeup.zon");
+}
+
+fn expectNoExecutionWhileBlocked(trace: []const sim.TraceEntry, task_id: []const u8) !void {
+    var blocked = false;
+    for (trace) |entry| {
+        if (entry.task_id == null or !std.mem.eql(u8, entry.task_id.?, task_id)) continue;
+        switch (entry.kind) {
+            .block => blocked = true,
+            .wakeup => blocked = false,
+            .dispatch, .tick => try std.testing.expect(!blocked),
+            else => {},
+        }
+    }
+}
+
+test "blocked-state scenario records deterministic block and wakeup transitions" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadSleepWakeFixture(allocator);
+    defer scenario.deinit();
+
+    var result = try sim.simulate(allocator, &scenario, .fcfs);
+    defer result.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), result.completion_order.len);
+    try std.testing.expectEqualStrings("B", result.completionTaskId(0));
+    try std.testing.expectEqualStrings("A", result.completionTaskId(1));
+
+    var saw_block = false;
+    var saw_wakeup = false;
+    for (result.trace) |entry| {
+        if (entry.task_id == null or !std.mem.eql(u8, entry.task_id.?, "A")) continue;
+        if (entry.kind == .block) {
+            try std.testing.expectEqual(@as(u32, 2), entry.tick);
+            saw_block = true;
+        }
+        if (entry.kind == .wakeup) {
+            try std.testing.expectEqual(@as(u32, 4), entry.tick);
+            saw_wakeup = true;
+        }
+    }
+    try std.testing.expect(saw_block);
+    try std.testing.expect(saw_wakeup);
+    try expectNoExecutionWhileBlocked(result.trace, "A");
+
+    const task_a = result.taskById("A") orelse return error.MissingTaskA;
+    const task_b = result.taskById("B") orelse return error.MissingTaskB;
+    try std.testing.expectEqual(@as(u32, 2), task_a.blocked_time);
+    try std.testing.expectEqual(@as(u32, 0), task_a.waiting_time);
+    try std.testing.expectEqual(@as(u32, 0), task_b.blocked_time);
+}
+
+test "blocked-state semantics stay deterministic across repeated runs" {
+    const allocator = std.testing.allocator;
+    var scenario = try loadSleepWakeFixture(allocator);
+    defer scenario.deinit();
+
+    const policies = [_]sim.PolicyKind{ .fcfs, .round_robin, .cfs_like };
+    for (policies) |policy| {
+        var first = try sim.simulate(allocator, &scenario, policy);
+        defer first.deinit();
+        var second = try sim.simulate(allocator, &scenario, policy);
+        defer second.deinit();
+
+        try std.testing.expectEqual(first.trace.len, second.trace.len);
+        for (first.trace, second.trace) |lhs, rhs| {
+            try std.testing.expectEqual(lhs.tick, rhs.tick);
+            try std.testing.expectEqual(lhs.kind, rhs.kind);
+            try std.testing.expectEqual(lhs.core_id, rhs.core_id);
+            try std.testing.expectEqualStrings(lhs.task_id orelse "", rhs.task_id orelse "");
+        }
+    }
+}
+
 fn taskIndexById(tasks: []const sim.TaskMetrics, id: []const u8) ?usize {
     for (tasks, 0..) |task, index| {
         if (std.mem.eql(u8, task.id, id)) return index;
