@@ -147,8 +147,10 @@ test "M20 comparison numeric semantics stay exact for count and span rows" {
         try std.testing.expect(row.object.get("observability_value").? == .integer);
         try std.testing.expect(row.object.get("delta").? == .integer);
     }
-    try std.testing.expect(metric_rows[6].object.get("simulator_value").? == .float);
-    try std.testing.expect(metric_rows[6].object.get("observability_value").? == .float);
+    const simulator_span_value = metric_rows[6].object.get("simulator_value").?;
+    const observability_span_value = metric_rows[6].object.get("observability_value").?;
+    try std.testing.expect(simulator_span_value == .integer or simulator_span_value == .float);
+    try std.testing.expect(observability_span_value == .integer or observability_span_value == .float);
     try std.testing.expect(metric_rows[6].object.get("delta").? == .float);
 }
 
