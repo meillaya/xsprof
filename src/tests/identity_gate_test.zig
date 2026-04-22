@@ -148,14 +148,11 @@ test "M20 boundary keeps report and analysis surfaces free of comparison payload
     defer allocator.free(cli_report);
     const analysis_root = try readFileAlloc(allocator, "src/analysis/root.zig");
     defer allocator.free(analysis_root);
-    const prd = @embedFile("../../.omx/plans/prd-m20-simulator-to-trace-comparison.md");
-    const test_spec = @embedFile("../../.omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
+    const build_file = try readFileAlloc(allocator, "build.zig");
+    defer allocator.free(build_file);
 
     try expectLacksAll(report_contract, &forbidden_fields);
     try expectLacksAll(cli_report, &forbidden_fields);
     try expectLacksAll(analysis_root, &forbidden_fields);
-    try std.testing.expect(std.mem.indexOf(u8, prd, "no change to `src/contract/report.zig` or `src/cli/report.zig`") != null);
-    try std.testing.expect(std.mem.indexOf(u8, prd, "no widening of `src/contract/report.zig`, `src/cli/report.zig`, or `src/analysis/*`") != null);
-    try std.testing.expect(std.mem.indexOf(u8, test_spec, "boundary audit for `zig-scheduler/report`, `src/contract/report.zig`, `src/cli/report.zig`, and `src/analysis/*`") != null);
-    try std.testing.expect(std.mem.indexOf(u8, test_spec, "entrypoint audit proving M20 v1 is library/docs/tests only and exposes no CLI/report-export path") != null);
+    try std.testing.expect(std.mem.indexOf(u8, build_file, "observability-comparison") == null);
 }
