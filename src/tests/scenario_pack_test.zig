@@ -210,3 +210,25 @@ test "M21 teaching docs stay aligned with the exact three-anchor shortlist" {
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "group-fairness") == null);
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "topology-domains") == null);
 }
+
+test "M23 courseware docs derive the core package from the exact M21 shortlist" {
+    const allocator = std.testing.allocator;
+    const package_doc = try readFileAlloc(allocator, "docs/courseware/m23-teaching-distribution.md");
+    defer allocator.free(package_doc);
+    const assignment_doc = try readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md");
+    defer allocator.free(assignment_doc);
+    const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
+    defer allocator.free(teaching_pack);
+
+    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    try std.testing.expectEqual(@as(usize, 3), shortlist.len);
+
+    for (shortlist) |entry| {
+        try std.testing.expect(std.mem.indexOf(u8, assignment_doc, entry.key) != null);
+        try std.testing.expect(std.mem.indexOf(u8, teaching_pack, entry.key) != null);
+    }
+
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "package shell over M21") != null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "group-fairness") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "topology-domains") == null);
+}

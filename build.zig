@@ -69,6 +69,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
+                .{ .name = "zig_scheduler_internal", .module = internal_mod },
                 .{ .name = "tui_root", .module = tui_mod },
             },
         }),

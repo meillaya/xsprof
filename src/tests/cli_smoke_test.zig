@@ -658,3 +658,45 @@ test "M21 teaching-pack commands stay aligned with the exact shortlist" {
         try std.testing.expect(std.mem.indexOf(u8, rendered, "\"schema\":\"zig-scheduler/report\"") != null);
     }
 }
+
+test "M23 required package commands stay aligned with the exact M21 command pairs" {
+    const allocator = std.testing.allocator;
+    const package_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/m23-teaching-distribution.md", std.math.maxInt(usize));
+    defer allocator.free(package_doc);
+    const onboarding_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/student-onboarding.md", std.math.maxInt(usize));
+    defer allocator.free(onboarding_doc);
+    const assignment_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md", std.math.maxInt(usize));
+    defer allocator.free(assignment_doc);
+    const instructor_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/instructor-guide.md", std.math.maxInt(usize));
+    defer allocator.free(instructor_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/student-onboarding.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/instructor-guide.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/assignment-pack-01.md") != null);
+
+    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    for (shortlist) |entry| {
+        const policy = entry.recommended_policy.?;
+        const sim_command = try std.fmt.allocPrint(allocator, "zig build sim -- --scenario-file {s} --policy {s}", .{ entry.path, policyCliName(policy) });
+        defer allocator.free(sim_command);
+        const run_command = try std.fmt.allocPrint(allocator, "zig build run -- --scenario-file {s} --policy {s}", .{ entry.path, policyCliName(policy) });
+        defer allocator.free(run_command);
+
+        try std.testing.expect(std.mem.indexOf(u8, onboarding_doc, sim_command) != null or std.mem.indexOf(u8, assignment_doc, sim_command) != null);
+        try std.testing.expect(std.mem.indexOf(u8, onboarding_doc, run_command) != null or std.mem.indexOf(u8, assignment_doc, run_command) != null);
+
+        var scenario = try sim.loadScenarioFile(allocator, entry.path);
+        defer scenario.deinit();
+        var result = try sim.simulate(allocator, &scenario, policy);
+        defer result.deinit();
+
+        const rendered = try renderJson(allocator, .{ .kind = .file, .value = entry.path }, &scenario, &result);
+        defer allocator.free(rendered);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, entry.key) != null);
+    }
+
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "zig build m22-embed-smoke") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m19") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m20") == null);
+    try std.testing.expect(std.mem.indexOf(u8, instructor_doc, "zig build m22-embed-smoke") != null);
+}

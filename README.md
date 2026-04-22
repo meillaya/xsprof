@@ -109,6 +109,12 @@ The canonical teaching index for this simulator-first path is:
 
 - `docs/labs/simulator-teaching-pack.md`
 
+## Packaged teaching distribution (M23)
+
+The canonical packaged courseware entrypoint is:
+
+- `docs/courseware/m23-teaching-distribution.md`
+
 M19/M20 stay a **separate observability-only lane** inside the TUI:
 - use `--m19` or `--m19-manifest <path>` for the M19 fixture summary
 - use `--m20` or `--m20-pairing <path>` for the M20 comparison summary

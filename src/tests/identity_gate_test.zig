@@ -197,3 +197,28 @@ test "M22 docs keep the library branch optional and simulator-first" {
     try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "browser/WASM") != null);
     try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "M23-style") == null);
 }
+
+test "M23 docs keep one canonical package entry and optional appendices only" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const status_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(status_doc);
+    const package_doc = try readFileAlloc(allocator, "docs/courseware/m23-teaching-distribution.md");
+    defer allocator.free(package_doc);
+    const instructor_doc = try readFileAlloc(allocator, "docs/courseware/instructor-guide.md");
+    defer allocator.free(instructor_doc);
+    const assignment_doc = try readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md");
+    defer allocator.free(assignment_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/courseware/m23-teaching-distribution.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, status_doc, "docs/courseware/m23-teaching-distribution.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "package shell over M21") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "Appendix — bounded observability side lane") != null);
+    try std.testing.expect(std.mem.indexOf(u8, instructor_doc, "Appendix — optional M22 embedder extension") != null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "zig build m22-embed-smoke") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m19") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m20") == null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "browser/WASM") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "Linux-performance") != null);
+}

@@ -2,6 +2,9 @@
 
 This is the canonical M21 simulator-first teaching index.
 
+For the packaged courseware shell built on top of this spine, start from:
+- `docs/courseware/m23-teaching-distribution.md`
+
 It intentionally covers only **three** start-here anchors:
 - `short-vs-long` + `fcfs`
 - `sleep-wakeup` + `cfs-like`

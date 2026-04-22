@@ -511,6 +511,24 @@ shape:
 - README + project-status updates
 - deterministic TUI snapshot tests for picker/help plus the three anchors
 
+### M23 — [Optional teaching/distribution branch] packaged teaching distribution and courseware
+
+M23 packages the existing M21 simulator-first spine into one bounded
+courseware shell. It does not redefine the required anchors or replace the
+primary M21 commands.
+
+The canonical package entrypoint is:
+
+- `docs/courseware/m23-teaching-distribution.md`
+
+The first package stays limited to four primary docs:
+- package index
+- student onboarding
+- instructor guide
+- assignment pack
+
+M19/M20 and M22 remain optional appendix sections only.
+
 ### M22 — [Optional library branch] library / SDK stabilization for embedders
 
 The M22 optional library branch can now be scoped around a curated public
