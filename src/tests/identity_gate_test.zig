@@ -179,3 +179,21 @@ test "M21 docs keep simulator-first teaching polish bounded to three anchors" {
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "Linux-performance") != null);
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "group-fairness") == null);
 }
+
+test "M22 docs keep the library branch optional and simulator-first" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+    const sdk_doc = try readFileAlloc(allocator, "docs/m22-library-sdk.md");
+    defer allocator.free(sdk_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "zig build m22-embed-smoke") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/m22-library-sdk.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "optional library branch") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "zig build m22-embed-smoke") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "stable subset") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "browser/WASM") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "M23-style") == null);
+}

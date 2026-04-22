@@ -1,6 +1,6 @@
 const std = @import("std");
 const analysis = @import("analysis_root");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 const matrix = @import("matrix.zig");
 
 pub const args = @import("args.zig");

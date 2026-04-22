@@ -511,6 +511,25 @@ shape:
 - README + project-status updates
 - deterministic TUI snapshot tests for picker/help plus the three anchors
 
+### M22 — [Optional library branch] library / SDK stabilization for embedders
+
+The M22 optional library branch can now be scoped around a curated public
+embedder facade rather than the repo's full internal root surface.
+
+The intended stable subset is documented in:
+
+- `docs/m22-library-sdk.md`
+
+The proof path for that branch is:
+
+```sh
+zig build m22-embed-smoke
+```
+
+This remains an optional branch. It does not re-charter the repo away from its
+simulator-first identity, and it does not imply browser, service, or packaging
+scope.
+
 ## Notes on implementation philosophy
 
 The guiding architecture rule so far has been:

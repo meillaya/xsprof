@@ -9,11 +9,20 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
-    const lib_mod = b.addModule("zig_scheduler", .{
+    const internal_mod = b.addModule("zig_scheduler_internal", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .imports = &.{
             .{ .name = "report_contract", .module = contract_mod },
+        },
+    });
+
+    const lib_mod = b.addModule("zig_scheduler", .{
+        .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "report_contract", .module = contract_mod },
+            .{ .name = "zig_scheduler_internal", .module = internal_mod },
         },
     });
 
@@ -29,7 +38,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/bench/root.zig"),
         .target = target,
         .imports = &.{
-            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "zig_scheduler_internal", .module = internal_mod },
             .{ .name = "analysis_root", .module = analysis_mod },
         },
     });
@@ -38,7 +47,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/report_pipeline/root.zig"),
         .target = target,
         .imports = &.{
-            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "zig_scheduler_internal", .module = internal_mod },
             .{ .name = "analysis_root", .module = analysis_mod },
             .{ .name = "bench_root", .module = bench_mod },
         },
@@ -48,7 +57,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/tui/root.zig"),
         .target = target,
         .imports = &.{
-            .{ .name = "zig_scheduler", .module = lib_mod },
+            .{ .name = "zig_scheduler_internal", .module = internal_mod },
             .{ .name = "analysis_root", .module = analysis_mod },
         },
     });
@@ -60,7 +69,6 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zig_scheduler", .module = lib_mod },
                 .{ .name = "tui_root", .module = tui_mod },
             },
         }),
@@ -70,6 +78,18 @@ pub fn build(b: *std.Build) void {
         .name = "zig-scheduler-sim",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/sim_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zig_scheduler_internal", .module = internal_mod },
+            },
+        }),
+    });
+
+    const embed_smoke_exe = b.addExecutable(.{
+        .name = "zig-scheduler-m22-embed-smoke",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/examples/m22_embed_smoke.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
@@ -131,6 +151,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(analysis_exe);
     b.installArtifact(bench_exe);
     b.installArtifact(tui_exe);
+    b.installArtifact(embed_smoke_exe);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -185,10 +206,19 @@ pub fn build(b: *std.Build) void {
     const report_pipeline_step = b.step("reports", "Regenerate the curated reproducible report artifacts");
     report_pipeline_step.dependOn(&report_pipeline_cmd.step);
 
+    const embed_smoke_cmd = b.addRunArtifact(embed_smoke_exe);
+    const embed_smoke_step = b.step("m22-embed-smoke", "Run the M22 embedding smoke example against the curated public module");
+    embed_smoke_step.dependOn(&embed_smoke_cmd.step);
+
     const lib_tests = b.addTest(.{
         .root_module = lib_mod,
     });
     const run_lib_tests = b.addRunArtifact(lib_tests);
+
+    const internal_tests = b.addTest(.{
+        .root_module = internal_mod,
+    });
+    const run_internal_tests = b.addRunArtifact(internal_tests);
 
     const analysis_tests = b.addTest(.{
         .root_module = analysis_mod,
@@ -222,6 +252,7 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run library, analysis, benchmark, report-pipeline, main-entry, simulator CLI, and TUI tests");
     test_step.dependOn(&run_lib_tests.step);
+    test_step.dependOn(&run_internal_tests.step);
     test_step.dependOn(&run_analysis_tests.step);
     test_step.dependOn(&run_bench_tests.step);
     test_step.dependOn(&run_report_pipeline_tests.step);

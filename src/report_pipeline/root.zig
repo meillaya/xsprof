@@ -1,7 +1,7 @@
 const std = @import("std");
 const analysis = @import("analysis_root");
 const bench = @import("bench_root");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 
 pub const ArtifactKind = enum {
     example_export_json,

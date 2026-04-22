@@ -1,5 +1,5 @@
 const std = @import("std");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 const analysis = @import("analysis_root");
 const args_mod = @import("args.zig");
 const term_mod = @import("terminal.zig");

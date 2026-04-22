@@ -22,6 +22,7 @@ pub const AggregateMetrics = types.AggregateMetrics;
 pub const BuiltinScenario = scenario.BuiltinScenario;
 pub const BuiltinScenarioMeta = scenario.BuiltinScenarioMeta;
 pub const CoreId = types.CoreId;
+pub const DomainSpec = types.DomainSpec;
 pub const GroupSpec = types.GroupSpec;
 pub const PolicyKind = types.PolicyKind;
 pub const PolicyName = types.PolicyName;

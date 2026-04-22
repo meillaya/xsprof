@@ -1,5 +1,5 @@
 const std = @import("std");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 
 pub const InputSource = union(enum) {
     picker,

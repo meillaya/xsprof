@@ -95,6 +95,16 @@ zig build reports
 zig build reports -- --output-dir zig-out/m16-smoke
 ```
 
+Library / SDK stabilization (M22):
+
+```sh
+zig build m22-embed-smoke
+```
+
+The stable embedder subset is documented in:
+
+- `docs/m22-library-sdk.md`
+
 Linux observability fixtures (M19):
 
 - committed fixtures live under `fixtures/linux-observability/`
@@ -204,6 +214,7 @@ Other useful docs:
 - `docs/m19-curated-linux-observability.md`
 - `docs/m20-simulator-to-trace-comparison.md`
 - `docs/m21-simulator-first-teaching-surface.md`
+- `docs/m22-library-sdk.md`
 - `docs/labs/simulator-teaching-pack.md`
 - `docs/m17-scenario-corpus.md`
 - `docs/m16-report-pipeline.md`

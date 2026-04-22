@@ -1,5 +1,5 @@
 const std = @import("std");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 
 pub fn runWithArgs(allocator: std.mem.Allocator, args: []const []const u8) !void {
     const options = try scheduler.cli.parseArgs(args);

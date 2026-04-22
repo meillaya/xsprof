@@ -1,6 +1,6 @@
 const std = @import("std");
 const analysis = @import("analysis_root");
-const scheduler = @import("zig_scheduler");
+const scheduler = @import("zig_scheduler_internal");
 
 pub const Report = analysis.model.Report;
 pub const TraceEntry = analysis.model.TraceEntry;
