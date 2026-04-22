@@ -313,6 +313,8 @@ fn handleChar(app: *App, ch: u8, size: term_mod.Size) !bool {
         'k' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, -1),
         'd' => if (app.domain_mode == .simulator and (app.view != .explorer or contract.tier != .too_small)) try toggleDiff(app, contract),
         's' => if (app.domain_mode == .simulator) togglePicker(app),
+        'm' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerM19(app),
+        'c' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerM20(app),
         'w' => app.theme = if (app.theme == .dark) .light else .dark,
         '?' => {
             if (contract.help_mode != .disabled or app.view == .help) {
@@ -423,6 +425,16 @@ fn openPickerSelection(app: *App) !void {
     const entry = app.picker_entries[app.picker_index];
     try loadSimulation(app, .{ .file = entry.scenario_key }, entry.policy);
     app.view = .explorer;
+}
+
+fn openPickerM19(app: *App) !void {
+    try loadObservabilityFixture(app, scheduler.observability.default_manifest_path);
+    app.view = .observability_summary;
+}
+
+fn openPickerM20(app: *App) !void {
+    try loadObservabilityComparison(app, scheduler.observability_comparison.default_pairing_manifest_path);
+    app.view = .observability_comparison;
 }
 
 fn cyclePickerPolicy(app: *App) void {
@@ -1033,6 +1045,30 @@ test "observability lane keeps simulator-only picker and diff shortcuts disabled
     defer std.testing.allocator.free(help);
     try std.testing.expect(std.mem.indexOf(u8, help, "observability-only lane") != null);
     try std.testing.expect(std.mem.indexOf(u8, help, "policy diff") == null);
+}
+
+test "picker shortcuts open M19 and M20 observability lanes" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    app.view = .picker;
+
+    _ = try handleChar(&app, 'm', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(DomainMode.observability_summary, app.domain_mode);
+    try std.testing.expectEqual(View.observability_summary, app.view);
+    try std.testing.expect(app.summary() != null);
+
+    app.domain_mode = .simulator;
+    app.view = .picker;
+    clearObservabilityState(&app);
+
+    _ = try handleChar(&app, 'c', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(DomainMode.observability_comparison, app.domain_mode);
+    try std.testing.expectEqual(View.observability_comparison, app.view);
+    try std.testing.expect(app.comparison() != null);
 }
 
 test "snapshot rejects out of range tick" {

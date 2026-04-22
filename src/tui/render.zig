@@ -670,7 +670,7 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
                 "tab enter d ? q"
             else
                 "← → scrub  j k task  tab pane  space play  d diff  s open  ? help  q quit",
-            .picker => "↑ ↓ select  ↵ open  p policy  w theme  ? help  q quit",
+            .picker => "↑ ↓ select  ↵ open  p policy  m m19  c m20  w theme  ? help  q quit",
             .drawer => if (contract.tier == .compact) "esc back  d diff  ? help  q quit" else "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
             .diff => if (contract.tier == .compact) "d exit diff  ? help  q quit" else "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
             .observability_summary => "w theme  ? help  q quit",
@@ -1298,7 +1298,7 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
         .{ .title = "NAVIGATION", .rows = &.{ .{ "←  →", "scrub one tick" }, .{ "home / end", "first / last tick" }, .{ "space", "play / pause" } } },
         .{ .title = "SELECTION", .rows = &.{ .{ "j  k", "select next / previous task" }, .{ "esc", "clear or close" }, .{ "enter", "open task detail drawer" } } },
         .{ .title = "PANES", .rows = &.{ .{ "tab", "cycle pane focus" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
-        .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "q", "quit" } } },
+        .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "m / c", "open M19 / M20 from picker" }, .{ "q", "quit" } } },
     };
     const observability_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "esc", "close help" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
@@ -1849,6 +1849,10 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
         "pack        core/basic",
         "dir         scenarios/basic",
         "regressions scenarios/regressions",
+        "",
+        "picker shortcuts:",
+        "m           open M19 observability lane",
+        "c           open M20 comparison lane",
         "",
         "load any exported report:",
         "zig build sim -- --scenario-file <path> --format json | zig-out/bin/zig-scheduler --stdin --snapshot",
