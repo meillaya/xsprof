@@ -37,6 +37,8 @@ test "M19 support matrix rejects unapproved tuple changes" {
     var matrix = try observability.loadSupportMatrix(std.testing.allocator, observability.support_matrix_path);
     defer matrix.deinit();
 
+    try std.testing.expectEqual(@as(usize, 1), matrix.value.approved_tuples.len);
+
     const sched_events = [_][]const u8{
         "sched_switch",
         "sched_wakeup",
@@ -111,7 +113,7 @@ test "M19 docs and fixture surfaces stay separated from simulator-native scenari
     defer allocator.free(fixture_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "fixtures/linux-observability/") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "does not widen `zig-scheduler/report`") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "widening `zig-scheduler/report` or `src/analysis`") != null);
     try std.testing.expect(std.mem.indexOf(u8, m19_doc, "tracefs-sched-snapshot") != null);
     try std.testing.expect(std.mem.indexOf(u8, m19_doc, "perf sched") != null);
     try std.testing.expect(std.mem.indexOf(u8, fixture_doc, "offline, observability-only") != null);

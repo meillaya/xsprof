@@ -174,6 +174,5 @@ Other useful docs:
 - `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`
 - `docs/m13-property-testing.md`
-- `docs/m19-curated-linux-observability.md`
 - `docs/adr/0001-m5-project-identity.md`
 - `docs/adr/0002-m18-linux-observability-gate.md`

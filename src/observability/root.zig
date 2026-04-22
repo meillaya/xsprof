@@ -142,7 +142,7 @@ pub fn loadSupportMatrix(allocator: std.mem.Allocator, path: []const u8) !std.js
     if (!std.mem.eql(u8, parsed.value.schema, support_matrix_schema) or parsed.value.version != 1) {
         return Error.UnsupportedSchema;
     }
-    if (parsed.value.approved_tuples.len == 0) return Error.InvalidSupportMatrix;
+    if (parsed.value.approved_tuples.len != 1) return Error.InvalidSupportMatrix;
 
     return parsed;
 }
