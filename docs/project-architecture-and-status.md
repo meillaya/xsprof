@@ -289,6 +289,45 @@ The project now documents and tests a stable extension boundary:
 - policy extension remains routed through the scheduling-class boundary
 - core behavior stays operable without optional extras
 
+### M15 — interactive TUI trace explorer
+
+The repo now includes a local interactive trace explorer plus explicit
+snapshot rendering. The default `zig-scheduler` entrypoint is TUI-first, while
+the dedicated `zig-scheduler-tui` binary remains available for direct launch.
+
+### M16 — reproducible lab notebooks / report pipeline
+
+M16 now provides one canonical regeneration path for the committed export,
+analysis, benchmark, and notebook artifacts:
+
+```sh
+zig build reports
+```
+
+### M17 — scenario corpus expansion and curriculum-grade examples
+
+M17 adds an explicit canonical scenario corpus on top of the existing fixture
+set. The core pack identifies curriculum-grade scenarios with stable metadata
+(theme, explanation doc, recommended policy, demo/regression role), and the
+repo documents the corpus in `docs/m17-scenario-corpus.md`.
+
+### M18 — Linux-observability planning gate
+
+M18 approved the narrow charter in `docs/adr/0002-m18-linux-observability-gate.md`.
+The repo still treats Linux observability as a separate bounded branch rather
+than a simulator-mainline feature.
+
+### M19 — curated Linux-observability snapshots
+
+M19 now implements the first approved offline import cut under that gate.
+
+### M20 — simulator-to-trace comparison summary
+
+M20 now implements the approved narrow comparison cut between one committed
+simulator pairing and one committed M19 fixture family, using a separate
+`zig-scheduler/observability-comparison` v1 payload that remains outside the
+main simulator export/report surfaces.
+
 ## Building, running, and testing
 
 ### Build
@@ -354,62 +393,26 @@ At this point, the project has achieved:
 - fairness, deadline, group, and topology teaching surfaces
 - a deterministic scenario generator/shrinker/property harness
 - a documented extension boundary for future packs and policy families
+- a TUI-first local trace explorer with deterministic snapshot rendering
+- a canonical report-regeneration path for committed teaching artifacts
+- an explicit curriculum-grade scenario corpus for demos and regression use
+- a bounded offline Linux-observability import branch plus a separate M20
+  comparison contract
 
 In short: the repo has moved from a minimal teaching simulator into a
-well-structured scheduling laboratory with explicit scope boundaries.
+well-structured scheduling laboratory with explicit scope boundaries, a
+stronger local teaching surface, and a still-bounded Linux-observability side
+branch.
 
-## Next major milestones
+## Current milestone status
 
-### M15 — interactive TUI trace explorer
+As of 2026-04-22, the implemented milestone picture is:
 
-Add a local interactive trace explorer that can inspect representative runs
-without replacing the export/report path.
-
-### M16 — reproducible lab notebooks / report pipeline
-
-M16 adds one canonical regeneration path for the curated report pack:
-
-```sh
-zig build reports
-```
-
-That command regenerates:
-
-- `docs/examples/exports/multicore-contention-fcfs.report.json`
-- `docs/examples/analysis/multicore-contention-fcfs.md`
-- `docs/examples/analysis/multicore-contention-fcfs.svg`
-- `docs/benchmarks/m45-baselines.md`
-- `docs/benchmarks/m45-baselines.json`
-- `docs/labs/reproducible-report-pack.md`
-
-The intent is to keep teaching/research artifacts reproducible from committed
-fixtures with one repo-native path, while preserving the simulator-local
-wording and deterministic contract checks established by earlier milestones.
-
-### M17 — scenario corpus expansion and curriculum-grade examples
-
-M17 adds an explicit canonical scenario corpus on top of the existing fixture
-set. The core pack now identifies curriculum-grade scenarios with stable
-metadata (theme, explanation doc, recommended policy, demo/regression role),
-and the repo documents the corpus in `docs/m17-scenario-corpus.md`.
-
-The canonical scenarios cover:
-
-- convoy effects (`short-vs-long`)
-- bursty blocked/wakeup and phased I/O (`sleep-wakeup`, `multi-phase-io`)
-- starvation pressure (`starvation-pressure`)
-- deterministic multicore rebalancing (`multicore-balancing`)
-- topology-aware placement (`topology-domains`)
-- plus deadline, group-fairness, and latency/fairness comparison examples
-
-The intent is to make the scenario corpus usable both as a teaching/demo lane
-and as a stable automated regression surface.
-
-### M18 — Linux-observability planning gate
-
-M18 approved the narrow charter in `docs/adr/0002-m18-linux-observability-gate.md`.
-The repo still treats Linux observability as a separate bounded branch rather
-than a simulator-mainline feature.
+- the mainline simulator branch is implemented through **M17**
+- the Linux-observability branch approved by **M18** is implemented through
+  **M20**
+- the current proof surface is green under `zig build test --summary all` and
+  `zig build reports -- --check`
 
 ### M19 — curated Linux-observability snapshots
 
@@ -441,12 +444,12 @@ Proof surfaces for this branch now live in:
 - `src/observability/root.zig`
 - `src/tests/linux_observability_test.zig`
 
-### M20 — simulator-to-trace comparison summary (approved next cut)
+### M20 — simulator-to-trace comparison summary
 
-M20 is the approved next Linux-facing milestone, but it remains intentionally
-narrow and separate from the simulator export/report mainline.
+M20 now implements the approved next Linux-facing cut, but it remains
+intentionally narrow and separate from the simulator export/report mainline.
 
-The approved M20 boundary is:
+The implemented M20 boundary is:
 - one simulator scenario + policy pairing only (`sleep-wakeup` + `cfs_like`)
 - one M19 fixture manifest only
 - one committed pairing manifest only
@@ -459,10 +462,42 @@ M20 still must not:
 - claim replay fidelity, kernel accuracy, calibration authority, or Linux-performance meaning
 - add task↔PID identity matching or raw event-by-event alignment
 
-Approved proof/documentation surfaces for this cut are:
+Implemented proof/documentation surfaces for this cut are:
 - `docs/m20-simulator-to-trace-comparison.md`
 - `src/observability/comparison.zig`
 - `src/tests/observability_comparison_test.zig`
+
+## Next recommended milestone
+
+### M21 — [Optional distribution branch] simulator-first teaching surface polish
+
+The recommended next cut is to deepen the repo's local teaching/demo lane
+without changing the simulator-first truth of the project.
+
+Goal:
+- make the existing CLI, TUI, snapshot, and report surfaces easier to teach,
+  demo, and review from committed fixtures
+
+Recommended scope:
+- stronger walkthrough/docs coverage for the canonical M17 scenarios
+- more deterministic snapshot/golden surfaces for the TUI path
+- clearer local demo playbooks for instructors, reviewers, and contributors
+- repo-native teaching artifacts that remain reproducible from committed inputs
+
+This milestone should preserve the current boundaries:
+- no browser/WASM path as a required or default surface
+- no widening of `zig-scheduler/report` or `src/analysis/*`
+- no change to the M19/M20 observability-only proof boundary
+- no Linux-performance, replay-fidelity, or calibration claims
+- no packaging/courseware expansion beyond repo-native docs/artifacts; that
+  remains later M23-scale work
+
+Planned proof surfaces for this route should stay close to the current repo
+shape:
+- `docs/m21-simulator-first-teaching-surface.md`
+- README + project-status updates
+- deterministic TUI snapshot tests or committed snapshot artifacts for selected
+  canonical scenarios
 
 ## Notes on implementation philosophy
 
@@ -505,7 +540,7 @@ from scratch in an evidence-based way.
   - e.g. QuickCheck-style generator/shrinker design references
   - required for designing useful generators, shrinkers, and invariant suites
 - **TUI design/accessibility references**
-  - required for M15 and later interactive teaching surfaces
+  - required for M15 and the recommended M21 teaching-surface polish work
 
 When extending the repo, prefer official docs, seminal scheduler papers, and
 the repo’s own committed fixtures/contracts before adding new abstractions.

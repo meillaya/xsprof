@@ -171,6 +171,7 @@ Other useful docs:
 - `docs/phase1-simulator.md`
 - `docs/m19-curated-linux-observability.md`
 - `docs/m20-simulator-to-trace-comparison.md`
+- `docs/m21-simulator-first-teaching-surface.md`
 - `docs/m17-scenario-corpus.md`
 - `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`

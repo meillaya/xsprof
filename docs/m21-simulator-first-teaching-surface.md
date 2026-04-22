@@ -1,0 +1,59 @@
+# M21 simulator-first teaching surface polish
+
+M21 is the recommended next optional distribution/teaching cut after the now-
+implemented M15-M20 surfaces.
+
+## Intent
+
+Strengthen the repo's local teaching/demo experience without changing the
+project's simulator-first identity.
+
+This milestone is intentionally about **making existing local surfaces easier
+to use well**, not about introducing a new platform requirement.
+
+## Target outcome
+
+A contributor, reviewer, or instructor should be able to:
+- pick a canonical M17 scenario quickly
+- run the relevant CLI/TUI command locally
+- inspect a deterministic snapshot or report artifact
+- follow a short walkthrough explaining what to look for
+- reproduce the same output from committed inputs
+
+## Recommended scope
+
+- expand walkthrough-style documentation for the strongest teaching fixtures
+- add or strengthen deterministic TUI snapshot/golden proof surfaces
+- make local demo commands easier to discover from README/docs
+- keep the canonical scenario corpus connected to the TUI/snapshot/report lanes
+- prefer committed fixtures and deterministic artifacts over ad hoc examples
+
+## Explicit non-goals
+
+M21 should **not** become:
+- a browser-first or WASM-required interface
+- a replacement for the existing CLI/TUI/report boundaries
+- a Linux-facing expansion beyond the approved M19/M20 observability branch
+- a replay-fidelity, calibration, or Linux-performance effort
+- a packaging/courseware milestone beyond repo-native artifacts and docs
+
+## Expected proof surfaces
+
+The proof shape for this cut should stay small and auditable:
+- README updates that point users at the right local demo paths
+- `docs/project-architecture-and-status.md` alignment
+- deterministic TUI snapshot tests and/or committed snapshot artifacts
+- fixture-specific walkthrough docs for selected canonical scenarios
+
+## Why this is the recommended next route
+
+The codebase already has the hard parts of the local teaching loop:
+- deterministic simulator core
+- committed canonical fixtures
+- TUI + snapshot rendering
+- report/analysis regeneration pipeline
+- bounded observability branch that does not need widening right now
+
+The highest-value next step is therefore to make those existing surfaces easier
+to teach and review, rather than to add a new runtime or widen the Linux-facing
+branch.

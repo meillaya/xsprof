@@ -511,20 +511,22 @@ Compare simulated behavior with imported traces as an educational calibration ex
 **Preferred execution mode**
 - `$team`.
 
-### M21 — [Optional distribution branch] WASM/web visualization branch
+### M21 — [Optional distribution branch] simulator-first teaching surface polish
 **Goal**
-Expose analysis/teaching artifacts in a browser-friendly way.
+Strengthen the repo's local teaching/demo surface around the existing CLI, TUI,
+snapshot, and report paths.
 
 **Acceptance criteria**
-- Web surface is an explicit branch, not an accidental requirement for core development.
-- Export contract remains the integration boundary.
-- Local CLI/TUI workflows remain first-class.
+- Canonical scenarios have clearer walkthrough/demo coverage.
+- Deterministic TUI snapshot or golden proof surfaces exist for selected teaching cases.
+- README/docs make the local teaching path easier to follow without hiding simulator truth.
+- Local CLI/TUI workflows remain first-class and no browser/WASM path becomes required.
 
 **Dependencies**
-- M4, M16, and M5 approval.
+- M15, M16, M17, and M5 approval.
 
 **Preferred execution mode**
-- `$team`.
+- docs-heavy `$team` or `ralph`.
 
 ### M22 — [Optional library branch] library / SDK stabilization for embedders
 **Goal**
