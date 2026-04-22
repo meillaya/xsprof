@@ -39,9 +39,11 @@ test "M18 ADR is linked from README and roadmap and keeps observability offline-
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0002-m18-linux-observability-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/adr/0002-m18-linux-observability-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "not live capture") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "tooling automation, replay, or Linux-performance claims") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "tooling automation, replay") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "Linux-performance claims") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "offline snapshot fixtures only") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "M19 remains blocked") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/m19-curated-linux-observability.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "M19 now executes only inside the milestone-specific PRD/test-spec boundary") != null);
 }
 
 test "M5 track classification is explicit" {
