@@ -12,13 +12,16 @@ pub const parseArgs = args_mod.parseArgs;
 
 pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
     try writer.print(
-        "usage: {s} [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n\ninteractive mode requires a real TTY\nsnapshot mode is explicit and requires a report-producing source\n",
+        "usage: {s} [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy> | --m19 | --m19-manifest <path> | --m20 | --m20-pairing <path>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n\ninteractive mode requires a real TTY\nsnapshot mode is explicit and requires a report-producing source or an explicit M19/M20 selection\n",
         .{exe_name},
     );
 }
 
 const ParsedReport = std.json.Parsed(analysis.model.Report);
+const LoadedFixture = scheduler.observability.LoadedFixture;
+const ComparisonSummary = scheduler.observability_comparison.ComparisonSummary;
 
+const DomainMode = render.DomainMode;
 const PickerEntry = render.PickerEntry;
 const AppView = render.AppView;
 const ThemeKind = render.ThemeKind;
@@ -34,6 +37,9 @@ const App = struct {
     allocator: std.mem.Allocator,
     current_report: ?ParsedReport = null,
     compare_report: ?ParsedReport = null,
+    observability_fixture: ?LoadedFixture = null,
+    observability_comparison: ?ComparisonSummary = null,
+    domain_mode: DomainMode = .simulator,
     view: View = .picker,
     theme: ThemeKind = .dark,
     focus: PaneFocus = .gantt,
@@ -48,18 +54,30 @@ const App = struct {
     fn deinit(self: *App) void {
         if (self.current_report) |*parsed| parsed.deinit();
         if (self.compare_report) |*parsed| parsed.deinit();
+        if (self.observability_fixture) |*fixture| fixture.deinit(self.allocator);
+        if (self.observability_comparison) |*loaded_comparison| loaded_comparison.deinit(self.allocator);
         for (self.history.items) |entry| self.allocator.free(entry);
         self.history.deinit(self.allocator);
         self.allocator.free(self.picker_entries);
     }
 
-    fn report(self: *App) ?*const analysis.model.Report {
+    fn report(self: *const App) ?*const analysis.model.Report {
         if (self.current_report) |*parsed| return &parsed.value;
         return null;
     }
 
-    fn compare(self: *App) ?*const analysis.model.Report {
+    fn compare(self: *const App) ?*const analysis.model.Report {
         if (self.compare_report) |*parsed| return &parsed.value;
+        return null;
+    }
+
+    fn summary(self: *const App) ?*const scheduler.observability.ObservabilitySummary {
+        if (self.observability_fixture) |*fixture| return &fixture.summary;
+        return null;
+    }
+
+    fn comparison(self: *const App) ?*const ComparisonSummary {
+        if (self.observability_comparison) |*loaded_comparison| return loaded_comparison;
         return null;
     }
 };
@@ -158,6 +176,7 @@ fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
     switch (options.input_source) {
         .picker => {
             if (!stdin_is_tty) return error.NonTtyPickerRequiresSnapshot;
+            app.domain_mode = .simulator;
             app.view = .picker;
         },
         .input_file => |path| {
@@ -180,11 +199,28 @@ fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
             try loadSimulation(app, .{ .file = path }, options.policy.?);
             app.view = .explorer;
         },
+        .m19_default => {
+            try loadObservabilityFixture(app, scheduler.observability.default_manifest_path);
+            app.view = .observability_summary;
+        },
+        .m19_manifest => |path| {
+            try loadObservabilityFixture(app, path);
+            app.view = .observability_summary;
+        },
+        .m20_default => {
+            try loadObservabilityComparison(app, scheduler.observability_comparison.default_pairing_manifest_path);
+            app.view = .observability_comparison;
+        },
+        .m20_pairing => |path| {
+            try loadObservabilityComparison(app, path);
+            app.view = .observability_comparison;
+        },
     }
 }
 
 fn appView(app: *App) AppView {
     return .{
+        .domain_mode = app.domain_mode,
         .theme = app.theme,
         .view = app.view,
         .focus = app.focus,
@@ -194,6 +230,8 @@ fn appView(app: *App) AppView {
         .playing = app.playing,
         .report = app.report(),
         .compare_report = app.compare(),
+        .observability_summary = app.summary(),
+        .observability_comparison = app.comparison(),
         .picker_entries = app.picker_entries,
         .history = app.history.items,
     };
@@ -208,15 +246,25 @@ fn validateTerminalMode(options: Options, stdin_is_tty: bool, stdout_is_tty: boo
 
 fn renderSnapshotAlloc(allocator: std.mem.Allocator, app: *App, options: Options) ![]u8 {
     if (options.input_source == .picker) return error.InvalidArguments;
-    const report = app.report() orelse return error.InvalidArguments;
-    if (options.snapshot_tick) |tick| {
-        const end = lastTick(report);
-        if (tick > end) return error.InvalidArguments;
-        app.cursor = tick;
-    } else {
-        app.cursor = 0;
+    switch (app.domain_mode) {
+        .simulator => {
+            const report = app.report() orelse return error.InvalidArguments;
+            if (options.snapshot_tick) |tick| {
+                const end = lastTick(report);
+                if (tick > end) return error.InvalidArguments;
+                app.cursor = tick;
+            } else {
+                app.cursor = 0;
+            }
+            app.view = .explorer;
+        },
+        .observability_summary => {
+            app.view = .observability_summary;
+        },
+        .observability_comparison => {
+            app.view = .observability_comparison;
+        },
     }
-    app.view = .explorer;
     app.playing = false;
     return try render.renderSnapshotFrame(allocator, options.snapshot_width, options.snapshot_height, appView(app));
 }
@@ -235,19 +283,21 @@ fn normalizeLayoutState(app: *App, size: term_mod.Size) void {
 fn handleEvent(app: *App, event: term_mod.Event, size: term_mod.Size) !bool {
     const contract = activeContract(app, size);
     switch (event) {
-        .left => moveCursor(app, -1),
-        .right => moveCursor(app, 1),
-        .up => try moveSelection(app, -1, contract),
-        .down => try moveSelection(app, 1, contract),
-        .home => app.cursor = 0,
-        .end => {
+        .left => if (app.domain_mode == .simulator) moveCursor(app, -1),
+        .right => if (app.domain_mode == .simulator) moveCursor(app, 1),
+        .up => if (app.domain_mode == .simulator) try moveSelection(app, -1, contract),
+        .down => if (app.domain_mode == .simulator) try moveSelection(app, 1, contract),
+        .home => {
+            if (app.domain_mode == .simulator) app.cursor = 0;
+        },
+        .end => if (app.domain_mode == .simulator) {
             if (app.report()) |report| app.cursor = lastTick(report);
         },
         .enter => try handleEnter(app, contract),
         .tab => cycleFocus(app, contract),
         .backtab => cycleFocusReverse(app, contract),
         .space => {
-            if (app.view == .explorer and contract.tier != .too_small) app.playing = !app.playing;
+            if (app.domain_mode == .simulator and app.view == .explorer and contract.tier != .too_small) app.playing = !app.playing;
         },
         .escape => handleEscape(app),
         else => {},
@@ -259,17 +309,17 @@ fn handleChar(app: *App, ch: u8, size: term_mod.Size) !bool {
     const contract = activeContract(app, size);
     switch (ch) {
         'q' => return true,
-        'j' => if (contract.tier != .too_small) try moveTask(app, 1),
-        'k' => if (contract.tier != .too_small) try moveTask(app, -1),
-        'd' => if (app.view != .explorer or contract.tier != .too_small) try toggleDiff(app, contract),
-        's' => togglePicker(app),
+        'j' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, 1),
+        'k' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, -1),
+        'd' => if (app.domain_mode == .simulator and (app.view != .explorer or contract.tier != .too_small)) try toggleDiff(app, contract),
+        's' => if (app.domain_mode == .simulator) togglePicker(app),
         'w' => app.theme = if (app.theme == .dark) .light else .dark,
         '?' => {
             if (contract.help_mode != .disabled or app.view == .help) {
-                app.view = if (app.view == .help) if (app.report() != null) .explorer else .picker else .help;
+                app.view = if (app.view == .help) primaryView(app) else .help;
             }
         },
-        'p' => if (app.view == .picker) cyclePickerPolicy(app),
+        'p' => if (app.domain_mode == .simulator and app.view == .picker) cyclePickerPolicy(app),
         else => {},
     }
     return false;
@@ -319,20 +369,20 @@ fn handleEnter(app: *App, contract: render.ViewLayoutContract) !void {
         .explorer => {
             if (contract.can_enter_drawer and app.selected_task_index != null) app.view = .drawer;
         },
-        .drawer => {},
-        .diff => {},
-        .help => app.view = if (app.report() != null) .explorer else .picker,
+        .drawer, .diff, .observability_summary, .observability_comparison => {},
+        .help => app.view = primaryView(app),
     }
 }
 
 fn handleEscape(app: *App) void {
     switch (app.view) {
-        .help => app.view = if (app.report() != null) .explorer else .picker,
+        .help => app.view = primaryView(app),
         .drawer, .diff => app.view = .explorer,
         .picker => {
-            if (app.report() != null) app.view = .explorer;
+            if (app.domain_mode == .simulator and app.report() != null) app.view = .explorer;
         },
         .explorer => app.selected_task_index = null,
+        .observability_summary, .observability_comparison => {},
     }
 }
 
@@ -350,6 +400,7 @@ fn togglePicker(app: *App) void {
 }
 
 fn toggleDiff(app: *App, contract: render.ViewLayoutContract) !void {
+    if (app.domain_mode != .simulator) return;
     if (app.view == .diff) {
         app.view = .explorer;
         return;
@@ -358,6 +409,14 @@ fn toggleDiff(app: *App, contract: render.ViewLayoutContract) !void {
     if (app.report() == null) return;
     try ensureCompareReport(app);
     if (app.compare() != null) app.view = .diff;
+}
+
+fn primaryView(app: *const App) View {
+    return switch (app.domain_mode) {
+        .simulator => if (app.report() != null) .explorer else .picker,
+        .observability_summary => .observability_summary,
+        .observability_comparison => .observability_comparison,
+    };
 }
 
 fn openPickerSelection(app: *App) !void {
@@ -380,12 +439,10 @@ fn cyclePickerPolicy(app: *App) void {
 }
 
 fn loadReportBytes(app: *App, bytes: []const u8) !void {
-    if (app.current_report) |*parsed| parsed.deinit();
+    clearSimulatorState(app);
+    clearObservabilityState(app);
     app.current_report = try analysis.model.parseReport(app.allocator, bytes);
-    if (app.compare_report) |*parsed| {
-        parsed.deinit();
-        app.compare_report = null;
-    }
+    app.domain_mode = .simulator;
     app.cursor = 0;
     app.selected_task_index = if (app.current_report.?.value.tasks.len > 0) 0 else null;
     app.source = switch (app.current_report.?.value.source.kind) {
@@ -422,7 +479,57 @@ fn loadSimulation(app: *App, source: PickerSource, policy: scheduler.PolicyKind)
     app.source = source;
 }
 
+fn loadObservabilityFixture(app: *App, manifest_path: []const u8) !void {
+    clearSimulatorState(app);
+    clearObservabilityState(app);
+    app.observability_fixture = try scheduler.observability.loadFixture(app.allocator, manifest_path);
+    app.domain_mode = .observability_summary;
+    app.source = null;
+    app.cursor = 0;
+    app.selected_task_index = null;
+    const summary = &app.observability_fixture.?.summary;
+    const label = try std.fmt.allocPrint(app.allocator, "· M19 · {s}", .{summary.fixture_name});
+    errdefer app.allocator.free(label);
+    try appendHistory(app, label);
+}
+
+fn loadObservabilityComparison(app: *App, pairing_manifest_path: []const u8) !void {
+    clearSimulatorState(app);
+    clearObservabilityState(app);
+    app.observability_comparison = try scheduler.observability_comparison.buildApprovedComparison(app.allocator, pairing_manifest_path);
+    app.domain_mode = .observability_comparison;
+    app.source = null;
+    app.cursor = 0;
+    app.selected_task_index = null;
+    const label = try std.fmt.allocPrint(app.allocator, "· M20 · {s}", .{app.observability_comparison.?.pairing_id});
+    errdefer app.allocator.free(label);
+    try appendHistory(app, label);
+}
+
+fn clearSimulatorState(app: *App) void {
+    if (app.current_report) |*parsed| {
+        parsed.deinit();
+        app.current_report = null;
+    }
+    if (app.compare_report) |*parsed| {
+        parsed.deinit();
+        app.compare_report = null;
+    }
+}
+
+fn clearObservabilityState(app: *App) void {
+    if (app.observability_fixture) |*fixture| {
+        fixture.deinit(app.allocator);
+        app.observability_fixture = null;
+    }
+    if (app.observability_comparison) |*comparison| {
+        comparison.deinit(app.allocator);
+        app.observability_comparison = null;
+    }
+}
+
 fn ensureCompareReport(app: *App) !void {
+    if (app.domain_mode != .simulator) return;
     if (app.compare_report != null) return;
     const report = app.report() orelse return;
     const compare_policy = switch (report.policy.kind) {
@@ -613,6 +720,16 @@ test "interactive runtime rejects missing tty for explicit sources" {
         .input_source = .{ .input_file = "docs/examples/exports/multicore-contention-fcfs.report.json" },
         .runtime_mode = .snapshot,
     }, false, false);
+    try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
+        .input_source = .m19_default,
+    }, false, true));
+    try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
+        .input_source = .m20_default,
+    }, true, false));
+    try validateTerminalMode(.{
+        .input_source = .m19_default,
+        .runtime_mode = .snapshot,
+    }, false, false);
 }
 
 test "usage text mentions explicit snapshot mode" {
@@ -622,6 +739,8 @@ test "usage text mentions explicit snapshot mode" {
     try writeUsage(&writer, "zig-scheduler-tui");
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--snapshot") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--width") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--m19") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--m20") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "requires a real TTY") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-scheduler-tui") != null);
 }
@@ -834,6 +953,86 @@ test "snapshot render works from simulation path" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "cpu lanes") != null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "A") != null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "snapshot") != null);
+}
+
+test "M19 snapshot render is deterministic and observability-bounded" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    try loadObservabilityFixture(&app, scheduler.observability.default_manifest_path);
+    const options = Options{
+        .input_source = .m19_default,
+        .runtime_mode = .snapshot,
+        .snapshot_width = 120,
+        .snapshot_height = 40,
+    };
+    const first = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(first);
+    const second = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(second);
+
+    try std.testing.expectEqualStrings(first, second);
+    try std.testing.expect(std.mem.indexOf(u8, first, "linux observability summary") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "observability-only") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "not replay authority") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "policy diff") == null);
+}
+
+test "M20 snapshot render is deterministic and non-fidelity-bounded" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    try loadObservabilityComparison(&app, scheduler.observability_comparison.default_pairing_manifest_path);
+    const options = Options{
+        .input_source = .m20_default,
+        .runtime_mode = .snapshot,
+        .snapshot_width = 120,
+        .snapshot_height = 40,
+    };
+    const first = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(first);
+    const second = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+    defer std.testing.allocator.free(second);
+
+    try std.testing.expectEqualStrings(first, second);
+    try std.testing.expect(std.mem.indexOf(u8, first, "simulator-to-trace comparison") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "observability-only comparison") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "not replay or fidelity evidence") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first, "policy diff") == null);
+}
+
+test "observability lane keeps simulator-only picker and diff shortcuts disabled" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .picker_entries = try buildPickerEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    try loadObservabilityFixture(&app, scheduler.observability.default_manifest_path);
+    app.view = .observability_summary;
+
+    _ = try handleChar(&app, 'd', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(View.observability_summary, app.view);
+
+    _ = try handleChar(&app, 's', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(View.observability_summary, app.view);
+
+    _ = try handleChar(&app, '?', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(View.help, app.view);
+    handleEscape(&app);
+    try std.testing.expectEqual(View.observability_summary, app.view);
+
+    app.view = .help;
+    const help = try render.renderSnapshotFrame(std.testing.allocator, 120, 40, appView(&app));
+    defer std.testing.allocator.free(help);
+    try std.testing.expect(std.mem.indexOf(u8, help, "observability-only lane") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help, "policy diff") == null);
 }
 
 test "snapshot rejects out of range tick" {

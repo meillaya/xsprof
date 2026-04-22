@@ -321,12 +321,20 @@ than a simulator-mainline feature.
 
 M19 now implements the first approved offline import cut under that gate.
 
+The TUI can now open this surface explicitly via `--m19` / `--m19-manifest`,
+but it stays a separate observability-only lane rather than a widening of the
+simulator report or analysis contracts.
+
 ### M20 — simulator-to-trace comparison summary
 
 M20 now implements the approved narrow comparison cut between one committed
 simulator pairing and one committed M19 fixture family, using a separate
 `zig-scheduler/observability-comparison` v1 payload that remains outside the
 main simulator export/report surfaces.
+
+The TUI can now open this comparison explicitly via `--m20` / `--m20-pairing`,
+while keeping picker/explorer/diff simulator-only and preserving the
+observability-only, non-fidelity boundary.
 
 ## Building, running, and testing
 

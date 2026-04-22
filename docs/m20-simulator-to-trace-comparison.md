@@ -23,6 +23,7 @@ This milestone does **not**:
 
 - Pairing manifest: `fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json`
 - Contract: `zig-scheduler/observability-comparison` v1
+- TUI observability lane: `zig-out/bin/zig-scheduler --m20` or `--m20-pairing <path>`
 - Normalization mapping:
   - `activation` = simulator `arrival|wakeup` vs observability `sched_wakeup|sched_wakeup_new`
   - `selection` = simulator `dispatch` vs observability `sched_switch`

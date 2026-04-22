@@ -47,6 +47,7 @@ Unsupported tuples fail closed by default.
 - Fixture manifest: `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json`
 - Fixture payload: `fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace`
 - Support matrix: `fixtures/linux-observability/support-matrix.json`
+- TUI observability lane: `zig-out/bin/zig-scheduler --m19` or `--m19-manifest <path>`
 
 ## Summary boundary
 

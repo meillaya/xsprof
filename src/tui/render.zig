@@ -6,13 +6,23 @@ pub const Report = analysis.model.Report;
 pub const TraceEntry = analysis.model.TraceEntry;
 pub const TaskMetrics = analysis.model.TaskMetrics;
 pub const PolicyKind = scheduler.PolicyKind;
+pub const ObservabilitySummary = scheduler.observability.ObservabilitySummary;
+pub const ComparisonSummary = scheduler.observability_comparison.ComparisonSummary;
 
 pub const View = enum {
     picker,
     explorer,
     drawer,
     diff,
+    observability_summary,
+    observability_comparison,
     help,
+};
+
+pub const DomainMode = enum {
+    simulator,
+    observability_summary,
+    observability_comparison,
 };
 
 pub const PaneFocus = enum {
@@ -78,6 +88,7 @@ pub const PickerEntry = struct {
 };
 
 pub const AppView = struct {
+    domain_mode: DomainMode,
     theme: ThemeKind,
     view: View,
     focus: PaneFocus,
@@ -87,6 +98,8 @@ pub const AppView = struct {
     playing: bool,
     report: ?*const Report,
     compare_report: ?*const Report,
+    observability_summary: ?*const ObservabilitySummary,
+    observability_comparison: ?*const ComparisonSummary,
     picker_entries: []const PickerEntry,
     history: []const []const u8,
 };
@@ -228,6 +241,20 @@ pub fn viewContract(view: View, width: usize, height: usize, has_compare: bool) 
             },
         },
         .help => switch (tier) {
+            .compact => .{
+                .tier = .compact,
+                .help_mode = .fullscreen,
+            },
+            .too_small => .{
+                .tier = .too_small,
+                .help_mode = .disabled,
+            },
+            else => .{
+                .tier = tier,
+                .help_mode = .overlay,
+            },
+        },
+        .observability_summary, .observability_comparison => switch (tier) {
             .compact => .{
                 .tier = .compact,
                 .help_mode = .fullscreen,
@@ -511,6 +538,8 @@ fn renderFrameWithMode(allocator: std.mem.Allocator, width: usize, height: usize
         .explorer => renderExplorer(&canvas, app, theme, output_mode),
         .drawer => renderDrawer(&canvas, app, theme, output_mode),
         .diff => renderDiff(&canvas, app, theme, output_mode),
+        .observability_summary => renderObservabilitySummary(&canvas, app, theme, output_mode),
+        .observability_comparison => renderObservabilityComparison(&canvas, app, theme, output_mode),
         .help => renderHelp(&canvas, app, theme, output_mode),
     }
 
@@ -523,7 +552,7 @@ fn renderFrameWithMode(allocator: std.mem.Allocator, width: usize, height: usize
 fn renderTooSmall(canvas: *Canvas, _: Theme, width: usize, height: usize) void {
     canvas.fillRect(.{ .x = 0, .y = 0, .w = width, .h = height }, .{ .fg = .fg, .bg = .bg });
     const lines = [_][]const u8{
-        "zig-scheduler · m15 TUI trace explorer",
+        "zig-scheduler · local TUI surface",
         "Resize the terminal to at least 80 columns × 24 rows.",
         "Compact layouts exist now, but this size is below the supported floor.",
     };
@@ -603,18 +632,33 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
     const contract = viewContract(app.view, canvas.width, canvas.height, app.compare_report != null);
     canvas.fillRect(rect, .{ .fg = .fg_inv, .bg = .bg_inv });
     canvas.drawText(rect.x + 1, rect.y, mode_label, .{ .fg = .fg_inv, .bg = .bg_inv, .bold = true });
-    if (app.report) |report| {
-        var info_buf: [128]u8 = undefined;
-        const selected = selectedTask(report, app.selected_task_index);
-        const info = if (contract.tier == .compact)
-            if (selected) |task|
-                std.fmt.bufPrint(&info_buf, "t={d} {s}", .{ app.cursor, task.id }) catch ""
-            else
-                std.fmt.bufPrint(&info_buf, "t={d}", .{app.cursor}) catch ""
-        else if (selected) |task|
-            std.fmt.bufPrint(&info_buf, "{s}·{s} │ t={d} │ task={s}", .{ report.scenario.name, @tagName(report.policy.kind), app.cursor, task.id }) catch ""
+    var info_buf: [196]u8 = undefined;
+    const info = switch (app.domain_mode) {
+        .simulator => blk: {
+            if (app.report) |report| {
+                const selected = selectedTask(report, app.selected_task_index);
+                break :blk if (contract.tier == .compact)
+                    if (selected) |task|
+                        std.fmt.bufPrint(&info_buf, "t={d} {s}", .{ app.cursor, task.id }) catch ""
+                    else
+                        std.fmt.bufPrint(&info_buf, "t={d}", .{app.cursor}) catch ""
+                else if (selected) |task|
+                    std.fmt.bufPrint(&info_buf, "{s}·{s} │ t={d} │ task={s}", .{ report.scenario.name, @tagName(report.policy.kind), app.cursor, task.id }) catch ""
+                else
+                    std.fmt.bufPrint(&info_buf, "{s}·{s} │ t={d}", .{ report.scenario.name, @tagName(report.policy.kind), app.cursor }) catch "";
+            }
+            break :blk "";
+        },
+        .observability_summary => if (app.observability_summary) |summary|
+            std.fmt.bufPrint(&info_buf, "{s} │ events={d} │ cpus={d} │ pids={d}", .{ summary.family, summary.event_count, summary.cpu_ids.len, summary.pid_ids.len }) catch ""
         else
-            std.fmt.bufPrint(&info_buf, "{s}·{s} │ t={d}", .{ report.scenario.name, @tagName(report.policy.kind), app.cursor }) catch "";
+            "",
+        .observability_comparison => if (app.observability_comparison) |comparison|
+            std.fmt.bufPrint(&info_buf, "{s} │ metrics={d} │ sim={s}", .{ comparison.pairing_id, comparison.metric_rows.len, comparison.simulator_source.policy }) catch ""
+        else
+            "",
+    };
+    if (info.len != 0) {
         canvas.drawTextClipped(rect.x + 10, rect.y, rect.w / 2 - 12, info, .{ .fg = .fg_inv, .bg = .bg_inv });
     }
 
@@ -629,6 +673,8 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
             .picker => "↑ ↓ select  ↵ open  p policy  w theme  ? help  q quit",
             .drawer => if (contract.tier == .compact) "esc back  d diff  ? help  q quit" else "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
             .diff => if (contract.tier == .compact) "d exit diff  ? help  q quit" else "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
+            .observability_summary => "w theme  ? help  q quit",
+            .observability_comparison => "w theme  ? help  q quit",
             .help => if (contract.tier == .compact) "esc close help  q quit" else "? or esc close  q quit",
         },
         .snapshot => "snapshot · non-interactive render · rerun without --snapshot for controls",
@@ -656,6 +702,259 @@ fn renderPane(canvas: *Canvas, rect: Rect, title: []const u8, badge: ?[]const u8
         .w = satSub(rect.w, 2),
         .h = satSub(rect.h, footer_rows),
     };
+}
+
+fn renderBannerHeader(canvas: *Canvas, rect: Rect, title: []const u8, subtitle: []const u8, lane_label: []const u8) void {
+    canvas.fillRect(rect, .{ .fg = .fg, .bg = .bg });
+    canvas.drawText(1, rect.y, "▚ zig-scheduler", .{ .fg = .dispatch, .bg = .bg, .bold = true });
+    canvas.drawTextClipped(18, rect.y, satSub(rect.w, lane_label.len + 22), title, .{ .fg = .fg, .bg = .bg, .bold = true });
+    canvas.drawTextClipped(1, rect.y + 1, satSub(rect.w, lane_label.len + 6), subtitle, .{ .fg = .fg_dim, .bg = .bg });
+    canvas.drawText(rect.x + rect.w - lane_label.len - 2, rect.y, lane_label, .{ .fg = .fg_dim, .bg = .bg, .bold = true });
+    canvas.drawHLine(rect.x, rect.y + rect.h - 1, rect.w, '─', .{ .fg = .fg_faint, .bg = .bg });
+}
+
+fn renderTextRows(canvas: *Canvas, rect: Rect, lines: []const []const u8) void {
+    var y = rect.y;
+    for (lines) |line| {
+        if (y >= rect.y + rect.h) break;
+        canvas.drawTextClipped(rect.x, y, rect.w, line, .{ .fg = .fg, .bg = .bg });
+        y += 1;
+    }
+}
+
+fn formatNumericValue(buf: []u8, value: scheduler.observability_comparison.Numeric) []const u8 {
+    return switch (value) {
+        .int => |int_value| std.fmt.bufPrint(buf, "{d}", .{int_value}) catch "",
+        .float => |float_value| std.fmt.bufPrint(buf, "{d:.3}", .{float_value}) catch "",
+    };
+}
+
+fn renderObservabilitySummary(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    const summary = app.observability_summary orelse {
+        canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = canvas.height }, .{ .fg = .fg, .bg = .bg });
+        return;
+    };
+    const contract = viewContract(.observability_summary, canvas.width, canvas.height, false);
+    renderBannerHeader(
+        canvas,
+        .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 },
+        "linux observability summary",
+        "m19 · observability-only offline fixture summary · not replay or Linux-performance evidence",
+        if (output_mode == .snapshot) "SNAPSHOT" else "M19",
+    );
+
+    const top: usize = 3;
+    const gap: usize = 1;
+    const body_h = canvas.height - top - 1;
+
+    if (contract.tier == .compact) {
+        const meta_h = @max(@as(usize, 7), body_h / 3);
+        const counts_h = @max(@as(usize, 6), body_h / 4);
+        const meta_rect = Rect{ .x = 1, .y = top, .w = canvas.width - 2, .h = meta_h };
+        const counts_rect = Rect{ .x = 1, .y = meta_rect.y + meta_rect.h + gap, .w = canvas.width - 2, .h = counts_h };
+        const boundary_rect = Rect{ .x = 1, .y = counts_rect.y + counts_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (counts_rect.y + counts_rect.h + gap) };
+        const meta_inner = renderPane(canvas, meta_rect, "fixture + tuple", null, null, true, theme);
+        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false, theme);
+        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false, theme);
+        var row_buf: [8][128]u8 = undefined;
+        const meta_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "fixture `{s}`", .{summary.fixture_name}) catch "",
+            std.fmt.bufPrint(&row_buf[1], "family `{s}`", .{summary.family}) catch "",
+            std.fmt.bufPrint(&row_buf[2], "kernel `{s}`", .{summary.kernel_release}) catch "",
+            std.fmt.bufPrint(&row_buf[3], "format `{s}`", .{summary.snapshot_format_version}) catch "",
+            std.fmt.bufPrint(&row_buf[4], "scrub `{s}`", .{summary.scrub_policy_version}) catch "",
+            std.fmt.bufPrint(&row_buf[5], "source {s}", .{summary.source_class}) catch "",
+        };
+        renderTextRows(canvas, meta_inner, &meta_rows);
+        const count_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "events {d}  span {d:.6}..{d:.6}", .{ summary.event_count, summary.first_timestamp, summary.last_timestamp }) catch "",
+            std.fmt.bufPrint(&row_buf[1], "cpus {d}  pids {d}", .{ summary.cpu_ids.len, summary.pid_ids.len }) catch "",
+            std.fmt.bufPrint(&row_buf[2], "switch {d}  wakeup {d}", .{ summary.counts.sched_switch, summary.counts.sched_wakeup }) catch "",
+            std.fmt.bufPrint(&row_buf[3], "wakeup_new {d}  fork {d}", .{ summary.counts.sched_wakeup_new, summary.counts.sched_process_fork }) catch "",
+            std.fmt.bufPrint(&row_buf[4], "exit {d}", .{summary.counts.sched_process_exit}) catch "",
+        };
+        renderTextRows(canvas, counts_inner, &count_rows);
+        const boundary_rows = [_][]const u8{
+            "observability-only · bounded offline fixture lane",
+            "not replay authority · not calibration authority",
+            "not Linux-performance evidence",
+        };
+        renderTextRows(canvas, boundary_inner, &boundary_rows);
+    } else {
+        const left_w = (canvas.width - 4) / 2;
+        const left_rect = Rect{ .x = 1, .y = top, .w = left_w, .h = body_h };
+        const right_rect = Rect{ .x = left_rect.x + left_rect.w + gap, .y = top, .w = canvas.width - left_rect.w - 3, .h = body_h };
+        const tuple_rect = Rect{ .x = left_rect.x, .y = left_rect.y, .w = left_rect.w, .h = left_rect.h / 2 };
+        const scope_rect = Rect{ .x = left_rect.x, .y = tuple_rect.y + tuple_rect.h + gap, .w = left_rect.w, .h = left_rect.h - tuple_rect.h - gap };
+        const counts_rect = Rect{ .x = right_rect.x, .y = right_rect.y, .w = right_rect.w, .h = right_rect.h / 2 };
+        const boundary_rect = Rect{ .x = right_rect.x, .y = counts_rect.y + counts_rect.h + gap, .w = right_rect.w, .h = right_rect.h - counts_rect.h - gap };
+        const tuple_inner = renderPane(canvas, tuple_rect, "fixture + tuple", null, null, true, theme);
+        const scope_inner = renderPane(canvas, scope_rect, "scope", null, null, false, theme);
+        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false, theme);
+        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false, theme);
+        var row_buf: [12][160]u8 = undefined;
+        const tuple_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "fixture: `{s}`", .{summary.fixture_name}) catch "",
+            std.fmt.bufPrint(&row_buf[1], "family: `{s}`", .{summary.family}) catch "",
+            std.fmt.bufPrint(&row_buf[2], "kernel: `{s}`", .{summary.kernel_release}) catch "",
+            std.fmt.bufPrint(&row_buf[3], "snapshot format: `{s}`", .{summary.snapshot_format_version}) catch "",
+            std.fmt.bufPrint(&row_buf[4], "scrub policy: `{s}`", .{summary.scrub_policy_version}) catch "",
+            std.fmt.bufPrint(&row_buf[5], "redistribution: {s}", .{summary.redistribution_basis}) catch "",
+        };
+        renderTextRows(canvas, tuple_inner, &tuple_rows);
+        const scope_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[6], "source class: {s}", .{summary.source_class}) catch "",
+            std.fmt.bufPrint(&row_buf[7], "timestamp span: {d:.6} -> {d:.6}", .{ summary.first_timestamp, summary.last_timestamp }) catch "",
+            std.fmt.bufPrint(&row_buf[8], "cpu ids seen: {d}", .{summary.cpu_ids.len}) catch "",
+            std.fmt.bufPrint(&row_buf[9], "pid ids seen: {d}", .{summary.pid_ids.len}) catch "",
+        };
+        renderTextRows(canvas, scope_inner, &scope_rows);
+        const count_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "sched_switch: {d}", .{summary.counts.sched_switch}) catch "",
+            std.fmt.bufPrint(&row_buf[1], "sched_wakeup: {d}", .{summary.counts.sched_wakeup}) catch "",
+            std.fmt.bufPrint(&row_buf[2], "sched_wakeup_new: {d}", .{summary.counts.sched_wakeup_new}) catch "",
+            std.fmt.bufPrint(&row_buf[3], "sched_process_fork: {d}", .{summary.counts.sched_process_fork}) catch "",
+            std.fmt.bufPrint(&row_buf[4], "sched_process_exit: {d}", .{summary.counts.sched_process_exit}) catch "",
+        };
+        renderTextRows(canvas, counts_inner, &count_rows);
+        const boundary_rows = [_][]const u8{
+            "observability-only surface based on a committed offline fixture",
+            "bounded M19 lane · approved tuple only",
+            "not replay authority · not calibration authority",
+            "not Linux-performance evidence",
+        };
+        renderTextRows(canvas, boundary_inner, &boundary_rows);
+    }
+
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "M19", output_mode);
+}
+
+fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    const comparison = app.observability_comparison orelse {
+        canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = canvas.height }, .{ .fg = .fg, .bg = .bg });
+        return;
+    };
+    const contract = viewContract(.observability_comparison, canvas.width, canvas.height, false);
+    renderBannerHeader(
+        canvas,
+        .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 },
+        "simulator-to-trace comparison",
+        "m20 · bounded observability-only comparison lane · not replay or fidelity evidence",
+        if (output_mode == .snapshot) "SNAPSHOT" else "M20",
+    );
+
+    const top: usize = 3;
+    const gap: usize = 1;
+    const body_h = canvas.height - top - 1;
+
+    if (contract.tier == .compact) {
+        const meta_h = @max(@as(usize, 6), body_h / 4);
+        const family_h = @max(@as(usize, 4), body_h / 5);
+        const metric_h = @max(@as(usize, 7), body_h / 3);
+        const meta_rect = Rect{ .x = 1, .y = top, .w = canvas.width - 2, .h = meta_h };
+        const family_rect = Rect{ .x = 1, .y = meta_rect.y + meta_rect.h + gap, .w = canvas.width - 2, .h = family_h };
+        const metric_rect = Rect{ .x = 1, .y = family_rect.y + family_rect.h + gap, .w = canvas.width - 2, .h = metric_h };
+        const caveat_rect = Rect{ .x = 1, .y = metric_rect.y + metric_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (metric_rect.y + metric_rect.h + gap) };
+        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true, theme);
+        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false, theme);
+        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false, theme);
+        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false, theme);
+        var row_buf: [12][160]u8 = undefined;
+        const meta_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "pairing `{s}`", .{comparison.pairing_id}) catch "",
+            std.fmt.bufPrint(&row_buf[1], "sim `{s}` with `{s}`", .{ comparison.simulator_source.scenario_path, comparison.simulator_source.policy }) catch "",
+            std.fmt.bufPrint(&row_buf[2], "obs `{s}`", .{comparison.observability_fixture_manifest.manifest_path}) catch "",
+        };
+        renderTextRows(canvas, meta_inner, &meta_rows);
+        const family_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[3], "sim: {s} -> {s} -> {s}", .{ comparison.normalized_order_summary.simulator_families[0], comparison.normalized_order_summary.simulator_families[1], comparison.normalized_order_summary.simulator_families[2] }) catch "",
+            std.fmt.bufPrint(&row_buf[4], "obs: {s} -> {s} -> {s}", .{ comparison.normalized_order_summary.observability_families[0], comparison.normalized_order_summary.observability_families[1], comparison.normalized_order_summary.observability_families[2] }) catch "",
+        };
+        renderTextRows(canvas, family_inner, &family_rows);
+        renderComparisonMetricRows(canvas, metric_inner, comparison.metric_rows, true);
+        const caveat_rows = [_][]const u8{
+            "observability-only · bounded comparison",
+            "not replay authority · not fidelity scoring",
+            "not Linux-performance evidence",
+        };
+        renderTextRows(canvas, caveat_inner, &caveat_rows);
+    } else {
+        const left_w = (canvas.width - 4) * 11 / 25;
+        const right_w = canvas.width - left_w - 3;
+        const left_rect = Rect{ .x = 1, .y = top, .w = left_w, .h = body_h };
+        const right_rect = Rect{ .x = left_rect.x + left_rect.w + gap, .y = top, .w = right_w, .h = body_h };
+        const meta_rect = Rect{ .x = left_rect.x, .y = left_rect.y, .w = left_rect.w, .h = left_rect.h / 2 };
+        const family_rect = Rect{ .x = left_rect.x, .y = meta_rect.y + meta_rect.h + gap, .w = left_rect.w, .h = left_rect.h - meta_rect.h - gap };
+        const metric_rect = Rect{ .x = right_rect.x, .y = right_rect.y, .w = right_rect.w, .h = right_rect.h * 3 / 5 };
+        const caveat_rect = Rect{ .x = right_rect.x, .y = metric_rect.y + metric_rect.h + gap, .w = right_rect.w, .h = right_rect.h - metric_rect.h - gap };
+        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true, theme);
+        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false, theme);
+        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false, theme);
+        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false, theme);
+        var row_buf: [12][180]u8 = undefined;
+        const meta_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[0], "pairing id: `{s}`", .{comparison.pairing_id}) catch "",
+            std.fmt.bufPrint(&row_buf[1], "simulator source: `{s}` with `{s}`", .{ comparison.simulator_source.scenario_path, comparison.simulator_source.policy }) catch "",
+            std.fmt.bufPrint(&row_buf[2], "simulator export provenance: v{d}", .{comparison.simulator_source.report_version}) catch "",
+            std.fmt.bufPrint(&row_buf[3], "observability manifest: `{s}`", .{comparison.observability_fixture_manifest.manifest_path}) catch "",
+            std.fmt.bufPrint(&row_buf[4], "tuple: `{s}` / `{s}` / `{s}` / `{s}`", .{ comparison.observability_fixture_manifest.family, comparison.observability_fixture_manifest.kernel_release, comparison.observability_fixture_manifest.snapshot_format_version, comparison.observability_fixture_manifest.scrub_policy_version }) catch "",
+        };
+        renderTextRows(canvas, meta_inner, &meta_rows);
+        const family_rows = [_][]const u8{
+            std.fmt.bufPrint(&row_buf[5], "simulator order: {s} -> {s} -> {s}", .{ comparison.normalized_order_summary.simulator_families[0], comparison.normalized_order_summary.simulator_families[1], comparison.normalized_order_summary.simulator_families[2] }) catch "",
+            std.fmt.bufPrint(&row_buf[6], "observability order: {s} -> {s} -> {s}", .{ comparison.normalized_order_summary.observability_families[0], comparison.normalized_order_summary.observability_families[1], comparison.normalized_order_summary.observability_families[2] }) catch "",
+        };
+        renderTextRows(canvas, family_inner, &family_rows);
+        renderComparisonMetricRows(canvas, metric_inner, comparison.metric_rows, false);
+        const caveat_rows = [_][]const u8{
+            "observability-only comparison using committed inputs",
+            comparison.caveats.observability_only,
+            comparison.caveats.units_not_equivalent,
+            comparison.caveats.identity_not_equivalent,
+            comparison.caveats.not_fidelity,
+        };
+        renderTextRows(canvas, caveat_inner, &caveat_rows);
+    }
+
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "M20", output_mode);
+}
+
+fn renderComparisonMetricRows(canvas: *Canvas, rect: Rect, metric_rows: []const scheduler.observability_comparison.MetricRow, compact: bool) void {
+    var y = rect.y;
+    for (metric_rows) |row| {
+        if (y >= rect.y + rect.h) break;
+        var sim_buf: [32]u8 = undefined;
+        var obs_buf: [32]u8 = undefined;
+        var delta_buf: [32]u8 = undefined;
+        if (compact) {
+            var line_buf: [192]u8 = undefined;
+            const line = std.fmt.bufPrint(&line_buf, "{s}: s={s} o={s} Δ={s}", .{
+                row.metric_key,
+                formatNumericValue(&sim_buf, row.simulator_value),
+                formatNumericValue(&obs_buf, row.observability_value),
+                formatNumericValue(&delta_buf, row.delta),
+            }) catch "";
+            canvas.drawTextClipped(rect.x, y, rect.w, line, .{ .fg = .fg, .bg = .bg });
+            y += 1;
+            if (y >= rect.y + rect.h) break;
+            var caveat_buf: [96]u8 = undefined;
+            const caveat_line = std.fmt.bufPrint(&caveat_buf, "  caveat `{s}`", .{row.caveat_key}) catch "";
+            canvas.drawTextClipped(rect.x, y, rect.w, caveat_line, .{ .fg = .fg_dim, .bg = .bg });
+            y += 1;
+            continue;
+        }
+
+        var line_buf: [256]u8 = undefined;
+        const line = std.fmt.bufPrint(&line_buf, "{s:<26} sim={s:<8} obs={s:<8} delta={s:<8} `{s}`", .{
+            row.metric_key,
+            formatNumericValue(&sim_buf, row.simulator_value),
+            formatNumericValue(&obs_buf, row.observability_value),
+            formatNumericValue(&delta_buf, row.delta),
+            row.caveat_key,
+        }) catch "";
+        canvas.drawTextClipped(rect.x, y, rect.w, line, .{ .fg = .fg, .bg = .bg });
+        y += 1;
+    }
 }
 
 fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
@@ -928,7 +1227,56 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
 fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
     const contract = viewContract(.help, canvas.width, canvas.height, app.compare_report != null);
     if (contract.tier != .compact) {
-        renderExplorer(canvas, AppView{ .view = .explorer, .theme = app.theme, .focus = app.focus, .cursor = app.cursor, .selected_task_index = app.selected_task_index, .picker_index = app.picker_index, .playing = app.playing, .report = app.report, .compare_report = app.compare_report, .picker_entries = app.picker_entries, .history = app.history }, theme, output_mode);
+        switch (app.domain_mode) {
+            .simulator => renderExplorer(canvas, AppView{
+                .domain_mode = .simulator,
+                .view = .explorer,
+                .theme = app.theme,
+                .focus = app.focus,
+                .cursor = app.cursor,
+                .selected_task_index = app.selected_task_index,
+                .picker_index = app.picker_index,
+                .playing = app.playing,
+                .report = app.report,
+                .compare_report = app.compare_report,
+                .observability_summary = app.observability_summary,
+                .observability_comparison = app.observability_comparison,
+                .picker_entries = app.picker_entries,
+                .history = app.history,
+            }, theme, output_mode),
+            .observability_summary => renderObservabilitySummary(canvas, AppView{
+                .domain_mode = .observability_summary,
+                .view = .observability_summary,
+                .theme = app.theme,
+                .focus = app.focus,
+                .cursor = app.cursor,
+                .selected_task_index = app.selected_task_index,
+                .picker_index = app.picker_index,
+                .playing = false,
+                .report = app.report,
+                .compare_report = app.compare_report,
+                .observability_summary = app.observability_summary,
+                .observability_comparison = app.observability_comparison,
+                .picker_entries = app.picker_entries,
+                .history = app.history,
+            }, theme, output_mode),
+            .observability_comparison => renderObservabilityComparison(canvas, AppView{
+                .domain_mode = .observability_comparison,
+                .view = .observability_comparison,
+                .theme = app.theme,
+                .focus = app.focus,
+                .cursor = app.cursor,
+                .selected_task_index = app.selected_task_index,
+                .picker_index = app.picker_index,
+                .playing = false,
+                .report = app.report,
+                .compare_report = app.compare_report,
+                .observability_summary = app.observability_summary,
+                .observability_comparison = app.observability_comparison,
+                .picker_entries = app.picker_entries,
+                .history = app.history,
+            }, theme, output_mode),
+        }
     } else {
         canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = canvas.height }, .{ .fg = .fg, .bg = .bg });
         canvas.drawText(1, 0, "KEY BINDINGS", .{ .fg = .dispatch, .bg = .bg, .bold = true });
@@ -945,11 +1293,20 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
     canvas.drawText(rect.x + 3, rect.y, " KEY BINDINGS ", .{ .fg = .fg, .bg = .bg, .bold = true });
     if (rect.w > 28) canvas.drawText(rect.x + rect.w - 26, rect.y + 1, "press ? or esc to close", .{ .fg = .fg_dim, .bg = .bg });
 
-    const sections = [_]struct { title: []const u8, rows: []const [2][]const u8 }{
+    const HelpSection = struct { title: []const u8, rows: []const [2][]const u8 };
+    const simulator_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "←  →", "scrub one tick" }, .{ "home / end", "first / last tick" }, .{ "space", "play / pause" } } },
         .{ .title = "SELECTION", .rows = &.{ .{ "j  k", "select next / previous task" }, .{ "esc", "clear or close" }, .{ "enter", "open task detail drawer" } } },
         .{ .title = "PANES", .rows = &.{ .{ "tab", "cycle pane focus" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
         .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "q", "quit" } } },
+    };
+    const observability_sections = [_]HelpSection{
+        .{ .title = "NAVIGATION", .rows = &.{ .{ "esc", "close help" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
+        .{ .title = "BOUNDARY", .rows = &.{ .{ "m19 / m20", "observability-only lane" }, .{ "no replay", "not fidelity evidence" }, .{ "q", "quit" } } },
+    };
+    const sections = switch (app.domain_mode) {
+        .simulator => simulator_sections[0..],
+        .observability_summary, .observability_comparison => observability_sections[0..],
     };
 
     var col: usize = 0;
@@ -1735,6 +2092,7 @@ fn findTask(report: *const Report, task_id: []const u8) ?TaskMetrics {
 
 test "too-small renderer handles tiny heights without underflow" {
     const app: AppView = .{
+        .domain_mode = .simulator,
         .theme = .dark,
         .view = .picker,
         .focus = .gantt,
@@ -1744,6 +2102,8 @@ test "too-small renderer handles tiny heights without underflow" {
         .playing = false,
         .report = null,
         .compare_report = null,
+        .observability_summary = null,
+        .observability_comparison = null,
         .picker_entries = &.{},
         .history = &.{},
     };

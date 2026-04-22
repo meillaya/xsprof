@@ -114,7 +114,19 @@ zig-out/bin/zig-scheduler --scenario-file scenarios/basic/multicore-contention.z
 # explicit non-TTY snapshot mode
 zig-out/bin/zig-scheduler --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
 zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler --stdin --snapshot
+
+# explicit bounded observability lane
+zig-out/bin/zig-scheduler --m19
+zig-out/bin/zig-scheduler --snapshot --m19
+zig-out/bin/zig-scheduler --m20
+zig-out/bin/zig-scheduler --snapshot --m20
 ```
+
+M19/M20 stay a **separate observability-only lane** inside the TUI:
+- use `--m19` or `--m19-manifest <path>` for the M19 fixture summary
+- use `--m20` or `--m20-pairing <path>` for the M20 comparison summary
+- these views do **not** widen `zig-scheduler/report` or `src/analysis/*`
+- these views are **not** replay authority, fidelity scoring, or Linux-performance evidence
 
 ## Key teaching fixtures
 
