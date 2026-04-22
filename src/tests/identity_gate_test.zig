@@ -1,5 +1,4 @@
 const std = @import("std");
-const report_contract = @import("../contract/report.zig");
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
@@ -142,11 +141,9 @@ test "M20 boundary keeps report and analysis surfaces free of comparison payload
         "caveats",
     };
 
-    for (report_contract.top_level_fields) |field| {
-        try expectLacksAll(field, &forbidden_fields);
-    }
-
     const allocator = std.testing.allocator;
+    const report_contract = try readFileAlloc(allocator, "src/contract/report.zig");
+    defer allocator.free(report_contract);
     const cli_report = try readFileAlloc(allocator, "src/cli/report.zig");
     defer allocator.free(cli_report);
     const analysis_root = try readFileAlloc(allocator, "src/analysis/root.zig");
@@ -156,6 +153,7 @@ test "M20 boundary keeps report and analysis surfaces free of comparison payload
     const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
     defer allocator.free(test_spec);
 
+    try expectLacksAll(report_contract, &forbidden_fields);
     try expectLacksAll(cli_report, &forbidden_fields);
     try expectLacksAll(analysis_root, &forbidden_fields);
     try std.testing.expect(std.mem.indexOf(u8, prd, "no change to `src/contract/report.zig` or `src/cli/report.zig`") != null);
