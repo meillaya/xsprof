@@ -544,7 +544,7 @@ fn cloneStringSlice(allocator: std.mem.Allocator, input: []const []const u8) ![]
 }
 
 fn intValue(value: usize) !i64 {
-    return try std.math.cast(i64, value);
+    return std.math.cast(i64, value) orelse unreachable;
 }
 
 fn stringSliceEql(lhs: []const []const u8, rhs: []const []const u8) bool {

@@ -14,7 +14,7 @@ fn expectStringFieldSet(expected: []const []const u8, actual: []const []const u8
 }
 
 fn expectJsonObjectFields(value: std.json.Value, expected: []const []const u8) !void {
-    try std.testing.expectEqual(.object, value);
+    try std.testing.expect(value == .object);
 
     const object = value.object;
     try std.testing.expectEqual(expected.len, object.count());
@@ -90,15 +90,21 @@ test "M20 comparison smoke stays reproducible for the approved inputs" {
     for (summary.metric_rows[0..6], 0..) |row, index| {
         try std.testing.expectEqualStrings(comparison.approved_metric_set[index], row.metric_key);
         try std.testing.expectEqualStrings(expected_caveats[index], row.caveat_key);
-        try std.testing.expectEqual(row.simulator_value, .{ .int = expected_sim_ints[index] });
-        try std.testing.expectEqual(row.observability_value, .{ .int = expected_obs_ints[index] });
-        try std.testing.expectEqual(row.delta, .{ .int = expected_delta_ints[index] });
+        try std.testing.expect(row.simulator_value == .int);
+        try std.testing.expect(row.observability_value == .int);
+        try std.testing.expect(row.delta == .int);
+        try std.testing.expectEqual(expected_sim_ints[index], row.simulator_value.int);
+        try std.testing.expectEqual(expected_obs_ints[index], row.observability_value.int);
+        try std.testing.expectEqual(expected_delta_ints[index], row.delta.int);
     }
 
     try std.testing.expectEqualStrings(comparison.approved_metric_set[6], summary.metric_rows[6].metric_key);
     try std.testing.expectEqualStrings("units_not_equivalent", summary.metric_rows[6].caveat_key);
-    try std.testing.expectEqual(summary.metric_rows[6].simulator_value, .{ .float = 7.0 });
-    try std.testing.expectEqual(summary.metric_rows[6].observability_value, .{ .float = 0.2 });
+    try std.testing.expect(summary.metric_rows[6].simulator_value == .float);
+    try std.testing.expect(summary.metric_rows[6].observability_value == .float);
+    try std.testing.expect(summary.metric_rows[6].delta == .float);
+    try std.testing.expectApproxEqAbs(7.0, summary.metric_rows[6].simulator_value.float, 0.000001);
+    try std.testing.expectApproxEqAbs(0.2, summary.metric_rows[6].observability_value.float, 0.000001);
     try std.testing.expectApproxEqAbs(6.8, summary.metric_rows[6].delta.float, 0.000001);
 }
 
@@ -137,13 +143,13 @@ test "M20 comparison numeric semantics stay exact for count and span rows" {
 
     const metric_rows = parsed.value.object.get("metric_rows").?.array.items;
     for (metric_rows[0..6]) |row| {
-        try std.testing.expectEqual(.integer, row.object.get("simulator_value").?);
-        try std.testing.expectEqual(.integer, row.object.get("observability_value").?);
-        try std.testing.expectEqual(.integer, row.object.get("delta").?);
+        try std.testing.expect(row.object.get("simulator_value").? == .integer);
+        try std.testing.expect(row.object.get("observability_value").? == .integer);
+        try std.testing.expect(row.object.get("delta").? == .integer);
     }
-    try std.testing.expectEqual(.float, metric_rows[6].object.get("simulator_value").?);
-    try std.testing.expectEqual(.float, metric_rows[6].object.get("observability_value").?);
-    try std.testing.expectEqual(.float, metric_rows[6].object.get("delta").?);
+    try std.testing.expect(metric_rows[6].object.get("simulator_value").? == .float);
+    try std.testing.expect(metric_rows[6].object.get("observability_value").? == .float);
+    try std.testing.expect(metric_rows[6].object.get("delta").? == .float);
 }
 
 test "M20 comparison is deterministic across repeated approved-input runs" {
