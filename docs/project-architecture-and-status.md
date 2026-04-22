@@ -441,6 +441,29 @@ Proof surfaces for this branch now live in:
 - `src/observability/root.zig`
 - `src/tests/linux_observability_test.zig`
 
+### M20 — simulator-to-trace comparison summary (approved next cut)
+
+M20 is the approved next Linux-facing milestone, but it remains intentionally
+narrow and separate from the simulator export/report mainline.
+
+The approved M20 boundary is:
+- one simulator scenario + policy pairing only (`sleep-wakeup` + `cfs_like`)
+- one M19 fixture manifest only
+- one committed pairing manifest only
+- one separate `zig-scheduler/observability-comparison` v1 contract only
+- library + docs + tests proof surfaces only
+
+M20 still must not:
+- widen `zig-scheduler/report`
+- widen `src/analysis/*`
+- claim replay fidelity, kernel accuracy, calibration authority, or Linux-performance meaning
+- add task↔PID identity matching or raw event-by-event alignment
+
+Approved proof/documentation surfaces for this cut are:
+- `docs/m20-simulator-to-trace-comparison.md`
+- future `src/observability/comparison.zig`
+- future `src/tests/observability_comparison_test.zig`
+
 ## Notes on implementation philosophy
 
 The guiding architecture rule so far has been:
