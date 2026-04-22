@@ -5,14 +5,10 @@ A deterministic CPU scheduling simulator in Zig.
 It is a teaching and experimentation project, not a kernel scheduler, daemon,
 or production automation system.
 
-The main simulator, `zig-scheduler/report` contract, and downstream
-`src/analysis` tooling remain simulator-first. Under
-`docs/adr/0002-m18-linux-observability-gate.md` and
-`docs/m19-curated-linux-observability.md`, the optional Linux-observability
-lane is limited to **offline, observability-only, version-pinned snapshot
-fixtures** ending at a bounded observability summary — not live capture,
-tooling automation, replay, analyzer/report-contract widening, or
-Linux-performance claims.
+The simulator mainline remains simulator-first. Under `docs/adr/0002-m18-linux-observability-gate.md`,
+the bounded M19 Linux-observability surface is limited to **offline,
+observability-only, version-pinned snapshot fixtures** — not live capture,
+tooling automation, replay, or Linux-performance claims.
 
 ## What it does
 
@@ -99,6 +95,13 @@ zig build reports
 zig build reports -- --output-dir zig-out/m16-smoke
 ```
 
+Linux observability fixtures (M19):
+
+- committed fixtures live under `fixtures/linux-observability/`
+- loader + summary boundary lives in `src/observability/root.zig`
+- details and tuple policy live in `docs/m19-curated-linux-observability.md`
+- this path does **not** widen `zig-scheduler/report` or `src/analysis`
+
 TUI trace explorer (M15):
 
 ```sh
@@ -171,5 +174,6 @@ Other useful docs:
 - `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`
 - `docs/m13-property-testing.md`
+- `docs/m19-curated-linux-observability.md`
 - `docs/adr/0001-m5-project-identity.md`
 - `docs/adr/0002-m18-linux-observability-gate.md`

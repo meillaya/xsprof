@@ -15,6 +15,7 @@ pub const scenario = @import("sim/scenario.zig");
 pub const scenario_packs = @import("sim/scenario_pack.zig");
 pub const trace = @import("sim/trace.zig");
 pub const property = @import("testing/property.zig");
+pub const observability = @import("observability/root.zig");
 
 pub const AggregateMetrics = types.AggregateMetrics;
 pub const BuiltinScenario = scenario.BuiltinScenario;
@@ -66,4 +67,5 @@ test {
     _ = @import("tests/policy_architecture_test.zig");
     _ = @import("tests/scenario_pack_test.zig");
     _ = @import("tests/policy_extension_boundary_test.zig");
+    _ = @import("tests/linux_observability_test.zig");
 }

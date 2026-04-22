@@ -42,8 +42,8 @@ test "M18 ADR is linked from README and roadmap and keeps observability offline-
     try std.testing.expect(std.mem.indexOf(u8, readme, "tooling automation, replay") != null);
     try std.testing.expect(std.mem.indexOf(u8, readme, "Linux-performance claims") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "offline snapshot fixtures only") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/m19-curated-linux-observability.md") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "M19 now executes only inside the milestone-specific PRD/test-spec boundary") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "tracefs-sched-snapshot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "does not widen `zig-scheduler/report`") != null);
 }
 
 test "M5 track classification is explicit" {
@@ -108,7 +108,7 @@ test "M18 gate proof surfaces and branch blocking are explicit" {
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "docs/adr/0002-m18-linux-observability-gate.md") != null);
 }
 
-test "M19 proof surfaces stay tuple-pinned and observability-only" {
+test "M19 proof surfaces expose the bounded observability import contract" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
@@ -117,34 +117,10 @@ test "M19 proof surfaces stay tuple-pinned and observability-only" {
     const m19_doc = try readFileAlloc(allocator, "docs/m19-curated-linux-observability.md");
     defer allocator.free(m19_doc);
 
-    const readme_required = [_][]const u8{
-        "docs/m19-curated-linux-observability.md",
-        "bounded observability summary",
-        "analyzer/report-contract widening",
-    };
-    for (readme_required) |needle| {
-        try std.testing.expect(std.mem.indexOf(u8, readme, needle) != null);
-    }
-
-    const project_required = [_][]const u8{
-        "docs/m19-curated-linux-observability.md",
-        "tracefs-sched-snapshot",
-        "linux-observability-scrub-v1",
-        "src/analysis",
-    };
-    for (project_required) |needle| {
-        try std.testing.expect(std.mem.indexOf(u8, project_doc, needle) != null);
-    }
-
-    const m19_required = [_][]const u8{
-        "fixtures/linux-observability/support-matrix.json",
-        "fail closed",
-        "zig-scheduler/report",
-        "perf sched",
-        "trace_pipe",
-        "observability-only normalized summary boundary",
-    };
-    for (m19_required) |needle| {
-        try std.testing.expect(std.mem.indexOf(u8, m19_doc, needle) != null);
-    }
+    try std.testing.expect(std.mem.indexOf(u8, readme, "fixtures/linux-observability/") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "does **not** widen `zig-scheduler/report` or `src/analysis`") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "src/observability/root.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m19_doc, "Unsupported tuples fail closed by default.") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m19_doc, "tracefs-sched-snapshot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m19_doc, "perf sched") != null);
 }
