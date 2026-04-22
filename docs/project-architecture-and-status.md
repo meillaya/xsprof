@@ -461,8 +461,8 @@ M20 still must not:
 
 Approved proof/documentation surfaces for this cut are:
 - `docs/m20-simulator-to-trace-comparison.md`
-- future `src/observability/comparison.zig`
-- future `src/tests/observability_comparison_test.zig`
+- `src/observability/comparison.zig`
+- `src/tests/observability_comparison_test.zig`
 
 ## Notes on implementation philosophy
 
