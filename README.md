@@ -1,27 +1,12 @@
 # zig-scheduler
 
-A deterministic CPU scheduling simulator in Zig.
-
-It is a teaching and experimentation project, not a kernel scheduler, daemon,
-or production automation system.
-
-The simulator mainline remains simulator-first. Under `docs/adr/0002-m18-linux-observability-gate.md`,
-the bounded M19 Linux-observability surface is limited to **offline,
-observability-only, version-pinned snapshot fixtures** — not live capture,
-tooling automation, replay, or Linux-performance claims.
-
-## What it does
-
-- runs deterministic scheduling scenarios
-- supports FCFS, Round Robin, CFS-inspired, and deadline-inspired policies
-- models multicore, blocked/wakeup, multi-phase workloads, groups, and topology domains
-- exports versioned JSON reports
-- includes analysis, benchmark, and property-testing tooling
+A deterministic CPU scheduling simulator in Zig with a TUI-first main interface, a narrow optional library facade for embedders, and a bounded observability side lane for offline M19/M20 evidence. The repo remains simulator-first: it is for teaching and experimentation, not a kernel scheduler, daemon, or production automation system. Under `docs/adr/0002-m18-linux-observability-gate.md`, the Linux-facing path stays limited to **offline, observability-only, version-pinned snapshot fixtures** — not live capture, tooling automation, replay, or Linux-performance claims. The current “start here” simulator teaching path is documented in `docs/labs/simulator-teaching-pack.md`, while the stable embedder subset is documented in `docs/m22-library-sdk.md`.
 
 ## Build
 
 ```sh
 zig build
+zig build test --summary all
 ```
 
 ## Run
@@ -34,103 +19,76 @@ zig build run
 zig-out/bin/zig-scheduler
 ```
 
-Launch the TUI with a scenario preloaded:
+Simulator examples:
 
 ```sh
-zig build run -- --scenario-file scenarios/basic/group-fairness.zon --policy cfs-like
+zig build sim -- --scenario-file scenarios/basic/short-vs-long.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/short-vs-long.zon --policy fcfs
+
+zig build sim -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy cfs-like
+zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy cfs-like
+
+zig build sim -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs
 ```
 
-Render a non-interactive snapshot:
+Snapshots and reports:
 
 ```sh
 zig-out/bin/zig-scheduler --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
+zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler --stdin --snapshot
 ```
 
-Legacy simulator CLI:
-
-```sh
-zig build sim -- --scenario short-vs-long --policy fcfs
-zig-out/bin/zig-scheduler sim --scenario-file scenarios/basic/deadline-priority.zon --policy deadline --format json
-```
-
-## Test
-
-```sh
-zig build test --summary all
-```
-
-
-## CLI surface
-
-The default `zig-scheduler` entrypoint is now TUI-first.
-
-TUI input flags:
-- `--scenario <core/basic-name>`
+Core TUI/report inputs:
 - `--scenario-file <path>`
 - `--input <report.json>`
 - `--stdin`
 - `--snapshot`
 
-Legacy simulator CLI remains available under `zig-scheduler sim ...` (or `zig build sim -- ...`).
-
-## Tooling
-
-Analysis:
+Observability side lane:
 
 ```sh
-zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
-```
-
-Benchmarks:
-
-```sh
-zig build bench
-```
-
-Reproducible report pack (M16):
-
-```sh
-zig build reports
-# smoke into a separate directory:
-zig build reports -- --output-dir zig-out/m16-smoke
-```
-
-Library / SDK stabilization (M22):
-
-```sh
-zig build m22-embed-smoke
-```
-
-The stable embedder subset is documented in:
-
-- `docs/m22-library-sdk.md`
-
-Linux observability fixtures (M19):
-
-- committed fixtures live under `fixtures/linux-observability/`
-- loader + summary boundary lives in `src/observability/root.zig`
-- details and tuple policy live in `docs/m19-curated-linux-observability.md`
-- this path does **not** widen `zig-scheduler/report` or `src/analysis`
-
-TUI trace explorer (M15):
-
-```sh
-# dedicated TUI binary still exists
-zig build tui -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
-
-# main binary now launches the same TUI by default
-zig-out/bin/zig-scheduler --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs
-
-# explicit non-TTY snapshot mode
-zig-out/bin/zig-scheduler --input docs/examples/exports/multicore-contention-fcfs.report.json --snapshot
-zig build sim -- --scenario-file scenarios/basic/multicore-contention.zon --policy fcfs --format json | zig-out/bin/zig-scheduler --stdin --snapshot
-
-# explicit bounded observability lane
 zig-out/bin/zig-scheduler --m19
 zig-out/bin/zig-scheduler --snapshot --m19
 zig-out/bin/zig-scheduler --m20
 zig-out/bin/zig-scheduler --snapshot --m20
 ```
+
+This observability path uses committed fixtures under
+`fixtures/linux-observability/` and does **not** widen `zig-scheduler/report` or `src/analysis`.
+
+Library / SDK smoke:
+
+```sh
+zig build m22-embed-smoke
+```
+
+Tooling:
+
+```sh
+zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json
+zig build bench
+zig build reports
+zig build reports -- --output-dir zig-out/m16-smoke
+```
+
+## Brief theory
+
+The simulator models scheduling as deterministic discrete ticks: tasks arrive,
+become runnable, may block/wake, get chosen by a policy, execute, and emit
+trace/metric updates. The point is explainable policy comparison on committed
+workloads, not Linux kernel fidelity.
+
+## Brief architecture
+
+- **Scenario/model layer**: object-style ZON inputs plus committed scenario packs
+- **Engine layer**: deterministic simulation, multicore, blocking, groups, topology
+- **Policy layer**: FCFS, Round Robin, CFS-inspired, deadline-inspired
+- **Report layer**: versioned `zig-scheduler/report` export contract
+- **UI/tooling layer**: TUI, snapshots, analysis, benchmarks, report pipeline
+- **Bounded side lanes**:
+  - M19/M20 offline observability under `fixtures/linux-observability/`
+  - M22 curated public embedder facade documented in `docs/m22-library-sdk.md`
 
 ## Start here: simulator-first teaching path (M21)
 
