@@ -1,46 +1,38 @@
 # M20 simulator-to-trace comparison summary
 
-M20 defines a narrow, reproducible comparison layer between one committed
-simulator output and one committed M19 Linux-observability fixture.
-
-This comparison surface is educational only. It is meant to help readers inspect
-where a simulator scenario and an offline scheduler trace summary differ at the
-level of normalized event families, counts, cardinalities, and trace-clock-
-caveated span summaries. It is **not** a replay-fidelity, kernel-accuracy,
-performance, or calibration surface.
+M20 adds a **narrow comparison-summary layer** between one committed simulator
+input and one committed offline Linux-observability fixture admitted under M19.
 
 ## Scope
 
 The first M20 cut is intentionally limited to:
-- one approved simulator scenario + policy pairing only
-- one approved M19 fixture manifest only
-- one committed pairing manifest only
-- one separate `zig-scheduler/observability-comparison` v1 payload only
-- library + docs + tests proof surfaces only
+- one approved pairing manifest at
+  `fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json`
+- one simulator input only:
+  `scenarios/basic/sleep-wakeup.zon` with policy `cfs_like`
+- one M19 observability fixture manifest only:
+  `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json`
+- one comparison contract only: `zig-scheduler/observability-comparison` v1
+- library/docs/tests-only implementation boundaries
 
-M20 explicitly does **not**:
+M20 v1 does **not**:
 - widen `zig-scheduler/report`
 - widen `src/analysis/*`
-- introduce a CLI or report-export surface for the comparison path
-- attempt raw event-by-event alignment
-- match simulator tasks to Linux PIDs/entities
-- claim replay fidelity, Linux truth, or Linux-performance meaning
+- create a CLI or report-export surface for comparison summaries
+- align raw events one-by-one
+- match simulator task identity to Linux PID identity
+- treat the M19 fixture as replay or performance authority
 
-## Approved first-cut pairing
+## Approved pairing
 
 | field | value |
 | --- | --- |
-| simulator scenario | `scenarios/basic/sleep-wakeup.zon` |
-| simulator policy | `cfs_like` |
-| M19 fixture manifest | `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json` |
-| pairing manifest | `fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json` |
-| comparison contract | `zig-scheduler/observability-comparison` v1 |
+| `pairing_id` | `m20-sleep-wakeup-vs-m19-tracefs-sched-demo` |
+| `simulator_scenario` | `scenarios/basic/sleep-wakeup.zon` |
+| `simulator_policy` | `cfs_like` |
+| `observability_fixture_manifest` | `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json` |
 
-No additional simulator/fixture combinations are part of v1.
-
-## Approved metric set
-
-The first cut supports exactly these metric keys:
+The approved metric set is fixed to exactly:
 - `activation_count_delta`
 - `selection_count_delta`
 - `retirement_count_delta`
@@ -49,32 +41,34 @@ The first cut supports exactly these metric keys:
 - `actor_cardinality_delta`
 - `time_span_delta`
 
-No additional derived metrics, ratios, percentages, or single-number fidelity
-scores are part of v1.
+The required caveat keys for the sole approved pairing are fixed to exactly:
+- `observability_only`
+- `units_not_equivalent`
+- `identity_not_equivalent`
+- `unmatched_events_present`
+- `not_fidelity`
 
-## Exact normalization mapping
+## Normalization contract
 
-M20 compares only this normalized family table:
+M20 compares only this normalized family mapping:
 
-| normalized family | simulator source | Linux-observability source |
+| normalized family | simulator source | observability source |
 | --- | --- | --- |
 | `activation` | `arrival`, `wakeup` | `sched_wakeup`, `sched_wakeup_new` |
 | `selection` | `dispatch` | `sched_switch` |
 | `retirement` | `complete` | `sched_process_exit` |
 
-Additional rules:
-- family order is derived only as the first-seen normalized family order
-- raw event-by-event alignment is out of scope
-- simulator task identity and Linux PID/entity identity are not equivalent
-- approved but unmapped Linux trace events still count toward raw totals and are
-  excluded from normalized family summaries
+Additional normalization rules:
+- summaries stay at family/order/count/span level only
+- normalized order is the first-seen family order from each input
+- unmapped approved-trace events remain in raw totals and stay out of the
+  normalized family summaries
+- no hidden family derivations outside the table above
 
-## Comparison contract boundary
+## Comparison contract v1
 
-The comparison output is a separate payload contract. It does **not** widen the
-existing simulator report/export surface.
-
-Exact top-level fields for `zig-scheduler/observability-comparison` v1:
+`zig-scheduler/observability-comparison` v1 is frozen to these top-level keys
+only:
 - `schema`
 - `version`
 - `pairing_id`
@@ -84,49 +78,16 @@ Exact top-level fields for `zig-scheduler/observability-comparison` v1:
 - `metric_rows`
 - `caveats`
 
-No additional top-level fields are part of v1.
+Nested shape is frozen to:
+- `simulator_source`: `scenario_path`, `policy`, `report_schema`, `report_version`
+- `observability_fixture_manifest`: `manifest_path`, `family`, `kernel_release`,
+  `snapshot_format_version`, `scrub_policy_version`
+- `normalized_order_summary`: `simulator_families`, `observability_families`
+- `metric_rows[]`: `metric_key`, `simulator_value`, `observability_value`,
+  `delta`, `caveat_key`
+- `caveats`: object keyed only by the approved caveat-key registry
 
-Exact nested shapes:
-- `simulator_source`
-  - `scenario_path`
-  - `policy`
-  - `report_schema`
-  - `report_version`
-- `observability_fixture_manifest`
-  - `manifest_path`
-  - `family`
-  - `kernel_release`
-  - `snapshot_format_version`
-  - `scrub_policy_version`
-- `normalized_order_summary`
-  - `simulator_families`
-  - `observability_families`
-- `metric_rows[]`
-  - `metric_key`
-  - `simulator_value`
-  - `observability_value`
-  - `delta`
-  - `caveat_key`
-- `caveats`
-  - object keyed only by approved caveat keys
-
-Value semantics:
-- `simulator_value`, `observability_value`, and `delta` are numeric in every row
-- count/cardinality rows use integers
-- `time_span_delta` may use floating-point values
-
-## Approved caveats
-
-The first cut allows only these caveat keys:
-- `observability_only`
-- `units_not_equivalent`
-- `identity_not_equivalent`
-- `unmatched_events_present`
-- `not_fidelity`
-
-The sole approved pairing requires exactly that caveat-key set.
-
-Per-metric caveat bindings are fixed to:
+Per-metric caveat binding is fixed to:
 - `activation_count_delta` → `not_fidelity`
 - `selection_count_delta` → `not_fidelity`
 - `retirement_count_delta` → `not_fidelity`
@@ -135,41 +96,25 @@ Per-metric caveat bindings are fixed to:
 - `actor_cardinality_delta` → `identity_not_equivalent`
 - `time_span_delta` → `units_not_equivalent`
 
-## Proof surfaces
+## Reproducibility
 
-The approved future proof surfaces for the first cut are:
+The first-cut pairing is reproducible from committed repo inputs only.
+
+Simulator-side input can be regenerated locally with:
+
+```bash
+zig build sim -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy cfs_like --format json
+```
+
+Observability-side input stays fixed to the committed M19 manifest + scrubbed
+snapshot already stored under `fixtures/linux-observability/`.
+
+## Approved implementation surfaces
+
+M20 approval is limited to these comparison-summary surfaces:
 - `src/observability/comparison.zig`
 - `src/tests/observability_comparison_test.zig`
 - `docs/m20-simulator-to-trace-comparison.md`
 
-This keeps the first cut inside a library/docs/tests boundary. It intentionally
-exposes no CLI entrypoint, no report-export widening, and no `src/analysis/*`
-integration.
-
-## Reproducibility and wording guardrails
-
-The comparison must remain reproducible from committed repo inputs only:
-- committed simulator scenario input
-- committed M19 fixture manifest + payload
-- committed pairing manifest
-- committed caveat registry and metric bindings
-
-Unsupported wording must be rejected. In particular, M20 must not present the
-comparison as:
-- `faithful`
-- `validated`
-- `kernel-accurate`
-- `replay match`
-- `performance baseline`
-- `calibrated against Linux truth`
-
-## Relationship to M19
-
-M19 remains the upstream observability import boundary:
-- offline, observability-only fixtures
-- one approved tracefs sched snapshot family
-- one approved literal tuple
-- a separate observability summary path in `src/observability/root.zig`
-
-M20 builds on that bounded input surface without converting it into replay or
-Linux-performance authority.
+Supporting proof artifacts may document or verify the approved surface, but they
+must not create additional public comparison entrypoints.
