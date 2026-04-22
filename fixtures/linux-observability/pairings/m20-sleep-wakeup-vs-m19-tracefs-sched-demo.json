@@ -1,5 +1,5 @@
 {
-  "schema": "zig-scheduler/observability-comparison-pairing-manifest",
+  "schema": "zig-scheduler/observability-comparison-pairing",
   "version": 1,
   "pairing_id": "m20-sleep-wakeup-vs-m19-tracefs-sched-demo",
   "simulator_scenario": "scenarios/basic/sleep-wakeup.zon",
