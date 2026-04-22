@@ -4,7 +4,7 @@
 Draft for consensus review on 2026-04-22
 
 ## Scope under test
-- one bounded repo-native teaching distribution built on the M21 shortlist
+- one bounded repo-native package shell built on the M21 shortlist
 - student onboarding from checkout to first simulator runs
 - instructor guidance for the same bounded package
 - one reproducible three-module assignment pack
@@ -18,16 +18,15 @@ Draft for consensus review on 2026-04-22
 - `docs/courseware/student-onboarding.md`
 - `docs/courseware/instructor-guide.md`
 - `docs/courseware/assignment-pack-01.md`
-- `docs/courseware/reproducibility-checklist.md`
 - `src/tests/scenario_pack_test.zig`
 - `src/tests/cli_smoke_test.zig`
 - `src/tests/identity_gate_test.zig`
 
 ## Required verification
-1. confirm the M23 package points to the exact M21 three-anchor shortlist and does not widen the required scenario set
-2. confirm README exposes exactly one canonical M23 package entrypoint
-3. confirm student onboarding instructions are executable from committed repo state
-4. confirm instructor guide stays aligned with the same three-anchor package and repeats simulator-first boundary wording
+1. confirm README exposes exactly one canonical M23 package entrypoint
+2. confirm the package entrypoint links onward to onboarding, instructor guide, and assignment pack without competing package starts
+3. confirm the M23 required anchors derive exactly from `listM21TeachingEntries()`
+4. confirm M23 does not widen the required anchor set or replace the primary M21 commands
 5. confirm the assignment pack contains exactly three required modules:
    - `short-vs-long` + `fcfs`
    - `sleep-wakeup` + `cfs-like`
@@ -39,13 +38,13 @@ Draft for consensus review on 2026-04-22
 10. run `zig build test --summary all`
 
 ## Minimum checks
-- README links to `docs/courseware/m23-teaching-distribution.md`
-- package index links to onboarding, instructor guide, assignment pack, and reproducibility checklist
+- README links to `docs/courseware/m23-teaching-distribution.md` as the single M23 package entry
+- package index links to onboarding, instructor guide, and assignment pack
+- package index contains the package-level reproducibility checklist
 - onboarding includes `zig build`, `zig build test --summary all`, and first-run simulator commands
 - assignment pack lists committed scenario paths and exact commands for all three modules
 - assignment pack does not require M19, M20, or M22 paths to complete the core package
-- reproducibility checklist references only committed inputs and supported commands
-- scenario-pack/doc alignment tests still prove the M21 shortlist is exact
+- scenario-pack/doc alignment tests prove the required anchors derive from `listM21TeachingEntries()`
 - boundary tests fail if M23 docs drift into forbidden scope claims
 - CLI smoke covers every command shown in M23 package docs
 
@@ -57,3 +56,4 @@ Draft for consensus review on 2026-04-22
 - browser/WASM delivery
 - production-service or live-observability workflows
 - M22 API expansion
+- redefining the M21 anchor set or replacing its primary commands

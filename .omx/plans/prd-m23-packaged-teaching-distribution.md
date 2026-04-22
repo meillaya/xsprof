@@ -6,13 +6,15 @@ Draft for consensus review on 2026-04-22
 ## 1) Task framing and evidence grounding
 
 ### Framing
-M23 should turn the existing simulator-first teaching material into **one bounded,
-repo-native teaching package** that an instructor or self-guided learner can
-follow from onboarding through a first reproducible assignment set.
+M23 should package the existing simulator-first teaching material into **one
+bounded, repo-native courseware shell over M21** that an instructor or
+self-guided learner can follow from onboarding through a first reproducible
+assignment set.
 
-This milestone is about **packaging the already-proven simulator teaching lane**,
-not about expanding platform scope, widening the observability branch, or
-re-chartering the repo into a browser, WASM, service, or production system.
+This milestone is about **packaging the already-proven M21 teaching path**,
+not creating a second canonical teaching spine and not expanding platform
+scope, widening the observability branch, or re-chartering the repo into a
+browser, WASM, service, or production system.
 
 ### Grounding from repo evidence
 - `.omx/context/m23-packaged-teaching-distribution-20260422T201500Z.md`
@@ -32,8 +34,6 @@ re-chartering the repo into a browser, WASM, service, or production system.
   - `multicore-balancing` + `fcfs`
 - `src/sim/scenario_pack.zig` already exposes `listM21TeachingEntries()` as a
   machine-checkable source of truth for that exact shortlist.
-- `docs/labs/reproducible-report-pack.md` and the report pipeline already show
-  that the repo values **committed, reproducible, deterministic proof paths**.
 - `docs/m22-library-sdk.md` and `zig build m22-embed-smoke` already establish a
   narrow optional SDK branch that M23 may reference, but must not broaden.
 - `src/tests/scenario_pack_test.zig`, `src/tests/cli_smoke_test.zig`, and
@@ -42,17 +42,19 @@ re-chartering the repo into a browser, WASM, service, or production system.
 
 ### Scope boundary
 M23 may produce:
-- one **canonical courseware index** for the first packaged teaching cut
+- one **canonical package entrypoint** for the first packaged teaching cut
 - one **student onboarding path** that starts from repo checkout and lands on
   the M21 three-anchor teaching loop
 - one **bounded assignment/exercise pack** built from committed scenarios and
   exact commands already supported by the repo
 - one **instructor-facing guide** for pacing, expected observations, and
-  reproducibility checks
-- docs/tests proving that the assignment path is reproducible from committed
+  boundary-safe usage of the package shell
+- docs/tests proving that the package path is reproducible from committed
   artifacts and does not hide project boundaries
 
 M23 must not produce:
+- a second canonical teaching spine
+- a redefinition of the required anchor set or primary M21 commands
 - browser/WASM delivery
 - hosted/lab service infrastructure
 - live Linux capture, replay automation, or production observability scope
@@ -60,27 +62,36 @@ M23 must not produce:
 - M22 API expansion beyond citing the already-approved narrow embedder smoke
 - a repositioning of M19/M20 from side lane to main teaching spine
 
+### Package-shell rule
+M23 is explicitly a **package shell over M21**:
+- it **may** reorganize, sequence, and cross-link the M21 teaching path for
+  onboarding and coursework use
+- it **may not** redefine the required anchor set
+- it **may not** replace the primary M21 commands with a new required command set
+- the exact required anchors must derive from `listM21TeachingEntries()`
+
 ---
 
 ## 2) RALPLAN-DR short summary
 
 ### Principles
-1. **Simulator-first truth stays primary.** M23 packages the simulator teaching
-   lane; it does not replace it with browser, service, or kernel-facing scope.
-2. **One bounded first package beats broad curriculum sprawl.** Land a single
-   instructor/student pack around the existing M21 anchors instead of attempting
-   a semester-scale curriculum.
-3. **Reproducibility is part of the product.** Every assignment/exercise must
-   resolve to committed scenarios, exact commands, and reviewable outputs.
+1. **M23 is a package shell over M21, not a new teaching spine.** It may wrap,
+   sequence, and explain M21, but not redefine M21’s required anchors or
+   primary commands.
+2. **One bounded first package beats courseware sprawl.** Land a single
+   instructor/student package around the existing M21 anchors instead of
+   attempting a semester-scale curriculum.
+3. **Reproducibility is part of the package contract.** Every required exercise
+   must resolve to committed scenarios, exact commands, and reviewable outputs.
 4. **Optional branches stay secondary and explicit.** M19/M20 remain a bounded
    observability appendix; M22 remains a narrow optional embedder appendix.
-5. **Docs should be machine-auditable where possible.** Courseware packaging
-   should reuse existing shortlist metadata and command-smoke patterns instead of
-   becoming prose-only.
+5. **Docs should be machine-auditable where possible.** Packaging should reuse
+   existing shortlist metadata and command-smoke patterns rather than becoming
+   prose-only.
 
 ### Decision drivers (top 3)
 1. **Reduce onboarding friction** for instructors/students who can currently run
-   the simulator but do not yet have a single courseware path through the repo.
+   the simulator but do not yet have a single package entrypoint through the repo.
 2. **Provide reproducible assignments** that can be re-run from committed repo
    state without hidden tooling, external services, or ad hoc setup.
 3. **Protect scope discipline** by packaging the proven M21 teaching core rather
@@ -88,8 +99,8 @@ M23 must not produce:
 
 ### Viable options
 
-#### Option A — Docs-only courseware index layered on top of M21
-Create a courseware landing page that links existing docs and commands, but keep
+#### Option A — Docs-only package wrapper layered on top of M21
+Create a package landing page that links existing docs and commands, but keep
 student/instructor materials minimal and avoid dedicated assignment documents.
 
 **Pros**
@@ -102,21 +113,21 @@ student/instructor materials minimal and avoid dedicated assignment documents.
 - does not fully satisfy reproducible assignment/exercise intent
 - onboarding remains scattered across README + labs + milestone docs
 
-#### Option B — One bounded first courseware package with student + instructor + assignment docs (recommended)
-Build a single repo-native package around the existing M21 shortlist: an index,
-student onboarding guide, instructor guide, and one three-module assignment pack
-that uses committed scenarios and exact commands, with explicit optional M19/M20
-and M22 appendices.
+#### Option B — One bounded package shell with four primary docs over M21 (recommended)
+Build a single repo-native package shell around the existing M21 shortlist: an
+index, student onboarding guide, instructor guide, and one three-module
+assignment pack that includes reproducibility guidance inline, with explicit
+optional M19/M20 and M22 appendices.
 
 **Pros**
 - fully addresses onboarding + packaged courseware + reproducible exercises
-- stays tightly bounded around already-proven artifacts
-- creates a credible first teaching distribution without curriculum sprawl
+- stays tightly bounded around already-proven M21 artifacts
+- avoids extra doc sprawl by folding reproducibility into the package docs
 
 **Cons**
 - larger docs/test surface than option A
 - requires careful wording to keep appendices secondary
-- likely touches several docs and alignment tests together
+- touches several docs and alignment tests together
 
 #### Option C — Broader multi-week curriculum package with many labs, rubrics, and solution tracks
 Create a large courseware tree spanning beginner-to-advanced content across most
@@ -132,20 +143,21 @@ repo features and optional branches.
 - likely re-centers the repo around curriculum breadth instead of simulator core
 
 ### Recommended direction
-**Option B wins.** M23 should ship **one bounded first package** that wraps the
-existing M21 simulator-first shortlist into a coherent distribution for:
+**Option B wins.** M23 should ship **one bounded first package shell over M21**
+with:
+- one package entrypoint
 - learner onboarding
-- instructor delivery
-- reproducible exercises/assignments
-- explicit, bounded optional appendices for M19/M20 and M22
+- instructor delivery guidance
+- one reproducible exercise/assignment pack
+- explicit, secondary appendices for M19/M20 and M22
 
 ---
 
 ## 3) Recommended M23 scope (right-sized and precise)
 
 ### Core milestone decision
-M23 should produce **exactly one first packaged teaching distribution** with
-four primary artifacts and two bounded appendices.
+M23 should produce **exactly one first packaged teaching distribution** as a
+shell over M21, with **four primary docs** and two bounded appendices.
 
 ### Recommended package shape
 
@@ -154,6 +166,7 @@ four primary artifacts and two bounded appendices.
    - one canonical “start here for teaching” document
    - explains audience, prerequisites, package structure, expected outputs, and
      time-boxed teaching flow
+   - includes the package-level reproducibility checklist and entry semantics
 2. **Student onboarding guide**
    - repo checkout/build/test/run path
    - exact first commands to execute
@@ -166,7 +179,7 @@ four primary artifacts and two bounded appendices.
 4. **Assignment pack (single bounded first pack)**
    - three exercises/modules aligned to the M21 three-anchor shortlist
    - each exercise includes exact inputs, commands, questions, expected artifact
-     types, and reproducibility instructions
+     types, and inline reproducibility notes
 
 #### Bounded appendices
 5. **Observability appendix (secondary only)**
@@ -182,23 +195,23 @@ Use a new dedicated docs subtree so M23 reads as a package rather than another
 scattered milestone note.
 
 **Recommended docs layout**
-- `docs/courseware/m23-teaching-distribution.md` — canonical package index
+- `docs/courseware/m23-teaching-distribution.md` — canonical package index,
+  single package entrypoint, and package-level reproducibility checklist
 - `docs/courseware/student-onboarding.md` — learner quickstart and environment
   validation
 - `docs/courseware/instructor-guide.md` — delivery notes and expected takeaways
 - `docs/courseware/assignment-pack-01.md` — bounded three-module assignment set
-- `docs/courseware/reproducibility-checklist.md` — exact proof path for package
-  commands/artifacts
+  with inline reproducibility notes
 
 **Recommended supporting updates**
-- `README.md` — add explicit M23 courseware link below the M21 start path
+- `README.md` — add exactly one explicit M23 courseware link below the M21 start path
 - `docs/project-architecture-and-status.md` — add M23 section with scope and
   non-goals
 - `docs/labs/simulator-teaching-pack.md` — remain the canonical M21 shortlist,
   but cross-link as the underlying teaching spine for M23
-- `docs/m22-library-sdk.md` — likely link target only; no expansion expected
+- `docs/m22-library-sdk.md` — link target only; no expansion expected
 - `docs/m19-curated-linux-observability.md` / `docs/m20-simulator-to-trace-comparison.md`
-  — likely link targets only; no scope broadening expected
+  — link targets only; no scope broadening expected
 
 ### Recommended assignment shape
 Keep the assignment pack bounded to **three modules**, each mapping directly to
@@ -208,7 +221,7 @@ one M21 anchor and one reproducibility pattern.
 - scenario: `short-vs-long`
 - policy: `fcfs`
 - student task:
-  - run `zig build sim` and `zig build run`
+  - run the existing M21 primary commands
   - identify convoy effects in trace/metrics
   - answer short observation prompts
 - proof artifact:
@@ -218,6 +231,7 @@ one M21 anchor and one reproducibility pattern.
 - scenario: `sleep-wakeup`
 - policy: `cfs-like`
 - student task:
+  - run the existing M21 primary commands
   - compare runnable vs blocked phases
   - explain wakeup timing in simulator terms
   - identify what is a teaching simplification vs a kernel claim
@@ -228,6 +242,7 @@ one M21 anchor and one reproducibility pattern.
 - scenario: `multicore-balancing`
 - policy: `fcfs`
 - student task:
+  - run the existing M21 primary commands
   - inspect deterministic rebalance behavior
   - connect observations back to simulator-first wording
   - optionally note how M19/M20 or M22 relate without becoming required
@@ -241,61 +256,62 @@ one M21 anchor and one reproducibility pattern.
 - browser notebooks, web playgrounds, or hosted environments
 - broad scenario-corpus repackaging beyond the M21 shortlist
 - making M19/M20 or M22 required for passing the package
+- redefining M21’s required anchors or replacing its primary commands
 
 ---
 
 ## 4) Concrete implementation steps with likely files
 
-### Step 1 — Freeze the M23 package contract and boundaries
-**Goal:** define one bounded packaged-teaching cut before writing courseware.
+### Step 1 — Use the approved planning artifacts as implementation inputs
+**Goal:** treat the saved PRD/test-spec as the implementation contract, not as
+implementation outputs.
 
-**Likely files**
-- `docs/project-architecture-and-status.md`
-- `README.md`
-- `docs/labs/simulator-teaching-pack.md`
-- `docs/m22-library-sdk.md` (link target only if needed)
+**Implementation inputs**
 - `.omx/plans/prd-m23-packaged-teaching-distribution.md`
 - `.omx/plans/test-spec-m23-packaged-teaching-distribution.md`
+- `.omx/context/m23-packaged-teaching-distribution-20260422T201500Z.md`
+
+**Likely implementation files**
+- `README.md`
+- `docs/project-architecture-and-status.md`
+- `docs/labs/simulator-teaching-pack.md`
 
 **Work**
-- add the M23 milestone section to project-status docs with precise goals,
-  package contents, and non-goals
-- clarify in README that M21 remains the simulator-first shortlist while M23 is
-  the packaged courseware layer built on top of it
+- update README and project-status docs to describe M23 as a package shell over M21
+- state explicitly that M23 may reorganize/cross-link M21, but may not redefine
+  the required anchor set or primary commands
 - restate that M19/M20 and M22 are optional appendices, not prerequisites
 
 **Acceptance criteria**
-- README and project-status docs describe M23 as one bounded first package
+- implementation docs treat the planning artifacts as inputs already decided
+- README and project-status docs describe M23 as one bounded package shell over M21
 - docs explicitly preserve simulator-first identity and side-lane boundaries
-- M23 is described as packaging the M21 shortlist, not replacing it
 
-### Step 2 — Create the canonical M23 courseware index and package structure
-**Goal:** give the repo one obvious courseware entrypoint.
+### Step 2 — Create the canonical M23 package entrypoint and supporting docs
+**Goal:** give the repo one obvious package entrypoint with minimal doc sprawl.
 
 **Likely files**
 - `docs/courseware/m23-teaching-distribution.md`
 - `docs/courseware/student-onboarding.md`
 - `docs/courseware/instructor-guide.md`
-- `docs/courseware/reproducibility-checklist.md`
 
 **Work**
 - create one landing page that describes package purpose, audiences,
-  prerequisites, time estimates, and navigation order
+  prerequisites, time estimates, navigation order, and package-level
+  reproducibility checklist
 - write a student onboarding guide from clone/build/test through first scenario
 - write an instructor guide with suggested pacing, expected observations, and
   warnings against over-claiming Linux fidelity or production scope
-- write a reproducibility checklist that maps every package command to committed
-  inputs and expected outputs
 
 **Acceptance criteria**
 - a new reader can find exactly one canonical M23 entrypoint from README
 - onboarding instructions are executable from repo checkout with no hidden setup
-- instructor guide and student guide stay aligned on the same three anchors
-- reproducibility checklist references only committed files and supported commands
+- instructor guide and student guide stay aligned on the exact M21 anchors
+- the index includes package-level reproducibility guidance without needing a fifth doc
 
 ### Step 3 — Author one bounded assignment pack around the M21 shortlist
 **Goal:** satisfy the roadmap’s reproducible assignment/exercise requirement
-without creating endless curriculum breadth.
+without creating endless curriculum breadth or a second teaching spine.
 
 **Likely files**
 - `docs/courseware/assignment-pack-01.md`
@@ -304,20 +320,20 @@ without creating endless curriculum breadth.
 
 **Work**
 - create one assignment pack containing exactly three modules, one per M21
-  anchor scenario
+  anchor scenario derived from `listM21TeachingEntries()`
 - for each module, specify:
   - objective
   - scenario file
-  - required command(s)
+  - required M21 command(s)
   - expected observable behaviors
   - short-answer prompts
-  - reproducibility notes
+  - inline reproducibility notes
 - cross-link to the deeper explanation docs already in the repo instead of
   rewriting all underlying theory
 
 **Acceptance criteria**
 - the assignment pack uses exactly the M21 shortlist and no broader required set
-- each assignment module has exact commands and committed input paths
+- each assignment module uses the existing M21 primary commands
 - theory references link outward to existing docs instead of duplicating them
 - optional appendix references to M19/M20 and M22 are clearly marked optional
 
@@ -330,21 +346,21 @@ without creating endless curriculum breadth.
 - `src/tests/identity_gate_test.zig`
 
 **Work**
-- add doc-alignment assertions that the M23 package cites the exact M21
-  shortlist and preserves simulator-first wording
+- add doc-alignment assertions that the M23 package derives its required anchors
+  from `listM21TeachingEntries()` and preserves simulator-first wording
 - add command-smoke coverage for every command shown in the onboarding guide,
-  assignment pack, and reproducibility checklist
+  package index, and assignment pack
 - add identity/boundary assertions that M23 docs do not imply browser/WASM,
   service scope, Linux-performance claims, or M19/M20-as-mainline teaching
-- if useful, add checks that the M23 docs mention `zig build m22-embed-smoke`
-  only as an optional appendix
+- add checks that M19/M20 and M22 appear only as optional appendices, with M22
+  limited to the existing doc plus `zig build m22-embed-smoke`
 
 **Acceptance criteria**
 - every M23 package command shown in docs is covered by smoke validation
-- tests prove M23 still centers the exact three-anchor simulator path
-- tests fail if courseware docs drift into forbidden identity claims
+- tests prove M23 derives the exact three-anchor simulator path from M21
+- tests fail if courseware docs drift into forbidden identity claims or make appendices required
 
-### Step 5 — Final polish for package usability and branch discipline
+### Step 5 — Final polish for single-entrypoint semantics and package coherence
 **Goal:** ensure the package feels coherent without overshooting scope.
 
 **Likely files**
@@ -353,23 +369,32 @@ without creating endless curriculum breadth.
 - `docs/project-architecture-and-status.md`
 
 **Work**
-- tighten cross-links so readers can move cleanly among README, M21 teaching
-  pack, M23 package index, and optional appendices
-- verify that every appendix is marked secondary
+- tighten cross-links so readers move cleanly from README to the single M23
+  package entrypoint, then onward to onboarding/instructor/assignment docs
+- verify that every appendix is marked secondary and non-required
 - keep public wording honest: simulator teaching model, not Linux fidelity or
   production platform
 
 **Acceptance criteria**
-- the package can be followed linearly from README to onboarding to assignments
+- README presents one canonical M23 package link, not multiple competing starts
 - appendices are discoverable but clearly not required
-- the final docs tree reads as one bounded first package, not an open-ended
-  curriculum rewrite
+- the final docs tree reads as one bounded first package shell over M21, not an
+  open-ended curriculum rewrite
 
 ---
 
 ## 5) Risks and tradeoffs
 
-### Risk 1 — Courseware sprawl
+### Risk 1 — Package shell drifting into a second teaching spine
+M23 could accidentally redefine the required anchors or commands while trying to
+make the courseware more polished.
+
+**Mitigation**
+- codify the package-shell rule in docs and tests
+- derive required anchors from `listM21TeachingEntries()`
+- require M23 to reuse existing M21 primary commands
+
+### Risk 2 — Courseware sprawl
 Because “courseware” invites breadth, M23 could easily expand into many labs,
 answer keys, rubrics, or advanced modules.
 
@@ -378,7 +403,7 @@ answer keys, rubrics, or advanced modules.
 - reuse M21 anchors as the required spine
 - defer any second package or broader curriculum to a later milestone
 
-### Risk 2 — Blurring simulator-first identity
+### Risk 3 — Blurring simulator-first identity
 Instructor/student docs may accidentally overstate Linux realism or imply that
 M19/M20 are part of the mainline teaching workflow.
 
@@ -387,67 +412,60 @@ M19/M20 are part of the mainline teaching workflow.
 - require identity/boundary assertions in tests
 - keep M19/M20 and M22 in explicit appendix sections only
 
-### Risk 3 — Reproducibility becoming prose-only
-If the assignment pack is just narrative, it will drift from executable repo
-commands.
+### Risk 4 — Reproducibility becoming prose-only
+If the package is just narrative, it will drift from executable repo commands.
 
 **Mitigation**
-- centralize commands in onboarding/assignment/repro checklist docs
+- keep reproducibility guidance in the package index and assignment pack
 - cover all published commands with `cli_smoke_test.zig`
 - tie required scenarios to committed paths and existing shortlist helpers
 
-### Risk 4 — Duplicating existing theory docs
-The package could become hard to maintain if it re-explains all milestone theory.
-
-**Mitigation**
-- make M23 a packaging layer that links to existing deeper docs
-- keep module explanations concise and task-oriented
-- reuse M21/M17 docs as authoritative theory backreferences
-
 ### Tradeoff summary
 This plan favors **coherent packaging and reproducibility** over broad content
-coverage. That means the first M23 cut will feel intentionally small, but it
-will be auditable, maintainable, and faithful to the repo’s actual strengths.
+coverage. That keeps the first M23 cut intentionally small, but auditable,
+maintainable, and faithful to the repo’s actual strengths.
 
 ---
 
 ## 6) Verification plan
 
 ### Required verification
-1. **M5/M21/M22 boundary audit**
-   - confirm the package still describes the project as simulator-first
-   - confirm M19/M20 are appendix-only and bounded
-   - confirm M22 remains a narrow optional appendix, not required courseware
-2. **Courseware structure audit**
-   - README links to exactly one canonical M23 package index
-   - package index links to onboarding, instructor guide, assignment pack, and
-     reproducibility checklist
-3. **Assignment reproducibility audit**
+1. **Single-entrypoint audit**
+   - README links to exactly one canonical M23 package entrypoint
+   - the package entrypoint links onward to onboarding, instructor, and
+     assignment docs without creating competing “start here” paths
+2. **M21 derivation audit**
+   - required anchors derive exactly from `listM21TeachingEntries()`
+   - M23 does not widen the required anchor set
+   - M23 does not replace the existing M21 primary commands
+3. **Appendix-optional audit**
+   - M19/M20 references are appendix-only and explicitly non-required
+   - M22 remains a narrow optional appendix limited to
+     `docs/m22-library-sdk.md` and `zig build m22-embed-smoke`
+4. **Assignment reproducibility audit**
    - every required exercise command uses committed scenario files and supported
      repo commands
    - no exercise depends on external services, browser tooling, or live Linux capture
-4. **Command smoke verification**
-   - smoke every published command in onboarding/assignment docs through the
-     existing CLI smoke test lane
-5. **Docs alignment verification**
-   - M23 docs cite the exact three M21 anchors and do not silently widen the
-     required teaching set
-6. **Full regression pass**
+5. **Command smoke verification**
+   - smoke every published command in the package index, onboarding guide, and
+     assignment pack through the existing CLI smoke test lane
+6. **Identity/boundary audit**
+   - confirm the package still describes the project as simulator-first
+   - confirm docs do not imply browser/WASM, service scope, live capture,
+     replay authority, or Linux-performance claims
+7. **Full regression pass**
    - `zig build test --summary all`
 
 ### Minimum checks
-- README mentions the M23 courseware package and links to its index
-- the package index defines audience, prerequisites, package contents, and
-  navigation order
-- student onboarding includes clone/build/test/first-run instructions
-- instructor guide includes expected observations and boundary reminders
-- assignment pack contains exactly three modules mapped to the M21 shortlist
-- reproducibility checklist lists the package’s exact commands and committed inputs
-- M23 docs do not imply browser/WASM, service, replay, live capture, or
-  Linux-performance scope
-- optional M19/M20 and M22 references are clearly labeled optional appendices
-- all package commands are covered by smoke validation
-- all docs/tests still pass under `zig build test --summary all`
+- README links to `docs/courseware/m23-teaching-distribution.md` as the single M23 package entry
+- package index links to onboarding, instructor guide, and assignment pack
+- package index contains the package-level reproducibility checklist
+- onboarding includes `zig build`, `zig build test --summary all`, and first-run simulator commands
+- assignment pack lists committed scenario paths and exact commands for all three modules
+- assignment pack does not require M19, M20, or M22 paths to complete the core package
+- scenario-pack/doc alignment tests prove the M23 required anchors derive from `listM21TeachingEntries()`
+- boundary tests fail if M23 docs drift into forbidden scope claims
+- CLI smoke covers every command shown in M23 package docs
 
 ### Likely verification touchpoints
 - `src/tests/scenario_pack_test.zig`
@@ -463,16 +481,16 @@ will be auditable, maintainable, and faithful to the repo’s actual strengths.
 ## 7) ADR-style mini section
 
 ### Decision
-Adopt **one bounded repo-native teaching distribution** for M23: a canonical
-courseware index, student onboarding guide, instructor guide, one three-module
-assignment pack built on the M21 shortlist, and a reproducibility checklist,
+Adopt **one bounded repo-native package shell over M21** for M23: a canonical
+courseware index, student onboarding guide, instructor guide, and one
+three-module assignment pack with inline/package-level reproducibility guidance,
 with M19/M20 and M22 limited to optional appendices.
 
 ### Drivers
 - The roadmap requires a documented teaching path, easier onboarding, and
   reproducible assignments/exercises.
-- M21 already provides a proven simulator-first teaching spine that should be
-  packaged rather than replaced.
+- M21 already provides the canonical simulator-first teaching spine that should
+  be packaged rather than replaced.
 - The repo’s identity and existing tests strongly favor deterministic,
   committed, machine-auditable proof over broad but weakly verified curriculum.
 
@@ -488,13 +506,12 @@ with M19/M20 and M22 limited to optional appendices.
 - M23 will feel like a real first teaching distribution without pretending to be
   a complete curriculum.
 - Docs/test work becomes the main implementation surface.
-- Future teaching-package growth has a clear extension point: additional packs or
-  appendices can be proposed later without rewriting the first package.
+- Future teaching-package growth has a clear extension point, but the first
+  package remains anchored to M21 rather than inventing a new spine.
 
 ### Follow-ups
 - If M23 lands cleanly, a later milestone can decide whether to add a second
-  package (for advanced scenarios or optional library usage) without disturbing
-  the first package.
+  package for advanced/optional work without disturbing the first package.
 - If instructor demand emerges, solution/rubric material can be added later in a
   clearly segregated instructor-only or review-only surface.
 
