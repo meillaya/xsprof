@@ -487,10 +487,14 @@ Goal:
   demo, and review from committed fixtures
 
 Recommended scope:
-- stronger walkthrough/docs coverage for the canonical M17 scenarios
-- more deterministic snapshot/golden surfaces for the TUI path
+- a single simulator-first shortlist for exactly these anchors:
+  - `short-vs-long` + `fcfs`
+  - `sleep-wakeup` + `cfs-like`
+  - `multicore-balancing` + `fcfs`
+- stronger walkthrough/docs coverage for those anchors
+- more deterministic snapshot surfaces for the TUI path
+- one repo-native teaching index at `docs/labs/simulator-teaching-pack.md`
 - clearer local demo playbooks for instructors, reviewers, and contributors
-- repo-native teaching artifacts that remain reproducible from committed inputs
 
 This milestone should preserve the current boundaries:
 - no browser/WASM path as a required or default surface
@@ -503,9 +507,9 @@ This milestone should preserve the current boundaries:
 Planned proof surfaces for this route should stay close to the current repo
 shape:
 - `docs/m21-simulator-first-teaching-surface.md`
+- `docs/labs/simulator-teaching-pack.md`
 - README + project-status updates
-- deterministic TUI snapshot tests or committed snapshot artifacts for selected
-  canonical scenarios
+- deterministic TUI snapshot tests for picker/help plus the three anchors
 
 ## Notes on implementation philosophy
 

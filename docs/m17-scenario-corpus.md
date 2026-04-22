@@ -20,6 +20,20 @@ zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --polic
 zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy round_robin
 ```
 
+## M21 simulator-first teaching shortlist
+
+The current simulator-first “start here” path is intentionally smaller than the
+full canonical corpus:
+
+- `short-vs-long` + `fcfs`
+- `sleep-wakeup` + `cfs-like`
+- `multicore-balancing` + `fcfs`
+
+Use the canonical teaching index for commands, snapshot suggestions, and
+review notes:
+
+- `docs/labs/simulator-teaching-pack.md`
+
 ## Canonical scenarios
 
 | scenario | theme | recommended policy | explanation doc | role |

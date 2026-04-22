@@ -82,6 +82,9 @@ pub const PickerEntry = struct {
     policy: PolicyKind,
     policy_label: []const u8,
     description: []const u8,
+    theme_label: ?[]const u8 = null,
+    explanation_doc: ?[]const u8 = null,
+    m21_start_here_rank: ?u8 = null,
     cores: u32,
     tasks: u32,
     ticks: u32,
@@ -103,6 +106,15 @@ pub const AppView = struct {
     picker_entries: []const PickerEntry,
     history: []const []const u8,
 };
+
+fn teachingPolicyLabel(policy: scheduler.PolicyKind) []const u8 {
+    return switch (policy) {
+        .fcfs => "fcfs",
+        .round_robin => "round-robin",
+        .cfs_like => "cfs-like",
+        .deadline => "deadline",
+    };
+}
 
 fn axisTier(value: usize, large_min: usize, medium_min: usize, compact_min: usize) LayoutTier {
     if (value >= large_min) return .large;
@@ -1195,8 +1207,8 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
         renderPickerList(canvas, list_inner, app, theme);
         const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false, theme);
         renderPickerSources(canvas, sources_inner, theme);
-        const policies_inner = renderPane(canvas, policies_rect, "policies", null, null, false, theme);
-        renderPickerPolicies(canvas, policies_inner, theme);
+        const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false, theme);
+        renderPickerStartHere(canvas, start_here_inner, theme);
         const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false, theme);
         renderPickerRecent(canvas, recent_inner, app.history, theme);
         renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "OPEN", output_mode);
@@ -1216,8 +1228,8 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
     const recent_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 18, .w = side_rect.w, .h = side_rect.h - 18 };
     const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false, theme);
     renderPickerSources(canvas, sources_inner, theme);
-    const policies_inner = renderPane(canvas, policies_rect, "policies", null, null, false, theme);
-    renderPickerPolicies(canvas, policies_inner, theme);
+    const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false, theme);
+    renderPickerStartHere(canvas, start_here_inner, theme);
     const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false, theme);
     renderPickerRecent(canvas, recent_inner, app.history, theme);
 
@@ -1294,8 +1306,14 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
     if (rect.w > 28) canvas.drawText(rect.x + rect.w - 26, rect.y + 1, "press ? or esc to close", .{ .fg = .fg_dim, .bg = .bg });
 
     const HelpSection = struct { title: []const u8, rows: []const [2][]const u8 };
+    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
     const simulator_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "←  →", "scrub one tick" }, .{ "home / end", "first / last tick" }, .{ "space", "play / pause" } } },
+        .{ .title = "START HERE", .rows = &.{
+            .{ shortlist[0].key, teachingPolicyLabel(shortlist[0].recommended_policy.?) },
+            .{ shortlist[1].key, teachingPolicyLabel(shortlist[1].recommended_policy.?) },
+            .{ shortlist[2].key, teachingPolicyLabel(shortlist[2].recommended_policy.?) },
+        } },
         .{ .title = "SELECTION", .rows = &.{ .{ "j  k", "select next / previous task" }, .{ "esc", "clear or close" }, .{ "enter", "open task detail drawer" } } },
         .{ .title = "PANES", .rows = &.{ .{ "tab", "cycle pane focus" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
         .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "m / c", "open M19 / M20 from picker" }, .{ "q", "quit" } } },
@@ -1834,46 +1852,73 @@ fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
         const style = if (selected) Style{ .fg = .fg_inv, .bg = .bg_inv, .bold = true } else Style{ .fg = .fg, .bg = .bg, .bold = false };
         canvas.fillRect(.{ .x = rect.x, .y = rect.y + 2 + row, .w = rect.w, .h = 1 }, style);
         var buf: [160]u8 = undefined;
-        const row_text = std.fmt.bufPrint(&buf, "{s:<24} {s:<14} {d:>3}    {d:>3}    {d:>3}", .{ entry.scenario_label, entry.policy_label, entry.cores, entry.tasks, entry.ticks }) catch "";
+        const row_text = std.fmt.bufPrint(&buf, "{s}{s:<22} {s:<14} {d:>3}    {d:>3}    {d:>3}", .{
+            if (entry.m21_start_here_rank != null) "★ " else "  ",
+            entry.scenario_label,
+            entry.policy_label,
+            entry.cores,
+            entry.tasks,
+            entry.ticks,
+        }) catch "";
         canvas.drawTextClipped(rect.x, rect.y + 2 + row, rect.w, if (selected) row_text else row_text, style);
         if (selected and rect.y + 3 + row < rect.y + rect.h) {
-            var desc_buf: [160]u8 = undefined;
-            const desc = std.fmt.bufPrint(&desc_buf, "  {s} · {s}", .{ entry.pack, entry.description }) catch entry.description;
+            var desc_buf: [256]u8 = undefined;
+            const desc = if (entry.m21_start_here_rank) |rank|
+                std.fmt.bufPrint(&desc_buf, "  START HERE {d} · {s} · {s} · {s} · {s}", .{
+                    rank,
+                    entry.theme_label orelse "simulator path",
+                    entry.policy_label,
+                    entry.description,
+                    entry.explanation_doc orelse "docs/m17-scenario-corpus.md",
+                }) catch entry.description
+            else
+                std.fmt.bufPrint(&desc_buf, "  {s} · {s}", .{ entry.pack, entry.description }) catch entry.description;
             canvas.drawTextClipped(rect.x + 2, rect.y + 3 + row, rect.w - 2, desc, .{ .fg = if (selected) .fg_inv else .fg_dim, .bg = style.bg });
         }
     }
 }
 
 fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
+    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    var line_buf: [3][96]u8 = undefined;
     const lines = [_][]const u8{
-        "pack        core/basic",
-        "dir         scenarios/basic",
-        "regressions scenarios/regressions",
+        "start here path:",
+        std.fmt.bufPrint(&line_buf[0], "1. {s} · {s}", .{ shortlist[0].key, teachingPolicyLabel(shortlist[0].recommended_policy.?) }) catch "",
+        std.fmt.bufPrint(&line_buf[1], "2. {s} · {s}", .{ shortlist[1].key, teachingPolicyLabel(shortlist[1].recommended_policy.?) }) catch "",
+        std.fmt.bufPrint(&line_buf[2], "3. {s} · {s}", .{ shortlist[2].key, teachingPolicyLabel(shortlist[2].recommended_policy.?) }) catch "",
         "",
         "picker shortcuts:",
-        "m           open M19 observability lane",
-        "c           open M20 comparison lane",
+        "m/c         observability side lane",
         "",
         "load any exported report:",
         "zig build sim -- --scenario-file <path> --format json | zig-out/bin/zig-scheduler --stdin --snapshot",
     };
     for (lines, 0..) |line, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;
-        canvas.drawTextClipped(rect.x, rect.y + idx, rect.w, line, .{ .fg = if (idx >= 4) .running else .fg, .bg = .bg });
+        const style = if (idx < 4)
+            Style{ .fg = .dispatch, .bg = .bg, .bold = idx == 0 }
+        else if (idx >= 7)
+            Style{ .fg = .running, .bg = .bg, .bold = false }
+        else
+            Style{ .fg = .fg, .bg = .bg, .bold = false };
+        canvas.drawTextClipped(rect.x, rect.y + idx, rect.w, line, style);
     }
 }
 
-fn renderPickerPolicies(canvas: *Canvas, rect: Rect, _: Theme) void {
-    const entries = [_]struct { key: []const u8, desc: []const u8, slot: Slot }{
-        .{ .key = "fcfs", .desc = "first-come, first-served", .slot = .running },
-        .{ .key = "round_robin", .desc = "preemptive, fixed quantum", .slot = .dispatch },
-        .{ .key = "cfs_like", .desc = "weighted virtual-runtime", .slot = .preempt },
-        .{ .key = "deadline", .desc = "earliest-deadline-first", .slot = .complete },
-    };
-    for (entries, 0..) |entry, idx| {
+fn renderPickerStartHere(canvas: *Canvas, rect: Rect, _: Theme) void {
+    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    for (shortlist, 0..) |entry, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;
-        canvas.drawText(rect.x, rect.y + idx, entry.key, .{ .fg = entry.slot, .bg = .bg, .bold = true });
-        canvas.drawTextClipped(rect.x + 14, rect.y + idx, satSub(rect.w, 14), entry.desc, .{ .fg = .fg_dim, .bg = .bg });
+        canvas.drawText(rect.x, rect.y + idx, scheduler.scenario_packs.curriculumThemeLabel(entry.theme.?), .{ .fg = switch (idx) {
+            0 => .running,
+            1 => .dispatch,
+            else => .preempt,
+        }, .bg = .bg, .bold = true });
+        canvas.drawTextClipped(rect.x + 14, rect.y + idx, satSub(rect.w, 14), entry.explanation_doc.?, .{ .fg = .fg_dim, .bg = .bg });
+    }
+    if (rect.y + shortlist.len < rect.y + rect.h) {
+        canvas.drawText(rect.x, rect.y + shortlist.len, "side lane", .{ .fg = .fg_dim, .bg = .bg, .bold = true });
+        canvas.drawTextClipped(rect.x + 14, rect.y + shortlist.len, satSub(rect.w, 14), "m/c keep M19/M20 reachable but secondary", .{ .fg = .fg_dim, .bg = .bg });
     }
 }
 

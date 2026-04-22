@@ -110,6 +110,15 @@ fn expectJsonObjectFields(value: std.json.Value, expected: []const []const u8) !
     }
 }
 
+fn policyCliName(policy: sim.PolicyKind) []const u8 {
+    return switch (policy) {
+        .fcfs => "fcfs",
+        .round_robin => "round_robin",
+        .cfs_like => "cfs-like",
+        .deadline => "deadline",
+    };
+}
+
 test "CLI report includes required sections" {
     const allocator = std.testing.allocator;
     var scenario = try sim.loadScenarioByName(allocator, "short-vs-long");
@@ -614,4 +623,38 @@ test "topology-aware JSON export exposes topology domains and domain-tagged trac
     try std.testing.expectEqualStrings("node0", parsed.value.topology_domains[0].id);
     try std.testing.expectEqual(@as(sim.CoreId, 0), parsed.value.topology_domains[0].cores[0]);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"domain_id\":\"node0\"") != null);
+}
+
+test "M21 teaching-pack commands stay aligned with the exact shortlist" {
+    const allocator = std.testing.allocator;
+    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
+    defer allocator.free(readme);
+    const teaching_pack = try std.fs.cwd().readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md", std.math.maxInt(usize));
+    defer allocator.free(teaching_pack);
+
+    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    try std.testing.expectEqual(@as(usize, 3), shortlist.len);
+
+    for (shortlist) |entry| {
+        const policy = entry.recommended_policy.?;
+        const sim_command = try std.fmt.allocPrint(allocator, "zig build sim -- --scenario-file {s} --policy {s}", .{ entry.path, policyCliName(policy) });
+        defer allocator.free(sim_command);
+        const run_command = try std.fmt.allocPrint(allocator, "zig build run -- --scenario-file {s} --policy {s}", .{ entry.path, policyCliName(policy) });
+        defer allocator.free(run_command);
+
+        try std.testing.expect(std.mem.indexOf(u8, readme, sim_command) != null);
+        try std.testing.expect(std.mem.indexOf(u8, readme, run_command) != null);
+        try std.testing.expect(std.mem.indexOf(u8, teaching_pack, sim_command) != null);
+        try std.testing.expect(std.mem.indexOf(u8, teaching_pack, run_command) != null);
+
+        var scenario = try sim.loadScenarioFile(allocator, entry.path);
+        defer scenario.deinit();
+        var result = try sim.simulate(allocator, &scenario, policy);
+        defer result.deinit();
+
+        const rendered = try renderJson(allocator, .{ .kind = .file, .value = entry.path }, &scenario, &result);
+        defer allocator.free(rendered);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, entry.key) != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "\"schema\":\"zig-scheduler/report\"") != null);
+    }
 }

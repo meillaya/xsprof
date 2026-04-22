@@ -22,11 +22,15 @@ A contributor, reviewer, or instructor should be able to:
 
 ## Recommended scope
 
-- expand walkthrough-style documentation for the strongest teaching fixtures
-- add or strengthen deterministic TUI snapshot/golden proof surfaces
-- make local demo commands easier to discover from README/docs
-- keep the canonical scenario corpus connected to the TUI/snapshot/report lanes
-- prefer committed fixtures and deterministic artifacts over ad hoc examples
+- expand walkthrough-style documentation for exactly these three start-here anchors:
+  - `short-vs-long` + `fcfs`
+  - `sleep-wakeup` + `cfs-like`
+  - `multicore-balancing` + `fcfs`
+- add or strengthen deterministic TUI snapshot proof surfaces for those three anchors
+- make local demo commands easier to discover from README/docs and the picker/help path
+- keep the canonical scenario corpus connected to one teaching index doc:
+  - `docs/labs/simulator-teaching-pack.md`
+- prefer committed fixtures and deterministic tests over ad hoc examples or new artifact trees
 
 ## Explicit non-goals
 
@@ -36,14 +40,18 @@ M21 should **not** become:
 - a Linux-facing expansion beyond the approved M19/M20 observability branch
 - a replay-fidelity, calibration, or Linux-performance effort
 - a packaging/courseware milestone beyond repo-native artifacts and docs
+- a broad teaching-pack rewrite for every canonical scenario
+- a new committed artifact tree beyond one index doc unless tests cannot express the proof
 
 ## Expected proof surfaces
 
 The proof shape for this cut should stay small and auditable:
-- README updates that point users at the right local demo paths
+- README updates that point users at the exact three-scenario start path
 - `docs/project-architecture-and-status.md` alignment
-- deterministic TUI snapshot tests and/or committed snapshot artifacts
-- fixture-specific walkthrough docs for selected canonical scenarios
+- deterministic TUI snapshot tests for picker/help plus the three anchors
+- one canonical teaching index:
+  - `docs/labs/simulator-teaching-pack.md`
+- one shortlist source of truth in `src/sim/scenario_pack.zig`
 
 ## Why this is the recommended next route
 

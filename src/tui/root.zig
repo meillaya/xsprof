@@ -617,6 +617,8 @@ fn buildPickerEntry(
     var max_tick: u32 = 0;
     for (result.trace) |event| max_tick = @max(max_tick, event.tick);
 
+    const shortlist_rank = m21TeachingRank(entry.key);
+
     return .{
         .scenario_key = entry.path,
         .scenario_label = entry.key,
@@ -624,6 +626,9 @@ fn buildPickerEntry(
         .policy = policy,
         .policy_label = policyLabel(policy),
         .description = entry.description,
+        .theme_label = if (entry.theme) |theme| scheduler.scenario_packs.curriculumThemeLabel(theme) else null,
+        .explanation_doc = entry.explanation_doc,
+        .m21_start_here_rank = shortlist_rank,
         .cores = scenario.core_count,
         .tasks = @intCast(scenario.tasks.len),
         .ticks = if (result.trace.len == 0) 0 else max_tick + 1,
@@ -643,6 +648,13 @@ fn policyLabel(policy: scheduler.PolicyKind) []const u8 {
         .cfs_like => "cfs-like",
         .deadline => "deadline",
     };
+}
+
+fn m21TeachingRank(scenario_key: []const u8) ?u8 {
+    for (scheduler.scenario_packs.listM21TeachingEntries(), 0..) |entry, index| {
+        if (std.mem.eql(u8, entry.key, scenario_key)) return @intCast(index + 1);
+    }
+    return null;
 }
 
 test {
@@ -890,12 +902,16 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
     defer std.testing.allocator.free(picker);
     try std.testing.expect(std.mem.indexOf(u8, picker, "scenarios") != null);
     try std.testing.expect(std.mem.indexOf(u8, picker, "sources") != null);
+    try std.testing.expect(std.mem.indexOf(u8, picker, "start here path") != null);
 
     app.view = .help;
     const help = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
     defer std.testing.allocator.free(help);
     try std.testing.expect(std.mem.indexOf(u8, help, "KEY BINDINGS") != null);
     try std.testing.expect(std.mem.indexOf(u8, help, "NAVIGATION") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help, "START HERE") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help, "sleep-wakeup") != null);
+    try std.testing.expect((std.mem.indexOf(u8, help, "START HERE") orelse 0) < (std.mem.indexOf(u8, help, "m / c") orelse help.len));
 
     app.view = .drawer;
     app.selected_task_index = 0;
@@ -965,6 +981,33 @@ test "snapshot render works from simulation path" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "cpu lanes") != null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "A") != null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "snapshot") != null);
+}
+
+test "M21 anchor scenario snapshots stay deterministic under recommended policies" {
+    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    for (shortlist) |entry| {
+        var app = App{
+            .allocator = std.testing.allocator,
+            .picker_entries = try buildPickerEntries(std.testing.allocator),
+        };
+        defer app.deinit();
+
+        try loadSimulation(&app, .{ .file = entry.path }, entry.recommended_policy.?);
+        const options = Options{
+            .input_source = .{ .simulate_file = entry.path },
+            .runtime_mode = .snapshot,
+            .policy = entry.recommended_policy.?,
+            .snapshot_width = 120,
+            .snapshot_height = 40,
+        };
+        const first = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+        defer std.testing.allocator.free(first);
+        const second = try renderSnapshotAlloc(std.testing.allocator, &app, options);
+        defer std.testing.allocator.free(second);
+
+        try std.testing.expectEqualStrings(first, second);
+        try std.testing.expect(std.mem.indexOf(u8, first, entry.key) != null);
+    }
 }
 
 test "M19 snapshot render is deterministic and observability-bounded" {

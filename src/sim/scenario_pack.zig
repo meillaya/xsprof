@@ -35,6 +35,20 @@ pub const CurriculumTheme = enum {
     fairness,
 };
 
+pub fn curriculumThemeLabel(theme: CurriculumTheme) []const u8 {
+    return switch (theme) {
+        .convoy => "convoy",
+        .blocked_wakeup => "blocked/wakeup",
+        .bursty_io => "bursty I/O",
+        .starvation => "starvation",
+        .deadlines => "deadlines",
+        .groups => "groups",
+        .balancing => "balancing",
+        .topology => "topology",
+        .fairness => "fairness",
+    };
+}
+
 const core_pack_entries = [_]ScenarioPackEntry{
     .{ .key = "arrivals", .path = "scenarios/basic/arrivals.zon", .description = "Canonical object-style arrival ordering fixture", .picker_policy = .fcfs },
     .{ .key = "contention", .path = "scenarios/basic/contention.zon", .description = "Equal-arrival contention teaching fixture", .picker_policy = .fcfs },
@@ -177,8 +191,32 @@ const registered_packs = [_]ScenarioPack{
     },
 };
 
+fn mustFindCoreEntry(comptime scenario_key: []const u8) ScenarioPackEntry {
+    inline for (core_pack_entries) |entry| {
+        if (std.mem.eql(u8, entry.key, scenario_key)) return entry;
+    }
+    @compileError("unknown core scenario key in M21 shortlist: " ++ scenario_key);
+}
+
+const m21_teaching_entries = [_]ScenarioPackEntry{
+    mustFindCoreEntry("short-vs-long"),
+    mustFindCoreEntry("sleep-wakeup"),
+    mustFindCoreEntry("multicore-balancing"),
+};
+
 pub fn listScenarioPacks() []const ScenarioPack {
     return registered_packs[0..];
+}
+
+pub fn listM21TeachingEntries() []const ScenarioPackEntry {
+    return m21_teaching_entries[0..];
+}
+
+pub fn findM21TeachingEntry(scenario_key: []const u8) ?ScenarioPackEntry {
+    for (m21_teaching_entries) |entry| {
+        if (std.mem.eql(u8, entry.key, scenario_key)) return entry;
+    }
+    return null;
 }
 
 pub fn findScenarioPack(pack_key: []const u8) ?ScenarioPack {

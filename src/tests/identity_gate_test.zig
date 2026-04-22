@@ -156,3 +156,26 @@ test "M20 boundary keeps report and analysis surfaces free of comparison payload
     try expectLacksAll(analysis_root, &forbidden_fields);
     try std.testing.expect(std.mem.indexOf(u8, build_file, "observability-comparison") == null);
 }
+
+test "M21 docs keep simulator-first teaching polish bounded to three anchors" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const m21_doc = try readFileAlloc(allocator, "docs/m21-simulator-first-teaching-surface.md");
+    defer allocator.free(m21_doc);
+    const status_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(status_doc);
+    const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
+    defer allocator.free(teaching_pack);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "simulator-first teaching path") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/labs/simulator-teaching-pack.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "short-vs-long") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "sleep-wakeup") != null);
+    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "multicore-balancing") != null);
+    try std.testing.expect(std.mem.indexOf(u8, status_doc, "docs/labs/simulator-teaching-pack.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "M19/M20 remain reachable") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "no browser/WASM requirement") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "Linux-performance") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "group-fairness") == null);
+}

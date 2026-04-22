@@ -122,6 +122,25 @@ zig-out/bin/zig-scheduler --m20
 zig-out/bin/zig-scheduler --snapshot --m20
 ```
 
+## Start here: simulator-first teaching path (M21)
+
+Use these three anchors as the fastest local demo/review path:
+
+```sh
+zig build sim -- --scenario-file scenarios/basic/short-vs-long.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/short-vs-long.zon --policy fcfs
+
+zig build sim -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy cfs-like
+zig build run -- --scenario-file scenarios/basic/sleep-wakeup.zon --policy cfs-like
+
+zig build sim -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs
+zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs
+```
+
+The canonical teaching index for this simulator-first path is:
+
+- `docs/labs/simulator-teaching-pack.md`
+
 M19/M20 stay a **separate observability-only lane** inside the TUI:
 - use `--m19` or `--m19-manifest <path>` for the M19 fixture summary
 - use `--m20` or `--m20-pairing <path>` for the M20 comparison summary
@@ -185,6 +204,7 @@ Other useful docs:
 - `docs/m19-curated-linux-observability.md`
 - `docs/m20-simulator-to-trace-comparison.md`
 - `docs/m21-simulator-first-teaching-surface.md`
+- `docs/labs/simulator-teaching-pack.md`
 - `docs/m17-scenario-corpus.md`
 - `docs/m16-report-pipeline.md`
 - `docs/m14-extension-boundary.md`
