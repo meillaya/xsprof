@@ -434,6 +434,7 @@ Still out of scope after M19:
 - replay-fidelity claims
 - Linux-performance or calibration claims
 - widening `zig-scheduler/report` or `src/analysis`
+- the M19 import boundary does not widen `zig-scheduler/report` or `src/analysis`
 
 Proof surfaces for this branch now live in:
 - `docs/m19-curated-linux-observability.md`
