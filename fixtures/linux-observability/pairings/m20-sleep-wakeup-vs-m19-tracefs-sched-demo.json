@@ -1,0 +1,24 @@
+{
+  "schema": "zig-scheduler/observability-comparison-pairing-manifest",
+  "version": 1,
+  "pairing_id": "m20-sleep-wakeup-vs-m19-tracefs-sched-demo",
+  "simulator_scenario": "scenarios/basic/sleep-wakeup.zon",
+  "simulator_policy": "cfs_like",
+  "observability_fixture_manifest": "fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json",
+  "approved_metric_set": [
+    "activation_count_delta",
+    "selection_count_delta",
+    "retirement_count_delta",
+    "total_event_count_delta",
+    "cpu_cardinality_delta",
+    "actor_cardinality_delta",
+    "time_span_delta"
+  ],
+  "required_caveat_keys": [
+    "observability_only",
+    "units_not_equivalent",
+    "identity_not_equivalent",
+    "unmatched_events_present",
+    "not_fidelity"
+  ]
+}
