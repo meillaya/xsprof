@@ -32,7 +32,7 @@ This milestone may produce:
 - a clearer simulator-first "start here" path in README/docs/TUI copy
 - a small set of first-class teaching scenarios with explicit walkthrough paths
 - deterministic TUI snapshot proof for selected canonical simulator scenarios
-- committed teaching/review artifacts that are reproducible from repo inputs
+- one committed teaching/review index doc plus tests/snapshots reproducible from repo inputs
 
 This milestone must not produce:
 - a browser/WASM surface
@@ -48,13 +48,13 @@ This milestone must not produce:
 ### Principles
 1. Simulator-first identity stays primary; observability remains a bounded side lane.
 2. Discovery and teaching polish should reuse committed scenarios, docs, and snapshots before adding new machinery.
-3. Reviewable committed artifacts beat ad hoc demo instructions.
+3. Proof should stay tight: tests plus one index doc beat new artifact trees unless strictly necessary.
 4. Scope should favor a few high-signal teaching paths over broad curriculum expansion.
 5. Every new teaching claim must stay within what current deterministic fixtures and tests can prove.
 
 ### Decision drivers (top 3)
 1. Reduce time-to-first-good-demo for reviewers/instructors using existing repo-native surfaces.
-2. Increase reviewability through deterministic committed artifacts and snapshot coverage.
+2. Increase reviewability through deterministic tests/snapshots and one index doc, not broader artifact trees.
 3. Preserve current product/contract boundaries while making the simulator lane easier to navigate than the observability lane.
 
 ### Viable options
@@ -72,13 +72,13 @@ Tighten README and milestone docs, but leave TUI teaching affordances and snapsh
 - weaker improvement to in-product discoverability
 - less convincing committed-artifact review path
 
-#### Option B — Simulator teaching-path polish across docs + TUI metadata + deterministic snapshots (recommended)
-Surface a small set of teaching-first scenario affordances in the existing picker/help/docs flow and add committed snapshot proof for selected canonical simulator scenarios.
+#### Option B — Simulator teaching-path polish across docs + existing TUI metadata + deterministic snapshots (recommended)
+Surface a small set of teaching-first scenario affordances in the existing picker/help/docs flow, explicitly reusing existing scenario-pack metadata, and add deterministic snapshot proof for selected canonical simulator scenarios.
 
 **Pros**
 - improves actual discoverability, not just prose
 - stays inside existing TUI/snapshot architecture
-- creates stronger review artifacts without widening contracts
+- creates stronger review proof without widening contracts or adding new artifact trees
 
 **Cons**
 - touches both docs and TUI rendering/tests
@@ -114,29 +114,32 @@ rewrite.
 
 ### In-scope deliverables
 1. **Teaching-path discoverability polish in the TUI simulator lane**
-   - make the picker/help surface clearer about which scenarios are best for a
-     first demo and which policy/doc pair goes with them
-   - keep this simulator-lane framing separate from M19/M20
+   - make the picker/help surface clearer about which scenarios are the M21
+     start-here shortlist and which policy/doc pair goes with them
+   - rank this simulator-first anchor path above M19/M20 shortcuts in copy and layout
+   - consume existing `src/sim/scenario_pack.zig` metadata before considering any new core fields
 2. **One explicit committed walkthrough/index doc for the M21 teaching path**
    - scenario → command → artifact → what-to-look-for
    - centered on the three anchor scenarios above
 3. **Deterministic snapshot proof for the teaching path**
    - picker/help snapshot proof for discoverability copy
    - explorer snapshots for the three anchor scenarios under recommended policy
+   - keep report artifacts secondary; proof stays mostly TUI/snapshot/docs
 4. **README/project-status alignment**
    - make the fastest local demo/review path obvious
    - document observability as side-lane evidence, not mainline identity
 
 ### Out of scope for M21
 - new rendering modes or browser delivery
-- widening the scenario corpus beyond a small teaching-first shortlist
+- widening the scenario corpus beyond the exact three-scenario M21 start-here shortlist
 - new analysis/report contracts
 - expanding M19/M20 beyond discoverability reminders and boundary wording
-- general courseware packaging, lesson sequencing, or downloadable bundles
+- general courseware packaging, lesson sequencing, downloadable bundles, or extra committed artifact trees unless strictly required
 
 ### Why three anchor scenarios is the right size
 - enough coverage to teach the project shape well
 - small enough to land with high-confidence snapshot proof
+- keeps the M21 “start here” shortlist exact and testable
 - avoids turning every canonical scenario into a first-class walkthrough in one cut
 
 ---
@@ -154,11 +157,11 @@ rewrite.
 
 **Work**
 - expand M21 doc from intent-only into a concrete scope statement
-- name the three anchor scenarios and the committed proof surfaces
+- name the three anchor scenarios and tighten proof surfaces to tests plus one index doc
 - state explicit non-goals and observability-side-lane boundary again
 
 **Acceptance criteria**
-- M21 doc names exact anchor scenarios, proof surfaces, and non-goals
+- M21 doc names the exact three anchors, the exact shortlist boundary, proof surfaces, and non-goals
 - project status doc reflects the same bounded scope
 - wording keeps simulator-first identity primary and observability secondary
 
@@ -171,15 +174,16 @@ rewrite.
 - possibly `src/sim/scenario_pack.zig` only if tiny metadata additions are needed
 
 **Work**
-- surface a small teaching-oriented label/card/hint for canonical entries in the picker
-- expose recommended policy and doc pointer/hint for the selected teaching scenario
-- update help/picker copy so the simulator-first demo path is explicit
+- surface a small teaching-oriented label/card/hint for the three anchors in the picker using existing scenario-pack metadata
+- expose recommended policy and doc pointer/hint for the selected teaching scenario using existing `description`, `recommended_policy`, `theme`, and `explanation_doc` first
+- update help/picker copy so the simulator-first demo path is explicit and ranked above `m`/`c` observability shortcuts
 - keep `m`/`c` observability shortcuts present but visually secondary
 
 **Acceptance criteria**
-- picker makes the three anchor scenarios feel like the obvious first stops
+- picker makes the three anchor scenarios the only M21 “start here” shortlist
 - selected scenario copy includes enough context to know what to run/look for
-- help/picker copy does not imply M19/M20 are the main teaching path
+- help/picker copy ranks the simulator shortlist above M19/M20 shortcuts
+- existing scenario-pack metadata is sufficient, or any unavoidable metadata change is explicitly justified and minimal
 - no new simulator/report/analysis contract fields are introduced
 
 ### Step 3 — Add deterministic teaching snapshots for reviewable committed proof
@@ -189,18 +193,17 @@ rewrite.
 - `src/tui/root.zig`
 - `src/tests/identity_gate_test.zig`
 - `src/tests/scenario_pack_test.zig`
-- optional new checked-in artifacts under `docs/examples/` or `docs/labs/` if the implementation chooses committed text snapshots
 
 **Work**
 - add/expand snapshot tests covering:
   - picker discoverability copy
   - help copy for simulator-first path
   - explorer snapshots for the three anchor scenarios under recommended policy
-- if committed snapshot artifacts are added, keep them text-based and reproducible from existing commands
+- openly reject new committed artifact trees unless snapshot proof cannot be expressed cleanly in tests
 
 **Acceptance criteria**
 - deterministic snapshot coverage exists for all three anchor scenarios
-- snapshot proof is simulator-lane focused
+- snapshot proof is simulator-lane focused and remains inside tests
 - snapshot wording stays truthful and bounded
 
 ### Step 4 — Add one committed teaching/review index document
@@ -209,7 +212,7 @@ rewrite.
 **Likely files**
 - `README.md`
 - `docs/m17-scenario-corpus.md`
-- `docs/labs/simulator-teaching-pack.md` (new, recommended) **or** a tightly scoped extension to an existing lab/index doc if preferred
+- one new or expanded index doc only (prefer `docs/labs/simulator-teaching-pack.md` if a separate index is clearer)
 
 **Work**
 - create one concise document that maps each anchor scenario to:
@@ -219,11 +222,14 @@ rewrite.
   - what to notice
   - linked deeper explanation doc
 - add README links to this index and to the fastest local demo commands
-- update the scenario corpus doc to point at the new teaching-first shortlist
+- smoke-validate every command shown in the new index and README
+- update the scenario corpus doc to point at the exact three-scenario teaching shortlist
+- if `multicore-balancing` needs a clearer explanation link, resolve it within docs/current metadata scope and call that out explicitly
 
 **Acceptance criteria**
 - one document lets a reviewer/demo leader run the best three stories without hunting across the repo
 - README exposes a clear simulator-first "start here" path
+- the three anchors are the only M21 shortlist surfaced as “start here”
 - deeper milestone docs remain linked but are not required to discover the basics
 
 ### Step 5 — Lock the boundary and docs identity in tests
@@ -235,12 +241,12 @@ rewrite.
 
 **Work**
 - add assertions that README/project docs mention the M21 teaching path and keep observability secondary/bounded
+- add checks that the three anchors are the only M21 “start here” shortlist
 - add checks that selected teaching docs and scenario metadata remain aligned
-- if new teaching-pack docs/artifacts are added, link/assert them from tests
 
 **Acceptance criteria**
 - tests fail if M21 docs drift away from simulator-first wording
-- tests fail if the teaching shortlist or links become stale
+- tests fail if the three-anchor shortlist or links become stale
 - no tests imply replay/performance/calibration meaning
 
 ---
@@ -253,7 +259,7 @@ rewrite.
 
 2. **Scope creep into M23-style courseware**
    - Risk: too many walkthroughs, too many artifacts, or a large new content tree.
-   - Mitigation: lock scope to three anchor scenarios and one index doc.
+   - Mitigation: lock scope to three anchor scenarios, one index doc, and tests as the main proof surface.
 
 3. **Observability lane steals attention**
    - Risk: M19/M20 become visually framed as co-equal teaching entrypoints.
@@ -261,11 +267,11 @@ rewrite.
 
 4. **Snapshot proof becomes brittle/noisy**
    - Risk: too many large golden surfaces create maintenance drag.
-   - Mitigation: snapshot only the picker/help teaching copy and three anchor explorer views.
+   - Mitigation: snapshot only the picker/help teaching copy and three anchor explorer views; reject extra committed snapshot trees unless strictly needed.
 
 5. **Metadata pressure on scenario-pack structures**
    - Risk: adding too much new scenario metadata creates a larger design change than M21 needs.
-   - Mitigation: prefer reusing existing `description`, `recommended_policy`, `theme`, and `explanation_doc`; add fields only if a tiny gap remains.
+   - Mitigation: reuse existing `description`, `recommended_policy`, `theme`, and `explanation_doc`; add fields only if unavoidable and justify the change explicitly.
 
 ---
 
@@ -274,14 +280,16 @@ rewrite.
 ### Primary automated checks
 - `zig build test --summary all`
 - targeted review of TUI snapshot assertions covering picker/help/anchor scenarios
-- docs/identity tests covering README, M21 doc, scenario corpus doc, and project status doc
+- docs/identity tests covering README, M21 doc, scenario corpus doc, project status doc, and the single teaching index doc
+- smoke validation for every command shown in README or the teaching index for the M21 path
 
 ### Required verification matrix
 1. **Docs alignment audit**
-   - README, M21 doc, scenario corpus doc, and project status doc all describe the same three-scenario teaching path.
+   - README, M21 doc, scenario corpus doc, project status doc, and the single teaching index doc all describe the same exact three-scenario teaching path.
 2. **Teaching-path discoverability snapshot proof**
    - picker snapshot shows clear simulator-first entry guidance
    - help snapshot reinforces the same starting path
+   - both snapshots rank the anchor path above M19/M20 shortcuts
 3. **Anchor-scenario explorer proof**
    - deterministic snapshots for:
      - `short-vs-long` + `fcfs`
@@ -290,12 +298,16 @@ rewrite.
 4. **Boundary audit**
    - no widening of `src/contract/report.zig`, `src/cli/report.zig`, `src/analysis/*`
    - no new Linux-performance, replay-fidelity, or calibration wording
+   - report artifacts stay secondary to TUI/snapshot/docs proof
 5. **Metadata/link audit**
    - any surfaced teaching scenario still maps to an existing scenario file and explanation doc
+   - `multicore-balancing` has a clear explanation link, resolved within docs/current metadata scope if needed
+6. **Command smoke audit**
+   - every command shown in README or the teaching index for the three-anchor path is executed successfully
 
 ### Manual smoke expectations
 - from README alone, a reviewer can identify the fastest simulator-first demo path
-- from the TUI picker/help alone, a contributor can identify the three anchor scenarios and their recommended policy/doc hints
+- from the TUI picker/help alone, a contributor can identify the three anchor scenarios as the only M21 “start here” shortlist and their recommended policy/doc hints
 - observability lane remains reachable but obviously secondary
 
 ---
@@ -303,7 +315,7 @@ rewrite.
 ## 7) ADR-style mini section
 
 ### Decision
-Ship M21 as a **small simulator-teaching polish milestone**: improve the existing simulator-lane picker/help/docs path around three anchor scenarios and back it with deterministic teaching snapshots plus one committed review index.
+Ship M21 as a **small simulator-teaching polish milestone**: improve the existing simulator-lane picker/help/docs path around exactly three anchor scenarios and back it with deterministic tests/snapshots plus one committed review index.
 
 ### Drivers
 - fastest path to a better demo/review loop without widening architecture
@@ -317,12 +329,12 @@ Ship M21 as a **small simulator-teaching polish milestone**: improve the existin
 
 ### Consequences
 - M21 lands as a meaningful but small polish cut, not a new branch of product scope.
-- The repo gains a clearer first-demo path and stronger committed review artifacts.
-- Some TUI copy/snapshot tests become more central to regression safety.
+- The repo gains a clearer first-demo path and stronger test-backed review proof.
+- Some TUI copy/snapshot tests and command smokes become more central to regression safety.
 
 ### Follow-ups
 - If M21 works well, M23 can later expand packaging/courseware using the same anchor scenarios and committed artifacts.
-- If additional canonical scenarios need first-class walkthroughs later, they should be added one or two at a time with matching snapshot proof.
+- If additional canonical scenarios need first-class walkthroughs later, they should be added only in a later milestone with matching snapshot proof and updated shortlist tests.
 
 ---
 

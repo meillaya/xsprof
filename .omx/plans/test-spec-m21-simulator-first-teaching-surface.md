@@ -5,7 +5,7 @@ Draft for consensus review on 2026-04-22
 
 ## Scope under test
 - simulator-first teaching-path discoverability
-- deterministic snapshot proof for selected canonical scenarios
+- deterministic snapshot proof for exactly three anchor scenarios
 - docs/link alignment for the new teaching path
 - explicit preservation of M19/M20 as a bounded observability side lane
 - no widening of `zig-scheduler/report` or `src/analysis/*`
@@ -15,39 +15,45 @@ Draft for consensus review on 2026-04-22
 - `docs/m21-simulator-first-teaching-surface.md`
 - `docs/project-architecture-and-status.md`
 - `docs/m17-scenario-corpus.md`
-- `docs/labs/simulator-teaching-pack.md` if added
+- the single teaching index doc used by M21
 - `src/tui/root.zig`
 - `src/tui/render.zig`
 - `src/tests/identity_gate_test.zig`
 - `src/tests/scenario_pack_test.zig`
 
 ## Required verification
-1. docs alignment audit for README + M21 doc + project status + scenario corpus
-2. picker/help discoverability snapshot tests for the simulator-first path
+1. docs alignment audit for README + M21 doc + project status + scenario corpus + the single teaching index doc
+2. picker/help discoverability snapshot tests for the simulator-first path, ranking it above M19/M20 shortcuts
 3. deterministic explorer snapshot tests for exactly these anchor scenarios:
    - `short-vs-long` + `fcfs`
    - `sleep-wakeup` + `cfs_like`
    - `multicore-balancing` + `fcfs`
-4. scenario-metadata/link checks proving surfaced teaching entries still resolve to committed scenario files and explanation docs
-5. wording audit that M19/M20 remain a bounded observability side lane
-6. boundary audit proving no changes to `zig-scheduler/report` or `src/analysis/*`
-7. full regression pass with `zig build test --summary all`
+4. scenario-metadata/link checks proving surfaced teaching entries still resolve to committed scenario files and explanation docs using existing scenario-pack metadata unless explicitly justified otherwise
+5. assertion that the three anchors are the only M21 “start here” shortlist
+6. wording audit that M19/M20 remain a bounded observability side lane
+7. boundary audit proving no changes to `zig-scheduler/report` or `src/analysis/*` and that report artifacts stay secondary
+8. smoke validation for every command shown in README or the single teaching index doc for the M21 path
+9. full regression pass with `zig build test --summary all`
 
 ## Minimum checks
 - README includes a simulator-first start path for demos/review
-- M21 doc names the three anchor scenarios and explicit non-goals
+- M21 doc names the exact three anchor scenarios and explicit non-goals
 - project status doc describes M21 as a bounded simulator teaching polish cut
-- scenario corpus doc points to the teaching-first shortlist or companion doc
+- scenario corpus doc points to the exact three-scenario shortlist or companion doc
+- the single teaching index doc covers only the three anchors as M21 “start here”
 - picker snapshot contains discoverability copy for the simulator-first teaching path
-- help snapshot contains the same simulator-first framing
+- help snapshot contains the same simulator-first framing and ranks it above M19/M20 shortcuts
 - each anchor scenario snapshot is deterministic across repeated renders
+- `multicore-balancing` has a clear explanation link via docs/current metadata scope
 - docs/tests do not imply browser/WASM, replay fidelity, Linux-performance, or calibration meaning
 - docs/tests keep M19/M20 reachable but clearly secondary
 - no report/analysis contract or implementation files are expanded for M21
+- every command shown in README or the teaching index for the M21 path passes smoke validation
 
 ## Non-goals for this milestone
 - exhaustive walkthrough coverage for every canonical scenario
 - new analysis/report/export contracts
 - browser or WASM delivery
 - observability-lane feature growth
+- extra committed artifact trees beyond one teaching index doc unless strictly needed
 - M23-style courseware or packaging breadth
