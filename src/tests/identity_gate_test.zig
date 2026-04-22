@@ -4,6 +4,17 @@ fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
 }
 
+fn readRepoFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const repo_root = comptime blk: {
+        const tests_dir = std.fs.path.dirname(@src().file).?;
+        const src_dir = std.fs.path.dirname(tests_dir).?;
+        break :blk std.fs.path.dirname(src_dir).?;
+    };
+    const full_path = try std.fs.path.join(allocator, &.{ repo_root, path });
+    defer allocator.free(full_path);
+    return try std.fs.cwd().readFileAlloc(allocator, full_path, std.math.maxInt(usize));
+}
+
 fn expectLacksAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| {
         try std.testing.expect(std.mem.indexOf(u8, haystack, needle) == null);
@@ -148,9 +159,9 @@ test "M20 boundary keeps report and analysis surfaces free of comparison payload
     defer allocator.free(cli_report);
     const analysis_root = try readFileAlloc(allocator, "src/analysis/root.zig");
     defer allocator.free(analysis_root);
-    const prd = try readFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
+    const prd = try readRepoFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
     defer allocator.free(prd);
-    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
+    const test_spec = try readRepoFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
     defer allocator.free(test_spec);
 
     try expectLacksAll(report_contract, &forbidden_fields);

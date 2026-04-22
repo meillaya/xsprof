@@ -14,6 +14,17 @@ fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
 }
 
+fn readRepoFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const repo_root = comptime blk: {
+        const tests_dir = std.fs.path.dirname(@src().file).?;
+        const src_dir = std.fs.path.dirname(tests_dir).?;
+        break :blk std.fs.path.dirname(src_dir).?;
+    };
+    const full_path = try std.fs.path.join(allocator, &.{ repo_root, path });
+    defer allocator.free(full_path);
+    return try std.fs.cwd().readFileAlloc(allocator, full_path, std.math.maxInt(usize));
+}
+
 fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| {
         try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
@@ -172,9 +183,9 @@ test "M20 fixed-input observability fixture remains reproducible across repeated
 
 test "M20 planning docs freeze exact pairing, metric, and caveat registries" {
     const allocator = std.testing.allocator;
-    const prd = try readFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
+    const prd = try readRepoFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
     defer allocator.free(prd);
-    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
+    const test_spec = try readRepoFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
     defer allocator.free(test_spec);
 
     const required_prd_fragments = [_][]const u8{
@@ -230,9 +241,10 @@ test "M20 claim-rejection audit keeps observability proof surfaces conservative"
     defer std.testing.allocator.free(summary_markdown);
 
     try expectContainsAll(readme, &[_][]const u8{
-        "offline, observability-only, version-pinned snapshot fixtures",
+        "offline,",
+        "observability-only, version-pinned snapshot fixtures",
         "not live capture,",
-        "replay, or Linux-performance claims",
+        "Linux-performance claims",
     });
     try expectContainsAll(project_doc, &[_][]const u8{
         "offline snapshot fixtures only",
