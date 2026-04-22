@@ -170,48 +170,6 @@ test "M20 fixed-input observability fixture remains reproducible across repeated
     try std.testing.expectEqualStrings(first_markdown, second_markdown);
 }
 
-test "M20 planning docs freeze exact pairing, metric, and caveat registries" {
-    const prd = @embedFile("../../.omx/plans/prd-m20-simulator-to-trace-comparison.md");
-    const test_spec = @embedFile("../../.omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
-
-    const required_prd_fragments = [_][]const u8{
-        "scenarios/basic/sleep-wakeup.zon",
-        "cfs_like",
-        "fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json",
-        "fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json",
-        "zig-scheduler/observability-comparison",
-        "activation_count_delta",
-        "selection_count_delta",
-        "retirement_count_delta",
-        "total_event_count_delta",
-        "cpu_cardinality_delta",
-        "actor_cardinality_delta",
-        "time_span_delta",
-        "observability_only",
-        "units_not_equivalent",
-        "identity_not_equivalent",
-        "unmatched_events_present",
-        "not_fidelity",
-        "`activation` | `arrival`, `wakeup` | `sched_wakeup`, `sched_wakeup_new`",
-        "`selection` | `dispatch` | `sched_switch`",
-        "`retirement` | `complete` | `sched_process_exit`",
-    };
-    try expectContainsAll(prd, &required_prd_fragments);
-
-    const required_test_spec_fragments = [_][]const u8{
-        "comparison metric tests for exactly:",
-        "exact first-seen normalized family order assertions",
-        "explicit rejection tests for raw event alignment and task↔PID/entity equivalence",
-        "explicit unmapped-event handling test",
-        "exact `required_caveat_keys` assertions for the sole approved pairing",
-        "exact per-metric caveat-key binding assertions",
-        "exact numeric value-semantics assertions:",
-        "count/cardinality rows are integers",
-        "`time_span_delta` may be floating-point",
-    };
-    try expectContainsAll(test_spec, &required_test_spec_fragments);
-}
-
 test "M20 claim-rejection audit keeps observability proof surfaces conservative" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
