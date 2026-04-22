@@ -21,6 +21,8 @@ widening any existing public contract.
 - `src/tui/root.zig` already builds canonical picker entries from
   `src/sim/scenario_pack.zig`, so the TUI already has curriculum metadata it can
   surface more clearly.
+- `src/tests/cli_smoke_test.zig` already exists as the repo’s CLI-smoke lane, so
+  command validation for README/index-doc commands fits the current test shape.
 - `src/tui/root.zig` and `src/tui/render.zig` already contain deterministic
   snapshot-oriented tests for picker/help/explorer/observability views, which
   makes snapshot-proof expansion a low-risk next step.
@@ -47,7 +49,7 @@ This milestone must not produce:
 
 ### Principles
 1. Simulator-first identity stays primary; observability remains a bounded side lane.
-2. Discovery and teaching polish should reuse committed scenarios, docs, and snapshots before adding new machinery.
+2. The exact three-anchor shortlist must come from one shared code source of truth.
 3. Proof should stay tight: tests plus one index doc beat new artifact trees unless strictly necessary.
 4. Scope should favor a few high-signal teaching paths over broad curriculum expansion.
 5. Every new teaching claim must stay within what current deterministic fixtures and tests can prove.
@@ -73,7 +75,7 @@ Tighten README and milestone docs, but leave TUI teaching affordances and snapsh
 - less convincing committed-artifact review path
 
 #### Option B — Simulator teaching-path polish across docs + existing TUI metadata + deterministic snapshots (recommended)
-Surface a small set of teaching-first scenario affordances in the existing picker/help/docs flow, explicitly reusing existing scenario-pack metadata, and add deterministic snapshot proof for selected canonical simulator scenarios.
+Surface a small set of teaching-first scenario affordances in the existing picker/help/docs flow, explicitly reusing existing scenario-pack metadata plus one minimal shared helper for the exact M21 shortlist, and add deterministic snapshot proof for selected canonical simulator scenarios.
 
 **Pros**
 - improves actual discoverability, not just prose
@@ -107,6 +109,10 @@ M21 should polish the simulator-first teaching surface around **three anchor sce
 - `short-vs-long` — convoy / first-demo contrast
 - `sleep-wakeup` — blocked/wakeup teaching path
 - `multicore-balancing` — multicore rebalance story
+
+**Exact source of truth:** add one minimal shared helper in `src/sim/scenario_pack.zig` that returns the exact M21 shortlist (`scenario path/key + required policy + explanation doc path`). TUI ranking/copy, tests, and docs validation should consume that helper rather than re-encoding the shortlist in multiple places.
+
+**Canonical teaching index path:** `docs/labs/simulator-teaching-pack.md`
 
 These three cover the most legible teaching stories across single-core,
 blocked/wakeup, and multicore behavior without turning M21 into a full-course
@@ -152,17 +158,21 @@ rewrite.
 **Likely files**
 - `docs/m21-simulator-first-teaching-surface.md`
 - `docs/project-architecture-and-status.md`
+- `docs/labs/simulator-teaching-pack.md`
 - `.omx/plans/prd-m21-simulator-first-teaching-surface.md`
 - `.omx/plans/test-spec-m21-simulator-first-teaching-surface.md`
 
 **Work**
 - expand M21 doc from intent-only into a concrete scope statement
 - name the three anchor scenarios and tighten proof surfaces to tests plus one index doc
+- lock the canonical teaching index path to `docs/labs/simulator-teaching-pack.md`
+- define the shared shortlist helper as the single source of truth that docs/TUI/tests follow
 - state explicit non-goals and observability-side-lane boundary again
 
 **Acceptance criteria**
 - M21 doc names the exact three anchors, the exact shortlist boundary, proof surfaces, and non-goals
-- project status doc reflects the same bounded scope
+- project status doc and `docs/labs/simulator-teaching-pack.md` reflect the same bounded scope
+- the shared shortlist helper is identified as the single source of truth
 - wording keeps simulator-first identity primary and observability secondary
 
 ### Step 2 — Polish simulator-lane teaching discoverability in the TUI
@@ -171,19 +181,20 @@ rewrite.
 **Likely files**
 - `src/tui/root.zig`
 - `src/tui/render.zig`
-- possibly `src/sim/scenario_pack.zig` only if tiny metadata additions are needed
+- `src/sim/scenario_pack.zig` (for the minimal shared shortlist helper)
 
 **Work**
-- surface a small teaching-oriented label/card/hint for the three anchors in the picker using existing scenario-pack metadata
+- add a minimal shared helper in `src/sim/scenario_pack.zig` that returns the exact three-anchor M21 shortlist
+- surface a small teaching-oriented label/card/hint for those anchors in the picker using existing scenario-pack metadata
 - expose recommended policy and doc pointer/hint for the selected teaching scenario using existing `description`, `recommended_policy`, `theme`, and `explanation_doc` first
 - update help/picker copy so the simulator-first demo path is explicit and ranked above `m`/`c` observability shortcuts
 - keep `m`/`c` observability shortcuts present but visually secondary
 
 **Acceptance criteria**
-- picker makes the three anchor scenarios the only M21 “start here” shortlist
+- picker makes the three anchor scenarios from the shared helper the only M21 “start here” shortlist
 - selected scenario copy includes enough context to know what to run/look for
 - help/picker copy ranks the simulator shortlist above M19/M20 shortcuts
-- existing scenario-pack metadata is sufficient, or any unavoidable metadata change is explicitly justified and minimal
+- existing scenario-pack metadata plus the helper are sufficient, or any unavoidable metadata change is explicitly justified and minimal
 - no new simulator/report/analysis contract fields are introduced
 
 ### Step 3 — Add deterministic teaching snapshots for reviewable committed proof
@@ -193,6 +204,7 @@ rewrite.
 - `src/tui/root.zig`
 - `src/tests/identity_gate_test.zig`
 - `src/tests/scenario_pack_test.zig`
+- `src/tests/cli_smoke_test.zig`
 
 **Work**
 - add/expand snapshot tests covering:
@@ -212,7 +224,7 @@ rewrite.
 **Likely files**
 - `README.md`
 - `docs/m17-scenario-corpus.md`
-- one new or expanded index doc only (prefer `docs/labs/simulator-teaching-pack.md` if a separate index is clearer)
+- `docs/labs/simulator-teaching-pack.md`
 
 **Work**
 - create one concise document that maps each anchor scenario to:
@@ -221,15 +233,14 @@ rewrite.
   - recommended TUI/snapshot artifact
   - what to notice
   - linked deeper explanation doc
-- add README links to this index and to the fastest local demo commands
-- smoke-validate every command shown in the new index and README
-- update the scenario corpus doc to point at the exact three-scenario teaching shortlist
+- add README links to `docs/labs/simulator-teaching-pack.md` and to the fastest local demo commands
+- update the scenario corpus doc to point at the exact three-scenario teaching shortlist from the shared helper
 - if `multicore-balancing` needs a clearer explanation link, resolve it within docs/current metadata scope and call that out explicitly
 
 **Acceptance criteria**
-- one document lets a reviewer/demo leader run the best three stories without hunting across the repo
+- `docs/labs/simulator-teaching-pack.md` lets a reviewer/demo leader run the best three stories without hunting across the repo
 - README exposes a clear simulator-first "start here" path
-- the three anchors are the only M21 shortlist surfaced as “start here”
+- the three anchors from the shared helper are the only M21 shortlist surfaced as “start here”
 - deeper milestone docs remain linked but are not required to discover the basics
 
 ### Step 5 — Lock the boundary and docs identity in tests
@@ -241,8 +252,9 @@ rewrite.
 
 **Work**
 - add assertions that README/project docs mention the M21 teaching path and keep observability secondary/bounded
-- add checks that the three anchors are the only M21 “start here” shortlist
+- add checks that the three anchors from the shared helper are the only M21 “start here” shortlist
 - add checks that selected teaching docs and scenario metadata remain aligned
+- add CLI smoke coverage for every README/index-doc command in `src/tests/cli_smoke_test.zig`
 
 **Acceptance criteria**
 - tests fail if M21 docs drift away from simulator-first wording
@@ -280,12 +292,12 @@ rewrite.
 ### Primary automated checks
 - `zig build test --summary all`
 - targeted review of TUI snapshot assertions covering picker/help/anchor scenarios
-- docs/identity tests covering README, M21 doc, scenario corpus doc, project status doc, and the single teaching index doc
-- smoke validation for every command shown in README or the teaching index for the M21 path
+- docs/identity tests covering README, M21 doc, scenario corpus doc, project status doc, and `docs/labs/simulator-teaching-pack.md`
+- command smoke validation in `src/tests/cli_smoke_test.zig` for every README/index-doc command in the M21 path
 
 ### Required verification matrix
 1. **Docs alignment audit**
-   - README, M21 doc, scenario corpus doc, project status doc, and the single teaching index doc all describe the same exact three-scenario teaching path.
+   - README, M21 doc, scenario corpus doc, project status doc, and `docs/labs/simulator-teaching-pack.md` all describe the same exact three-scenario teaching path.
 2. **Teaching-path discoverability snapshot proof**
    - picker snapshot shows clear simulator-first entry guidance
    - help snapshot reinforces the same starting path
@@ -300,10 +312,11 @@ rewrite.
    - no new Linux-performance, replay-fidelity, or calibration wording
    - report artifacts stay secondary to TUI/snapshot/docs proof
 5. **Metadata/link audit**
+   - the shared shortlist helper returns exactly the three approved `(scenario, policy)` pairs
    - any surfaced teaching scenario still maps to an existing scenario file and explanation doc
    - `multicore-balancing` has a clear explanation link, resolved within docs/current metadata scope if needed
 6. **Command smoke audit**
-   - every command shown in README or the teaching index for the three-anchor path is executed successfully
+   - `src/tests/cli_smoke_test.zig` executes every command shown in README or `docs/labs/simulator-teaching-pack.md` for the three-anchor path
 
 ### Manual smoke expectations
 - from README alone, a reviewer can identify the fastest simulator-first demo path
@@ -315,7 +328,7 @@ rewrite.
 ## 7) ADR-style mini section
 
 ### Decision
-Ship M21 as a **small simulator-teaching polish milestone**: improve the existing simulator-lane picker/help/docs path around exactly three anchor scenarios and back it with deterministic tests/snapshots plus one committed review index.
+Ship M21 as a **small simulator-teaching polish milestone**: improve the existing simulator-lane picker/help/docs path around exactly three anchor scenarios from one shared helper and back it with deterministic tests/snapshots plus one committed review index at `docs/labs/simulator-teaching-pack.md`.
 
 ### Drivers
 - fastest path to a better demo/review loop without widening architecture
