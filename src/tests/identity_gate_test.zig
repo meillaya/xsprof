@@ -1,7 +1,14 @@
 const std = @import("std");
+const report_contract = @import("../contract/report.zig");
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+}
+
+fn expectLacksAll(haystack: []const u8, needles: []const []const u8) !void {
+    for (needles) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, haystack, needle) == null);
+    }
 }
 
 test "M5 ADR is linked from README and roadmap" {
@@ -123,4 +130,36 @@ test "M19 proof surfaces expose the bounded observability import contract" {
     try std.testing.expect(std.mem.indexOf(u8, m19_doc, "Unsupported tuples fail closed by default.") != null);
     try std.testing.expect(std.mem.indexOf(u8, m19_doc, "tracefs-sched-snapshot") != null);
     try std.testing.expect(std.mem.indexOf(u8, m19_doc, "perf sched") != null);
+}
+
+test "M20 boundary keeps report and analysis surfaces free of comparison payload fields" {
+    const forbidden_fields = [_][]const u8{
+        "pairing_id",
+        "simulator_source",
+        "observability_fixture_manifest",
+        "normalized_order_summary",
+        "metric_rows",
+        "caveats",
+    };
+
+    for (report_contract.top_level_fields) |field| {
+        try expectLacksAll(field, &forbidden_fields);
+    }
+
+    const allocator = std.testing.allocator;
+    const cli_report = try readFileAlloc(allocator, "src/cli/report.zig");
+    defer allocator.free(cli_report);
+    const analysis_root = try readFileAlloc(allocator, "src/analysis/root.zig");
+    defer allocator.free(analysis_root);
+    const prd = try readFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
+    defer allocator.free(prd);
+    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
+    defer allocator.free(test_spec);
+
+    try expectLacksAll(cli_report, &forbidden_fields);
+    try expectLacksAll(analysis_root, &forbidden_fields);
+    try std.testing.expect(std.mem.indexOf(u8, prd, "no change to `src/contract/report.zig` or `src/cli/report.zig`") != null);
+    try std.testing.expect(std.mem.indexOf(u8, prd, "no widening of `src/contract/report.zig`, `src/cli/report.zig`, or `src/analysis/*`") != null);
+    try std.testing.expect(std.mem.indexOf(u8, test_spec, "boundary audit for `zig-scheduler/report`, `src/contract/report.zig`, `src/cli/report.zig`, and `src/analysis/*`") != null);
+    try std.testing.expect(std.mem.indexOf(u8, test_spec, "entrypoint audit proving M20 v1 is library/docs/tests only and exposes no CLI/report-export path") != null);
 }
