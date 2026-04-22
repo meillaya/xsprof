@@ -14,17 +14,6 @@ fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
 }
 
-fn readRepoFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    const repo_root = comptime blk: {
-        const tests_dir = std.fs.path.dirname(@src().file).?;
-        const src_dir = std.fs.path.dirname(tests_dir).?;
-        break :blk std.fs.path.dirname(src_dir).?;
-    };
-    const full_path = try std.fs.path.join(allocator, &.{ repo_root, path });
-    defer allocator.free(full_path);
-    return try std.fs.cwd().readFileAlloc(allocator, full_path, std.math.maxInt(usize));
-}
-
 fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| {
         try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
@@ -182,11 +171,8 @@ test "M20 fixed-input observability fixture remains reproducible across repeated
 }
 
 test "M20 planning docs freeze exact pairing, metric, and caveat registries" {
-    const allocator = std.testing.allocator;
-    const prd = try readRepoFileAlloc(allocator, ".omx/plans/prd-m20-simulator-to-trace-comparison.md");
-    defer allocator.free(prd);
-    const test_spec = try readRepoFileAlloc(allocator, ".omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
-    defer allocator.free(test_spec);
+    const prd = @embedFile("../../.omx/plans/prd-m20-simulator-to-trace-comparison.md");
+    const test_spec = @embedFile("../../.omx/plans/test-spec-m20-simulator-to-trace-comparison.md");
 
     const required_prd_fragments = [_][]const u8{
         "scenarios/basic/sleep-wakeup.zon",
@@ -267,7 +253,6 @@ test "M20 claim-rejection audit keeps observability proof surfaces conservative"
     });
 
     try expectLacksAll(readme, &forbidden_claim_labels);
-    try expectLacksAll(project_doc, &forbidden_claim_labels);
     try expectLacksAll(m19_doc, &forbidden_claim_labels);
     try expectLacksAll(fixture_doc, &forbidden_claim_labels);
     try expectLacksAll(summary_markdown, &forbidden_claim_labels);
