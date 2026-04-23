@@ -577,6 +577,9 @@ Allow fast experimental policy work without destabilizing the core teaching spin
 **Goal**
 Decide whether the project should ever become an operational service or automation system.
 
+Decision artifact:
+- `docs/adr/0003-m25-productionization-gate.md`
+
 **Acceptance criteria**
 - Explicit re-charter says whether this branch is rejected, deferred indefinitely, or approved with constraints.
 - If approved, scope separates clearly from the simulator core.
@@ -600,7 +603,7 @@ If the project is re-chartered, prototype a service/daemon/agent that uses sched
 - The repo structure or sibling package split is deliberate.
 
 **Dependencies**
-- M25 approval.
+- Future explicit re-charter approval after M25.
 
 **Preferred execution mode**
 - `$team` only.

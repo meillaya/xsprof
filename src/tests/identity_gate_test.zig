@@ -239,3 +239,25 @@ test "M23 docs keep one canonical package entry and optional appendices only" {
     try std.testing.expect(std.mem.indexOf(u8, package_doc, "browser/WASM") != null);
     try std.testing.expect(std.mem.indexOf(u8, package_doc, "Linux-performance") != null);
 }
+
+test "M25 ADR keeps the production branch deferred and blocks M26 by default" {
+    const allocator = std.testing.allocator;
+    const adr = try readFileAlloc(allocator, "docs/adr/0003-m25-productionization-gate.md");
+    defer allocator.free(adr);
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    defer allocator.free(roadmap);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+    const open_questions = try readFileAlloc(allocator, ".omx/plans/open-questions.md");
+    defer allocator.free(open_questions);
+
+    try std.testing.expect(std.mem.indexOf(u8, adr, "Status: Approved") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "Deferred the optional production branch indefinitely") != null);
+    try std.testing.expect(std.mem.indexOf(u8, adr, "M26 is blocked") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/adr/0003-m25-productionization-gate.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0003-m25-productionization-gate.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "deferred indefinitely") != null);
+    try std.testing.expect(std.mem.indexOf(u8, open_questions, "[x] M25 decided") != null);
+}

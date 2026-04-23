@@ -1,6 +1,6 @@
 # zig-scheduler
 
-A deterministic CPU scheduling simulator in Zig with a TUI-first main interface, a narrow optional library facade for embedders, and a bounded observability side lane for offline M19/M20 evidence. The repo remains simulator-first: it is for teaching and experimentation, not a kernel scheduler, daemon, or production automation system. Under `docs/adr/0002-m18-linux-observability-gate.md`, the Linux-facing path stays limited to **offline, observability-only, version-pinned snapshot fixtures** — not live capture, tooling automation, replay, or Linux-performance claims. The current “start here” simulator teaching path is documented in `docs/labs/simulator-teaching-pack.md`, while the stable embedder subset is documented in `docs/m22-library-sdk.md`.
+A deterministic CPU scheduling simulator in Zig with a TUI-first main interface, a narrow optional library facade for embedders, and a bounded observability side lane for offline M19/M20 evidence. The repo remains simulator-first: it is for teaching and experimentation, not a kernel scheduler, daemon, or production automation system. Under `docs/adr/0002-m18-linux-observability-gate.md`, the Linux-facing path stays limited to **offline, observability-only, version-pinned snapshot fixtures** — not live capture, tooling automation, replay, or Linux-performance claims. Under `docs/adr/0003-m25-productionization-gate.md`, the optional production branch is deferred indefinitely, so daemon/service/automation work remains gated. The current “start here” simulator teaching path is documented in `docs/labs/simulator-teaching-pack.md`, while the stable embedder subset is documented in `docs/m22-library-sdk.md`.
 
 ## Build
 
@@ -185,6 +185,7 @@ Other useful docs:
 - `docs/m20-simulator-to-trace-comparison.md`
 - `docs/m21-simulator-first-teaching-surface.md`
 - `docs/m22-library-sdk.md`
+- `docs/adr/0003-m25-productionization-gate.md`
 - `docs/labs/simulator-teaching-pack.md`
 - `docs/m17-scenario-corpus.md`
 - `docs/m16-report-pipeline.md`

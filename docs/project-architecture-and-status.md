@@ -9,11 +9,13 @@ kernel component, daemon, or production scheduler.
 The current project identity is fixed by
 `docs/adr/0001-m5-project-identity.md`,
 `docs/adr/0002-m18-linux-observability-gate.md`, and the M19 execution
-boundary documented in `docs/m19-curated-linux-observability.md`:
+boundary documented in `docs/m19-curated-linux-observability.md`, plus the
+M25 production gate decision in `docs/adr/0003-m25-productionization-gate.md`:
 
 - the **implementation today** is still a simulator-first mainline
 - the **roadmap** is a broader scheduler laboratory with a simulator-only mainline
 - Linux-facing, productized, and research-heavy branches remain explicitly gated
+- the optional production branch is currently deferred indefinitely after M25
 - the M19 Linux-observability surface is limited to **offline,
   observability-only, version-pinned snapshot fixtures** with a separate import
   boundary unless a later gate re-charters it
@@ -540,6 +542,16 @@ The canonical sandbox governance doc is:
 
 Experimental policies remain unstable, sandbox-only, and outside the supported
 default policy surface until a later milestone/ADR promotes them explicitly.
+
+### M25 — [Planning gate / optional production branch] productionization gate
+
+M25 is now decided: the optional production branch is **deferred indefinitely**.
+
+The governing ADR is:
+
+- `docs/adr/0003-m25-productionization-gate.md`
+
+This means M26 remains blocked unless a future explicit re-charter reopens it.
 
 ### M22 — [Optional library branch] library / SDK stabilization for embedders
 
