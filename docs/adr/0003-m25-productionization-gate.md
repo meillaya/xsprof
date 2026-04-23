@@ -3,7 +3,7 @@
 - Status: Approved
 - Date: 2026-04-23
 - Milestone: M25
-- Related roadmap: `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md`
+- Related roadmap: `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md`
 
 ## Context
 The roadmap reserved an optional production branch (`M26`) behind the M25

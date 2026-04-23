@@ -11,7 +11,7 @@ M18 is a governance/approval milestone, not an implementation milestone. Its job
 ### Assumption check
 The working assumption is valid from repo and official evidence:
 - `docs/adr/0001-m5-project-identity.md` approved a simulator-only mainline with optional branches gated explicitly.
-- `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md` and `.omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md` define M18 as the approval event for the optional Linux-observability branch.
+- `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md` and `docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md` define M18 as the approval event for the optional Linux-observability branch.
 - `docs/linux-mapping.md` keeps the current truthfulness boundary simulator-only, user-space only, and non-kernel-integrated.
 - Official Linux docs establish that any future observability path would rely on version-sensitive scheduler behavior, tracepoints/tracefs/ftrace, and `perf sched`, with non-trivial privilege/privacy/support implications.
 

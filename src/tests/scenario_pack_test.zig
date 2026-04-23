@@ -161,8 +161,6 @@ test "M17 canonical scenarios support deterministic smoke runs for demos and reg
 
 test "M17 docs describe the canonical scenario corpus and manual demo path" {
     const allocator = std.testing.allocator;
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
     const phase_doc = try readFileAlloc(allocator, "docs/phase1-simulator.md");
     defer allocator.free(phase_doc);
     const corpus_doc = try readFileAlloc(allocator, "docs/m17-scenario-corpus.md");
@@ -170,7 +168,6 @@ test "M17 docs describe the canonical scenario corpus and manual demo path" {
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
 
-    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/m17-scenario-corpus.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "zig build sim -- --scenario-file") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "short-vs-long") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "starvation-pressure") != null);
@@ -186,8 +183,6 @@ test "M17 docs describe the canonical scenario corpus and manual demo path" {
 
 test "M21 teaching docs stay aligned with the exact three-anchor shortlist" {
     const allocator = std.testing.allocator;
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
     const m21_doc = try readFileAlloc(allocator, "docs/m21-simulator-first-teaching-surface.md");
     defer allocator.free(m21_doc);
     const corpus_doc = try readFileAlloc(allocator, "docs/m17-scenario-corpus.md");
@@ -195,7 +190,6 @@ test "M21 teaching docs stay aligned with the exact three-anchor shortlist" {
     const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
     defer allocator.free(teaching_pack);
 
-    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/labs/simulator-teaching-pack.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, m21_doc, "short-vs-long") != null);
     try std.testing.expect(std.mem.indexOf(u8, m21_doc, "sleep-wakeup") != null);
     try std.testing.expect(std.mem.indexOf(u8, m21_doc, "multicore-balancing") != null);

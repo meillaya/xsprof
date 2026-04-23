@@ -6,11 +6,11 @@ Initial consensus-planning draft for review on 2026-04-21.
 ## Scope anchor
 This draft is bounded by:
 - `docs/adr/0002-m18-linux-observability-gate.md`
-- `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md`
-- `.omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md`
+- `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md`
+- `docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md`
 - `docs/project-architecture-and-status.md`
-- `.omx/plans/prd-m18-linux-observability-gate.md`
-- `.omx/plans/test-spec-m18-linux-observability-gate.md`
+- `docs/roadmap/gates/prd-m18-linux-observability-gate.md`
+- `docs/roadmap/gates/test-spec-m18-linux-observability-gate.md`
 
 M19 remains **offline, observability-only, version-pinned, scrubbed-fixture only**. No live capture, no in-repo tracing workflows, no replay-fidelity claims, no Linux-performance or calibration claims.
 
@@ -114,15 +114,15 @@ Draft rule: approve **one concrete tuple only** in the first M19 cut. Tuple expa
 ### Concrete file / artifact touchpoints
 
 **Planning / governance artifacts**
-- new: `.omx/plans/prd-m19-curated-linux-observability.md`
-- new: `.omx/plans/test-spec-m19-curated-linux-observability.md`
-- update: `.omx/plans/open-questions.md` only if tuple/family decisions remain unresolved
+- new: `docs/roadmap/m19/prd-m19-curated-linux-observability.md`
+- new: `docs/roadmap/m19/test-spec-m19-curated-linux-observability.md`
+- update: `docs/roadmap/open-questions.md` only if tuple/family decisions remain unresolved
 
 **Docs / proof surfaces**
 - update: `README.md`
 - update: `docs/project-architecture-and-status.md`
 - new: `docs/m19-curated-linux-observability.md` (fixture policy, tuple table, scrub policy, caveats)
-- maybe update: `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md` only if M19 wording needs tighter alignment
+- maybe update: `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md` only if M19 wording needs tighter alignment
 
 **Fixture / manifest surfaces**
 - new: `fixtures/linux-observability/README.md`

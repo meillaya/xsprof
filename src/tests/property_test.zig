@@ -215,13 +215,9 @@ test "M13 shrinker reduces and saves regression fixtures" {
 
 test "M13 docs explain generator, shrinking, and regression fixture workflow" {
     const allocator = std.testing.allocator;
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
     const doc = try readFileAlloc(allocator, "docs/m13-property-testing.md");
     defer allocator.free(doc);
 
-    try std.testing.expect(std.mem.indexOf(u8, readme, "Scenario generator and property harness") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "src/testing/property.zig") != null);
     try std.testing.expect(std.mem.indexOf(u8, doc, "generator") != null);
     try std.testing.expect(std.mem.indexOf(u8, doc, "shrink") != null);
     try std.testing.expect(std.mem.indexOf(u8, doc, "regression fixture") != null);

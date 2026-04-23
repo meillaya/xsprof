@@ -3,8 +3,8 @@
 - Status: Approved
 - Date: 2026-04-21
 - Milestone: M18
-- Related roadmap: `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md`
-- Related test spec: `.omx/plans/test-spec-m18-linux-observability-gate.md`
+- Related roadmap: `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md`
+- Related test spec: `docs/roadmap/gates/test-spec-m18-linux-observability-gate.md`
 
 ## Context
 M5 approved the repository as a broader scheduler laboratory roadmap with a

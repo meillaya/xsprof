@@ -21,7 +21,7 @@ browser, WASM, service, or production system.
   identifies the current gap clearly: strong simulator teaching materials exist,
   but there is not yet an obvious courseware index, onboarding bundle, or
   reproducible assignment pack.
-- `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md` defines M23 as the
+- `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md` defines M23 as the
   optional teaching/distribution branch with acceptance criteria centered on a
   documented teaching path, easier onboarding, and reproducible assignments.
 - `README.md` already presents the project as a **simulator-first teaching and
@@ -287,8 +287,8 @@ one M21 anchor and one reproducibility pattern.
 implementation outputs.
 
 **Implementation inputs**
-- `.omx/plans/prd-m23-packaged-teaching-distribution.md`
-- `.omx/plans/test-spec-m23-packaged-teaching-distribution.md`
+- `docs/roadmap/m23/prd-m23-packaged-teaching-distribution.md`
+- `docs/roadmap/m23/test-spec-m23-packaged-teaching-distribution.md`
 - `.omx/context/m23-packaged-teaching-distribution-20260422T201500Z.md`
 
 **Likely implementation files**

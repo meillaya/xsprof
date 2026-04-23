@@ -3,7 +3,7 @@
 - Status: Approved
 - Date: 2026-04-21
 - Milestone: M5
-- Related roadmap: `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md`
+- Related roadmap: `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md`
 
 ## Context
 The repository began as a deterministic CPU scheduling simulator and the first completed milestones intentionally hardened that simulator identity: stable scenario inputs, versioned exports, deterministic analysis, and reproducible benchmark baselines.

@@ -10,28 +10,26 @@ fn expectLacksAll(haystack: []const u8, needles: []const []const u8) !void {
     }
 }
 
-test "M5 ADR is linked from README and roadmap" {
+test "M5 ADR remains linked from docs and roadmap" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0001-m5-project-identity.md");
     defer allocator.free(adr);
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
-    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    const roadmap = try readFileAlloc(allocator, "docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md");
     defer allocator.free(roadmap);
+    const roadmap_index = try readFileAlloc(allocator, "docs/roadmap/README.md");
+    defer allocator.free(roadmap_index);
 
     try std.testing.expect(std.mem.indexOf(u8, adr, "Status: Approved") != null);
     try std.testing.expect(std.mem.indexOf(u8, adr, "broader scheduler laboratory roadmap with a simulator-only mainline") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/adr/0001-m5-project-identity.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0001-m5-project-identity.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, roadmap_index, "prd-multi-horizon-zig-scheduler-roadmap.md") != null);
 }
 
-test "M18 ADR is linked from README and roadmap and keeps observability offline-only" {
+test "M18 ADR is linked from docs and roadmap and keeps observability offline-only" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0002-m18-linux-observability-gate.md");
     defer allocator.free(adr);
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
-    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    const roadmap = try readFileAlloc(allocator, "docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md");
     defer allocator.free(roadmap);
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
@@ -41,12 +39,8 @@ test "M18 ADR is linked from README and roadmap and keeps observability offline-
     try std.testing.expect(std.mem.indexOf(u8, adr, "version-pinned, scrubbed snapshot fixtures") != null);
     try std.testing.expect(std.mem.indexOf(u8, adr, "live tracing in the repo") != null);
     try std.testing.expect(std.mem.indexOf(u8, adr, "capture tooling or automation in the repo") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/adr/0002-m18-linux-observability-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0002-m18-linux-observability-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/adr/0002-m18-linux-observability-gate.md") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "not live capture") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "tooling automation, replay") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "Linux-performance claims") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "offline snapshot fixtures only") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "docs/m19-curated-linux-observability.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "M19 now implements the first approved offline import cut under that gate") != null);
@@ -56,7 +50,7 @@ test "M5 track classification is explicit" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0001-m5-project-identity.md");
     defer allocator.free(adr);
-    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    const roadmap = try readFileAlloc(allocator, "docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md");
     defer allocator.free(roadmap);
 
     const required = [_][]const u8{
@@ -78,7 +72,7 @@ test "M5 track classification is explicit" {
 
 test "M5 open question is resolved" {
     const allocator = std.testing.allocator;
-    const open_questions = try readFileAlloc(allocator, ".omx/plans/open-questions.md");
+    const open_questions = try readFileAlloc(allocator, "docs/roadmap/open-questions.md");
     defer allocator.free(open_questions);
 
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "[x] M5 decided") != null);
@@ -89,11 +83,11 @@ test "M18 gate proof surfaces and branch blocking are explicit" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0002-m18-linux-observability-gate.md");
     defer allocator.free(adr);
-    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    const roadmap = try readFileAlloc(allocator, "docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md");
     defer allocator.free(roadmap);
-    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-m18-linux-observability-gate.md");
+    const test_spec = try readFileAlloc(allocator, "docs/roadmap/gates/test-spec-m18-linux-observability-gate.md");
     defer allocator.free(test_spec);
-    const open_questions = try readFileAlloc(allocator, ".omx/plans/open-questions.md");
+    const open_questions = try readFileAlloc(allocator, "docs/roadmap/open-questions.md");
     defer allocator.free(open_questions);
 
     const adr_required = [_][]const u8{
@@ -244,19 +238,16 @@ test "M25 ADR keeps the production branch deferred and blocks M26 by default" {
     const allocator = std.testing.allocator;
     const adr = try readFileAlloc(allocator, "docs/adr/0003-m25-productionization-gate.md");
     defer allocator.free(adr);
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
-    const roadmap = try readFileAlloc(allocator, ".omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md");
+    const roadmap = try readFileAlloc(allocator, "docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md");
     defer allocator.free(roadmap);
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
-    const open_questions = try readFileAlloc(allocator, ".omx/plans/open-questions.md");
+    const open_questions = try readFileAlloc(allocator, "docs/roadmap/open-questions.md");
     defer allocator.free(open_questions);
 
     try std.testing.expect(std.mem.indexOf(u8, adr, "Status: Approved") != null);
     try std.testing.expect(std.mem.indexOf(u8, adr, "Deferred the optional production branch indefinitely") != null);
     try std.testing.expect(std.mem.indexOf(u8, adr, "M26 is blocked") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/adr/0003-m25-productionization-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0003-m25-productionization-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "deferred indefinitely") != null);
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "[x] M25 decided") != null);

@@ -11,8 +11,8 @@ M19 is the first implementation milestone inside the optional Linux-observabilit
 ### Assumption check
 The working assumption is valid from repo evidence:
 - `docs/adr/0002-m18-linux-observability-gate.md` approved only an offline, observability-only, version-pinned, scrubbed snapshot-fixture path.
-- `.omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md` defines M19 as import of curated real scheduler trace snapshots with observability-only labeling.
-- `.omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md` requires documented bounded formats, provenance metadata, and separation from simulator-native fixtures.
+- `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md` defines M19 as import of curated real scheduler trace snapshots with observability-only labeling.
+- `docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md` requires documented bounded formats, provenance metadata, and separation from simulator-native fixtures.
 - The repo currently contains no Linux trace import code, so M19 can still choose a minimal initial support surface.
 
 ### Scope boundary

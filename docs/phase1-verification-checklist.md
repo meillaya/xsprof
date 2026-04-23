@@ -1,8 +1,8 @@
 # Phase 1 Verification Checklist
 
 Use this checklist when reviewing the implementation against:
-- `.omx/plans/prd-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
-- `.omx/plans/test-spec-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
+- `docs/roadmap/phase1/prd-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
+- `docs/roadmap/phase1/test-spec-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
 
 ## 1. Build and project scaffold
 

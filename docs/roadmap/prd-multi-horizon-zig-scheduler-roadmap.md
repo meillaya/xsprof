@@ -655,9 +655,9 @@ Best `ralph` candidates: `M1.5`, `M2`, `M2.5`, `M3.5`, `M4.5`, `M8`, `M13`, `M16
 Best `$team` candidates: `M3`, `M4`, `M6`, `M7`, `M9`, `M11`, `M12`, `M14`, `M15`, `M19`, `M20`, `M21`, `M23`, `M26`.
 
 ## Explicit launch hints
-- `ralph`: `\$ralph Execute milestone M2 from .omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md and verify against .omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md.`
-- `team`: `\$team Execute milestone M3 from .omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md and verify against .omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md with lanes for engine/core-state, export/trace, fixtures/tests, and docs.`
-- Shell form when desired: `omx team run --task "Execute milestone M7 from .omx/plans/prd-multi-horizon-zig-scheduler-roadmap.md and verify against .omx/plans/test-spec-multi-horizon-zig-scheduler-roadmap.md"`
+- `ralph`: `\$ralph Execute milestone M2 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md.`
+- `team`: `\$team Execute milestone M3 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md with lanes for engine/core-state, export/trace, fixtures/tests, and docs.`
+- Shell form when desired: `omx team run --task "Execute milestone M7 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md"`
 - Planning gates: use `\$ralplan` for `M5`, `M18`, and `M25`; do **not** launch direct implementation for those milestones before the ADR/gate outcome is approved.
 
 ## Concrete team verification path

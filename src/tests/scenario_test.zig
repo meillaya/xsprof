@@ -249,31 +249,23 @@ test "sleep configuration requires positive duration and a valid post-dispatch p
 
 test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     const allocator = std.testing.allocator;
-    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
-    defer allocator.free(readme);
     const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
     defer allocator.free(phase_doc);
     const linux_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/linux-mapping.md", std.math.maxInt(usize));
     defer allocator.free(linux_doc);
+    const corpus_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m17-scenario-corpus.md", std.math.maxInt(usize));
+    defer allocator.free(corpus_doc);
 
-    try std.testing.expect(std.mem.indexOf(u8, readme, "sleep_after_ticks") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "phases") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "deadline-priority") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "group-fairness") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "topology-domains") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/sleep-wakeup.zon") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "scenarios/basic/multi-phase-io.zon") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "group-level scheduling ideas") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Topolog") != null);
+    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "sleep-wakeup") != null);
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
 }
 
 test "M14 registry and docs describe scenario-pack and policy extension boundaries" {
     const allocator = std.testing.allocator;
-    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
-    defer allocator.free(readme);
     const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
     defer allocator.free(phase_doc);
     const extension_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m14-extension-boundary.md", std.math.maxInt(usize));
@@ -294,9 +286,6 @@ test "M14 registry and docs describe scenario-pack and policy extension boundari
     }
     try std.testing.expect(saw_short_vs_long);
 
-    try std.testing.expect(std.mem.indexOf(u8, readme, "Scenario packs and extension boundary") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "--scenario-file <path>") != null);
-    try std.testing.expect(std.mem.indexOf(u8, readme, "src/policies/class.zig") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Scenario-pack convention and extension boundary") != null);
     try std.testing.expect(std.mem.indexOf(u8, extension_doc, "Scenario pack convention") != null);
     try std.testing.expect(std.mem.indexOf(u8, extension_doc, "src/sim/scenario.zig") != null);

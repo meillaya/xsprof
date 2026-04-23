@@ -33,7 +33,7 @@ re-charter reopens the production branch.
 - `README.md` alignment
 - `docs/project-architecture-and-status.md` alignment
 - `src/tests/identity_gate_test.zig` coverage
-- `.omx/plans/open-questions.md` resolution update
+- `docs/roadmap/open-questions.md` resolution update
 - optional roadmap reference updates if needed for traceability
 
 ## Acceptance criteria

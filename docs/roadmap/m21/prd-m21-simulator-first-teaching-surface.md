@@ -159,8 +159,8 @@ rewrite.
 - `docs/m21-simulator-first-teaching-surface.md`
 - `docs/project-architecture-and-status.md`
 - `docs/labs/simulator-teaching-pack.md`
-- `.omx/plans/prd-m21-simulator-first-teaching-surface.md`
-- `.omx/plans/test-spec-m21-simulator-first-teaching-surface.md`
+- `docs/roadmap/m21/prd-m21-simulator-first-teaching-surface.md`
+- `docs/roadmap/m21/test-spec-m21-simulator-first-teaching-surface.md`
 
 **Work**
 - expand M21 doc from intent-only into a concrete scope statement
