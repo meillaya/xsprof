@@ -66,4 +66,5 @@ test "engine depends on scheduling class boundary instead of direct policy impor
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"fcfs.zig\")") != null);
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"round_robin.zig\")") != null);
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"cfs_like.zig\")") != null);
+    try std.testing.expect(std.mem.indexOf(u8, engine_source, "@import(\"../policies/experimental/lottery.zig\")") == null);
 }

@@ -198,6 +198,23 @@ test "M22 docs keep the library branch optional and simulator-first" {
     try std.testing.expect(std.mem.indexOf(u8, sdk_doc, "M23-style") == null);
 }
 
+test "M24 docs keep the research sandbox unstable and outside the default path" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const status_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(status_doc);
+    const sandbox_doc = try readFileAlloc(allocator, "docs/m24-research-sandbox.md");
+    defer allocator.free(sandbox_doc);
+
+    try std.testing.expect(std.mem.indexOf(u8, readme, "docs/m24-research-sandbox.md") != null);
+    try std.testing.expect(std.mem.indexOf(u8, status_doc, "research sandbox") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sandbox_doc, "unstable") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sandbox_doc, "Promotion path") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sandbox_doc, "browser/WASM") != null);
+    try std.testing.expect(std.mem.indexOf(u8, sandbox_doc, "stable default") == null);
+}
+
 test "M23 docs keep one canonical package entry and optional appendices only" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");

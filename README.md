@@ -115,6 +115,12 @@ The canonical packaged courseware entrypoint is:
 
 - `docs/courseware/m23-teaching-distribution.md`
 
+## Research sandbox (M24)
+
+The canonical sandbox governance doc is:
+
+- `docs/m24-research-sandbox.md`
+
 M19/M20 stay a **separate observability-only lane** inside the TUI:
 - use `--m19` or `--m19-manifest <path>` for the M19 fixture summary
 - use `--m20` or `--m20-pairing <path>` for the M20 comparison summary

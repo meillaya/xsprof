@@ -55,6 +55,21 @@ test "M14 built-in policy descriptors remain explicit and complete" {
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"extension.zig\")") != null);
 }
 
+test "M24 experimental policies stay outside the built-in stable descriptor set" {
+    const stable_descriptors = sim.policies.extension.listPolicyDescriptors();
+    const experimental_descriptors = sim.policies.experimental.listExperimentalPolicyDescriptors();
+
+    try std.testing.expectEqual(@as(usize, 4), stable_descriptors.len);
+    try std.testing.expectEqual(@as(usize, 1), experimental_descriptors.len);
+    try std.testing.expectEqualStrings("lottery", experimental_descriptors[0].key);
+    try std.testing.expectEqualStrings("experimental-only", experimental_descriptors[0].unstable_label);
+    try std.testing.expect(std.mem.indexOf(u8, experimental_descriptors[0].promotion_rule, "promotion") != null);
+
+    for (stable_descriptors) |descriptor| {
+        try std.testing.expect(!std.mem.eql(u8, descriptor.key, experimental_descriptors[0].key));
+    }
+}
+
 test "M14 built-in policy modules satisfy the documented extension contract" {
     comptime sim.policies.extension.validateModuleContract(sim.policies.fcfs);
     comptime sim.policies.extension.validateModuleContract(sim.policies.round_robin);
@@ -64,6 +79,12 @@ test "M14 built-in policy modules satisfy the documented extension contract" {
     try std.testing.expect(sim.policies.extension.usesSingleCoreReadyQueue(sim.policies.fcfs));
     try std.testing.expect(!sim.policies.extension.usesSingleCoreReadyQueue(sim.policies.cfs_like));
     try std.testing.expect(sim.policies.extension.keepsRunningSelection(sim.policies.deadline));
+}
+
+test "M24 experimental policy satisfies the extension contract but remains unstable" {
+    comptime sim.policies.extension.validateModuleContract(sim.policies.experimental.lottery_policy);
+    try std.testing.expect(!sim.policies.extension.usesSingleCoreReadyQueue(sim.policies.experimental.lottery_policy));
+    try std.testing.expect(sim.policies.experimental.lottery_policy.unstable);
 }
 
 test "M14 extension adapter supplies queue defaults without extra engine hooks" {

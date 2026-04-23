@@ -10,6 +10,7 @@ pub const policies = struct {
     pub const deadline = @import("policies/deadline.zig");
     pub const class = @import("policies/class.zig");
     pub const extension = @import("policies/extension.zig");
+    pub const experimental = @import("policies/experimental/root.zig");
 };
 pub const scenario = @import("sim/scenario.zig");
 pub const scenario_packs = @import("sim/scenario_pack.zig");

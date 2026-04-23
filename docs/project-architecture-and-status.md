@@ -529,6 +529,18 @@ The first package stays limited to four primary docs:
 
 M19/M20 and M22 remain optional appendix sections only.
 
+### M24 — [Optional research branch] research sandbox branch for new policies / experiments
+
+M24 adds a bounded experimental policy sandbox so new ideas can move faster
+without destabilizing the supported teaching spine.
+
+The canonical sandbox governance doc is:
+
+- `docs/m24-research-sandbox.md`
+
+Experimental policies remain unstable, sandbox-only, and outside the supported
+default policy surface until a later milestone/ADR promotes them explicitly.
+
 ### M22 — [Optional library branch] library / SDK stabilization for embedders
 
 The M22 optional library branch can now be scoped around a curated public
