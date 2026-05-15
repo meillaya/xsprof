@@ -359,11 +359,14 @@ fn parseScenarioLegacyText(allocator: std.mem.Allocator, source: []const u8, exp
             const weight_text = parts.next();
             if (parts.next() != null) return error.InvalidTaskLine;
 
+            const arrival_tick = std.fmt.parseInt(u32, arrival_text, 10) catch return error.InvalidInteger;
+            const burst_ticks = std.fmt.parseInt(u32, burst_text, 10) catch return error.InvalidInteger;
+            const weight = try parseLegacyTaskWeight(weight_text);
             try task_specs.append(allocator, .{
                 .id = try allocator.dupe(u8, id),
-                .arrival_tick = std.fmt.parseInt(u32, arrival_text, 10) catch return error.InvalidInteger,
-                .burst_ticks = std.fmt.parseInt(u32, burst_text, 10) catch return error.InvalidInteger,
-                .weight = try parseLegacyTaskWeight(weight_text),
+                .arrival_tick = arrival_tick,
+                .burst_ticks = burst_ticks,
+                .weight = weight,
             });
             continue;
         }

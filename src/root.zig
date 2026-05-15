@@ -74,6 +74,7 @@ test {
     _ = @import("tests/policy_architecture_test.zig");
     _ = @import("tests/scenario_pack_test.zig");
     _ = @import("tests/policy_extension_boundary_test.zig");
+    _ = @import("tests/quality_gate_test.zig");
     _ = @import("tests/linux_observability_test.zig");
     _ = @import("tests/observability_comparison_test.zig");
 }

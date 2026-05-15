@@ -1226,7 +1226,7 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
 
     const sources_rect = Rect{ .x = side_rect.x, .y = side_rect.y, .w = side_rect.w, .h = 8 };
     const policies_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 9, .w = side_rect.w, .h = 8 };
-    const recent_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 18, .w = side_rect.w, .h = side_rect.h - 18 };
+    const recent_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 18, .w = side_rect.w, .h = satSub(side_rect.h, 18) };
     const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false, theme);
     renderPickerSources(canvas, sources_inner, theme);
     const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false, theme);
@@ -2162,6 +2162,46 @@ test "too-small renderer handles tiny heights without underflow" {
     inline for ([_]usize{ 0, 1, 2, 3, 4, 5 }) |height| {
         const frame = try renderSnapshotFrame(allocator, 20, height, app);
         defer allocator.free(frame);
+    }
+}
+
+test "M44 snapshot rendering is stable across compact medium and large tiers" {
+    const app: AppView = .{
+        .domain_mode = .simulator,
+        .theme = .dark,
+        .view = .picker,
+        .focus = .gantt,
+        .cursor = 0,
+        .selected_task_index = null,
+        .picker_index = 0,
+        .playing = false,
+        .report = null,
+        .compare_report = null,
+        .observability_summary = null,
+        .observability_comparison = null,
+        .picker_entries = &.{},
+        .history = &.{},
+    };
+
+    const allocator = std.testing.allocator;
+    const cases = [_]struct {
+        width: usize,
+        height: usize,
+        tier: LayoutTier,
+    }{
+        .{ .width = 80, .height = 24, .tier = .compact },
+        .{ .width = 96, .height = 28, .tier = .medium },
+        .{ .width = 120, .height = 40, .tier = .large },
+    };
+
+    for (cases) |case| {
+        try std.testing.expectEqual(case.tier, classifyLayout(case.width, case.height));
+        const first = try renderSnapshotFrame(allocator, case.width, case.height, app);
+        defer allocator.free(first);
+        const second = try renderSnapshotFrame(allocator, case.width, case.height, app);
+        defer allocator.free(second);
+        try std.testing.expectEqualStrings(first, second);
+        try std.testing.expect(std.mem.indexOf(u8, first, "SNAPSHOT") != null);
     }
 }
 

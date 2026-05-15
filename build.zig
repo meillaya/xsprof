@@ -78,6 +78,16 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const quality_mod = addModule(
+        b,
+        "zig_scheduler_quality",
+        b.path("src/quality/root.zig"),
+        target,
+        &.{
+            .{ .name = "list_writer", .module = list_writer_mod },
+        },
+    );
+
     const tui_mod = addModule(
         b,
         "zig_scheduler_tui",
@@ -163,6 +173,17 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const quality_exe = addExecutable(
+        b,
+        "zig-scheduler-quality",
+        b.path("src/quality/main.zig"),
+        target,
+        optimize,
+        &.{
+            .{ .name = "quality_root", .module = quality_mod },
+        },
+    );
+
     const report_pipeline_exe = addExecutable(
         b,
         "zig-scheduler-reports",
@@ -184,6 +205,9 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, analysis_exe, "analyze", "Analyze exported zig-scheduler/report JSON", .{});
     addRunStep(b, bench_exe, "bench", "Render reproducible simulator-local benchmark baselines", .{});
     addRunStep(b, tui_exe, "tui", "Run the M15 interactive TUI trace explorer", .{});
+    addRunStep(b, quality_exe, "quality", "Render the M46 quality dashboard for maintainers", .{
+        .depend_on_install = false,
+    });
     // Reports are intentionally step-only: docs use `zig build reports`, not a
     // public installed binary contract.
     addRunStep(b, report_pipeline_exe, "reports", "Regenerate the curated reproducible report artifacts", .{
@@ -201,6 +225,7 @@ pub fn build(b: *std.Build) void {
         analysis_mod,
         bench_mod,
         report_pipeline_mod,
+        quality_mod,
         exe.root_module,
         sim_exe.root_module,
         tui_mod,

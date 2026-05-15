@@ -629,3 +629,12 @@ from scratch in an evidence-based way.
 
 When extending the repo, prefer official docs, seminal scheduler papers, and
 the repo’s own committed fixtures/contracts before adding new abstractions.
+
+### M37-M46 quality gate spine
+
+Phase B quality work is now owned by `docs/quality-gates.md`,
+`docs/release-checklist.md`, and the generated maintainer dashboard exposed as
+`zig build quality`. These surfaces keep test taxonomy, golden fixture governance,
+property/determinism/fault/architecture gates, CLI/SDK compatibility, dashboard
+snapshots, and release dry-run checks in one source-of-truth lane while
+preserving ADR 0003.

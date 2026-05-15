@@ -15,6 +15,7 @@ there instead of copying long status narratives into every milestone note.
 | Report JSON contract | `src/contract/report.zig` | analysis, benchmark, dashboard, courseware docs |
 | Public SDK ownership | `docs/m22-library-sdk.md` and `src/lib.zig` | examples and release notes |
 | Production-boundary classification | `docs/m31-m32-contract-inventory.md` and `src/contract/inventory.zig` | roadmap status docs |
+| Phase B quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
 
 ## M36 maintenance rules
 
@@ -26,6 +27,7 @@ there instead of copying long status narratives into every milestone note.
 4. If a public contract changes, update both source metadata and the matching doc
    owner in the same commit.
 5. Run identity/architecture tests after claim edits.
+6. For M37-M46 quality claims, update `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` together.
 
 ## Known allowed repeated phrases
 
