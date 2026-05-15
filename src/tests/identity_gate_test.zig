@@ -1,12 +1,18 @@
 const std = @import("std");
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 fn expectLacksAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| {
         try std.testing.expect(std.mem.indexOf(u8, haystack, needle) == null);
+    }
+}
+
+fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
+    for (needles) |needle| {
+        try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
     }
 }
 
@@ -251,4 +257,141 @@ test "M25 ADR keeps the production branch deferred and blocks M26 by default" {
     try std.testing.expect(std.mem.indexOf(u8, roadmap, "docs/adr/0003-m25-productionization-gate.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "deferred indefinitely") != null);
     try std.testing.expect(std.mem.indexOf(u8, open_questions, "[x] M25 decided") != null);
+}
+
+test "M27-M32 roadmap slice stays governance and contract focused" {
+    const allocator = std.testing.allocator;
+    const prd = try readFileAlloc(allocator, ".omx/plans/prd-production-grade-scheduler-50-milestones.md");
+    defer allocator.free(prd);
+    const test_spec = try readFileAlloc(allocator, ".omx/plans/test-spec-production-grade-scheduler-50-milestones.md");
+    defer allocator.free(test_spec);
+    const adr = try readFileAlloc(allocator, "docs/adr/0003-m25-productionization-gate.md");
+    defer allocator.free(adr);
+
+    const prd_required = [_][]const u8{
+        "Scope: planning only; no source implementation in this workflow",
+        "Any actual production daemon/service/automation scope remains gated by `docs/adr/0003-m25-productionization-gate.md`",
+        "| M27 | Current-truth reset and roadmap re-charter |",
+        "| M28 | Repo information architecture cleanup |",
+        "| M29 | Build graph hygiene |",
+        "| M30 | Zig 0.16 compatibility cleanup pass |",
+        "| M31 | Memory ownership and allocator contract audit |",
+        "| M32 | Production-boundary compatibility and contract inventory |",
+        "Treat M27-M46 as mandatory before any production-runtime work.",
+    };
+    try expectContainsAll(prd, &prd_required);
+
+    const test_spec_required = [_][]const u8{
+        "Wording audit: no current-doc claim that the repo is already a live production scheduler, kernel scheduler, daemon, or Linux-performance tool.",
+        "M27-M36 cleanup: architecture/import tests, dead-link/docs consistency checks, ownership docs, M32 lab-only/runtime-portable contract classification.",
+        "M27-M32 must prove production-scope truthfulness and contract-boundary clarity.",
+    };
+    try expectContainsAll(test_spec, &test_spec_required);
+
+    try std.testing.expect(std.mem.indexOf(u8, adr, "no daemon/service/agent/automation implementation is authorized by this milestone") != null);
+}
+
+test "M27-M32 current docs preserve simulator truth and production gate" {
+    const allocator = std.testing.allocator;
+    const readme = try readFileAlloc(allocator, "README.md");
+    defer allocator.free(readme);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+    const future_directions = try readFileAlloc(allocator, "docs/future-directions.md");
+    defer allocator.free(future_directions);
+
+    const readme_required = [_][]const u8{
+        "deterministic CPU scheduling simulator",
+        "not as a kernel scheduler, daemon, or production automation system",
+        "The repo is still simulator-first",
+    };
+    try expectContainsAll(readme, &readme_required);
+
+    const project_doc_required = [_][]const u8{
+        "deterministic CPU scheduling simulator",
+        "kernel component, daemon",
+        "production scheduler.",
+        "implementation today",
+        "simulator-first mainline",
+        "optional production branch is currently deferred indefinitely after M25",
+    };
+    try expectContainsAll(project_doc, &project_doc_required);
+
+    const future_required = [_][]const u8{
+        "This document does not reopen M26",
+        "not approval to begin implementation",
+        "future decision explicitly reopens it",
+    };
+    try expectContainsAll(future_directions, &future_required);
+}
+
+test "M27-M32 build graph remains testable and free of production runtime artifacts" {
+    const allocator = std.testing.allocator;
+    const build_file = try readFileAlloc(allocator, "build.zig");
+    defer allocator.free(build_file);
+
+    const required_test_graph = [_][]const u8{
+        "const test_step = b.step(\"test\"",
+        "lib_mod,",
+        "internal_mod,",
+        "analysis_mod,",
+        "bench_mod,",
+        "report_pipeline_mod,",
+        "exe.root_module,",
+        "sim_exe.root_module,",
+        "tui_mod,",
+        "addTestDependency(b, test_step, module)",
+    };
+    try expectContainsAll(build_file, &required_test_graph);
+
+    const zig_0_16_build_api = [_][]const u8{
+        ".root_module = b.createModule(.{",
+        "b.path(\"src/main.zig\")",
+        "b.path(\"src/sim_main.zig\")",
+    };
+    try expectContainsAll(build_file, &zig_0_16_build_api);
+
+    const forbidden_runtime_artifacts = [_][]const u8{
+        "zig-scheduler-daemon",
+        "zig-scheduler-service",
+        "zig-scheduler-agent",
+        "zig-scheduler-runtime",
+        "production-runtime",
+    };
+    try expectLacksAll(build_file, &forbidden_runtime_artifacts);
+}
+
+test "M31-M32 ownership and public contract docs remain anchored" {
+    const allocator = std.testing.allocator;
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+    const sdk_doc = try readFileAlloc(allocator, "docs/m22-library-sdk.md");
+    defer allocator.free(sdk_doc);
+    const prd = try readFileAlloc(allocator, ".omx/plans/prd-production-grade-scheduler-50-milestones.md");
+    defer allocator.free(prd);
+
+    const architecture_contract_anchors = [_][]const u8{
+        "### 1. Scenario layer",
+        "### 3. Scheduling-class boundary",
+        "### 4. Reporting/export layer",
+        "src/contract/report.zig",
+        "library / SDK stabilization for embedders",
+        "embedder facade",
+    };
+    try expectContainsAll(project_doc, &architecture_contract_anchors);
+
+    const sdk_contract_anchors = [_][]const u8{
+        "stable subset",
+        "Workflow-stable allocator-owning types",
+        "freeScenario",
+        "writeJsonReport",
+    };
+    try expectContainsAll(sdk_doc, &sdk_contract_anchors);
+
+    const m31_m32_anchors = [_][]const u8{
+        "Document ownership rules for scenarios, reports, parsed JSON, generated workloads, TUI history.",
+        "Inventory scenario input, report JSON, SDK, CLI args, TUI snapshot output, benchmark output",
+        "classify each as lab-only, runtime-portable, or intentionally non-runtime",
+    };
+    try expectContainsAll(prd, &m31_m32_anchors);
 }
