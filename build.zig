@@ -109,6 +109,16 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const dashboard_mod = addModule(
+        b,
+        "zig_scheduler_dashboard",
+        b.path("src/dashboard/root.zig"),
+        target,
+        &.{
+            .{ .name = "list_writer", .module = list_writer_mod },
+        },
+    );
+
     const tui_mod = addModule(
         b,
         "zig_scheduler_tui",
@@ -118,6 +128,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zig_scheduler_internal", .module = internal_mod },
             .{ .name = "list_writer", .module = list_writer_mod },
             .{ .name = "analysis_root", .module = analysis_mod },
+            .{ .name = "dashboard_root", .module = dashboard_mod },
         },
     );
 
@@ -205,6 +216,17 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const dashboard_exe = addExecutable(
+        b,
+        "zig-scheduler-dashboard",
+        b.path("src/dashboard/main.zig"),
+        target,
+        optimize,
+        &.{
+            .{ .name = "dashboard_root", .module = dashboard_mod },
+        },
+    );
+
     const perf_exe = addExecutable(
         b,
         "zig-scheduler-perf",
@@ -250,6 +272,9 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, semantics_exe, "semantics", "Render the M57-M66 scheduling semantics v2 contract", .{
         .depend_on_install = false,
     });
+    addRunStep(b, dashboard_exe, "dashboard", "Render the M67-M74 smart dashboard spine contract", .{
+        .depend_on_install = false,
+    });
     addRunStep(b, perf_exe, "perf", "Check reproducible simulator-local performance budgets", .{
         .depend_on_install = false,
     });
@@ -277,6 +302,7 @@ pub fn build(b: *std.Build) void {
         quality_mod,
         perf_mod,
         semantics_mod,
+        dashboard_mod,
         exe.root_module,
         sim_exe.root_module,
         tui_mod,

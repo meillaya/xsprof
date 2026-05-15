@@ -79,6 +79,7 @@ test {
     _ = @import("tests/quality_gate_test.zig");
     _ = @import("tests/perf_gate_test.zig");
     _ = @import("tests/semantics_v2_test.zig");
+    _ = @import("tests/dashboard_spine_test.zig");
     _ = @import("tests/linux_observability_test.zig");
     _ = @import("tests/observability_comparison_test.zig");
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const list_writer = @import("list_writer");
 const analysis = @import("analysis_root");
 const scheduler = @import("zig_scheduler_internal");
+const dashboard = @import("dashboard_root");
 
 pub const Report = analysis.model.Report;
 pub const TraceEntry = analysis.model.TraceEntry;
@@ -19,6 +20,19 @@ pub const View = enum {
     observability_comparison,
     help,
 };
+
+pub const DashboardScreen = dashboard.Screen;
+
+pub fn dashboardScreenForView(view: View) DashboardScreen {
+    return switch (view) {
+        .picker => .home,
+        .explorer => .timeline,
+        .drawer => .tasks_cores,
+        .diff => .policy_compare,
+        .observability_summary, .observability_comparison => .observability,
+        .help => .help,
+    };
+}
 
 pub const DomainMode = enum {
     simulator,
@@ -2203,6 +2217,28 @@ test "M44 snapshot rendering is stable across compact medium and large tiers" {
         try std.testing.expectEqualStrings(first, second);
         try std.testing.expect(std.mem.indexOf(u8, first, "SNAPSHOT") != null);
     }
+}
+
+test "M67 TUI views map into the smart dashboard spine" {
+    const mappings = [_]struct {
+        view: View,
+        screen: DashboardScreen,
+    }{
+        .{ .view = .picker, .screen = .home },
+        .{ .view = .explorer, .screen = .timeline },
+        .{ .view = .drawer, .screen = .tasks_cores },
+        .{ .view = .diff, .screen = .policy_compare },
+        .{ .view = .observability_summary, .screen = .observability },
+        .{ .view = .observability_comparison, .screen = .observability },
+        .{ .view = .help, .screen = .help },
+    };
+
+    for (mappings) |mapping| {
+        const screen = dashboardScreenForView(mapping.view);
+        try std.testing.expectEqual(mapping.screen, screen);
+        try std.testing.expect(dashboard.containsScreen(screen));
+    }
+    try std.testing.expect(dashboard.ad_hoc_tui_modes_forbidden);
 }
 
 fn styleEq(a: Style, b: Style) bool {

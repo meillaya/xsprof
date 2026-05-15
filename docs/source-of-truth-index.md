@@ -18,6 +18,7 @@ there instead of copying long status narratives into every milestone note.
 | Phase B quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
 | Phase C performance budgets and reproducible perf gate | `docs/performance-gates.md` and `src/perf/root.zig` | benchmark docs, release notes |
 | Scheduling semantics v2 vocabulary | `docs/scheduler-semantics-v2.md` and `src/semantics/root.zig` | policy docs, dashboard docs, report explanations |
+| Smart dashboard screen IA and no-ad-hoc-mode rule | `docs/smart-dashboard-spine.md` and `src/dashboard/root.zig` | TUI docs, screenshots, help text |
 
 ## M36 maintenance rules
 
@@ -32,6 +33,7 @@ there instead of copying long status narratives into every milestone note.
 6. For M37-M46 quality claims, update `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` together.
 7. For M47-M56 performance claims, update `docs/performance-gates.md`, `src/perf/root.zig`, and benchmark baseline docs together.
 8. For M57-M66 semantics claims, update `docs/scheduler-semantics-v2.md`, `src/semantics/root.zig`, and semantics tests together.
+9. For M67-M74 dashboard claims, update `docs/smart-dashboard-spine.md`, `src/dashboard/root.zig`, TUI mappings, and dashboard tests together.
 
 ## Known allowed repeated phrases
 

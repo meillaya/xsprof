@@ -656,3 +656,12 @@ Phase D semantics are owned by `docs/scheduler-semantics-v2.md` and
 dashboard panels one vocabulary for priority/nice, fairness, deadlines,
 runqueues, affinity, topology, group budgets, explainable decisions, and
 replay/diff diagnostics without changing the ADR 0003 simulator-lab boundary.
+
+
+### M67-M74 smart dashboard spine
+
+Phase E dashboard work is owned by `docs/smart-dashboard-spine.md` and
+`src/dashboard/root.zig`. The contract defines one dashboard shell with Home,
+Scenario, Timeline, Tasks/Cores, Policy Compare, Observability, Performance,
+Reports, and Help screens, and `src/tui/render.zig` maps existing TUI views into
+that spine so future work stops adding ad hoc modes.
