@@ -1,3 +1,10 @@
+//! Public report/export contract facade.
+//!
+//! Report objects borrow `ScenarioOwned` and `SimulationResult`; writing JSON
+//! does not take ownership of either value. Callers must keep both inputs alive
+//! until `writeJsonReport` returns, then deinitialize the scenario/result using
+//! their documented ownership rules.
+
 const internal = @import("zig_scheduler_internal");
 
 pub const schema_name = internal.cli.schema_name;

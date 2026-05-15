@@ -1,8 +1,9 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const scheduler = @import("zig_scheduler");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -30,7 +31,7 @@ pub fn main() !void {
 
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try scheduler.report.writeJsonReport(&writer, report);
 
     if (std.mem.indexOf(u8, buffer.items, scheduler.report.schema_name) == null) return error.SmokeFailure;

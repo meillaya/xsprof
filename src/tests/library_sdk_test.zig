@@ -1,4 +1,6 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
+const contract_inventory = @import("../contract/inventory.zig");
 const sdk = @import("../lib.zig");
 
 fn expectDeclNamesExact(comptime T: type, comptime expected: []const []const u8) !void {
@@ -102,9 +104,52 @@ test "public sdk workflow uses documented parse simulate export path" {
     );
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try sdk.report.writeJsonReport(&writer, report);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, sdk.report.schema_name) != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\"scenario\":{\"name\":\"library-sdk-test\"") != null);
+}
+
+test "public sdk scenario free helper owns parsed scenario" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\.{
+        \\    .name = "library-sdk-free-helper-test",
+        \\    .tasks = .{
+        \\        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 1 },
+        \\    },
+        \\}
+    ;
+
+    const scenario = try sdk.scenario_io.parseScenarioText(allocator, source, "library-sdk-free-helper-test");
+    sdk.scenario_io.freeScenario(allocator, scenario);
+}
+
+test "M31-M32 inventory records owner modules and production-boundary classes" {
+    try std.testing.expectEqual(@as(usize, 9), contract_inventory.contract_surfaces.len);
+
+    var runtime_portable: usize = 0;
+    var lab_only: usize = 0;
+    var intentionally_non_runtime: usize = 0;
+    var saw_report = false;
+    var saw_adr_gate = false;
+
+    for (contract_inventory.contract_surfaces) |surface| {
+        try std.testing.expect(surface.name.len != 0);
+        try std.testing.expect(surface.owner_module.len != 0);
+        switch (surface.boundary_class) {
+            .runtime_portable => runtime_portable += 1,
+            .lab_only => lab_only += 1,
+            .intentionally_non_runtime => intentionally_non_runtime += 1,
+        }
+        if (std.mem.eql(u8, surface.owner_module, "src/contract/report.zig")) saw_report = true;
+        if (std.mem.eql(u8, surface.owner_module, "docs/adr/0003-m25-productionization-gate.md")) saw_adr_gate = true;
+    }
+
+    try std.testing.expect(runtime_portable >= 1);
+    try std.testing.expect(lab_only >= 1);
+    try std.testing.expect(intentionally_non_runtime >= 1);
+    try std.testing.expect(saw_report);
+    try std.testing.expect(saw_adr_gate);
 }
