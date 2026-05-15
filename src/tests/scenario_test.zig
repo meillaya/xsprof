@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const scheduler = @import("../root.zig");
 
 test "builtin golden scenario fixture matches plan inputs" {
@@ -249,11 +250,11 @@ test "sleep configuration requires positive duration and a valid post-dispatch p
 
 test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
-    const linux_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/linux-mapping.md", std.math.maxInt(usize));
+    const linux_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/linux-mapping.md", allocator, .unlimited);
     defer allocator.free(linux_doc);
-    const corpus_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m17-scenario-corpus.md", std.math.maxInt(usize));
+    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m17-scenario-corpus.md", allocator, .unlimited);
     defer allocator.free(corpus_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
@@ -266,9 +267,9 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
 
 test "M14 registry and docs describe scenario-pack and policy extension boundaries" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
-    const extension_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m14-extension-boundary.md", std.math.maxInt(usize));
+    const extension_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m14-extension-boundary.md", allocator, .unlimited);
     defer allocator.free(extension_doc);
 
     const builtins = scheduler.listBuiltinScenarios();
@@ -422,7 +423,7 @@ fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
     const use_groups = seed % 3 != 1;
 
     try buffer.appendSlice(allocator, ".{\n");
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try writer.print("    .name = \"{s}\",\n", .{name});
     try writer.print("    .rr_quantum = {d},\n", .{1 + (seed % 3)});
     if (core_count > 1) {

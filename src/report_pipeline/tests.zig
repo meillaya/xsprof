@@ -2,7 +2,7 @@ const std = @import("std");
 const report_pipeline = @import("root.zig");
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 test "report pipeline reproduces committed artifacts" {
@@ -30,7 +30,7 @@ test "report pipeline writes the full artifact pack into a temp directory" {
         const expected = try report_pipeline.renderArtifact(allocator, artifact.kind);
         defer allocator.free(expected);
 
-        const actual = try tmp.dir.readFileAlloc(allocator, artifact.path, std.math.maxInt(usize));
+        const actual = try tmp.dir.readFileAlloc(std.Io.Threaded.global_single_threaded.io(), artifact.path, allocator, .unlimited);
         defer allocator.free(actual);
 
         try std.testing.expectEqualStrings(expected, actual);

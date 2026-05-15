@@ -190,7 +190,7 @@ test "snapshot parsing stays orthogonal to report and simulation sources" {
     try std.testing.expectEqual(RuntimeMode.interactive, m19_manifest_options.runtime_mode);
     try std.testing.expectEqualStrings("fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json", m19_manifest_options.input_source.m19_manifest);
 
-    const m20_default_options = try parseArgs(&.{ "--m20" });
+    const m20_default_options = try parseArgs(&.{"--m20"});
     try std.testing.expectEqual(RuntimeMode.interactive, m20_default_options.runtime_mode);
     try std.testing.expectEqual(InputSource.m20_default, m20_default_options.input_source);
 

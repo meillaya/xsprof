@@ -1,11 +1,12 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const scheduler = @import("zig_scheduler_internal");
 
 pub fn runWithArgs(allocator: std.mem.Allocator, args: []const []const u8) !void {
     const options = try scheduler.cli.parseArgs(args);
 
     var stdout_buffer: [8192]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     switch (options.command) {
@@ -94,7 +95,7 @@ test "list command exposes scenario pack registry layout" {
     const allocator = std.testing.allocator;
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     try writeScenarioList(&writer);
 
@@ -108,7 +109,7 @@ test "list command exposes scenario pack registry layout" {
 test "usage text advertises sim entrypoint" {
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(std.testing.allocator);
-    var writer = buffer.writer(std.testing.allocator);
+    var writer = list_writer.writer(&buffer, std.testing.allocator);
     try writeUsage(&writer, "zig-scheduler sim");
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-scheduler sim") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--scenario-file <path>") != null);

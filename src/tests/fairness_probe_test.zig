@@ -46,11 +46,11 @@ test "starvation-pressure fixture exposes uneven waiting under weighted fair sch
 
 test "M8 docs keep fairness claims evidence-based" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/phase1-simulator.md", std.math.maxInt(usize));
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
-    const fairness_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m8-fairness-probes.md", std.math.maxInt(usize));
+    const fairness_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m8-fairness-probes.md", allocator, .unlimited);
     defer allocator.free(fairness_doc);
-    const corpus_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/m17-scenario-corpus.md", std.math.maxInt(usize));
+    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m17-scenario-corpus.md", allocator, .unlimited);
     defer allocator.free(corpus_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "latency-probe") != null);

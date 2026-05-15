@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const analysis = @import("analysis_root");
 const scheduler = @import("zig_scheduler_internal");
 const matrix = @import("matrix.zig");
@@ -79,7 +80,7 @@ pub fn run(allocator: std.mem.Allocator) !Report {
 
         var export_buffer: std.ArrayList(u8) = .empty;
         defer export_buffer.deinit(allocator);
-        var export_writer = export_buffer.writer(allocator);
+        var export_writer = list_writer.writer(&export_buffer, allocator);
         try scheduler.cli.writeJsonReport(&export_writer, sim_report);
         const export_bytes: u32 = @intCast(export_buffer.items.len);
 
@@ -131,13 +132,9 @@ pub fn render(allocator: std.mem.Allocator, output_format: OutputFormat) ![]u8 {
 fn renderJson(allocator: std.mem.Allocator, report: *const Report) ![]u8 {
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
-    var writer = list.writer(allocator);
-    var bridge_buffer: [256]u8 = undefined;
-    var adapter = writer.adaptToNewApi(&bridge_buffer);
-    try std.json.Stringify.value(report.*, .{}, &adapter.new_interface);
-    if (adapter.err) |err| return err;
-    try adapter.new_interface.flush();
-    try list.append(allocator, '\n');
+    var writer = list_writer.writer(&list, allocator);
+    try writer.writeJsonValue(report.*);
+    try writer.writeByte('\n');
     return try list.toOwnedSlice(allocator);
 }
 

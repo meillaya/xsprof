@@ -86,16 +86,12 @@ pub fn writeHumanReport(writer: anytype, report: report_mod.SimulationReport) !v
 
 pub fn writeJsonReport(writer: anytype, report: report_mod.SimulationReport) !void {
     const Writer = @TypeOf(writer.*);
-    if (@hasField(Writer, "vtable")) {
-        try std.json.Stringify.value(report, .{}, writer);
+    if (@hasDecl(Writer, "writeJsonValue")) {
+        try writer.writeJsonValue(report);
         try writer.writeAll("\n");
         return;
     }
 
-    var bridge_buffer: [256]u8 = undefined;
-    var adapter = writer.adaptToNewApi(&bridge_buffer);
-    try std.json.Stringify.value(report, .{}, &adapter.new_interface);
-    if (adapter.err) |err| return err;
-    try adapter.new_interface.flush();
+    try std.json.Stringify.value(report, .{}, writer);
     try writer.writeAll("\n");
 }

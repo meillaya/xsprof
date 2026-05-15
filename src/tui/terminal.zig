@@ -27,18 +27,18 @@ pub fn eqlSize(lhs: Size, rhs: Size) bool {
 }
 
 pub const Terminal = struct {
-    stdin: std.fs.File,
-    stdout: std.fs.File,
+    stdin: std.Io.File,
+    stdout: std.Io.File,
     original_termios: ?std.posix.termios = null,
     alt_screen_enabled: bool = false,
 
     pub fn init() !Terminal {
         var term = Terminal{
-            .stdin = std.fs.File.stdin(),
-            .stdout = std.fs.File.stdout(),
+            .stdin = std.Io.File.stdin(),
+            .stdout = std.Io.File.stdout(),
         };
 
-        if (!term.stdin.isTty() or !term.stdout.isTty()) {
+        if (!try term.stdin.isTty(std.Io.Threaded.global_single_threaded.io()) or !try term.stdout.isTty(std.Io.Threaded.global_single_threaded.io())) {
             return error.NotATerminal;
         }
 
@@ -59,14 +59,14 @@ pub const Terminal = struct {
         raw.cc[@intFromEnum(std.c.V.TIME)] = 1;
         try std.posix.tcsetattr(term.stdin.handle, .FLUSH, raw);
 
-        try term.stdout.writeAll("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H");
+        try term.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H");
         term.alt_screen_enabled = true;
         return term;
     }
 
     pub fn deinit(self: *Terminal) void {
         if (self.alt_screen_enabled) {
-            self.stdout.writeAll("\x1b[0m\x1b[2J\x1b[H\x1b[?25h\x1b[?1049l") catch {};
+            self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[0m\x1b[2J\x1b[H\x1b[?25h\x1b[?1049l") catch {};
             self.alt_screen_enabled = false;
         }
         if (self.original_termios) |original| {
@@ -78,17 +78,17 @@ pub const Terminal = struct {
     pub fn size(self: *Terminal) Size {
         _ = self;
         var wsz: std.posix.winsize = .{ .row = 0, .col = 0, .xpixel = 0, .ypixel = 0 };
-        const fd: usize = @bitCast(@as(isize, std.fs.File.stdout().handle));
+        const fd: usize = @bitCast(@as(isize, std.Io.File.stdout().handle));
         const rc = std.os.linux.syscall3(.ioctl, fd, std.os.linux.T.IOCGWINSZ, @intFromPtr(&wsz));
-        if (std.os.linux.E.init(rc) == .SUCCESS and wsz.col > 0 and wsz.row > 0) {
+        if (std.os.linux.errno(rc) == .SUCCESS and wsz.col > 0 and wsz.row > 0) {
             return .{ .cols = wsz.col, .rows = wsz.row };
         }
         return .{ .cols = 120, .rows = 40 };
     }
 
     pub fn writeFrame(self: *Terminal, bytes: []const u8) !void {
-        try self.stdout.writeAll("\x1b[H");
-        try self.stdout.writeAll(bytes);
+        try self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[H");
+        try self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), bytes);
     }
 
     pub fn readEvent(self: *Terminal, timeout_ms: i32) !Event {
@@ -102,7 +102,7 @@ pub const Terminal = struct {
         if (ready == 0) return .none;
 
         var buf: [8]u8 = undefined;
-        const n = try self.stdin.read(&buf);
+        const n = try self.stdin.readStreaming(std.Io.Threaded.global_single_threaded.io(), &.{&buf});
         if (n == 0) return .{ .char = 'q' };
         return parseEvent(buf[0..n]);
     }

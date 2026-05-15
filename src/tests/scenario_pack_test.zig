@@ -1,8 +1,9 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const sim = @import("../root.zig");
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 fn renderJson(
@@ -18,7 +19,7 @@ fn renderJson(
     const report = sim.cli.SimulationReport.init(.{ .kind = .file, .value = entry.path }, &scenario, &result);
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try sim.cli.writeJsonReport(&writer, report);
     return try buffer.toOwnedSlice(allocator);
 }
@@ -91,8 +92,8 @@ test "M17 canonical scenario corpus covers required curriculum themes and metada
         try std.testing.expect(entry.recommended_policy != null);
         try std.testing.expect(entry.manual_demo);
         try std.testing.expect(entry.regression_use);
-        try std.fs.cwd().access(entry.path, .{});
-        try std.fs.cwd().access(entry.explanation_doc.?, .{});
+        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.path, .{});
+        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.explanation_doc.?, .{});
 
         const explanation = try readFileAlloc(std.testing.allocator, entry.explanation_doc.?);
         defer std.testing.allocator.free(explanation);
@@ -128,9 +129,9 @@ test "M21 shortlist helper stays exact and explanation docs resolve" {
     try std.testing.expectEqual(sim.PolicyKind.fcfs, shortlist[2].recommended_policy.?);
 
     for (shortlist) |entry| {
-        try std.fs.cwd().access(entry.path, .{});
+        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.path, .{});
         try std.testing.expect(entry.explanation_doc != null);
-        try std.fs.cwd().access(entry.explanation_doc.?, .{});
+        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.explanation_doc.?, .{});
         try std.testing.expect(sim.scenario_packs.findM21TeachingEntry(entry.key) != null);
     }
 

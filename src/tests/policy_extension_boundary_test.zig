@@ -46,9 +46,9 @@ test "M14 built-in policy descriptors remain explicit and complete" {
     try std.testing.expectEqual(sim.PolicyKind.deadline, descriptors[3].kind);
     try std.testing.expectEqualStrings("Deadline-inspired", descriptors[3].display_name);
 
-    const engine_source = try std.fs.cwd().readFileAlloc(std.testing.allocator, "src/sim/engine.zig", std.math.maxInt(usize));
+    const engine_source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "src/sim/engine.zig", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(engine_source);
-    const class_source = try std.fs.cwd().readFileAlloc(std.testing.allocator, "src/policies/class.zig", std.math.maxInt(usize));
+    const class_source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "src/policies/class.zig", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(class_source);
 
     try std.testing.expect(std.mem.indexOf(u8, engine_source, "@import(\"../policies/fcfs.zig\")") == null);

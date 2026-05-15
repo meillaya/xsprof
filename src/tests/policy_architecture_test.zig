@@ -53,9 +53,9 @@ test "scheduler class selects and updates policy behavior through one boundary" 
 
 test "engine depends on scheduling class boundary instead of direct policy imports" {
     const allocator = std.testing.allocator;
-    const engine_source = try std.fs.cwd().readFileAlloc(allocator, "src/sim/engine.zig", std.math.maxInt(usize));
+    const engine_source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "src/sim/engine.zig", allocator, .unlimited);
     defer allocator.free(engine_source);
-    const class_source = try std.fs.cwd().readFileAlloc(allocator, "src/policies/class.zig", std.math.maxInt(usize));
+    const class_source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "src/policies/class.zig", allocator, .unlimited);
     defer allocator.free(class_source);
 
     try std.testing.expect(std.mem.indexOf(u8, engine_source, "@import(\"../policies/class.zig\")") != null);

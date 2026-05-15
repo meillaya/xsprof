@@ -6,13 +6,9 @@ const Options = struct {
     output_dir: ?[]const u8 = null,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
-    const argv = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, argv);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const argv = try init.minimal.args.toSlice(init.arena.allocator());
 
     const options = parseArgs(argv[1..]) catch |err| switch (err) {
         error.ShowHelp => {
@@ -40,7 +36,7 @@ pub fn main() !void {
         if (!ok) std.process.exit(1);
 
         var stdout_buffer: [256]u8 = undefined;
-        var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+        var stdout_writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &stdout_buffer);
         const stdout = &stdout_writer.interface;
         try stdout.writeAll("report pipeline is up to date\n");
         try stdout.flush();
@@ -60,7 +56,7 @@ pub fn main() !void {
     }
 
     var stdout_buffer: [256]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &stdout_buffer);
     const stdout = &stdout_writer.interface;
     try stdout.writeAll("regenerated reproducible report artifacts\n");
     try stdout.flush();
@@ -89,7 +85,7 @@ fn parseArgs(args: []const []const u8) !Options {
 
 fn writeUsageAndExit(exit_code: u8) !void {
     var stderr_buffer: [256]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    var stderr_writer = std.Io.File.stderr().writer(std.Io.Threaded.global_single_threaded.io(), &stderr_buffer);
     const stderr = &stderr_writer.interface;
     try stderr.writeAll("usage: zig-scheduler-reports [--check] [--output-dir <path>]\n");
     try stderr.flush();
@@ -98,7 +94,7 @@ fn writeUsageAndExit(exit_code: u8) !void {
 
 fn writeError(err: anyerror) !void {
     var stderr_buffer: [1024]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    var stderr_writer = std.Io.File.stderr().writer(std.Io.Threaded.global_single_threaded.io(), &stderr_buffer);
     const stderr = &stderr_writer.interface;
     try stderr.print("report pipeline failed: {s}\n", .{@errorName(err)});
     try stderr.flush();

@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 
 pub const support_matrix_path = "fixtures/linux-observability/support-matrix.json";
 pub const default_manifest_path = "fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json";
@@ -130,7 +131,7 @@ pub const LoadedFixture = struct {
 };
 
 pub fn loadSupportMatrix(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(SupportMatrix) {
-    const bytes = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
     defer allocator.free(bytes);
 
     var parsed = try std.json.parseFromSlice(SupportMatrix, allocator, bytes, .{
@@ -148,7 +149,7 @@ pub fn loadSupportMatrix(allocator: std.mem.Allocator, path: []const u8) !std.js
 }
 
 pub fn loadManifest(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(FixtureManifest) {
-    const bytes = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
     defer allocator.free(bytes);
 
     var parsed = try std.json.parseFromSlice(FixtureManifest, allocator, bytes, .{
@@ -189,7 +190,7 @@ pub fn loadFixture(allocator: std.mem.Allocator, manifest_path: []const u8) !Loa
 
     try validateManifestAgainstMatrix(&manifest.value, &matrix.value);
 
-    const snapshot_bytes = try std.fs.cwd().readFileAlloc(allocator, manifest.value.raw_snapshot_path, std.math.maxInt(usize));
+    const snapshot_bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), manifest.value.raw_snapshot_path, allocator, .unlimited);
     errdefer allocator.free(snapshot_bytes);
 
     const events = try parseSnapshot(allocator, snapshot_bytes, &manifest.value.tuple);
@@ -209,7 +210,7 @@ pub fn loadFixture(allocator: std.mem.Allocator, manifest_path: []const u8) !Loa
 pub fn renderSummaryMarkdown(allocator: std.mem.Allocator, summary: *const ObservabilitySummary) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     try writer.print(
         "# Linux observability summary\n\n" ++
@@ -321,7 +322,7 @@ fn parseEventLine(line: []const u8, tuple: *const Tuple) !Event {
     const kind = try parseEventKind(kind_name);
     try ensureEventAllowed(kind, tuple);
 
-    const payload = std.mem.trimLeft(u8, after_timestamp[kind_end + 1 ..], " \t");
+    const payload = std.mem.trimStart(u8, after_timestamp[kind_end + 1 ..], " \t");
 
     return switch (kind) {
         .sched_switch => .{

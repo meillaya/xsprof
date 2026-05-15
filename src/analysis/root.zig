@@ -21,7 +21,7 @@ pub fn analyzeBytes(allocator: std.mem.Allocator, bytes: []const u8, output_form
 }
 
 pub fn analyzeFile(allocator: std.mem.Allocator, input_path: []const u8, output_format: OutputFormat) ![]u8 {
-    const bytes = try std.fs.cwd().readFileAlloc(allocator, input_path, std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), input_path, allocator, .unlimited);
     defer allocator.free(bytes);
     return try analyzeBytes(allocator, bytes, output_format);
 }

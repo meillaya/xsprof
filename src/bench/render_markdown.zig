@@ -1,10 +1,11 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const bench = @import("root.zig");
 
 pub fn render(allocator: std.mem.Allocator, report: *const bench.Report) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     try writer.writeAll("# zig-scheduler benchmark baselines\n\n");
     try writer.print("- Contract: `{s}` v{d}\n", .{ report.schema, report.version });

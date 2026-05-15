@@ -53,7 +53,7 @@ const ShrinkContext = struct {
 };
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 fn seedToPolicy(seed: usize) sim.PolicyKind {
@@ -200,7 +200,7 @@ test "M13 shrinker reduces and saves regression fixtures" {
     defer tmp.cleanup();
     try shrunk.writeZonFile(allocator, tmp.dir, "m13-shrunk-regression.zon");
 
-    const saved = try tmp.dir.readFileAlloc(allocator, "m13-shrunk-regression.zon", std.math.maxInt(usize));
+    const saved = try tmp.dir.readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "m13-shrunk-regression.zon", allocator, .unlimited);
     defer allocator.free(saved);
     try std.testing.expect(std.mem.indexOf(u8, saved, ".tasks = .{") != null);
 

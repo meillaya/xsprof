@@ -1,11 +1,12 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const derive = @import("derive.zig");
 const model = @import("model.zig");
 
 pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary: *const derive.Derived) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     const width: u32 = 760;
     const left_margin: u32 = 180;

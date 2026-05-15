@@ -1,11 +1,12 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const derive = @import("derive.zig");
 const model = @import("model.zig");
 
 pub fn render(allocator: std.mem.Allocator, report: *const model.Report, summary: *const derive.Derived) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     try writer.writeAll("# zig-scheduler analysis report\n\n");
     try writer.print("- Contract: `{s}` v{d}\n", .{ report.schema, report.version });

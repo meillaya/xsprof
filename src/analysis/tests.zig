@@ -6,7 +6,7 @@ const markdown_golden_path = "docs/examples/analysis/multicore-contention-fcfs.m
 const svg_golden_path = "docs/examples/analysis/multicore-contention-fcfs.svg";
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 test "markdown analysis stays reproducible for committed export fixture" {

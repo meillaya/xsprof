@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const scheduler = @import("zig_scheduler_internal");
 const analysis = @import("analysis_root");
 const args_mod = @import("args.zig");
@@ -99,15 +100,15 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     };
     defer app.deinit();
 
-    const stdin_is_tty = std.fs.File.stdin().isTty();
-    const stdout_is_tty = std.fs.File.stdout().isTty();
+    const stdin_is_tty = try std.Io.File.stdin().isTty(std.Io.Threaded.global_single_threaded.io());
+    const stdout_is_tty = try std.Io.File.stdout().isTty(std.Io.Threaded.global_single_threaded.io());
     try validateTerminalMode(options, stdin_is_tty, stdout_is_tty);
     try bootstrap(&app, options, stdin_is_tty);
 
     switch (options.runtime_mode) {
         .snapshot => {
             var stdout_buffer: [8192]u8 = undefined;
-            var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+            var stdout_writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &stdout_buffer);
             const stdout = &stdout_writer.interface;
             const frame = try renderSnapshotAlloc(allocator, &app, options);
             defer allocator.free(frame);
@@ -134,7 +135,6 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
                     needs_redraw = true;
                     continue;
                 },
-                else => return err,
             };
             defer allocator.free(frame);
             try terminal.writeFrame(frame);
@@ -180,13 +180,15 @@ fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
             app.view = .picker;
         },
         .input_file => |path| {
-            const bytes = try std.fs.cwd().readFileAlloc(app.allocator, path, std.math.maxInt(usize));
+            const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, app.allocator, .unlimited);
             defer app.allocator.free(bytes);
             try loadReportBytes(app, bytes);
             app.view = .explorer;
         },
         .stdin_report => {
-            const bytes = try std.fs.File.stdin().readToEndAlloc(app.allocator, std.math.maxInt(usize));
+            var stdin_buffer: [8192]u8 = undefined;
+            var stdin_reader = std.Io.File.stdin().readerStreaming(std.Io.Threaded.global_single_threaded.io(), &stdin_buffer);
+            const bytes = try stdin_reader.interface.readAlloc(app.allocator, std.math.maxInt(usize));
             defer app.allocator.free(bytes);
             try loadReportBytes(app, bytes);
             app.view = .explorer;
@@ -484,7 +486,7 @@ fn loadSimulation(app: *App, source: PickerSource, policy: scheduler.PolicyKind)
 
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(app.allocator);
-    var writer = buffer.writer(app.allocator);
+    var writer = list_writer.writer(&buffer, app.allocator);
     try scheduler.cli.writeJsonReport(&writer, report);
 
     try loadReportBytes(app, buffer.items);
@@ -568,7 +570,7 @@ fn ensureCompareReport(app: *App) !void {
     const sim_report = scheduler.cli.SimulationReport.init(source_info, &scenario, &result);
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(app.allocator);
-    var writer = buffer.writer(app.allocator);
+    var writer = list_writer.writer(&buffer, app.allocator);
     try scheduler.cli.writeJsonReport(&writer, sim_report);
     app.compare_report = try analysis.model.parseReport(app.allocator, buffer.items);
 }
@@ -759,7 +761,7 @@ test "interactive runtime rejects missing tty for explicit sources" {
 test "usage text mentions explicit snapshot mode" {
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(std.testing.allocator);
-    var writer = buffer.writer(std.testing.allocator);
+    var writer = list_writer.writer(&buffer, std.testing.allocator);
     try writeUsage(&writer, "zig-scheduler-tui");
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--snapshot") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--width") != null);
@@ -796,7 +798,7 @@ test "snapshot render is deterministic for fixture report" {
     };
     defer app.deinit();
 
-    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/examples/exports/multicore-contention-fcfs.report.json", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(bytes);
     try loadReportBytes(&app, bytes);
 
@@ -828,7 +830,7 @@ test "snapshot render adapts across large medium compact and too-small tiers" {
     };
     defer app.deinit();
 
-    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/examples/exports/multicore-contention-fcfs.report.json", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(bytes);
     try loadReportBytes(&app, bytes);
 
@@ -885,7 +887,7 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
     };
     defer app.deinit();
 
-    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/examples/exports/multicore-contention-fcfs.report.json", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(bytes);
     try loadReportBytes(&app, bytes);
     try ensureCompareReport(&app);
@@ -934,7 +936,7 @@ test "compact and too-small contracts gate explorer actions" {
     };
     defer app.deinit();
 
-    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/examples/exports/multicore-contention-fcfs.report.json", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(bytes);
     try loadReportBytes(&app, bytes);
     try ensureCompareReport(&app);
@@ -1121,7 +1123,7 @@ test "snapshot rejects out of range tick" {
     };
     defer app.deinit();
 
-    const bytes = try std.fs.cwd().readFileAlloc(std.testing.allocator, "docs/examples/exports/multicore-contention-fcfs.report.json", std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/examples/exports/multicore-contention-fcfs.report.json", std.testing.allocator, .unlimited);
     defer std.testing.allocator.free(bytes);
     try loadReportBytes(&app, bytes);
 

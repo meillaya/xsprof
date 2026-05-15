@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const report_contract = @import("report_contract");
 const cli_report = @import("../cli/report.zig");
 const sim_engine = @import("../sim/engine.zig");
@@ -201,7 +202,7 @@ const NormalizedSummary = struct {
 };
 
 pub fn loadPairingManifest(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(PairingManifest) {
-    const bytes = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
     defer allocator.free(bytes);
 
     var parsed = try std.json.parseFromSlice(PairingManifest, allocator, bytes, .{
@@ -245,7 +246,7 @@ pub fn buildApprovedComparison(allocator: std.mem.Allocator, pairing_manifest_pa
 pub fn renderComparisonJson(allocator: std.mem.Allocator, summary: *const ComparisonSummary) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try writer.print("{f}", .{std.json.fmt(summary.*, .{})});
     return try buffer.toOwnedSlice(allocator);
 }
@@ -253,7 +254,7 @@ pub fn renderComparisonJson(allocator: std.mem.Allocator, summary: *const Compar
 pub fn renderComparisonMarkdown(allocator: std.mem.Allocator, summary: *const ComparisonSummary) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
 
     try writer.print(
         "# M20 simulator-to-trace comparison\n\n" ++

@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const analysis = @import("analysis_root");
 const scheduler = @import("zig_scheduler_internal");
 
@@ -476,7 +477,7 @@ const Canvas = struct {
     fn renderAnsi(self: *Canvas, allocator: std.mem.Allocator, theme: Theme) ![]u8 {
         var out: std.ArrayList(u8) = .empty;
         defer out.deinit(allocator);
-        var writer = out.writer(allocator);
+        var writer = list_writer.writer(&out, allocator);
 
         var current = Style{ .fg = .fg, .bg = .bg, .bold = false };
         try applyStyle(&writer, theme, current);
@@ -503,7 +504,7 @@ const Canvas = struct {
     fn renderPlain(self: *Canvas, allocator: std.mem.Allocator) ![]u8 {
         var out: std.ArrayList(u8) = .empty;
         defer out.deinit(allocator);
-        var writer = out.writer(allocator);
+        var writer = list_writer.writer(&out, allocator);
 
         var y: usize = 0;
         while (y < self.height) : (y += 1) {

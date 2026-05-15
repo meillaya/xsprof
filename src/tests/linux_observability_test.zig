@@ -11,7 +11,7 @@ const forbidden_claim_labels = [_][]const u8{
 };
 
 fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    return try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
 }
 
 fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const cli = @import("../cli/root.zig");
 const engine = @import("../sim/engine.zig");
 const scenario_mod = @import("../sim/scenario.zig");
@@ -96,7 +97,7 @@ pub const GeneratedScenario = struct {
         var buffer: std.ArrayList(u8) = .empty;
         errdefer buffer.deinit(allocator);
 
-        var writer = buffer.writer(allocator);
+        var writer = list_writer.writer(&buffer, allocator);
         try writer.writeAll(".{\n");
         try writer.print("    .name = \"{s}\",\n", .{self.name});
         try writer.print("    .quantum = {d},\n", .{self.round_robin_quantum});
@@ -154,7 +155,7 @@ pub const GeneratedScenario = struct {
     pub fn writeZonFile(self: *const GeneratedScenario, allocator: std.mem.Allocator, dir: anytype, sub_path: []const u8) !void {
         const zon = try self.renderZonAlloc(allocator);
         defer allocator.free(zon);
-        try dir.writeFile(.{ .sub_path = sub_path, .data = zon });
+        try dir.writeFile(std.Io.Threaded.global_single_threaded.io(), .{ .sub_path = sub_path, .data = zon });
     }
 
     pub fn renderJsonAlloc(
@@ -172,7 +173,7 @@ pub const GeneratedScenario = struct {
 
         var buffer: std.ArrayList(u8) = .empty;
         errdefer buffer.deinit(allocator);
-        var writer = buffer.writer(allocator);
+        var writer = list_writer.writer(&buffer, allocator);
         try cli.writeJsonReport(&writer, report);
         return try buffer.toOwnedSlice(allocator);
     }

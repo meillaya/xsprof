@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const sim = @import("../root.zig");
 
 fn loadShortVsLong(allocator: std.mem.Allocator) !sim.ScenarioOwned {
@@ -557,7 +558,7 @@ fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
     const use_groups = seed % 3 != 1;
 
     try buffer.appendSlice(allocator, ".{\n");
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try writer.print("    .name = \"{s}\",\n", .{name});
     try writer.print("    .rr_quantum = {d},\n", .{1 + (seed % 3)});
     if (core_count > 1) {

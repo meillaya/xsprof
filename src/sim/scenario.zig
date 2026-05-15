@@ -265,7 +265,7 @@ pub fn loadScenarioFile(allocator: std.mem.Allocator, path: []const u8) !types.S
 }
 
 pub fn parseScenarioText(allocator: std.mem.Allocator, source: []const u8, expected_name: []const u8) !types.ScenarioOwned {
-    const trimmed = std.mem.trimLeft(u8, source, " \t\r\n");
+    const trimmed = std.mem.trimStart(u8, source, " \t\r\n");
     if (trimmed.len != 0 and trimmed[0] == '.') return parseScenarioZon(allocator, source, expected_name);
     return parseScenarioLegacyText(allocator, source, expected_name);
 }
@@ -280,7 +280,7 @@ pub fn freeScenario(_: std.mem.Allocator, scenario: types.ScenarioOwned) void {
 }
 
 fn loadScenarioFileWithName(allocator: std.mem.Allocator, path: []const u8, expected_name: []const u8) !types.ScenarioOwned {
-    const source = try std.fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
+    const source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
     defer allocator.free(source);
     return parseScenarioText(allocator, source, expected_name);
 }
@@ -356,7 +356,7 @@ fn parseScenarioZon(allocator: std.mem.Allocator, source: []const u8, expected_n
     defer allocator.free(source_z);
 
     var diag: std.zon.parse.Diagnostics = .{};
-    const parsed = std.zon.parse.fromSlice(ParsedZonScenario, allocator, source_z, &diag, .{}) catch |err| {
+    const parsed = std.zon.parse.fromSliceAlloc(ParsedZonScenario, allocator, source_z, &diag, .{}) catch |err| {
         diag.deinit(allocator);
         if (err == error.ParseZon) return error.InvalidZon;
         return err;

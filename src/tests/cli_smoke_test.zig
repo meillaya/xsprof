@@ -1,4 +1,5 @@
 const std = @import("std");
+const list_writer = @import("list_writer");
 const sim = @import("../root.zig");
 
 const ParsedReport = struct {
@@ -78,7 +79,7 @@ fn renderJson(
     const report = sim.cli.SimulationReport.init(source, scenario, result);
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try sim.cli.writeJsonReport(&writer, report);
     return try buffer.toOwnedSlice(allocator);
 }
@@ -130,7 +131,7 @@ test "CLI report includes required sections" {
     const report = sim.cli.SimulationReport.init(.{ .kind = .builtin, .value = "short-vs-long" }, &scenario, &result);
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(allocator);
-    var writer = buffer.writer(allocator);
+    var writer = list_writer.writer(&buffer, allocator);
     try sim.cli.writeHumanReport(&writer, report);
 
     const rendered = buffer.items;
@@ -155,7 +156,7 @@ test "CLI and JSON smoke expose core identity" {
 
     var human_buffer: std.ArrayList(u8) = .empty;
     defer human_buffer.deinit(allocator);
-    var human_writer = human_buffer.writer(allocator);
+    var human_writer = list_writer.writer(&human_buffer, allocator);
     try sim.cli.writeHumanReport(&human_writer, report);
 
     try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "Core Count: 1") != null);
@@ -230,19 +231,19 @@ test "JSON export bytes stay consistent across writer paths" {
 
     var array_buffer: std.ArrayList(u8) = .empty;
     defer array_buffer.deinit(allocator);
-    var array_writer = array_buffer.writer(allocator);
+    var array_writer = list_writer.writer(&array_buffer, allocator);
     try sim.cli.writeJsonReport(&array_writer, report);
 
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    var file = try tmp.dir.createFile("report.json", .{ .truncate = true });
-    defer file.close();
+    var file = try tmp.dir.createFile(std.Io.Threaded.global_single_threaded.io(), "report.json", .{ .truncate = true });
+    defer file.close(std.Io.Threaded.global_single_threaded.io());
     var file_buffer: [1024]u8 = undefined;
-    var file_writer = file.writer(&file_buffer);
+    var file_writer = file.writer(std.Io.Threaded.global_single_threaded.io(), &file_buffer);
     try sim.cli.writeJsonReport(&file_writer.interface, report);
     try file_writer.interface.flush();
 
-    const file_bytes = try tmp.dir.readFileAlloc(allocator, "report.json", std.math.maxInt(usize));
+    const file_bytes = try tmp.dir.readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "report.json", allocator, .unlimited);
     defer allocator.free(file_bytes);
 
     try std.testing.expectEqualStrings(array_buffer.items, file_bytes);
@@ -528,7 +529,7 @@ test "CLI multicore smoke exposes core identity for file scenarios" {
 
     var human_buffer: std.ArrayList(u8) = .empty;
     defer human_buffer.deinit(allocator);
-    var human_writer = human_buffer.writer(allocator);
+    var human_writer = list_writer.writer(&human_buffer, allocator);
     try sim.cli.writeHumanReport(&human_writer, report);
     try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "Core Count: 2") != null);
     try std.testing.expect(std.mem.indexOf(u8, human_buffer.items, "core=1") != null);
@@ -627,9 +628,9 @@ test "topology-aware JSON export exposes topology domains and domain-tagged trac
 
 test "M21 teaching-pack commands stay aligned with the exact shortlist" {
     const allocator = std.testing.allocator;
-    const readme = try std.fs.cwd().readFileAlloc(allocator, "README.md", std.math.maxInt(usize));
+    const readme = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "README.md", allocator, .unlimited);
     defer allocator.free(readme);
-    const teaching_pack = try std.fs.cwd().readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md", std.math.maxInt(usize));
+    const teaching_pack = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/labs/simulator-teaching-pack.md", allocator, .unlimited);
     defer allocator.free(teaching_pack);
 
     const shortlist = sim.scenario_packs.listM21TeachingEntries();
@@ -661,13 +662,13 @@ test "M21 teaching-pack commands stay aligned with the exact shortlist" {
 
 test "M23 required package commands stay aligned with the exact M21 command pairs" {
     const allocator = std.testing.allocator;
-    const package_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/m23-teaching-distribution.md", std.math.maxInt(usize));
+    const package_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/m23-teaching-distribution.md", allocator, .unlimited);
     defer allocator.free(package_doc);
-    const onboarding_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/student-onboarding.md", std.math.maxInt(usize));
+    const onboarding_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/student-onboarding.md", allocator, .unlimited);
     defer allocator.free(onboarding_doc);
-    const assignment_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md", std.math.maxInt(usize));
+    const assignment_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/assignment-pack-01.md", allocator, .unlimited);
     defer allocator.free(assignment_doc);
-    const instructor_doc = try std.fs.cwd().readFileAlloc(allocator, "docs/courseware/instructor-guide.md", std.math.maxInt(usize));
+    const instructor_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/instructor-guide.md", allocator, .unlimited);
     defer allocator.free(instructor_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/student-onboarding.md") != null);

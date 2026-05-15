@@ -13,13 +13,9 @@ const top_usage =
     "default behavior launches the TUI, making it the main interface.\n" ++
     "use `zig-scheduler sim ...` for the legacy simulator CLI.\n";
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
-    const argv = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, argv);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const argv = try init.minimal.args.toSlice(init.arena.allocator());
     const args = argv[1..];
 
     switch (dispatch(args)) {
@@ -30,7 +26,7 @@ pub fn main() !void {
                 switch (err) {
                     error.InvalidArguments, error.InvalidPolicy => {
                         var stderr_buffer: [1024]u8 = undefined;
-                        var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+                        var stderr_writer = std.Io.File.stderr().writer(std.Io.Threaded.global_single_threaded.io(), &stderr_buffer);
                         try sim_app.writeUsage(&stderr_writer.interface, "zig-scheduler sim");
                         try stderr_writer.interface.flush();
                         return;
@@ -51,11 +47,11 @@ fn runTui(allocator: std.mem.Allocator, args: []const []const u8) !void {
     tui.run(allocator, options) catch |err| {
         switch (err) {
             error.NotATerminal => {
-                try std.fs.File.stderr().writeAll("zig-scheduler interactive mode requires a TTY; use --snapshot for redirected output\n");
+                try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler interactive mode requires a TTY; use --snapshot for redirected output\n");
                 return;
             },
             error.NonTtyPickerRequiresSnapshot => {
-                try std.fs.File.stderr().writeAll("zig-scheduler without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
+                try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
                 return;
             },
             error.InvalidArguments => {
@@ -68,11 +64,11 @@ fn runTui(allocator: std.mem.Allocator, args: []const []const u8) !void {
 }
 
 fn writeTuiUsage() !void {
-    try std.fs.File.stderr().writeAll("\n");
-    try std.fs.File.stderr().writeAll(top_usage);
-    try std.fs.File.stderr().writeAll("\n");
+    try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\n");
+    try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), top_usage);
+    try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\n");
     var stderr_buffer: [1024]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    var stderr_writer = std.Io.File.stderr().writer(std.Io.Threaded.global_single_threaded.io(), &stderr_buffer);
     try tui.writeUsage(&stderr_writer.interface, "zig-scheduler");
     try stderr_writer.interface.flush();
 }
