@@ -128,6 +128,7 @@ test "public sdk scenario free helper owns parsed scenario" {
 
 test "M31-M32 inventory records owner modules and production-boundary classes" {
     try std.testing.expectEqual(@as(usize, 9), contract_inventory.contract_surfaces.len);
+    try std.testing.expectEqual(@as(usize, 4), contract_inventory.report_consumers.len);
 
     var runtime_portable: usize = 0;
     var lab_only: usize = 0;
@@ -152,4 +153,10 @@ test "M31-M32 inventory records owner modules and production-boundary classes" {
     try std.testing.expect(intentionally_non_runtime >= 1);
     try std.testing.expect(saw_report);
     try std.testing.expect(saw_adr_gate);
+
+    for (contract_inventory.report_consumers) |consumer| {
+        try std.testing.expect(consumer.name.len != 0);
+        try std.testing.expect(std.mem.endsWith(u8, consumer.owner_module, ".zig"));
+        try std.testing.expectEqualStrings("src/contract/report.zig", consumer.contract_module);
+    }
 }

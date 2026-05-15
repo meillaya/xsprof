@@ -9,6 +9,19 @@ pub const PolicyDescriptor = struct {
     description: []const u8,
 };
 
+pub const PolicyInterfaceKind = enum {
+    queue,
+    chooser,
+};
+
+pub const PolicyContract = struct {
+    kind: types.PolicyKind,
+    interface_kind: PolicyInterfaceKind,
+    descriptor_owner: []const u8,
+    state_owner: []const u8,
+    implementation_owner: []const u8,
+};
+
 const builtin_policy_descriptors = [_]PolicyDescriptor{
     .{
         .kind = .fcfs,
@@ -40,13 +53,55 @@ const builtin_policy_descriptors = [_]PolicyDescriptor{
     },
 };
 
+const builtin_policy_contracts = [_]PolicyContract{
+    .{
+        .kind = .fcfs,
+        .interface_kind = .queue,
+        .descriptor_owner = "src/policies/extension.zig",
+        .state_owner = "src/sim/types.zig",
+        .implementation_owner = "src/policies/fcfs.zig",
+    },
+    .{
+        .kind = .round_robin,
+        .interface_kind = .queue,
+        .descriptor_owner = "src/policies/extension.zig",
+        .state_owner = "src/sim/types.zig",
+        .implementation_owner = "src/policies/round_robin.zig",
+    },
+    .{
+        .kind = .cfs_like,
+        .interface_kind = .chooser,
+        .descriptor_owner = "src/policies/extension.zig",
+        .state_owner = "src/sim/types.zig",
+        .implementation_owner = "src/policies/cfs_like.zig",
+    },
+    .{
+        .kind = .deadline,
+        .interface_kind = .chooser,
+        .descriptor_owner = "src/policies/extension.zig",
+        .state_owner = "src/sim/types.zig",
+        .implementation_owner = "src/policies/deadline.zig",
+    },
+};
+
 pub fn listPolicyDescriptors() []const PolicyDescriptor {
     return builtin_policy_descriptors[0..];
+}
+
+pub fn listPolicyContracts() []const PolicyContract {
+    return builtin_policy_contracts[0..];
 }
 
 pub fn describePolicy(kind: types.PolicyKind) PolicyDescriptor {
     for (builtin_policy_descriptors) |descriptor| {
         if (descriptor.kind == kind) return descriptor;
+    }
+    unreachable;
+}
+
+pub fn describePolicyContract(kind: types.PolicyKind) PolicyContract {
+    for (builtin_policy_contracts) |contract| {
+        if (contract.kind == kind) return contract;
     }
     unreachable;
 }

@@ -16,6 +16,12 @@ pub const ContractSurface = struct {
     boundary_class: BoundaryClass,
 };
 
+pub const ReportConsumer = struct {
+    name: []const u8,
+    owner_module: []const u8,
+    contract_module: []const u8,
+};
+
 pub const contract_surfaces = [_]ContractSurface{
     .{
         .name = "scenario-input",
@@ -61,5 +67,28 @@ pub const contract_surfaces = [_]ContractSurface{
         .name = "production-runtime-branch",
         .owner_module = "docs/adr/0003-m25-productionization-gate.md",
         .boundary_class = .intentionally_non_runtime,
+    },
+};
+
+pub const report_consumers = [_]ReportConsumer{
+    .{
+        .name = "analysis",
+        .owner_module = "src/analysis/root.zig",
+        .contract_module = "src/contract/report.zig",
+    },
+    .{
+        .name = "benchmark-baseline",
+        .owner_module = "src/bench/root.zig",
+        .contract_module = "src/contract/report.zig",
+    },
+    .{
+        .name = "dashboard",
+        .owner_module = "src/tui/root.zig",
+        .contract_module = "src/contract/report.zig",
+    },
+    .{
+        .name = "courseware-report-pack",
+        .owner_module = "src/report_pipeline/root.zig",
+        .contract_module = "src/contract/report.zig",
     },
 };

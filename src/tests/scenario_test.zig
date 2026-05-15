@@ -313,6 +313,45 @@ test "legacy line oriented scenario text remains supported" {
     try expectTask(scenario.tasks[1], "B", 1, 1, 1);
 }
 
+test "M33 parser mode detection keeps object ZON canonical and legacy compatibility explicit" {
+    const object_source =
+        \\.{
+        \\    .name = "object-mode",
+        \\    .tasks = .{ .{ .id = "A", .arrival_tick = 0, .burst_ticks = 1 } },
+        \\}
+    ;
+    const legacy_source =
+        \\name: legacy-mode
+        \\task: A 0 1
+        \\
+    ;
+
+    try std.testing.expectEqual(scheduler.ScenarioFormat.object_zon, scheduler.detectScenarioFormat(object_source).?);
+    try std.testing.expectEqual(scheduler.ScenarioFormat.legacy_line, scheduler.detectScenarioFormat(legacy_source).?);
+    try std.testing.expectEqual(@as(?scheduler.ScenarioFormat, null), scheduler.detectScenarioFormat(" \n\t"));
+
+    try std.testing.expectEqual(scheduler.ScenarioFormat.object_zon, scheduler.parser_contract.canonical_format);
+    try std.testing.expectEqual(scheduler.ScenarioFormat.legacy_line, scheduler.parser_contract.legacy_format);
+    try std.testing.expect(std.mem.indexOf(u8, scheduler.parser_contract.compatibility_boundary, "compatibility-only") != null);
+}
+
+test "M33 parser mode errors stay isolated by compatibility boundary" {
+    const malformed_object =
+        \\.{
+        \\    .name = "malformed-object",
+        \\    .tasks = .{
+        \\}
+    ;
+    const malformed_legacy =
+        \\name: malformed-legacy
+        \\task: A only-two-fields
+        \\
+    ;
+
+    try std.testing.expectError(error.InvalidZon, scheduler.parseScenarioText(std.testing.allocator, malformed_object, "malformed-object"));
+    try std.testing.expectError(error.InvalidTaskLine, scheduler.parseScenarioText(std.testing.allocator, malformed_legacy, "malformed-legacy"));
+}
+
 test "legacy line oriented task weights remain supported as an optional compatibility field" {
     const source =
         \\name: weighted-legacy-demo

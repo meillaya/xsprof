@@ -19,6 +19,8 @@ to implement a gated branch.
 
 ## Source-of-truth order
 
+M36 de-duplication hub: `docs/source-of-truth-index.md` records canonical owners for repeated production, observability, scenario, report, SDK, and contract claims.
+
 1. ADRs in `docs/adr/` define approved identity and gate decisions.
 2. `docs/project-architecture-and-status.md` summarizes the current implemented
    status and active proof surfaces.

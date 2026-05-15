@@ -81,6 +81,25 @@ test "M14 built-in policy modules satisfy the documented extension contract" {
     try std.testing.expect(sim.policies.extension.keepsRunningSelection(sim.policies.deadline));
 }
 
+test "M34 policy boundary separates interface state and implementation ownership" {
+    const contracts = sim.policies.extension.listPolicyContracts();
+    try std.testing.expectEqual(@as(usize, 4), contracts.len);
+
+    for (contracts) |contract| {
+        const descriptor = sim.policies.extension.describePolicy(contract.kind);
+        try std.testing.expectEqual(contract.kind, descriptor.kind);
+        try std.testing.expectEqualStrings("src/policies/extension.zig", contract.descriptor_owner);
+        try std.testing.expectEqualStrings("src/sim/types.zig", contract.state_owner);
+        try std.testing.expect(std.mem.startsWith(u8, contract.implementation_owner, "src/policies/"));
+        try std.testing.expect(std.mem.endsWith(u8, contract.implementation_owner, ".zig"));
+    }
+
+    try std.testing.expectEqual(sim.policies.extension.PolicyInterfaceKind.queue, sim.policies.extension.describePolicyContract(.fcfs).interface_kind);
+    try std.testing.expectEqual(sim.policies.extension.PolicyInterfaceKind.queue, sim.policies.extension.describePolicyContract(.round_robin).interface_kind);
+    try std.testing.expectEqual(sim.policies.extension.PolicyInterfaceKind.chooser, sim.policies.extension.describePolicyContract(.cfs_like).interface_kind);
+    try std.testing.expectEqual(sim.policies.extension.PolicyInterfaceKind.chooser, sim.policies.extension.describePolicyContract(.deadline).interface_kind);
+}
+
 test "M24 experimental policy satisfies the extension contract but remains unstable" {
     comptime sim.policies.extension.validateModuleContract(sim.policies.experimental.lottery_policy);
     try std.testing.expect(!sim.policies.extension.usesSingleCoreReadyQueue(sim.policies.experimental.lottery_policy));

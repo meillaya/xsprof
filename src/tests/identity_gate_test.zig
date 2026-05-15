@@ -395,3 +395,37 @@ test "M31-M32 ownership and public contract docs remain anchored" {
     };
     try expectContainsAll(prd, &m31_m32_anchors);
 }
+
+test "M33-M36 source-of-truth index anchors cleanup claims" {
+    const allocator = std.testing.allocator;
+    const source_index = try readFileAlloc(allocator, "docs/source-of-truth-index.md");
+    defer allocator.free(source_index);
+    const roadmap_index = try readFileAlloc(allocator, "docs/roadmap/README.md");
+    defer allocator.free(roadmap_index);
+    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
+    defer allocator.free(project_doc);
+
+    const index_required = [_][]const u8{
+        "Canonical claim owners",
+        "Project identity: deterministic simulator / scheduler laboratory",
+        "Production branch / daemon / service / runtime permission",
+        "Linux observability scope",
+        "Scenario input contract",
+        "Report JSON contract",
+        "M36 maintenance rules",
+    };
+    try expectContainsAll(source_index, &index_required);
+
+    const docs_required = [_][]const u8{
+        "docs/source-of-truth-index.md",
+        "M36 de-duplication hub",
+        "ScenarioFormat.legacy_line",
+        "src/contract/inventory.zig",
+    };
+    const roadmap_required = [_][]const u8{
+        "docs/source-of-truth-index.md",
+        "M36 de-duplication hub",
+    };
+    try expectContainsAll(roadmap_index, &roadmap_required);
+    try expectContainsAll(project_doc, &docs_required);
+}

@@ -68,3 +68,25 @@ test "engine depends on scheduling class boundary instead of direct policy impor
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"cfs_like.zig\")") != null);
     try std.testing.expect(std.mem.indexOf(u8, engine_source, "@import(\"../policies/experimental/lottery.zig\")") == null);
 }
+
+test "M35 downstream tools consume report contracts instead of engine internals" {
+    const allocator = std.testing.allocator;
+    const files = [_][]const u8{
+        "src/analysis/root.zig",
+        "src/analysis/model.zig",
+        "src/bench/root.zig",
+        "src/report_pipeline/root.zig",
+        "src/tui/root.zig",
+    };
+
+    for (files) |path| {
+        const source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
+        defer allocator.free(source);
+        try std.testing.expect(std.mem.indexOf(u8, source, "sim/engine.zig") == null);
+        try std.testing.expect(std.mem.indexOf(u8, source, "sim/types.zig") == null);
+    }
+
+    const analysis_model = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "src/analysis/model.zig", allocator, .unlimited);
+    defer allocator.free(analysis_model);
+    try std.testing.expect(std.mem.indexOf(u8, analysis_model, "@import(\"report_contract\")") != null);
+}

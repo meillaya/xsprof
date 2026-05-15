@@ -222,6 +222,33 @@ const ParsedZonScenario = struct {
     tasks: []const ParsedZonTask,
 };
 
+pub const ScenarioFormat = enum {
+    object_zon,
+    legacy_line,
+
+    pub fn description(self: ScenarioFormat) []const u8 {
+        return switch (self) {
+            .object_zon => "canonical object-style ZON",
+            .legacy_line => "legacy line-oriented compatibility format",
+        };
+    }
+};
+
+pub const ScenarioParserContract = struct {
+    canonical_format: ScenarioFormat = .object_zon,
+    legacy_format: ScenarioFormat = .legacy_line,
+    compatibility_boundary: []const u8 = "legacy parser remains compatibility-only; new committed fixtures should use object-style ZON",
+};
+
+pub const parser_contract: ScenarioParserContract = .{};
+
+pub fn detectScenarioFormat(source: []const u8) ?ScenarioFormat {
+    const trimmed = std.mem.trimStart(u8, source, " \t\r\n");
+    if (trimmed.len == 0) return null;
+    if (trimmed[0] == '.') return .object_zon;
+    return .legacy_line;
+}
+
 pub fn listBuiltinScenarios() []const BuiltinScenarioMeta {
     return builtin_scenarios[0..];
 }
@@ -265,9 +292,10 @@ pub fn loadScenarioFile(allocator: std.mem.Allocator, path: []const u8) !types.S
 }
 
 pub fn parseScenarioText(allocator: std.mem.Allocator, source: []const u8, expected_name: []const u8) !types.ScenarioOwned {
-    const trimmed = std.mem.trimStart(u8, source, " \t\r\n");
-    if (trimmed.len != 0 and trimmed[0] == '.') return parseScenarioZon(allocator, source, expected_name);
-    return parseScenarioLegacyText(allocator, source, expected_name);
+    return switch (detectScenarioFormat(source) orelse return error.MissingName) {
+        .object_zon => parseScenarioZon(allocator, source, expected_name),
+        .legacy_line => parseScenarioLegacyText(allocator, source, expected_name),
+    };
 }
 
 pub fn parseScenario(allocator: std.mem.Allocator, source: []const u8) !types.ScenarioOwned {

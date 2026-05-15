@@ -73,7 +73,7 @@ It accepts:
 - arbitrary `.zon` fixtures via `--scenario-file <path>`
 
 The canonical format is object-style ZON.
-Legacy line-oriented `.zon` input still exists as a compatibility path.
+Legacy line-oriented `.zon` input still exists as a compatibility-only path behind `ScenarioFormat.legacy_line`; new committed fixtures should use object-style ZON unless a compatibility test explicitly needs legacy input.
 
 Primary files:
 
@@ -127,7 +127,8 @@ src/policies/deadline.zig
 ```
 
 This keeps policy growth reviewable and prevents the engine core from turning
-into a large policy switchboard.
+into a large policy switchboard. M34 policy contracts record descriptor, state,
+and implementation ownership in `src/policies/extension.zig`.
 
 ### 4. Reporting/export layer
 
@@ -154,7 +155,9 @@ src/cli/output.zig
 ### 5. Downstream analysis/benchmark layer
 
 Downstream tooling is intentionally built on exported data instead of engine
-internals where practical.
+internals where practical. Analysis, benchmark, report-pipeline, and dashboard
+consumers are recorded in `src/contract/inventory.zig` as report-contract
+consumers.
 
 Current downstream surfaces include:
 
@@ -197,6 +200,13 @@ Primary files:
 src/lib.zig
 src/sdk/
 ```
+
+## Source-of-truth and de-duplication
+
+Repeated production, observability, scenario, report, SDK, and contract claims
+are indexed in the M36 de-duplication hub `docs/source-of-truth-index.md`. When milestone docs need one of
+those claims, they should summarize and link to the owner instead of creating a
+new authority.
 
 ## Repository structure
 
