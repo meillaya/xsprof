@@ -665,3 +665,11 @@ Phase E dashboard work is owned by `docs/smart-dashboard-spine.md` and
 Scenario, Timeline, Tasks/Cores, Policy Compare, Observability, Performance,
 Reports, and Help screens, and `src/tui/render.zig` maps existing TUI views into
 that spine so future work stops adding ad hoc modes.
+
+
+### M75-M76 LTS simulator-lab decision package
+
+ADR 0004 reaffirms that production runtime work remains deferred and packages an
+LTS simulator-lab release instead. `docs/lts-simulator-lab-release-plan.md` is
+the M76 release package checklist and records the evidence required before this
+roadmap is considered complete.
