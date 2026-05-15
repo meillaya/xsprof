@@ -3,8 +3,7 @@
 ## Purpose
 
 `zig-scheduler` is a deterministic CPU scheduling simulator written in Zig.
-It is designed as a teaching and experimentation environment, not as a
-kernel component, daemon, or production scheduler.
+It is designed as a teaching and experimentation environment, not as a kernel component, daemon, or production scheduler.
 
 The current project identity is fixed by
 `docs/adr/0001-m5-project-identity.md`,
@@ -184,6 +183,19 @@ Primary files:
 src/testing/property.zig
 src/tests/property_test.zig
 scenarios/regressions/
+```
+
+### 8. Public embedder facade
+
+The public embedder facade is the intentionally small SDK surface. It exposes
+scenario loading, simulation, and report helpers while keeping callers
+responsible for allocator ownership and `deinit` lifetimes.
+
+Primary files:
+
+```text
+src/lib.zig
+src/sdk/
 ```
 
 ## Repository structure
@@ -416,13 +428,35 @@ branch.
 
 ## Current milestone status
 
-As of 2026-04-22, the implemented milestone picture is:
+As of 2026-05-15, the implemented/gated milestone picture is:
 
 - the mainline simulator branch is implemented through **M17**
 - the Linux-observability branch approved by **M18** is implemented through
   **M20**
-- the current proof surface is green under `zig build test --summary all` and
-  `zig build reports -- --check`
+- the teaching, SDK, courseware, research, and production-gate documentation
+  lanes are represented through **M21-M25**
+- **M26 remains blocked** because `docs/adr/0003-m25-productionization-gate.md`
+  deferred the optional daemon/service/agent/automation branch indefinitely
+- the newer production-grade roadmap in `.omx/plans/` is a roadmap for a
+  production-grade scheduler **laboratory/product**, not approval for runtime
+  production automation
+- the current proof surface is expected to stay green under
+  `zig build test --summary all` and `zig build reports -- --check`
+
+### Governance reset for M27-M28
+
+M27-M28 are documentation/governance cleanup milestones. Their job is to keep
+current truth obvious before later cleanup, performance, dashboard, and contract
+inventory work proceeds:
+
+- README, roadmap, and status docs should say **production-grade laboratory**
+  when describing the M27+ roadmap.
+- ADR 0003 remains the active productionization gate; roadmap text alone must
+  never authorize daemon, service, agent, automation, live OS scheduler, or
+  runtime implementation work.
+- Roadmap artifacts are indexed in `docs/roadmap/README.md` as active,
+  draft, or archived surfaces so stale planning notes do not compete with
+  current ADR/status truth.
 
 ### M19 — curated Linux-observability snapshots
 
@@ -477,86 +511,21 @@ Implemented proof/documentation surfaces for this cut are:
 - `src/observability/comparison.zig`
 - `src/tests/observability_comparison_test.zig`
 
-## Next recommended milestone
+### M21 — simulator-first teaching surface polish
 
-### M21 — [Optional distribution branch] simulator-first teaching surface polish
+The canonical teaching path is:
 
-The recommended next cut is to deepen the repo's local teaching/demo lane
-without changing the simulator-first truth of the project.
-
-Goal:
-- make the existing CLI, TUI, snapshot, and report surfaces easier to teach,
-  demo, and review from committed fixtures
-
-Recommended scope:
-- a single simulator-first shortlist for exactly these anchors:
-  - `short-vs-long` + `fcfs`
-  - `sleep-wakeup` + `cfs-like`
-  - `multicore-balancing` + `fcfs`
-- stronger walkthrough/docs coverage for those anchors
-- more deterministic snapshot surfaces for the TUI path
-- one repo-native teaching index at `docs/labs/simulator-teaching-pack.md`
-- clearer local demo playbooks for instructors, reviewers, and contributors
-
-This milestone should preserve the current boundaries:
-- no browser/WASM path as a required or default surface
-- no widening of `zig-scheduler/report` or `src/analysis/*`
-- no change to the M19/M20 observability-only proof boundary
-- no Linux-performance, replay-fidelity, or calibration claims
-- no packaging/courseware expansion beyond repo-native docs/artifacts; that
-  remains later M23-scale work
-
-Planned proof surfaces for this route should stay close to the current repo
-shape:
-- `docs/m21-simulator-first-teaching-surface.md`
 - `docs/labs/simulator-teaching-pack.md`
-- README + project-status updates
-- deterministic TUI snapshot tests for picker/help plus the three anchors
 
-### M23 — [Optional teaching/distribution branch] packaged teaching distribution and courseware
+It keeps the repo focused on committed fixtures and deterministic local demos,
+while M19/M20 remain reachable only as bounded observability side-lane context.
 
-M23 packages the existing M21 simulator-first spine into one bounded
-courseware shell. It does not redefine the required anchors or replace the
-primary M21 commands.
+### M22 — optional library / SDK stabilization for embedders
 
-The canonical package entrypoint is:
+This is the library / SDK stabilization for embedders surface.
 
-- `docs/courseware/m23-teaching-distribution.md`
-
-The first package stays limited to four primary docs:
-- package index
-- student onboarding
-- instructor guide
-- assignment pack
-
-M19/M20 and M22 remain optional appendix sections only.
-
-### M24 — [Optional research branch] research sandbox branch for new policies / experiments
-
-M24 adds a bounded experimental policy sandbox so new ideas can move faster
-without destabilizing the supported teaching spine.
-
-The canonical sandbox governance doc is:
-
-- `docs/m24-research-sandbox.md`
-
-Experimental policies remain unstable, sandbox-only, and outside the supported
-default policy surface until a later milestone/ADR promotes them explicitly.
-
-### M25 — [Planning gate / optional production branch] productionization gate
-
-M25 is now decided: the optional production branch is **deferred indefinitely**.
-
-The governing ADR is:
-
-- `docs/adr/0003-m25-productionization-gate.md`
-
-This means M26 remains blocked unless a future explicit re-charter reopens it.
-
-### M22 — [Optional library branch] library / SDK stabilization for embedders
-
-The M22 optional library branch can now be scoped around a curated public
-embedder facade rather than the repo's full internal root surface.
+The optional library branch is scoped around a curated public embedder facade
+rather than the repo's full internal root surface.
 
 The intended stable subset is documented in:
 
@@ -568,9 +537,42 @@ The proof path for that branch is:
 zig build m22-embed-smoke
 ```
 
-This remains an optional branch. It does not re-charter the repo away from its
-simulator-first identity, and it does not imply browser, service, or packaging
-scope.
+This remains an optional library branch. It does not re-charter the repo away
+from its simulator-first identity, and it does not imply browser, service, or
+packaging scope.
+
+### M23 — packaged teaching distribution and courseware
+
+M23 packages the existing M21 simulator-first spine into one bounded courseware
+shell. The canonical package entrypoint is:
+
+- `docs/courseware/m23-teaching-distribution.md`
+
+M19/M20 and M22 remain optional appendix sections only.
+
+### M24 — research sandbox branch
+
+M24 adds a bounded research sandbox so new policy ideas can move faster without
+destabilizing the supported teaching spine.
+
+The canonical sandbox governance doc is:
+
+- `docs/m24-research-sandbox.md`
+
+Experimental policies remain unstable, sandbox-only, and outside the supported
+default policy surface until a later milestone/ADR promotes them explicitly.
+
+### M25 / M26 — productionization gate and deferred branch
+
+M25 is decided: the optional production branch is **deferred indefinitely**.
+
+The governing ADR is:
+
+- `docs/adr/0003-m25-productionization-gate.md`
+
+This means M26 remains blocked unless a future explicit re-charter reopens it.
+`docs/future-directions.md` explains how such a future reconsideration should
+be governed; it does not reopen M26.
 
 ## Notes on implementation philosophy
 

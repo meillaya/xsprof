@@ -24,7 +24,7 @@ Verified on 2026-04-20 / 2026-04-21:
 ## Branch eligibility rule
 - Before starting any milestone from `M6` onward, confirm that `M5` approved the branch identity required for that milestone.
 - Before starting `M19` or `M20`, confirm `M18` approval.
-- Before starting `M26`, confirm `M25` approval.
+- Before starting `M26`, confirm a future post-M25 re-charter explicitly reopened production scope; ADR 0003 currently blocks it by default.
 
 ## Near-term
 
@@ -337,7 +337,8 @@ Verified on 2026-04-20 / 2026-04-21:
 
 ### M25 — [Planning gate / optional production branch] productionization gate: daemon / service / automation branch
 **Required verification**
-- Re-charter approved before implementation.
+- ADR/gate outcome is recorded before implementation.
+- If the outcome defers productionization, later runtime implementation stays blocked until a new explicit re-charter.
 - Operational burden and split strategy are explicitly reviewed.
 
 **Minimum checks**
@@ -347,7 +348,7 @@ Verified on 2026-04-20 / 2026-04-21:
 
 ### M26 — [Optional production branch] scheduler-driven automation prototype
 **Required verification**
-- Confirm `M25` approved the production branch before implementation begins.
+- Confirm a future explicit re-charter after ADR 0003 reopened the production branch before implementation begins.
 - Operational lifecycle, failure modes, and observability are specified.
 - Branch remains clearly separate from the simulator core.
 
@@ -364,7 +365,7 @@ Verified on 2026-04-20 / 2026-04-21:
 - README and `docs/linux-mapping.md` must be reviewed at every gate and every milestone that broadens fidelity claims.
 - Export/trace contract consumers must treat versioned data as the integration boundary.
 - New milestone-specific invariants should become automated tests or scripted verification, not just manual observations.
-- Gate milestones (`M5`, `M18`, `M25`) stop execution and require planning/approval evidence before coding resumes.
+- Gate milestones (`M5`, `M18`, `M25`) stop execution and require planning/approval evidence before coding resumes. Because ADR 0003 deferred productionization, M26 additionally requires a future explicit re-charter before any daemon/service/automation work.
 
 ## Team verification path
 For `$team` execution, dedicate one lane to verification with authority to block completion until:

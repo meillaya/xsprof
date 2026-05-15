@@ -140,7 +140,7 @@ Show latency and fairness tradeoffs clearly.
 
 | Capability | Verification |
 | --- | --- |
-| Build succeeds on Zig 0.15.2 | `zig build` and `zig build test` pass |
+| Build succeeds on Zig 0.16.0 | `zig build` and `zig build test` pass |
 | In-process simulation only | code inspection + tests; no OS process launch paths |
 | 3 policies supported | scenario tests execute FCFS, RR, and CFS-inspired |
 | Deterministic behavior | repeated runs on same inputs match |

@@ -117,7 +117,7 @@ Before M5 and any milestone that broadens the repo beyond “educational determi
 Any branch that ingests real Linux traces, kernel data, or benchmark corpora from outside the repo must first pass the approval event defined by M18. M18 is the planning gate for this branch, not a downstream consumer of an earlier gate.
 
 ### G4 — Productionization gate
-Any daemon/service/agent/automation branch must first pass the re-charter defined by M25. M25 is the planning gate for this branch, not a downstream consumer of an earlier gate.
+Any daemon/service/agent/automation branch must first pass the M25 gate and, after ADR 0003, a future explicit re-charter that reopens the branch. M25 is the planning gate for this branch, not a downstream consumer of an earlier gate; its approved outcome currently defers implementation indefinitely.
 
 ---
 
@@ -139,7 +139,7 @@ Explore optional branches: Linux-facing observability, calibration, distribution
 - **Optional distribution / teaching branch:** `M21 -> M23` after core export-analysis maturity
 - **Optional library branch:** `M22` when embedding/API goals justify it
 - **Optional research branch:** `M24` once policy/testing boundaries are mature
-- **Optional production branch:** `M26` only after `M25` re-charter
+- **Optional production branch:** `M26` only after a future post-M25 re-charter explicitly reopens the branch
 
 Future executors should treat the optional branches as **branch tracks**, not as mandatory serialized backlog after the core spine. `M5` is the identity/eligibility gate for all post-Phase-1 branch work; `M18` and `M25` add narrower gate checks for Linux-observability and productionization.
 
@@ -587,15 +587,18 @@ Decision artifact:
 **Dependencies**
 - None before the gate review itself.
 
+**Approved outcome**
+- ADR 0003 deferred the optional production branch indefinitely. Roadmap text must treat M26 as blocked unless a future explicit re-charter reopens it.
+
 **Execution note**
-- This milestone is itself the re-charter event for the optional production branch.
+- This milestone was the productionization gate review, not authorization to implement M26.
 
 **Preferred execution mode**
 - planning/architect lane only until approved.
 
 ### M26 — [Optional production branch] scheduler-driven automation prototype
 **Goal**
-If the project is re-chartered, prototype a service/daemon/agent that uses scheduler concepts operationally.
+If a future explicit re-charter reopens the branch, prototype a service/daemon/agent that uses scheduler concepts operationally.
 
 **Acceptance criteria**
 - The branch does not masquerade as the original simulator milestone stream.
@@ -603,7 +606,7 @@ If the project is re-chartered, prototype a service/daemon/agent that uses sched
 - The repo structure or sibling package split is deliberate.
 
 **Dependencies**
-- Future explicit re-charter approval after M25.
+- Future explicit re-charter approval after ADR 0003; M25 itself deferred the branch indefinitely.
 
 **Preferred execution mode**
 - `$team` only.
@@ -615,7 +618,7 @@ If the project is re-chartered, prototype a service/daemon/agent that uses sched
 - **M4 / M15 / M21**: split data model, rendering/UI, golden artifacts, and verification.
 - **M6 / M7 / M11**: split scenario/schema, engine semantics, policy changes, and docs/tests.
 - **M19 / M20**: split import adapters, provenance/docs, comparison logic, and verification.
-- **M23 / M26**: split docs/UX, packaging, examples, and validation.
+- **M23 / future-reopened M26**: split docs/UX, packaging, examples, and validation; M26 remains blocked by ADR 0003 until re-chartered.
 
 ## Available agent types for follow-up execution
 - `architect` — ADRs, boundaries, dependency checks, identity-gate review
@@ -652,13 +655,13 @@ Best `ralph` candidates: `M1.5`, `M2`, `M2.5`, `M3.5`, `M4.5`, `M8`, `M13`, `M16
 - parallel lanes are obvious and disjoint enough,
 - a dedicated verification lane adds value before merge.
 
-Best `$team` candidates: `M3`, `M4`, `M6`, `M7`, `M9`, `M11`, `M12`, `M14`, `M15`, `M19`, `M20`, `M21`, `M23`, `M26`.
+Best `$team` candidates: `M3`, `M4`, `M6`, `M7`, `M9`, `M11`, `M12`, `M14`, `M15`, `M19`, `M20`, `M21`, `M23`; `M26` only if a future ADR explicitly reopens production scope.
 
 ## Explicit launch hints
 - `ralph`: `\$ralph Execute milestone M2 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md.`
 - `team`: `\$team Execute milestone M3 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md with lanes for engine/core-state, export/trace, fixtures/tests, and docs.`
 - Shell form when desired: `omx team run --task "Execute milestone M7 from docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md and verify against docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md"`
-- Planning gates: use `\$ralplan` for `M5`, `M18`, and `M25`; do **not** launch direct implementation for those milestones before the ADR/gate outcome is approved.
+- Planning gates: use `\$ralplan` for `M5`, `M18`, and `M25`; do **not** launch direct implementation for those milestones before the ADR/gate outcome is approved. After ADR 0003, production runtime work also needs a new explicit re-charter before M26 can begin.
 
 ## Concrete team verification path
 For any `$team` milestone, keep a dedicated verification lane that:
@@ -673,5 +676,5 @@ For any `$team` milestone, keep a dedicated verification lane that:
 ## Recommended immediate next handoff path
 1. Finish and commit the current M1.5 working-tree changes.
 2. Use `ralph` for `M2` unless the semantic package widens beyond weighted single-core fairness.
-3. Re-enter `ralplan` at `M5`, `M18`, and `M25` before any identity-band change.
+3. Re-enter `ralplan` at `M5`, `M18`, and `M25` before any identity-band change; after the approved M25 deferment, re-enter planning again before any M26/runtime work.
 4. Prefer `$team` starting at `M3` or earlier only when the implementation naturally splits into disjoint engine/schema/tests/docs lanes.

@@ -17,7 +17,7 @@ Phase 1 only: a user-space, in-process CPU scheduling simulator in Zig for learn
     - `docs/zig-master-language-reference.txt`
     - `docs/zig-master-stdlib-reference.txt`
 - Local Zig version:
-  - `0.15.2`
+  - `0.16.0`
 
 ---
 
@@ -78,7 +78,7 @@ Build a focused Zig project that teaches CPU scheduling concepts in a Linux-rele
 - Deterministic behavior for tests
 - Small, reviewable codebase
 - No external dependencies beyond Zig stdlib unless later justified
-- Compatible with Zig `0.15.2`
+- Compatible with Zig `0.16.0`
 
 ---
 
@@ -87,7 +87,7 @@ Build a focused Zig project that teaches CPU scheduling concepts in a Linux-rele
 Phase 1 is complete when all of the following are true:
 
 1. **Build scaffold exists**
-   - A Zig project builds successfully on local Zig `0.15.2`.
+   - A Zig project builds successfully on local Zig `0.16.0`.
 
 2. **Simulator core exists**
    - The code simulates a finite set of tasks in-process without spawning OS processes.
@@ -336,7 +336,7 @@ Advance time from event to event (arrival, quantum expiry, completion, preemptio
 - Start with a small module graph
 - Avoid plugin-style abstractions until at least 3 policies exist
 
-### Risk 6 — Zig 0.15.2 build friction on initial scaffold
+### Risk 6 — Zig 0.16.0 build friction on initial scaffold
 **Mitigation**
 - Keep build and test setup minimal
 - Avoid premature package or dependency complexity
@@ -346,7 +346,7 @@ Advance time from event to event (arrival, quantum expiry, completion, preemptio
 ## Verification Steps
 
 1. **Build verification**
-   - Confirm project builds on Zig `0.15.2`
+   - Confirm project builds on Zig `0.16.0`
 2. **Unit verification**
    - Validate task lifecycle transitions
    - Validate metric calculations
@@ -464,7 +464,7 @@ Use `team` only if work is split into low-conflict lanes.
 
 **Optional support lanes**
 - `architect` — medium/high for upfront review of module boundaries
-- `build-fixer` — high only if Zig 0.15.2 build friction appears
+- `build-fixer` — high only if Zig 0.16.0 build friction appears
 - `critic` — high for pre-implementation challenge of policy/design assumptions
 
 **Launch hints**

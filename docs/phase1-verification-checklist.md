@@ -6,7 +6,7 @@ Use this checklist when reviewing the implementation against:
 
 ## 1. Build and project scaffold
 
-- [ ] `zig build` succeeds on Zig `0.15.2`
+- [ ] `zig build` succeeds on Zig `0.16.0`
 - [ ] `zig build test` succeeds
 - [ ] the project is still stdlib-only unless a later decision explicitly changes that
 - [ ] source layout cleanly separates simulator core, policies, tests, and CLI concerns

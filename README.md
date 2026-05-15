@@ -47,6 +47,27 @@ zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.rep
 zig build bench
 ```
 
+
+## Governance and roadmap status
+
+The current production-grade roadmap is a **lab/product-quality roadmap**, not
+permission to ship a live OS scheduler, daemon, service, agent, or automation
+runtime. `docs/adr/0003-m25-productionization-gate.md` still defers that
+production branch indefinitely; a future runtime branch requires a new explicit
+re-charter before any implementation starts.
+
+Roadmap source-of-truth surfaces:
+
+- `docs/project-architecture-and-status.md` — current repo identity, milestone
+  status, and active proof surfaces
+- `docs/roadmap/README.md` — information architecture for active plans, gates,
+  drafts, and archived roadmap material
+- `.omx/plans/prd-production-grade-scheduler-50-milestones.md` — future
+  production-grade scheduler laboratory roadmap, including M27+ cleanup and
+  governance milestones
+- `.omx/plans/test-spec-production-grade-scheduler-50-milestones.md` —
+  verification expectations for that roadmap
+
 ## Theory
 
 The simulator advances in deterministic discrete ticks: tasks arrive, become runnable, may block and wake, get chosen by a policy, execute, and emit trace and metric updates. The point is to make scheduling behavior explainable and comparable on committed workloads, not to claim Linux kernel fidelity, replay authority, or Linux-performance meaning.
