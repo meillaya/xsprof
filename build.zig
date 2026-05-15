@@ -88,6 +88,17 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const perf_mod = addModule(
+        b,
+        "zig_scheduler_perf",
+        b.path("src/perf/root.zig"),
+        target,
+        &.{
+            .{ .name = "bench_root", .module = bench_mod },
+            .{ .name = "list_writer", .module = list_writer_mod },
+        },
+    );
+
     const tui_mod = addModule(
         b,
         "zig_scheduler_tui",
@@ -173,6 +184,17 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const perf_exe = addExecutable(
+        b,
+        "zig-scheduler-perf",
+        b.path("src/perf/main.zig"),
+        target,
+        optimize,
+        &.{
+            .{ .name = "perf_root", .module = perf_mod },
+        },
+    );
+
     const quality_exe = addExecutable(
         b,
         "zig-scheduler-quality",
@@ -204,6 +226,9 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, sim_exe, "sim", "Run the legacy simulator CLI directly", .{});
     addRunStep(b, analysis_exe, "analyze", "Analyze exported zig-scheduler/report JSON", .{});
     addRunStep(b, bench_exe, "bench", "Render reproducible simulator-local benchmark baselines", .{});
+    addRunStep(b, perf_exe, "perf", "Check reproducible simulator-local performance budgets", .{
+        .depend_on_install = false,
+    });
     addRunStep(b, tui_exe, "tui", "Run the M15 interactive TUI trace explorer", .{});
     addRunStep(b, quality_exe, "quality", "Render the M46 quality dashboard for maintainers", .{
         .depend_on_install = false,
@@ -226,6 +251,7 @@ pub fn build(b: *std.Build) void {
         bench_mod,
         report_pipeline_mod,
         quality_mod,
+        perf_mod,
         exe.root_module,
         sim_exe.root_module,
         tui_mod,

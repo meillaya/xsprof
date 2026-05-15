@@ -638,3 +638,12 @@ Phase B quality work is now owned by `docs/quality-gates.md`,
 property/determinism/fault/architecture gates, CLI/SDK compatibility, dashboard
 snapshots, and release dry-run checks in one source-of-truth lane while
 preserving ADR 0003.
+
+
+### M47-M56 performance gate spine
+
+Phase C performance work is owned by `docs/performance-gates.md`,
+`docs/benchmarks/m45-baselines.*`, and `src/perf/root.zig`. The gate compares
+reproducible simulator-local budgets against committed benchmark baselines via
+`zig build perf`; it is explicitly not Linux-performance or production-runtime
+evidence under ADR 0003.

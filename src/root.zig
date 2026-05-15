@@ -60,6 +60,7 @@ pub const parser_contract = scenario.parser_contract;
 pub const detectScenarioFormat = scenario.detectScenarioFormat;
 pub const parseScenario = scenario.parseScenario;
 pub const parseScenarioText = scenario.parseScenarioText;
+pub const estimateTraceCapacity = engine.estimateTraceCapacity;
 pub const simulate = engine.simulate;
 
 test {
@@ -75,6 +76,7 @@ test {
     _ = @import("tests/scenario_pack_test.zig");
     _ = @import("tests/policy_extension_boundary_test.zig");
     _ = @import("tests/quality_gate_test.zig");
+    _ = @import("tests/perf_gate_test.zig");
     _ = @import("tests/linux_observability_test.zig");
     _ = @import("tests/observability_comparison_test.zig");
 }

@@ -16,6 +16,7 @@ there instead of copying long status narratives into every milestone note.
 | Public SDK ownership | `docs/m22-library-sdk.md` and `src/lib.zig` | examples and release notes |
 | Production-boundary classification | `docs/m31-m32-contract-inventory.md` and `src/contract/inventory.zig` | roadmap status docs |
 | Phase B quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
+| Phase C performance budgets and reproducible perf gate | `docs/performance-gates.md` and `src/perf/root.zig` | benchmark docs, release notes |
 
 ## M36 maintenance rules
 
@@ -28,6 +29,7 @@ there instead of copying long status narratives into every milestone note.
    owner in the same commit.
 5. Run identity/architecture tests after claim edits.
 6. For M37-M46 quality claims, update `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` together.
+7. For M47-M56 performance claims, update `docs/performance-gates.md`, `src/perf/root.zig`, and benchmark baseline docs together.
 
 ## Known allowed repeated phrases
 

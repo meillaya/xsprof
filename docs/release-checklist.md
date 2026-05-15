@@ -11,8 +11,9 @@ explicitly re-charters that work.
 2. `git diff --check`
 3. `zig build test --summary all`
 4. `zig build quality`
-5. `zig build bench -- --format markdown`
-6. `zig build reports -- --check`
+5. `zig build perf`
+6. `zig build bench -- --format markdown`
+7. `zig build reports -- --check`
 
 ## Required review notes
 
@@ -21,6 +22,7 @@ explicitly re-charters that work.
 - Contract migration notes for scenario input, report JSON, SDK exports, policy
   extension metadata, and dashboard snapshots.
 - Benchmark baseline/budget status with any approved refresh called out.
+- Performance gate output from `zig build perf`.
 - Quality dashboard excerpt or path to generated output.
 - Known limits that reaffirm this is a deterministic scheduler simulator and
   teaching laboratory, not a kernel scheduler or production automation runtime.

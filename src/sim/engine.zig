@@ -57,18 +57,34 @@ pub fn simulate(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwn
     return simulateMulticore(allocator, scenario, policy);
 }
 
+pub fn estimateTraceCapacity(scenario: *const types.ScenarioOwned) usize {
+    var cpu_ticks: usize = 0;
+    var phase_edges: usize = 0;
+    for (scenario.tasks) |task| {
+        cpu_ticks += task.burst_ticks;
+        phase_edges += if (task.phases) |phases| phases.len else 1;
+    }
+    const lifecycle_events = scenario.tasks.len * 3;
+    const blocking_events = phase_edges * 2;
+    const multicore_idle_floor: usize = @intCast(@max(scenario.core_count, 1));
+    return @max(cpu_ticks + lifecycle_events + blocking_events + multicore_idle_floor, scenario.tasks.len);
+}
+
 fn simulateSingleCore(allocator: std.mem.Allocator, scenario: *const types.ScenarioOwned, policy: types.PolicyKind) !types.SimulationResult {
     var runtimes = try initRuntimes(allocator, scenario);
     defer allocator.free(runtimes);
 
     var ready_queue: std.ArrayList(usize) = .empty;
     defer ready_queue.deinit(allocator);
+    try ready_queue.ensureTotalCapacity(allocator, scenario.tasks.len);
 
     var trace_entries: std.ArrayList(types.TraceEntry) = .empty;
     defer trace_entries.deinit(allocator);
+    try trace_entries.ensureTotalCapacity(allocator, estimateTraceCapacity(scenario));
 
     var completion_order: std.ArrayList(usize) = .empty;
     defer completion_order.deinit(allocator);
+    try completion_order.ensureTotalCapacity(allocator, scenario.tasks.len);
 
     const policy_class = policy_class_mod.SchedulerClass(RuntimeTask).resolve(policy);
 
@@ -178,13 +194,22 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
         for (cores) |*core| core.deinit(allocator);
         allocator.free(cores);
     }
-    for (cores) |*core| core.* = .{};
+    for (cores) |*core| {
+        core.* = .{};
+        try core.ready_queue.ensureTotalCapacity(allocator, @max(@as(usize, 1), scenario.tasks.len / core_count));
+    }
 
     var trace_entries: std.ArrayList(types.TraceEntry) = .empty;
     defer trace_entries.deinit(allocator);
+    try trace_entries.ensureTotalCapacity(allocator, estimateTraceCapacity(scenario));
 
     var completion_order: std.ArrayList(usize) = .empty;
     defer completion_order.deinit(allocator);
+    try completion_order.ensureTotalCapacity(allocator, scenario.tasks.len);
+
+    var completed_this_tick: std.ArrayList(usize) = .empty;
+    defer completed_this_tick.deinit(allocator);
+    try completed_this_tick.ensureTotalCapacity(allocator, core_count);
 
     var completed: usize = 0;
     var tick: u32 = 0;
@@ -195,7 +220,7 @@ fn simulateMulticore(allocator: std.mem.Allocator, scenario: *const types.Scenar
         try preemptMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, tick);
         try rebalanceReadyQueues(allocator, scenario, &runtimes, cores);
         try dispatchMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, tick);
-        try executeMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, &completion_order, tick, &completed);
+        try executeMulticore(allocator, scenario, policy_class, &runtimes, cores, &trace_entries, &completion_order, &completed_this_tick, tick, &completed);
     }
 
     return finalizeResult(allocator, scenario, policy, &trace_entries, &completion_order, runtimes, tick);
@@ -452,11 +477,11 @@ fn executeMulticore(
     cores: []CoreState,
     trace_entries: *std.ArrayList(types.TraceEntry),
     completion_order: *std.ArrayList(usize),
+    completed_this_tick: *std.ArrayList(usize),
     tick: u32,
     completed: *usize,
 ) !void {
-    var completed_this_tick: std.ArrayList(usize) = .empty;
-    defer completed_this_tick.deinit(allocator);
+    completed_this_tick.items.len = 0;
 
     for (cores, 0..) |*core, core_index| {
         if (core.current) |current_index| {
