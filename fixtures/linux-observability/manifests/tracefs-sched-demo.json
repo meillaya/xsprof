@@ -1,10 +1,10 @@
 {
   "schema": "zig-scheduler/linux-observability-fixture-manifest",
   "version": 1,
-  "fixture_name": "m19-tracefs-sched-demo",
+  "fixture_name": "tracefs-sched-demo",
   "source_class": "committed scrubbed offline snapshot",
-  "raw_snapshot_path": "fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace",
-  "redistribution_basis": "repository-authored scrubbed teaching fixture committed for M19 parser, manifest, and wording verification",
+  "raw_snapshot_path": "fixtures/linux-observability/tracefs-sched-snapshot/tracefs-sched-demo.trace",
+  "redistribution_basis": "repository-authored scrubbed teaching fixture committed for parser, manifest, and wording verification",
   "observability_only_caveats": [
     "This fixture is an offline observability artifact, not replay authority.",
     "It does not support Linux-performance, calibration, or kernel-fidelity claims."
@@ -14,7 +14,7 @@
     "kernel_release": "linux-6.6",
     "tool_version": "tracefs-kernel-6.6",
     "tracefs_root": "/sys/kernel/tracing",
-    "capture_recipe": "instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
+    "capture_recipe": "instance=tracefs-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
     "trace_clock": "global",
     "enabled_sched_events": [
       "sched_switch",

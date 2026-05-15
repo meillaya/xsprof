@@ -69,7 +69,7 @@ test "engine depends on scheduling class boundary instead of direct policy impor
     try std.testing.expect(std.mem.indexOf(u8, engine_source, "@import(\"../policies/experimental/lottery.zig\")") == null);
 }
 
-test "M35 downstream tools consume report contracts instead of engine internals" {
+test "downstream tools consume report contracts instead of engine internals" {
     const allocator = std.testing.allocator;
     const files = [_][]const u8{
         "src/analysis/root.zig",

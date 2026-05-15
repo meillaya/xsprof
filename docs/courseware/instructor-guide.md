@@ -24,16 +24,16 @@ Canonical package entrypoint:
 - no live observability capture in the package flow
 - no requirement to use the SDK or observability branches in the core package
 
-## Appendix — optional M22 embedder extension
+## Appendix — optional SDK embedder extension
 This appendix is optional and must not be required to complete the package.
 
 Optional references:
-- `docs/m22-library-sdk.md`
+- `docs/library-sdk.md`
 
 Optional command:
 
 ```sh
-zig build m22-embed-smoke
+zig build embed-smoke
 ```
 
 Use it only for advanced readers who want to see the bounded library facade.

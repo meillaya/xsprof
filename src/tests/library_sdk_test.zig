@@ -126,7 +126,7 @@ test "public sdk scenario free helper owns parsed scenario" {
     sdk.scenario_io.freeScenario(allocator, scenario);
 }
 
-test "M31-M32 inventory records owner modules and production-boundary classes" {
+test "inventory records owner modules and production-boundary classes" {
     try std.testing.expectEqual(@as(usize, 9), contract_inventory.contract_surfaces.len);
     try std.testing.expectEqual(@as(usize, 4), contract_inventory.report_consumers.len);
 
@@ -145,7 +145,7 @@ test "M31-M32 inventory records owner modules and production-boundary classes" {
             .intentionally_non_runtime => intentionally_non_runtime += 1,
         }
         if (std.mem.eql(u8, surface.owner_module, "src/contract/report.zig")) saw_report = true;
-        if (std.mem.eql(u8, surface.owner_module, "docs/adr/0003-m25-productionization-gate.md")) saw_adr_gate = true;
+        if (std.mem.eql(u8, surface.owner_module, "docs/adr/0003-productionization-gate.md")) saw_adr_gate = true;
     }
 
     try std.testing.expect(runtime_portable >= 1);

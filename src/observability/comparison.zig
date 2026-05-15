@@ -12,8 +12,8 @@ pub const schema_version: u32 = 1;
 pub const pairing_manifest_schema = "zig-scheduler/observability-comparison-pairing";
 pub const pairing_manifest_version: u32 = 1;
 
-pub const default_pairing_manifest_path = "fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json";
-pub const default_pairing_id = "m20-sleep-wakeup-vs-m19-tracefs-sched-demo";
+pub const default_pairing_manifest_path = "fixtures/linux-observability/pairings/sleep-wakeup-vs-tracefs-sched-demo.json";
+pub const default_pairing_id = "sleep-wakeup-vs-tracefs-sched-demo";
 pub const default_simulator_scenario_path = "scenarios/basic/sleep-wakeup.zon";
 pub const default_simulator_policy = "cfs_like";
 pub const default_observability_manifest_path = observability.default_manifest_path;
@@ -257,7 +257,7 @@ pub fn renderComparisonMarkdown(allocator: std.mem.Allocator, summary: *const Co
     var writer = list_writer.writer(&buffer, allocator);
 
     try writer.print(
-        "# M20 simulator-to-trace comparison\n\n" ++
+        "# comparison simulator-to-trace comparison\n\n" ++
             "- Contract: `{s}` v{d}\n" ++
             "- Pairing: `{s}`\n" ++
             "- Simulator source: `{s}` with `{s}` against `{s}` v{d}\n" ++

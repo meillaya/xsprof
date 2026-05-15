@@ -1,7 +1,7 @@
 # Assignment pack 01
 
 This assignment pack contains exactly three required modules derived from the
-M21 shortlist. It does not widen the required scenario set.
+teaching shortlist. It does not widen the required scenario set.
 
 For package context, start from:
 - `docs/courseware/m23-teaching-distribution.md`

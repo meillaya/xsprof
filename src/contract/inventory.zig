@@ -1,4 +1,4 @@
-//! M31-M32 contract owner inventory.
+//! Contract owner inventory.
 //!
 //! This module is test metadata only. It records which source module owns each
 //! public/lab contract boundary so architecture tests can detect accidental
@@ -65,7 +65,7 @@ pub const contract_surfaces = [_]ContractSurface{
     },
     .{
         .name = "production-runtime-branch",
-        .owner_module = "docs/adr/0003-m25-productionization-gate.md",
+        .owner_module = "docs/adr/0003-productionization-gate.md",
         .boundary_class = .intentionally_non_runtime,
     },
 };

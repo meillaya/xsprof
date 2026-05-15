@@ -1,7 +1,7 @@
 # Future Directions: Reopening and Completing M26
 
 ## Status
-As of April 23, 2026, M26 remains **deferred indefinitely** under `docs/adr/0003-m25-productionization-gate.md`.
+As of April 23, 2026, M26 remains **deferred indefinitely** under `docs/adr/0003-productionization-gate.md`.
 
 This document does not reopen M26. It is a plain-English planning guide for a future return if there is a serious reason to revisit the optional production branch.
 
@@ -9,7 +9,7 @@ This document does not reopen M26. It is a plain-English planning guide for a fu
 This file explains the most disciplined path back to M26. It is intentionally explanatory rather than authoritative.
 
 Canonical project governance remains in:
-- `docs/adr/0003-m25-productionization-gate.md`
+- `docs/adr/0003-productionization-gate.md`
 - `docs/roadmap/prd-multi-horizon-zig-scheduler-roadmap.md`
 - `docs/roadmap/test-spec-multi-horizon-zig-scheduler-roadmap.md`
 - `README.md`

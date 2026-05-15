@@ -29,7 +29,7 @@ explicitly re-charters that work.
 
 ## Release blockers
 
-- Any contradiction of `docs/adr/0003-m25-productionization-gate.md`.
+- Any contradiction of `docs/adr/0003-productionization-gate.md`.
 - Any unreviewed golden fixture, benchmark baseline, or dashboard snapshot diff.
 - Any CLI/SDK behavior change without matching docs and compatibility tests.
 - Any new ad hoc TUI mode that bypasses the unified dashboard plan.

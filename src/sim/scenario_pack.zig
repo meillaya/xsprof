@@ -59,7 +59,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .deadline,
         .canonical = true,
         .theme = .deadlines,
-        .explanation_doc = "docs/m10-deadline-policy.md",
+        .explanation_doc = "docs/deadline-policy.md",
         .recommended_policy = .deadline,
         .manual_demo = true,
         .regression_use = true,
@@ -72,7 +72,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .cfs_like,
         .canonical = true,
         .theme = .groups,
-        .explanation_doc = "docs/m11-group-scheduling.md",
+        .explanation_doc = "docs/group-scheduling.md",
         .recommended_policy = .cfs_like,
         .manual_demo = true,
         .regression_use = true,
@@ -84,7 +84,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .round_robin,
         .canonical = true,
         .theme = .fairness,
-        .explanation_doc = "docs/m8-fairness-probes.md",
+        .explanation_doc = "docs/fairness-probes.md",
         .recommended_policy = .round_robin,
         .manual_demo = true,
         .regression_use = true,
@@ -108,7 +108,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .fcfs,
         .canonical = true,
         .theme = .balancing,
-        .explanation_doc = "docs/m17-scenario-corpus.md",
+        .explanation_doc = "docs/scenario-corpus.md",
         .recommended_policy = .fcfs,
         .manual_demo = true,
         .regression_use = true,
@@ -150,7 +150,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .cfs_like,
         .canonical = true,
         .theme = .starvation,
-        .explanation_doc = "docs/m8-fairness-probes.md",
+        .explanation_doc = "docs/fairness-probes.md",
         .recommended_policy = .cfs_like,
         .manual_demo = true,
         .regression_use = true,
@@ -162,7 +162,7 @@ const core_pack_entries = [_]ScenarioPackEntry{
         .picker_policy = .fcfs,
         .canonical = true,
         .theme = .topology,
-        .explanation_doc = "docs/m12-topology-simulation.md",
+        .explanation_doc = "docs/topology-simulation.md",
         .recommended_policy = .fcfs,
         .manual_demo = true,
         .regression_use = true,
@@ -195,10 +195,10 @@ fn mustFindCoreEntry(comptime scenario_key: []const u8) ScenarioPackEntry {
     inline for (core_pack_entries) |entry| {
         if (std.mem.eql(u8, entry.key, scenario_key)) return entry;
     }
-    @compileError("unknown core scenario key in M21 shortlist: " ++ scenario_key);
+    @compileError("unknown core scenario key in teaching shortlist: " ++ scenario_key);
 }
 
-const m21_teaching_entries = [_]ScenarioPackEntry{
+const teaching_entries = [_]ScenarioPackEntry{
     mustFindCoreEntry("short-vs-long"),
     mustFindCoreEntry("sleep-wakeup"),
     mustFindCoreEntry("multicore-balancing"),
@@ -208,12 +208,12 @@ pub fn listScenarioPacks() []const ScenarioPack {
     return registered_packs[0..];
 }
 
-pub fn listM21TeachingEntries() []const ScenarioPackEntry {
-    return m21_teaching_entries[0..];
+pub fn listteachingTeachingEntries() []const ScenarioPackEntry {
+    return teaching_entries[0..];
 }
 
-pub fn findM21TeachingEntry(scenario_key: []const u8) ?ScenarioPackEntry {
-    for (m21_teaching_entries) |entry| {
+pub fn findteachingTeachingEntry(scenario_key: []const u8) ?ScenarioPackEntry {
+    for (teaching_entries) |entry| {
         if (std.mem.eql(u8, entry.key, scenario_key)) return entry;
     }
     return null;

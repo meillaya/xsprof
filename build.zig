@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // M29 ownership map:
+    // module ownership map:
     // - Contract/helper leaves stay dependency-free and can be reused by tools.
     // - The public SDK module wraps the internal simulator module deliberately.
     // - Tool modules (analysis, bench, reports, TUI) depend on explicit roots
@@ -159,8 +159,8 @@ pub fn build(b: *std.Build) void {
 
     const embed_smoke_exe = addExecutable(
         b,
-        "zig-scheduler-m22-embed-smoke",
-        b.path("src/examples/m22_embed_smoke.zig"),
+        "zig-scheduler-embed-smoke",
+        b.path("src/examples/embed_smoke.zig"),
         target,
         optimize,
         &.{
@@ -269,17 +269,17 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, sim_exe, "sim", "Run the legacy simulator CLI directly", .{});
     addRunStep(b, analysis_exe, "analyze", "Analyze exported zig-scheduler/report JSON", .{});
     addRunStep(b, bench_exe, "bench", "Render reproducible simulator-local benchmark baselines", .{});
-    addRunStep(b, semantics_exe, "semantics", "Render the M57-M66 scheduling semantics v2 contract", .{
+    addRunStep(b, semantics_exe, "semantics", "Render the scheduling semantics v2 contract", .{
         .depend_on_install = false,
     });
-    addRunStep(b, dashboard_exe, "dashboard", "Render the M67-M74 smart dashboard spine contract", .{
+    addRunStep(b, dashboard_exe, "dashboard", "Render the smart dashboard spine contract", .{
         .depend_on_install = false,
     });
     addRunStep(b, perf_exe, "perf", "Check reproducible simulator-local performance budgets", .{
         .depend_on_install = false,
     });
-    addRunStep(b, tui_exe, "tui", "Run the M15 interactive TUI trace explorer", .{});
-    addRunStep(b, quality_exe, "quality", "Render the M46 quality dashboard for maintainers", .{
+    addRunStep(b, tui_exe, "tui", "Run the interactive TUI trace explorer", .{});
+    addRunStep(b, quality_exe, "quality", "Render the quality dashboard for maintainers", .{
         .depend_on_install = false,
     });
     // Reports are intentionally step-only: docs use `zig build reports`, not a
@@ -287,7 +287,7 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, report_pipeline_exe, "reports", "Regenerate the curated reproducible report artifacts", .{
         .depend_on_install = false,
     });
-    addRunStep(b, embed_smoke_exe, "m22-embed-smoke", "Run the M22 embedding smoke example against the curated public module", .{
+    addRunStep(b, embed_smoke_exe, "embed-smoke", "Run the embedding smoke example against the curated public module", .{
         .depend_on_install = false,
         .forward_args = false,
     });

@@ -1,4 +1,4 @@
-# M47-M56 performance gates
+# performance gates
 
 This is the canonical Phase C performance gate for simulator-lab/product quality.
 It is reproducible, fixture-local, and bounded by ADR 0003: these numbers are
@@ -7,8 +7,8 @@ production runtime.
 
 ## M47 benchmark baseline
 
-The committed baseline is `docs/benchmarks/m45-baselines.json` and the rendered
-human review is `docs/benchmarks/m45-baselines.md`. The baseline matrix comes
+The committed baseline is `docs/benchmarks/baselines.json` and the rendered
+human review is `docs/benchmarks/baselines.md`. The baseline matrix comes
 from:
 
 ```sh
@@ -28,7 +28,7 @@ Budget changes require a reviewed commit that explains whether the movement is a
 baseline refresh, an intentional product tradeoff, or a regression that must be
 fixed before release.
 
-## M49-M56 optimization responsibilities
+## M49-performance gate optimization responsibilities
 
 | Milestone | Responsibility | Evidence |
 | --- | --- | --- |
@@ -39,4 +39,4 @@ fixed before release.
 | M53 report export streaming | Report exporters write to caller-provided writers without building alternate ASTs. | CLI/SDK compatibility and benchmark export-byte budgets. |
 | M54 dashboard render performance | Snapshot rendering is deterministic across compact, medium, and large tiers and avoids medium-height underflow. | M44 TUI snapshot tests. |
 | M55 analysis pipeline performance | Markdown/SVG byte ceilings are tracked in the performance gate. | `zig build perf`. |
-| M56 reproducible perf gate | One command checks all deterministic budgets against the M47 baseline. | `zig build perf`. |
+| performance gate reproducible perf gate | One command checks all deterministic budgets against the benchmark baseline. | `zig build perf`. |

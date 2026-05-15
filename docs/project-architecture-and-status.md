@@ -6,16 +6,16 @@
 It is designed as a teaching and experimentation environment, not as a kernel component, daemon, or production scheduler.
 
 The current project identity is fixed by
-`docs/adr/0001-m5-project-identity.md`,
-`docs/adr/0002-m18-linux-observability-gate.md`, and the M19 execution
-boundary documented in `docs/m19-curated-linux-observability.md`, plus the
-M25 production gate decision in `docs/adr/0003-m25-productionization-gate.md`:
+`docs/adr/0001-project-identity.md`,
+`docs/adr/0002-linux-observability-gate.md`, and the observability execution
+boundary documented in `docs/curated-linux-observability.md`, plus the
+M25 production gate decision in `docs/adr/0003-productionization-gate.md`:
 
 - the **implementation today** is still a simulator-first mainline
 - the **roadmap** is a broader scheduler laboratory with a simulator-only mainline
 - Linux-facing, productized, and research-heavy branches remain explicitly gated
 - the optional production branch is currently deferred indefinitely after M25
-- the M19 Linux-observability surface is limited to **offline,
+- the observability Linux-observability surface is limited to **offline,
   observability-only, version-pinned snapshot fixtures** with a separate import
   boundary unless a later gate re-charters it
 
@@ -230,7 +230,7 @@ docs/
   *.md        # milestone-specific docs and deep dives
 
 fixtures/
-  linux-observability/ # offline M19 fixtures, manifests, and support matrix
+  linux-observability/ # offline observability fixtures, manifests, and support matrix
 ```
 
 ## Implementation details achieved so far
@@ -333,30 +333,30 @@ zig build reports
 M17 adds an explicit canonical scenario corpus on top of the existing fixture
 set. The core pack identifies curriculum-grade scenarios with stable metadata
 (theme, explanation doc, recommended policy, demo/regression role), and the
-repo documents the corpus in `docs/m17-scenario-corpus.md`.
+repo documents the corpus in `docs/scenario-corpus.md`.
 
 ### M18 — Linux-observability planning gate
 
-M18 approved the narrow charter in `docs/adr/0002-m18-linux-observability-gate.md`.
+M18 approved the narrow charter in `docs/adr/0002-linux-observability-gate.md`.
 The repo still treats Linux observability as a separate bounded branch rather
 than a simulator-mainline feature.
 
-### M19 — curated Linux-observability snapshots
+### observability — curated Linux-observability snapshots
 
-M19 now implements the first approved offline import cut under that gate.
+observability now implements the first approved offline import cut under that gate.
 
-The TUI can now open this surface explicitly via `--m19` / `--m19-manifest`,
+The TUI can now open this surface explicitly via `--observability` / `--observability-manifest`,
 but it stays a separate observability-only lane rather than a widening of the
 simulator report or analysis contracts.
 
-### M20 — simulator-to-trace comparison summary
+### comparison — simulator-to-trace comparison summary
 
-M20 now implements the approved narrow comparison cut between one committed
-simulator pairing and one committed M19 fixture family, using a separate
+comparison now implements the approved narrow comparison cut between one committed
+simulator pairing and one committed observability fixture family, using a separate
 `zig-scheduler/observability-comparison` v1 payload that remains outside the
 main simulator export/report surfaces.
 
-The TUI can now open this comparison explicitly via `--m20` / `--m20-pairing`,
+The TUI can now open this comparison explicitly via `--comparison` / `--comparison-pairing`,
 while keeping picker/explorer/diff simulator-only and preserving the
 observability-only, non-fidelity boundary.
 
@@ -404,7 +404,7 @@ zig build bench -- --format json
 
 ```sh
 zig build reports
-zig build reports -- --output-dir zig-out/m16-smoke
+zig build reports -- --output-dir zig-out/report-smoke
 zig build reports -- --check
 ```
 
@@ -428,7 +428,7 @@ At this point, the project has achieved:
 - a TUI-first local trace explorer with deterministic snapshot rendering
 - a canonical report-regeneration path for committed teaching artifacts
 - an explicit curriculum-grade scenario corpus for demos and regression use
-- a bounded offline Linux-observability import branch plus a separate M20
+- a bounded offline Linux-observability import branch plus a separate comparison
   comparison contract
 
 In short: the repo has moved from a minimal teaching simulator into a
@@ -442,10 +442,10 @@ As of 2026-05-15, the implemented/gated milestone picture is:
 
 - the mainline simulator branch is implemented through **M17**
 - the Linux-observability branch approved by **M18** is implemented through
-  **M20**
+  **comparison**
 - the teaching, SDK, courseware, research, and production-gate documentation
-  lanes are represented through **M21-M25**
-- **M26 remains blocked** because `docs/adr/0003-m25-productionization-gate.md`
+  lanes are represented through **teaching-M25**
+- **M26 remains blocked** because `docs/adr/0003-productionization-gate.md`
   deferred the optional daemon/service/agent/automation branch indefinitely
 - the newer production-grade roadmap in `.omx/plans/` is a roadmap for a
   production-grade scheduler **laboratory/product**, not approval for runtime
@@ -468,9 +468,9 @@ inventory work proceeds:
   draft, or archived surfaces so stale planning notes do not compete with
   current ADR/status truth.
 
-### M19 — curated Linux-observability snapshots
+### observability — curated Linux-observability snapshots
 
-M19 now implements the first approved offline import cut under that gate.
+observability now implements the first approved offline import cut under that gate.
 
 The implemented boundary is intentionally narrow:
 - offline snapshot fixtures only
@@ -484,7 +484,7 @@ The implemented boundary is intentionally narrow:
 The first approved family is:
 - `tracefs-sched-snapshot`
 
-Still out of scope after M19:
+Still out of scope after observability:
 - live tracing in-repo
 - capture tooling/automation in-repo
 - `perf sched`, generic `perf.data`, `perf script`, `trace_pipe`, or non-sched tracepoints
@@ -493,44 +493,44 @@ Still out of scope after M19:
 - widening `zig-scheduler/report` or `src/analysis`
 
 Proof surfaces for this branch now live in:
-- `docs/m19-curated-linux-observability.md`
+- `docs/curated-linux-observability.md`
 - `fixtures/linux-observability/`
 - `src/observability/root.zig`
 - `src/tests/linux_observability_test.zig`
 
-### M20 — simulator-to-trace comparison summary
+### comparison — simulator-to-trace comparison summary
 
-M20 now implements the approved next Linux-facing cut, but it remains
+comparison now implements the approved next Linux-facing cut, but it remains
 intentionally narrow and separate from the simulator export/report mainline.
 
-The implemented M20 boundary is:
+The implemented comparison boundary is:
 - one simulator scenario + policy pairing only (`sleep-wakeup` + `cfs_like`)
-- one M19 fixture manifest only
+- one observability fixture manifest only
 - one committed pairing manifest only
 - one separate `zig-scheduler/observability-comparison` v1 contract only
 - library + docs + tests proof surfaces only
 
-M20 still must not:
+comparison still must not:
 - widen `zig-scheduler/report`
 - widen `src/analysis/*`
 - claim replay fidelity, kernel accuracy, calibration authority, or Linux-performance meaning
 - add task↔PID identity matching or raw event-by-event alignment
 
 Implemented proof/documentation surfaces for this cut are:
-- `docs/m20-simulator-to-trace-comparison.md`
+- `docs/simulator-to-trace-comparison.md`
 - `src/observability/comparison.zig`
 - `src/tests/observability_comparison_test.zig`
 
-### M21 — simulator-first teaching surface polish
+### teaching — simulator-first teaching surface polish
 
 The canonical teaching path is:
 
 - `docs/labs/simulator-teaching-pack.md`
 
 It keeps the repo focused on committed fixtures and deterministic local demos,
-while M19/M20 remain reachable only as bounded observability side-lane context.
+while observability/comparison remain reachable only as bounded observability side-lane context.
 
-### M22 — optional library / SDK stabilization for embedders
+### SDK — optional library / SDK stabilization for embedders
 
 This is the library / SDK stabilization for embedders surface.
 
@@ -539,12 +539,12 @@ rather than the repo's full internal root surface.
 
 The intended stable subset is documented in:
 
-- `docs/m22-library-sdk.md`
+- `docs/library-sdk.md`
 
 The proof path for that branch is:
 
 ```sh
-zig build m22-embed-smoke
+zig build embed-smoke
 ```
 
 This remains an optional library branch. It does not re-charter the repo away
@@ -553,12 +553,12 @@ packaging scope.
 
 ### M23 — packaged teaching distribution and courseware
 
-M23 packages the existing M21 simulator-first spine into one bounded courseware
+M23 packages the existing teaching simulator-first spine into one bounded courseware
 shell. The canonical package entrypoint is:
 
 - `docs/courseware/m23-teaching-distribution.md`
 
-M19/M20 and M22 remain optional appendix sections only.
+observability/comparison and SDK remain optional appendix sections only.
 
 ### M24 — research sandbox branch
 
@@ -567,7 +567,7 @@ destabilizing the supported teaching spine.
 
 The canonical sandbox governance doc is:
 
-- `docs/m24-research-sandbox.md`
+- `docs/research-sandbox.md`
 
 Experimental policies remain unstable, sandbox-only, and outside the supported
 default policy surface until a later milestone/ADR promotes them explicitly.
@@ -578,7 +578,7 @@ M25 is decided: the optional production branch is **deferred indefinitely**.
 
 The governing ADR is:
 
-- `docs/adr/0003-m25-productionization-gate.md`
+- `docs/adr/0003-productionization-gate.md`
 
 This means M26 remains blocked unless a future explicit re-charter reopens it.
 `docs/future-directions.md` explains how such a future reconsideration should
@@ -625,12 +625,12 @@ from scratch in an evidence-based way.
   - e.g. QuickCheck-style generator/shrinker design references
   - required for designing useful generators, shrinkers, and invariant suites
 - **TUI design/accessibility references**
-  - required for M15 and the recommended M21 teaching-surface polish work
+  - required for M15 and the recommended teaching-surface polish work
 
 When extending the repo, prefer official docs, seminal scheduler papers, and
 the repo’s own committed fixtures/contracts before adding new abstractions.
 
-### M37-M46 quality gate spine
+### quality gate spine
 
 Phase B quality work is now owned by `docs/quality-gates.md`,
 `docs/release-checklist.md`, and the generated maintainer dashboard exposed as
@@ -640,16 +640,16 @@ snapshots, and release dry-run checks in one source-of-truth lane while
 preserving ADR 0003.
 
 
-### M47-M56 performance gate spine
+### performance gate spine
 
 Phase C performance work is owned by `docs/performance-gates.md`,
-`docs/benchmarks/m45-baselines.*`, and `src/perf/root.zig`. The gate compares
+`docs/benchmarks/baselines.*`, and `src/perf/root.zig`. The gate compares
 reproducible simulator-local budgets against committed benchmark baselines via
 `zig build perf`; it is explicitly not Linux-performance or production-runtime
 evidence under ADR 0003.
 
 
-### M57-M66 scheduling semantics v2 spine
+### scheduling semantics v2 spine
 
 Phase D semantics are owned by `docs/scheduler-semantics-v2.md` and
 `src/semantics/root.zig`. The contract gives policies, reports, and future
@@ -658,7 +658,7 @@ runqueues, affinity, topology, group budgets, explainable decisions, and
 replay/diff diagnostics without changing the ADR 0003 simulator-lab boundary.
 
 
-### M67-M74 smart dashboard spine
+### smart dashboard spine
 
 Phase E dashboard work is owned by `docs/smart-dashboard-spine.md` and
 `src/dashboard/root.zig`. The contract defines one dashboard shell with Home,
@@ -667,9 +667,9 @@ Reports, and Help screens, and `src/tui/render.zig` maps existing TUI views into
 that spine so future work stops adding ad hoc modes.
 
 
-### M75-M76 LTS simulator-lab decision package
+### release-decision LTS simulator-lab decision package
 
 ADR 0004 reaffirms that production runtime work remains deferred and packages an
 LTS simulator-lab release instead. `docs/lts-simulator-lab-release-plan.md` is
-the M76 release package checklist and records the evidence required before this
+the release plan release package checklist and records the evidence required before this
 roadmap is considered complete.

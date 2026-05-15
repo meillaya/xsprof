@@ -32,22 +32,22 @@ pub const Screen = enum {
 };
 
 pub const ScreenSpec = struct {
-    milestone: []const u8,
+    area: []const u8,
     screen: Screen,
     purpose: []const u8,
     primary_artifact: []const u8,
 };
 
 pub const screens = [_]ScreenSpec{
-    .{ .milestone = "M67", .screen = .home, .purpose = "one smart dashboard shell, scenario launcher, status summary", .primary_artifact = "src/dashboard/root.zig" },
-    .{ .milestone = "M68", .screen = .scenario, .purpose = "scenario metadata, parser mode, fixture provenance, drilldown entry", .primary_artifact = "src/sim/scenario.zig" },
-    .{ .milestone = "M69", .screen = .timeline, .purpose = "trace timeline, tick scrubber, deterministic snapshot replay", .primary_artifact = "src/tui/render.zig" },
-    .{ .milestone = "M70", .screen = .tasks_cores, .purpose = "task table, core lanes, runqueue and affinity drilldowns", .primary_artifact = "src/semantics/root.zig" },
-    .{ .milestone = "M71", .screen = .policy_compare, .purpose = "side-by-side policy comparison and decision deltas", .primary_artifact = "src/tui/render.zig" },
-    .{ .milestone = "M72", .screen = .observability, .purpose = "offline fixture calibration and simulator-to-observability caveats", .primary_artifact = "src/observability/root.zig" },
-    .{ .milestone = "M73", .screen = .performance, .purpose = "performance lab budgets, benchmark status, reproducible perf gate", .primary_artifact = "src/perf/root.zig" },
-    .{ .milestone = "M74", .screen = .reports, .purpose = "report artifact index, generated pack status, export contract links", .primary_artifact = "src/report_pipeline/root.zig" },
-    .{ .milestone = "M74", .screen = .help, .purpose = "keyboard help, screen glossary, ADR guardrails", .primary_artifact = "docs/smart-dashboard-spine.md" },
+    .{ .area = "dashboard home", .screen = .home, .purpose = "one smart dashboard shell, scenario launcher, status summary", .primary_artifact = "src/dashboard/root.zig" },
+    .{ .area = "dashboard scenario", .screen = .scenario, .purpose = "scenario metadata, parser mode, fixture provenance, drilldown entry", .primary_artifact = "src/sim/scenario.zig" },
+    .{ .area = "dashboard timeline", .screen = .timeline, .purpose = "trace timeline, tick scrubber, deterministic snapshot replay", .primary_artifact = "src/tui/render.zig" },
+    .{ .area = "dashboard tasks", .screen = .tasks_cores, .purpose = "task table, core lanes, runqueue and affinity drilldowns", .primary_artifact = "src/semantics/root.zig" },
+    .{ .area = "policy compare", .screen = .policy_compare, .purpose = "side-by-side policy comparison and decision deltas", .primary_artifact = "src/tui/render.zig" },
+    .{ .area = "observability screen", .screen = .observability, .purpose = "offline fixture calibration and simulator-to-observability caveats", .primary_artifact = "src/observability/root.zig" },
+    .{ .area = "performance screen", .screen = .performance, .purpose = "performance lab budgets, benchmark status, reproducible perf gate", .primary_artifact = "src/perf/root.zig" },
+    .{ .area = "reports/help", .screen = .reports, .purpose = "report artifact index, generated pack status, export contract links", .primary_artifact = "src/report_pipeline/root.zig" },
+    .{ .area = "reports/help", .screen = .help, .purpose = "keyboard help, screen glossary, ADR guardrails", .primary_artifact = "docs/smart-dashboard-spine.md" },
 };
 
 pub const NavigationEdge = struct {
@@ -84,10 +84,10 @@ pub fn renderMarkdown(allocator: std.mem.Allocator) ![]u8 {
     var writer = list_writer.writer(&out, allocator);
     try writer.print("# smart dashboard spine v{d}\n\n", .{contract_version});
     try writer.print("Contract: `{s}`\n\n", .{contract_name});
-    try writer.writeAll("ADR 0003 boundary: simulator-lab dashboard only; no daemon, service, agent, or production runtime. New ad hoc TUI modes are forbidden after M67.\n\n");
-    try writer.writeAll("| milestone | screen | purpose | artifact |\n| --- | --- | --- | --- |\n");
+    try writer.writeAll("ADR 0003 boundary: simulator-lab dashboard only; no daemon, service, agent, or production runtime. New ad hoc TUI modes are forbidden after dashboard home.\n\n");
+    try writer.writeAll("| area | screen | purpose | artifact |\n| --- | --- | --- | --- |\n");
     for (screens) |spec| {
-        try writer.print("| {s} | {s} | {s} | `{s}` |\n", .{ spec.milestone, spec.screen.label(), spec.purpose, spec.primary_artifact });
+        try writer.print("| {s} | {s} | {s} | `{s}` |\n", .{ spec.area, spec.screen.label(), spec.purpose, spec.primary_artifact });
     }
     try writer.writeAll("\n## Navigation\n\n| from | key | to | reason |\n| --- | --- | --- | --- |\n");
     for (navigation) |edge| {

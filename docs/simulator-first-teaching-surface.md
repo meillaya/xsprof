@@ -1,7 +1,7 @@
-# M21 simulator-first teaching surface polish
+# teaching simulator-first teaching surface polish
 
-M21 is the recommended next optional distribution/teaching cut after the now-
-implemented M15-M20 surfaces.
+teaching is the recommended next optional distribution/teaching cut after the now-
+implemented M15-comparison surfaces.
 
 ## Intent
 
@@ -34,10 +34,10 @@ A contributor, reviewer, or instructor should be able to:
 
 ## Explicit non-goals
 
-M21 should **not** become:
+teaching should **not** become:
 - a browser-first or WASM-required interface
 - a replacement for the existing CLI/TUI/report boundaries
-- a Linux-facing expansion beyond the approved M19/M20 observability branch
+- a Linux-facing expansion beyond the approved observability/comparison observability branch
 - a replay-fidelity, calibration, or Linux-performance effort
 - a packaging/courseware milestone beyond repo-native artifacts and docs
 - a broad teaching-pack rewrite for every canonical scenario

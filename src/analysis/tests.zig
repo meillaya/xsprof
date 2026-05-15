@@ -93,7 +93,7 @@ test "analysis docs expose export to analysis workflow" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
-    const workflow_doc = try readFileAlloc(allocator, "docs/m4-analysis-workflow.md");
+    const workflow_doc = try readFileAlloc(allocator, "docs/analysis-workflow.md");
     defer allocator.free(workflow_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "zig build analyze -- --input docs/examples/exports/multicore-contention-fcfs.report.json") != null);

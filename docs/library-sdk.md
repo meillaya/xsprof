@@ -1,13 +1,13 @@
-# M22 library / SDK stable inventory
+# SDK library / SDK stable inventory
 
 ## Status
-Draft public inventory for the M22 optional library branch.
+Draft public inventory for the SDK optional library branch.
 
 ## Purpose
 This document defines the **stable subset** of the public `zig_scheduler`
 module.
 
-Only the symbols and workflows documented here carry the M22 compatibility
+Only the symbols and workflows documented here carry the SDK compatibility
 promise. Other public declarations that may remain reachable during transition
 are **not automatically stable**.
 
@@ -41,7 +41,7 @@ The `model` namespace is the public home for simulator-facing value types.
 - `max_task_weight`
 
 ### Workflow-stable allocator-owning types
-These remain usable through the public API, but M22 only promises documented
+These remain usable through the public API, but SDK only promises documented
 ownership and access patterns, not full field/layout freeze:
 - `ScenarioOwned`
 - `SimulationResult`
@@ -64,7 +64,7 @@ ownership and access patterns, not full field/layout freeze:
 - `writeJsonReport`
 
 ## Stable proof workflow
-The exact embedding smoke path for M22 is:
+The exact embedding smoke path for SDK is:
 
 1. `parseScenarioText`
 2. `simulate`
@@ -73,7 +73,7 @@ The exact embedding smoke path for M22 is:
 Build step:
 
 ```sh
-zig build m22-embed-smoke
+zig build embed-smoke
 ```
 
 ## Explicitly outside the stable subset
@@ -98,7 +98,7 @@ Only:
 should be required to use `zig_scheduler` alone.
 
 ## Identity boundary
-M22 does not change the repo’s simulator-first identity.
+SDK does not change the repo’s simulator-first identity.
 It does not imply:
 - browser/WASM delivery
 - service/daemon scope

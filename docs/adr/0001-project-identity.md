@@ -32,9 +32,9 @@ This means:
 ## Approved track classification after M5
 - **Mainline core branch:** `M6 -> M17`
 - **Planning gates:** `M5`, `M18`, `M25`
-- **Optional Linux-observability branch:** `M19 -> M20` after `M18` approval
-- **Optional distribution branch:** `M21 -> M23` after core export-analysis maturity
-- **Optional library branch:** `M22` when embedding/API goals justify it
+- **Optional Linux-observability branch:** `observability -> comparison` after `M18` approval
+- **Optional distribution branch:** `teaching -> M23` after core export-analysis maturity
+- **Optional library branch:** `SDK` when embedding/API goals justify it
 - **Optional research branch:** `M24` once policy/testing boundaries are mature
 - **Optional production branch:** `M26` only after `M25` re-charter
 

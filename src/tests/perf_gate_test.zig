@@ -9,7 +9,7 @@ fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
 }
 
-test "M47-M56 performance docs and build graph expose reproducible perf gate" {
+test "performance docs and build graph expose reproducible perf gate" {
     const allocator = std.testing.allocator;
     const doc = try readFileAlloc(allocator, "docs/performance-gates.md");
     defer allocator.free(doc);
@@ -17,16 +17,16 @@ test "M47-M56 performance docs and build graph expose reproducible perf gate" {
     defer allocator.free(build_file);
 
     try expectContainsAll(doc, &.{
-        "M47 benchmark baseline",
-        "M48 reviewed budgets",
-        "M49 engine allocation reduction",
-        "M50 trace storage scaling",
-        "M51 policy hot path optimization",
-        "M52 scenario parser optimization",
-        "M53 report export streaming",
-        "M54 dashboard render performance",
-        "M55 analysis pipeline performance",
-        "M56 reproducible perf gate",
+        "benchmark baseline",
+        "reviewed budgets",
+        "engine allocation reduction",
+        "trace storage scaling",
+        "policy hot path optimization",
+        "scenario parser optimization",
+        "report export streaming",
+        "dashboard render performance",
+        "analysis pipeline performance",
+        "performance gate reproducible perf gate",
         "zig build perf",
         "ADR 0003",
     });
@@ -38,7 +38,7 @@ test "M47-M56 performance docs and build graph expose reproducible perf gate" {
     });
 }
 
-test "M49-M50 trace capacity estimator covers curated scenarios" {
+test "trace capacity estimator covers curated scenarios" {
     const allocator = std.testing.allocator;
     const cases = [_][]const u8{
         "short-vs-long",

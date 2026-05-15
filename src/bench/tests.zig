@@ -7,7 +7,7 @@ fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
 
 test "benchmark harness markdown stays reproducible" {
     const allocator = std.testing.allocator;
-    const expected = try readFileAlloc(allocator, "docs/benchmarks/m45-baselines.md");
+    const expected = try readFileAlloc(allocator, "docs/benchmarks/baselines.md");
     defer allocator.free(expected);
     const actual = try bench.render(allocator, .markdown);
     defer allocator.free(actual);
@@ -16,7 +16,7 @@ test "benchmark harness markdown stays reproducible" {
 
 test "benchmark harness json stays reproducible" {
     const allocator = std.testing.allocator;
-    const expected = try readFileAlloc(allocator, "docs/benchmarks/m45-baselines.json");
+    const expected = try readFileAlloc(allocator, "docs/benchmarks/baselines.json");
     defer allocator.free(expected);
     const actual = try bench.render(allocator, .json);
     defer allocator.free(actual);
@@ -36,7 +36,7 @@ test "benchmark docs stay simulator-local and reproducible" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
-    const workflow = try readFileAlloc(allocator, "docs/m45-benchmark-workflow.md");
+    const workflow = try readFileAlloc(allocator, "docs/benchmark-workflow.md");
     defer allocator.free(workflow);
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "zig build bench") != null);

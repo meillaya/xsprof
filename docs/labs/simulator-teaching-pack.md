@@ -1,6 +1,6 @@
 # Simulator teaching pack
 
-This is the canonical M21 simulator-first teaching index.
+This is the canonical teaching simulator-first teaching index.
 
 For the packaged courseware shell built on top of this spine, start from:
 - `docs/courseware/m23-teaching-distribution.md`
@@ -10,7 +10,7 @@ It intentionally covers only **three** start-here anchors:
 - `sleep-wakeup` + `cfs-like`
 - `multicore-balancing` + `fcfs`
 
-M19/M20 remain reachable in the TUI, but they are a bounded observability side
+observability/comparison remain reachable in the TUI, but they are a bounded observability side
 lane rather than the main teaching path.
 
 ## 1. short-vs-long — convoy contrast
@@ -71,7 +71,7 @@ What to notice:
 - this is a teaching simplification, not a Linux scheduler-domain fidelity claim
 
 Deeper explanation:
-- `docs/m17-scenario-corpus.md`
+- `docs/scenario-corpus.md`
 
 ## Boundary reminder
 
@@ -80,4 +80,4 @@ This teaching pack is simulator-first:
 - no widening of `zig-scheduler/report`
 - no widening of `src/analysis/*`
 - no replay-fidelity, calibration, or Linux-performance claims
-- M19/M20 stay a separate observability-only side lane
+- observability/comparison stay a separate observability-only side lane

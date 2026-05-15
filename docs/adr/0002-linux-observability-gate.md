@@ -9,7 +9,7 @@
 ## Context
 M5 approved the repository as a broader scheduler laboratory roadmap with a
 **simulator-only mainline** and optional branches gated explicitly. The roadmap
-already reserves an optional Linux-observability branch (`M19 -> M20`), but it
+already reserves an optional Linux-observability branch (`observability -> comparison`), but it
 also states that no Linux-facing import/calibration work may begin until M18 is
 approved.
 
@@ -42,13 +42,13 @@ only under a strictly bounded charter:
 This approval does **not** authorize:
 - live tracing in the repo
 - capture tooling or automation in the repo
-- eBPF, tracefs/ftrace, or `perf` execution workflows in the repo for M19
+- eBPF, tracefs/ftrace, or `perf` execution workflows in the repo for observability
 - replay-fidelity claims
 - Linux-performance or calibration claims
-- any code for M19/M20 before milestone-specific PRD/test-spec artifacts exist
+- any code for observability/comparison before milestone-specific PRD/test-spec artifacts exist
 
 This ADR approves eligibility for the optional branch only. It does not approve
-implementation details for M19 or M20 by itself.
+implementation details for observability or comparison by itself.
 
 ## Decision drivers
 1. Preserve the M5 simulator-first mainline identity.
@@ -94,7 +94,7 @@ If the optional Linux-observability branch proceeds, it is limited to:
   - `perf sched` / perf tracepoint-derived scheduler snapshots
   - tracefs/ftrace scheduler-event snapshots
 
-Out of scope for M19 unless a later gate re-charters them:
+Out of scope for observability unless a later gate re-charters them:
 - live tracing
 - capture automation
 - in-repo execution of `perf`, tracefs/ftrace, or eBPF collection workflows
@@ -121,7 +121,7 @@ Approved in-repo Linux-observability fixtures must be:
 - redistributable under an explicit documented basis
 - accompanied by a provenance manifest
 
-Manifest-only external references are not sufficient for approved in-repo M19
+Manifest-only external references are not sufficient for approved in-repo observability
 fixtures.
 
 Each admitted fixture must document:
@@ -143,19 +143,19 @@ These surfaces must make the following clear:
 - the mainline implementation remains simulator-only today
 - the optional Linux-observability branch, if pursued, is offline and
   observability-only
-- live capture/tooling/automation remains out of scope for M19
+- live capture/tooling/automation remains out of scope for observability
 
 ## Consequences
 - The optional Linux-observability branch is now eligible in principle.
-- M19 remains blocked until its own PRD/test-spec package exists and follows
+- observability remains blocked until its own PRD/test-spec package exists and follows
   this ADR.
 - The repo still cannot claim Linux replay fidelity, Linux performance meaning,
   or kernel-faithful scheduling behavior.
 - Future maintainers accept the governance overhead of provenance manifests,
-  scrub policy, version tuples, and wording audits if they pursue M19.
+  scrub policy, version tuples, and wording audits if they pursue observability.
 
 ## Approval conditions / follow-ups
-Before any M19 code or fixtures land:
+Before any observability code or fixtures land:
 1. create milestone-specific PRD and test-spec artifacts
 2. define approved fixture families and version tuples concretely
 3. define fixture manifests and scrub policy concretely
@@ -171,5 +171,5 @@ Before any M19 code or fixtures land:
 M18 is approved by landing this ADR together with proof-surface updates that:
 - keep the repo’s current implementation simulator-only
 - authorize only an offline observability-only future branch
-- block direct M19 implementation until milestone-specific planning artifacts
+- block direct observability implementation until milestone-specific planning artifacts
   exist

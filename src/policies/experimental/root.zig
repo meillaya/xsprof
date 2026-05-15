@@ -16,7 +16,7 @@ const descriptors = [_]ExperimentalPolicyDescriptor{
         .module_path = "src/policies/experimental/lottery.zig",
         .unstable_label = "experimental-only",
         .summary = lottery.experimental_summary,
-        .promotion_rule = "Requires an explicit milestone/ADR promotion decision before entering the supported policy set.",
+        .promotion_rule = "Requires an explicit ADR promotion decision before entering the supported policy set.",
     },
 };
 

@@ -99,7 +99,7 @@ pub const PickerEntry = struct {
     description: []const u8,
     theme_label: ?[]const u8 = null,
     explanation_doc: ?[]const u8 = null,
-    m21_start_here_rank: ?u8 = null,
+    start_here_rank: ?u8 = null,
     cores: u32,
     tasks: u32,
     ticks: u32,
@@ -697,7 +697,7 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
                 "tab enter d ? q"
             else
                 "← → scrub  j k task  tab pane  space play  d diff  s open  ? help  q quit",
-            .picker => "↑ ↓ select  ↵ open  p policy  m m19  c m20  w theme  ? help  q quit",
+            .picker => "↑ ↓ select  ↵ open  p policy  m observability  c comparison  w theme  ? help  q quit",
             .drawer => if (contract.tier == .compact) "esc back  d diff  ? help  q quit" else "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
             .diff => if (contract.tier == .compact) "d exit diff  ? help  q quit" else "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
             .observability_summary => "w theme  ? help  q quit",
@@ -766,8 +766,8 @@ fn renderObservabilitySummary(canvas: *Canvas, app: AppView, theme: Theme, outpu
         canvas,
         .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 },
         "linux observability summary",
-        "m19 · observability-only offline fixture summary · not replay or Linux-performance evidence",
-        if (output_mode == .snapshot) "SNAPSHOT" else "M19",
+        "observability · offline fixture summary · not replay or Linux-performance evidence",
+        if (output_mode == .snapshot) "SNAPSHOT" else "observability",
     );
 
     const top: usize = 3;
@@ -846,14 +846,14 @@ fn renderObservabilitySummary(canvas: *Canvas, app: AppView, theme: Theme, outpu
         renderTextRows(canvas, counts_inner, &count_rows);
         const boundary_rows = [_][]const u8{
             "observability-only surface based on a committed offline fixture",
-            "bounded M19 lane · approved tuple only",
+            "bounded observability lane · approved tuple only",
             "not replay authority · not calibration authority",
             "not Linux-performance evidence",
         };
         renderTextRows(canvas, boundary_inner, &boundary_rows);
     }
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "M19", output_mode);
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "observability", output_mode);
 }
 
 fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
@@ -866,8 +866,8 @@ fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, ou
         canvas,
         .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 },
         "simulator-to-trace comparison",
-        "m20 · bounded observability-only comparison lane · not replay or fidelity evidence",
-        if (output_mode == .snapshot) "SNAPSHOT" else "M20",
+        "comparison · bounded observability-only lane · not replay or fidelity evidence",
+        if (output_mode == .snapshot) "SNAPSHOT" else "comparison",
     );
 
     const top: usize = 3;
@@ -943,7 +943,7 @@ fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, ou
         renderTextRows(canvas, caveat_inner, &caveat_rows);
     }
 
-    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "M20", output_mode);
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "comparison", output_mode);
 }
 
 fn renderComparisonMetricRows(canvas: *Canvas, rect: Rect, metric_rows: []const scheduler.observability_comparison.MetricRow, compact: bool) void {
@@ -1190,7 +1190,7 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
     if (fallback_report) |report| renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report, theme, false, "trace explorer") else {
         canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, .{ .fg = .fg, .bg = .bg });
         canvas.drawText(1, 0, "▚ zig-scheduler · trace explorer", .{ .fg = .dispatch, .bg = .bg, .bold = true });
-        canvas.drawText(1, 1, "m15 · load a scenario, pick a policy, replay the trace.", .{ .fg = .fg_dim, .bg = .bg });
+        canvas.drawText(1, 1, "load a scenario, pick a policy, replay the trace.", .{ .fg = .fg_dim, .bg = .bg });
         canvas.drawHLine(0, 2, canvas.width, '─', .{ .fg = .fg_faint, .bg = .bg });
     }
 
@@ -1321,7 +1321,7 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
     if (rect.w > 28) canvas.drawText(rect.x + rect.w - 26, rect.y + 1, "press ? or esc to close", .{ .fg = .fg_dim, .bg = .bg });
 
     const HelpSection = struct { title: []const u8, rows: []const [2][]const u8 };
-    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     const simulator_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "←  →", "scrub one tick" }, .{ "home / end", "first / last tick" }, .{ "space", "play / pause" } } },
         .{ .title = "START HERE", .rows = &.{
@@ -1331,11 +1331,11 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
         } },
         .{ .title = "SELECTION", .rows = &.{ .{ "j  k", "select next / previous task" }, .{ "esc", "clear or close" }, .{ "enter", "open task detail drawer" } } },
         .{ .title = "PANES", .rows = &.{ .{ "tab", "cycle pane focus" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
-        .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "m / c", "open M19 / M20 from picker" }, .{ "q", "quit" } } },
+        .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "m / c", "open observability / comparison from picker" }, .{ "q", "quit" } } },
     };
     const observability_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "esc", "close help" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
-        .{ .title = "BOUNDARY", .rows = &.{ .{ "m19 / m20", "observability-only lane" }, .{ "no replay", "not fidelity evidence" }, .{ "q", "quit" } } },
+        .{ .title = "BOUNDARY", .rows = &.{ .{ "fixture / comparison", "observability-only lane" }, .{ "no replay", "not fidelity evidence" }, .{ "q", "quit" } } },
     };
     const sections = switch (app.domain_mode) {
         .simulator => simulator_sections[0..],
@@ -1868,7 +1868,7 @@ fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
         canvas.fillRect(.{ .x = rect.x, .y = rect.y + 2 + row, .w = rect.w, .h = 1 }, style);
         var buf: [160]u8 = undefined;
         const row_text = std.fmt.bufPrint(&buf, "{s}{s:<22} {s:<14} {d:>3}    {d:>3}    {d:>3}", .{
-            if (entry.m21_start_here_rank != null) "★ " else "  ",
+            if (entry.start_here_rank != null) "★ " else "  ",
             entry.scenario_label,
             entry.policy_label,
             entry.cores,
@@ -1878,13 +1878,13 @@ fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
         canvas.drawTextClipped(rect.x, rect.y + 2 + row, rect.w, if (selected) row_text else row_text, style);
         if (selected and rect.y + 3 + row < rect.y + rect.h) {
             var desc_buf: [256]u8 = undefined;
-            const desc = if (entry.m21_start_here_rank) |rank|
+            const desc = if (entry.start_here_rank) |rank|
                 std.fmt.bufPrint(&desc_buf, "  START HERE {d} · {s} · {s} · {s} · {s}", .{
                     rank,
                     entry.theme_label orelse "simulator path",
                     entry.policy_label,
                     entry.description,
-                    entry.explanation_doc orelse "docs/m17-scenario-corpus.md",
+                    entry.explanation_doc orelse "docs/scenario-corpus.md",
                 }) catch entry.description
             else
                 std.fmt.bufPrint(&desc_buf, "  {s} · {s}", .{ entry.pack, entry.description }) catch entry.description;
@@ -1894,7 +1894,7 @@ fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
 }
 
 fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
-    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     var line_buf: [3][96]u8 = undefined;
     const lines = [_][]const u8{
         "start here path:",
@@ -1921,7 +1921,7 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
 }
 
 fn renderPickerStartHere(canvas: *Canvas, rect: Rect, _: Theme) void {
-    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+    const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     for (shortlist, 0..) |entry, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;
         canvas.drawText(rect.x, rect.y + idx, scheduler.scenario_packs.curriculumThemeLabel(entry.theme.?), .{ .fg = switch (idx) {
@@ -1933,7 +1933,7 @@ fn renderPickerStartHere(canvas: *Canvas, rect: Rect, _: Theme) void {
     }
     if (rect.y + shortlist.len < rect.y + rect.h) {
         canvas.drawText(rect.x, rect.y + shortlist.len, "side lane", .{ .fg = .fg_dim, .bg = .bg, .bold = true });
-        canvas.drawTextClipped(rect.x + 14, rect.y + shortlist.len, satSub(rect.w, 14), "m/c keep M19/M20 reachable but secondary", .{ .fg = .fg_dim, .bg = .bg });
+        canvas.drawTextClipped(rect.x + 14, rect.y + shortlist.len, satSub(rect.w, 14), "m/c keep observability/comparison reachable but secondary", .{ .fg = .fg_dim, .bg = .bg });
     }
 }
 
@@ -2179,7 +2179,7 @@ test "too-small renderer handles tiny heights without underflow" {
     }
 }
 
-test "M44 snapshot rendering is stable across compact medium and large tiers" {
+test "snapshot rendering is stable across compact medium and large tiers" {
     const app: AppView = .{
         .domain_mode = .simulator,
         .theme = .dark,
@@ -2219,7 +2219,7 @@ test "M44 snapshot rendering is stable across compact medium and large tiers" {
     }
 }
 
-test "M67 TUI views map into the smart dashboard spine" {
+test "dashboard home TUI views map into the smart dashboard spine" {
     const mappings = [_]struct {
         view: View,
         screen: DashboardScreen,

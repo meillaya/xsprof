@@ -20,7 +20,7 @@ zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --polic
 zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy round_robin
 ```
 
-## M21 simulator-first teaching shortlist
+## teaching simulator-first teaching shortlist
 
 The current simulator-first “start here” path is intentionally smaller than the
 full canonical corpus:
@@ -41,12 +41,12 @@ review notes:
 | `short-vs-long` | convoy | `fcfs` + compare with `round_robin` | `docs/phase1-scenario-c-walkthrough.md` | manual demos + automated regression |
 | `sleep-wakeup` | blocked/wakeup burstiness | `cfs-like` | `docs/phase1-simulator.md` | manual demos + automated regression |
 | `multi-phase-io` | phased bursty I/O | `round_robin` | `docs/phase1-simulator.md` | manual demos + automated regression |
-| `starvation-pressure` | starvation pressure | `cfs-like` | `docs/m8-fairness-probes.md` | manual demos + automated regression |
-| `deadline-priority` | deadline comparison | `deadline` | `docs/m10-deadline-policy.md` | manual demos + automated regression |
-| `group-fairness` | group fairness | `cfs-like` | `docs/m11-group-scheduling.md` | manual demos + automated regression |
-| `multicore-balancing` | balancing | `fcfs` | `docs/m17-scenario-corpus.md` | manual demos + automated regression |
-| `topology-domains` | topology | `fcfs` | `docs/m12-topology-simulation.md` | manual demos + automated regression |
-| `latency-probe` | fairness/latency spread | `round_robin` | `docs/m8-fairness-probes.md` | manual demos + automated regression |
+| `starvation-pressure` | starvation pressure | `cfs-like` | `docs/fairness-probes.md` | manual demos + automated regression |
+| `deadline-priority` | deadline comparison | `deadline` | `docs/deadline-policy.md` | manual demos + automated regression |
+| `group-fairness` | group fairness | `cfs-like` | `docs/group-scheduling.md` | manual demos + automated regression |
+| `multicore-balancing` | balancing | `fcfs` | `docs/scenario-corpus.md` | manual demos + automated regression |
+| `topology-domains` | topology | `fcfs` | `docs/topology-simulation.md` | manual demos + automated regression |
+| `latency-probe` | fairness/latency spread | `round_robin` | `docs/fairness-probes.md` | manual demos + automated regression |
 
 ## Why these scenarios are canonical
 

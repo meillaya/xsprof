@@ -58,4 +58,4 @@ These files are treated as deterministic goldens by the analysis test suite.
 These artifacts are teaching/reporting surfaces for the simulator export contract only. They do not add Linux integration, service behavior, or kernel-faithful claims.
 
 For the multi-artifact reproducible pipeline layered on top of this workflow,
-see `docs/m16-report-pipeline.md`.
+see `docs/report-pipeline.md`.

@@ -8,7 +8,7 @@ fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
 }
 
-test "M67-M74 dashboard docs and build graph expose one smart spine" {
+test "dashboard docs and build graph expose one smart spine" {
     const allocator = std.testing.allocator;
     const doc = try readFileAlloc(allocator, "docs/smart-dashboard-spine.md");
     defer allocator.free(doc);
@@ -16,14 +16,14 @@ test "M67-M74 dashboard docs and build graph expose one smart spine" {
     defer allocator.free(build_file);
 
     try expectContainsAll(doc, &.{
-        "M67",
-        "M68",
-        "M69",
-        "M70",
-        "M71",
-        "M72",
-        "M73",
-        "M74",
+        "dashboard home",
+        "dashboard scenario",
+        "dashboard timeline",
+        "dashboard tasks",
+        "policy compare",
+        "observability screen",
+        "performance screen",
+        "reports/help",
         "Home",
         "Scenario",
         "Timeline",
@@ -41,11 +41,11 @@ test "M67-M74 dashboard docs and build graph expose one smart spine" {
         "zig_scheduler_dashboard",
         "src/dashboard/root.zig",
         "src/dashboard/main.zig",
-        "Render the M67-M74 smart dashboard spine contract",
+        "Render the smart dashboard spine contract",
     });
 }
 
-test "M67 smart dashboard source forbids ad hoc modes and names required screens" {
+test "dashboard home smart dashboard source forbids ad hoc modes and names required screens" {
     const allocator = std.testing.allocator;
     const source = try readFileAlloc(allocator, "src/dashboard/root.zig");
     defer allocator.free(source);

@@ -35,23 +35,23 @@ pub const RunQueueModel = enum {
 };
 
 pub const SemanticsFeature = struct {
-    milestone: []const u8,
+    area: []const u8,
     name: []const u8,
     owner: []const u8,
     evidence: []const u8,
 };
 
 pub const features = [_]SemanticsFeature{
-    .{ .milestone = "M57", .name = "scheduling-class contract v2", .owner = "src/semantics/root.zig", .evidence = contract_name },
-    .{ .milestone = "M58", .name = "priority and nice mapping", .owner = "niceToWeight", .evidence = "deterministic nice[-20,19] -> weight table" },
-    .{ .milestone = "M59", .name = "fairness v2", .owner = "fairnessScore", .evidence = "weighted vruntime normalization" },
-    .{ .milestone = "M60", .name = "deadline admission", .owner = "admitDeadline", .evidence = "runtime must fit arrival/deadline window" },
-    .{ .milestone = "M61", .name = "multi-queue runqueues", .owner = "RunQueueModel", .evidence = "global/per-core/domain models are named" },
-    .{ .milestone = "M62", .name = "affinity and pinning", .owner = "allowsCore", .evidence = "u64 core masks with explicit all-cores helper" },
-    .{ .milestone = "M63", .name = "topology cost model", .owner = "topologyCost", .evidence = "same-core, same-domain, cross-domain cost tiers" },
-    .{ .milestone = "M64", .name = "group quota/burst accounting", .owner = "groupBudgetState", .evidence = "remaining quota and burst debt are explicit" },
-    .{ .milestone = "M65", .name = "explainable decision log", .owner = "DecisionLog", .evidence = "stable textual decision records" },
-    .{ .milestone = "M66", .name = "deterministic replay/diff engine", .owner = "diffDecisions", .evidence = "first mismatch includes index and task/core deltas" },
+    .{ .area = "semantics contract", .name = "scheduling-class contract v2", .owner = "src/semantics/root.zig", .evidence = contract_name },
+    .{ .area = "priority mapping", .name = "priority and nice mapping", .owner = "niceToWeight", .evidence = "deterministic nice[-20,19] -> weight table" },
+    .{ .area = "fairness model", .name = "fairness v2", .owner = "fairnessScore", .evidence = "weighted vruntime normalization" },
+    .{ .area = "deadline admission", .name = "deadline admission", .owner = "admitDeadline", .evidence = "runtime must fit arrival/deadline window" },
+    .{ .area = "runqueue model", .name = "multi-queue runqueues", .owner = "RunQueueModel", .evidence = "global/per-core/domain models are named" },
+    .{ .area = "affinity model", .name = "affinity and pinning", .owner = "allowsCore", .evidence = "u64 core masks with explicit all-cores helper" },
+    .{ .area = "topology model", .name = "topology cost model", .owner = "topologyCost", .evidence = "same-core, same-domain, cross-domain cost tiers" },
+    .{ .area = "group budget model", .name = "group quota/burst accounting", .owner = "groupBudgetState", .evidence = "remaining quota and burst debt are explicit" },
+    .{ .area = "decision log", .name = "explainable decision log", .owner = "DecisionLog", .evidence = "stable textual decision records" },
+    .{ .area = "replay diff", .name = "deterministic replay/diff engine", .owner = "diffDecisions", .evidence = "first mismatch includes index and task/core deltas" },
 };
 
 pub const Nice = i8;
@@ -220,9 +220,9 @@ pub fn renderMarkdown(allocator: std.mem.Allocator) ![]u8 {
     var writer = list_writer.writer(&out, allocator);
     try writer.print("# scheduling semantics v{d}\n\n", .{contract_version});
     try writer.print("Contract: `{s}`\n\n", .{contract_name});
-    try writer.writeAll("| milestone | feature | owner | evidence |\n| --- | --- | --- | --- |\n");
+    try writer.writeAll("| area | feature | owner | evidence |\n| --- | --- | --- | --- |\n");
     for (features) |feature| {
-        try writer.print("| {s} | {s} | `{s}` | {s} |\n", .{ feature.milestone, feature.name, feature.owner, feature.evidence });
+        try writer.print("| {s} | {s} | `{s}` | {s} |\n", .{ feature.area, feature.name, feature.owner, feature.evidence });
     }
     return try out.toOwnedSlice(allocator);
 }

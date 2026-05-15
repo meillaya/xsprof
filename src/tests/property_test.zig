@@ -98,7 +98,7 @@ fn shrinkPredicate(context: ShrinkContext, generated: *const sim.property.Genera
     return !std.mem.eql(u8, fcfs.completionTaskId(0), rr.completionTaskId(0));
 }
 
-test "M13 generated scenarios satisfy validity constraints across policies" {
+test "generated scenarios satisfy validity constraints across policies" {
     const allocator = std.testing.allocator;
 
     for (0..16) |seed| {
@@ -118,7 +118,7 @@ test "M13 generated scenarios satisfy validity constraints across policies" {
     }
 }
 
-test "M13 property suite covers export guarantees on generated scenarios" {
+test "property suite covers export guarantees on generated scenarios" {
     const allocator = std.testing.allocator;
 
     for (0..12) |seed| {
@@ -164,7 +164,7 @@ test "M13 property suite covers export guarantees on generated scenarios" {
     }
 }
 
-test "M13 shrinker reduces and saves regression fixtures" {
+test "shrinker reduces and saves regression fixtures" {
     const allocator = std.testing.allocator;
     var generated = try sim.property.generateScenario(allocator, .{
         .seed = 9,
@@ -198,9 +198,9 @@ test "M13 shrinker reduces and saves regression fixtures" {
 
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try shrunk.writeZonFile(allocator, tmp.dir, "m13-shrunk-regression.zon");
+    try shrunk.writeZonFile(allocator, tmp.dir, "shrunk-property-regression.zon");
 
-    const saved = try tmp.dir.readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "m13-shrunk-regression.zon", allocator, .unlimited);
+    const saved = try tmp.dir.readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "shrunk-property-regression.zon", allocator, .unlimited);
     defer allocator.free(saved);
     try std.testing.expect(std.mem.indexOf(u8, saved, ".tasks = .{") != null);
 
@@ -213,9 +213,9 @@ test "M13 shrinker reduces and saves regression fixtures" {
     try std.testing.expect(!std.mem.eql(u8, fcfs.completionTaskId(0), rr.completionTaskId(0)));
 }
 
-test "M13 docs explain generator, shrinking, and regression fixture workflow" {
+test "property docs explain generator, shrinking, and regression fixture workflow" {
     const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/m13-property-testing.md");
+    const doc = try readFileAlloc(allocator, "docs/property-testing.md");
     defer allocator.free(doc);
 
     try std.testing.expect(std.mem.indexOf(u8, doc, "generator") != null);

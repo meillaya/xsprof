@@ -44,13 +44,13 @@ test "starvation-pressure fixture exposes uneven waiting under weighted fair sch
     try std.testing.expect(result.aggregate.max_response_time >= result.aggregate.response_time_spread);
 }
 
-test "M8 docs keep fairness claims evidence-based" {
+test "fairness docs keep claims evidence-based" {
     const allocator = std.testing.allocator;
     const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
-    const fairness_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m8-fairness-probes.md", allocator, .unlimited);
+    const fairness_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/fairness-probes.md", allocator, .unlimited);
     defer allocator.free(fairness_doc);
-    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m17-scenario-corpus.md", allocator, .unlimited);
+    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/scenario-corpus.md", allocator, .unlimited);
     defer allocator.free(corpus_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "latency-probe") != null);

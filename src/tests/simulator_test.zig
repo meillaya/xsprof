@@ -541,7 +541,7 @@ fn loadGeneratedScenario(allocator: std.mem.Allocator, seed: u32) !sim.ScenarioO
     const source = try buildGeneratedScenarioSource(allocator, seed);
     defer allocator.free(source);
 
-    const expected_name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    const expected_name = try std.fmt.allocPrint(allocator, "generated-property-{d}", .{seed});
     defer allocator.free(expected_name);
 
     return sim.parseScenarioText(allocator, source, expected_name);
@@ -551,7 +551,7 @@ fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
 
-    const name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    const name = try std.fmt.allocPrint(allocator, "generated-property-{d}", .{seed});
     defer allocator.free(name);
 
     const core_count: u32 = if (seed % 2 == 0) 1 else 2;

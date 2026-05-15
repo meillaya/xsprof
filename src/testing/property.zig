@@ -240,7 +240,7 @@ pub fn generateScenario(allocator: std.mem.Allocator, options: GeneratorOptions)
         if (group_count != 0 and index == 0) task.group_index = 0;
     }
 
-    const name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{options.seed});
+    const name = try std.fmt.allocPrint(allocator, "generated-property-{d}", .{options.seed});
     errdefer allocator.free(name);
 
     return .{

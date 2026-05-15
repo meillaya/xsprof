@@ -2,8 +2,8 @@
 
 This is the canonical M23 package entrypoint.
 
-M23 is a **package shell over M21**, not a new teaching spine. The required
-teaching path still comes from the exact M21 shortlist:
+M23 is a **package shell over teaching**, not a new teaching spine. The required
+teaching path still comes from the exact teaching shortlist:
 - `short-vs-long` + `fcfs`
 - `sleep-wakeup` + `cfs-like`
 - `multicore-balancing` + `fcfs`
@@ -40,7 +40,7 @@ zig build
 zig build test --summary all
 ```
 
-Required module commands are the same M21 command pairs already published in:
+Required module commands are the same teaching command pairs already published in:
 - `README.md`
 - `docs/labs/simulator-teaching-pack.md`
 
@@ -56,17 +56,17 @@ This appendix is optional and must not be required to complete the core package.
 Optional commands:
 
 ```sh
-zig-out/bin/zig-scheduler --m19
-zig-out/bin/zig-scheduler --snapshot --m19
-zig-out/bin/zig-scheduler --m20
-zig-out/bin/zig-scheduler --snapshot --m20
+zig-out/bin/zig-scheduler --observability
+zig-out/bin/zig-scheduler --snapshot --observability
+zig-out/bin/zig-scheduler --comparison
+zig-out/bin/zig-scheduler --snapshot --comparison
 ```
 
 Use this appendix only when you want to show bounded offline observability
 comparison evidence.
 
 Boundary reminders:
-- M19/M20 stay a separate observability-only side lane
+- observability/comparison stay a separate observability-only side lane
 - not live capture
 - not replay authority
 - not Linux-performance evidence
@@ -78,4 +78,4 @@ This package remains simulator-first:
 - no service or hosted-lab scope
 - no live capture or replay automation
 - no Linux-performance or calibration claims
-- no requirement to use the M22 SDK branch to complete the package
+- no requirement to use the SDK SDK branch to complete the package

@@ -49,18 +49,18 @@ test "report pipeline renders deterministically" {
     }
 }
 
-test "M16 docs expose the report regeneration path" {
+test "report docs expose the regeneration path" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
-    const workflow = try readFileAlloc(allocator, "docs/m16-report-pipeline.md");
+    const workflow = try readFileAlloc(allocator, "docs/report-pipeline.md");
     defer allocator.free(workflow);
     const phase1 = try readFileAlloc(allocator, "docs/phase1-simulator.md");
     defer allocator.free(phase1);
-    const m4 = try readFileAlloc(allocator, "docs/m4-analysis-workflow.md");
-    defer allocator.free(m4);
-    const m45 = try readFileAlloc(allocator, "docs/m45-benchmark-workflow.md");
-    defer allocator.free(m45);
+    const analysis_doc = try readFileAlloc(allocator, "docs/analysis-workflow.md");
+    defer allocator.free(analysis_doc);
+    const benchmark_doc = try readFileAlloc(allocator, "docs/benchmark-workflow.md");
+    defer allocator.free(benchmark_doc);
     const architecture = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(architecture);
     const tui_render = try readFileAlloc(allocator, "src/tui/render.zig");
@@ -69,11 +69,11 @@ test "M16 docs expose the report regeneration path" {
     try std.testing.expect(std.mem.indexOf(u8, readme, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, workflow, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, phase1, "zig build reports") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m4, "zig build reports") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m45, "zig build reports") != null);
+    try std.testing.expect(std.mem.indexOf(u8, analysis_doc, "zig build reports") != null);
+    try std.testing.expect(std.mem.indexOf(u8, benchmark_doc, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, architecture, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, workflow, "docs/labs/reproducible-report-pack.md") != null);
-    try std.testing.expect(std.mem.indexOf(u8, workflow, "zig build reports -- --output-dir zig-out/m16-smoke") != null);
+    try std.testing.expect(std.mem.indexOf(u8, workflow, "zig build reports -- --output-dir zig-out/report-smoke") != null);
     try std.testing.expect(std.mem.indexOf(u8, workflow, "zig build reports -- --check") != null);
     try std.testing.expect(std.mem.indexOf(u8, tui_render, "zig build sim -- --scenario-file <path> --format json | zig-out/bin/zig-scheduler --stdin --snapshot") != null);
 }

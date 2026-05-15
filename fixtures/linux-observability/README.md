@@ -1,7 +1,7 @@
-# M19 Linux-observability fixtures
+# Linux-observability fixtures
 
-This directory is reserved for **offline, observability-only** Linux scheduler
-snapshot fixtures admitted under M19.
+This directory stores **offline, observability-only** Linux scheduler
+snapshot fixtures admitted through the production fixture governance process.
 
 Rules for this surface:
 - fixtures are committed and scrubbed
@@ -11,8 +11,8 @@ Rules for this surface:
 - these fixtures do not authorize live capture, replay, calibration, or
   Linux-performance claims
 
-Current approved family in the first M19 cut:
+Current approved family:
 - `tracefs-sched-snapshot`
 
-Current approved tuple count in the first M19 cut:
+Current approved tuple count:
 - exactly one literal tuple in `support-matrix.json`

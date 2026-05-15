@@ -13,7 +13,7 @@ pub const parseArgs = args_mod.parseArgs;
 
 pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
     try writer.print(
-        "usage: {s} [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy> | --m19 | --m19-manifest <path> | --m20 | --m20-pairing <path>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n\ninteractive mode requires a real TTY\nsnapshot mode is explicit and requires a report-producing source or an explicit M19/M20 selection\n",
+        "usage: {s} [--input <report.json> | --stdin | --scenario <name> --policy <policy> | --scenario-file <path> --policy <policy> | --observability | --observability-manifest <path> | --comparison | --comparison-pairing <path>] [--snapshot [--width <cols>] [--height <rows>] [--tick <n>]]\n\ninteractive mode requires a real TTY\nsnapshot mode is explicit and requires a report-producing source or an explicit observability/comparison selection\n",
         .{exe_name},
     );
 }
@@ -201,19 +201,19 @@ fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
             try loadSimulation(app, .{ .file = path }, options.policy.?);
             app.view = .explorer;
         },
-        .m19_default => {
+        .observability_default => {
             try loadObservabilityFixture(app, scheduler.observability.default_manifest_path);
             app.view = .observability_summary;
         },
-        .m19_manifest => |path| {
+        .observability_manifest => |path| {
             try loadObservabilityFixture(app, path);
             app.view = .observability_summary;
         },
-        .m20_default => {
+        .comparison_default => {
             try loadObservabilityComparison(app, scheduler.observability_comparison.default_pairing_manifest_path);
             app.view = .observability_comparison;
         },
-        .m20_pairing => |path| {
+        .comparison_pairing => |path| {
             try loadObservabilityComparison(app, path);
             app.view = .observability_comparison;
         },
@@ -315,8 +315,8 @@ fn handleChar(app: *App, ch: u8, size: term_mod.Size) !bool {
         'k' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, -1),
         'd' => if (app.domain_mode == .simulator and (app.view != .explorer or contract.tier != .too_small)) try toggleDiff(app, contract),
         's' => if (app.domain_mode == .simulator) togglePicker(app),
-        'm' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerM19(app),
-        'c' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerM20(app),
+        'm' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerobservability(app),
+        'c' => if (app.domain_mode == .simulator and app.view == .picker) try openPickercomparison(app),
         'w' => app.theme = if (app.theme == .dark) .light else .dark,
         '?' => {
             if (contract.help_mode != .disabled or app.view == .help) {
@@ -429,12 +429,12 @@ fn openPickerSelection(app: *App) !void {
     app.view = .explorer;
 }
 
-fn openPickerM19(app: *App) !void {
+fn openPickerobservability(app: *App) !void {
     try loadObservabilityFixture(app, scheduler.observability.default_manifest_path);
     app.view = .observability_summary;
 }
 
-fn openPickerM20(app: *App) !void {
+fn openPickercomparison(app: *App) !void {
     try loadObservabilityComparison(app, scheduler.observability_comparison.default_pairing_manifest_path);
     app.view = .observability_comparison;
 }
@@ -502,7 +502,7 @@ fn loadObservabilityFixture(app: *App, manifest_path: []const u8) !void {
     app.cursor = 0;
     app.selected_task_index = null;
     const summary = &app.observability_fixture.?.summary;
-    const label = try std.fmt.allocPrint(app.allocator, "· M19 · {s}", .{summary.fixture_name});
+    const label = try std.fmt.allocPrint(app.allocator, "· observability · {s}", .{summary.fixture_name});
     errdefer app.allocator.free(label);
     try appendHistory(app, label);
 }
@@ -515,7 +515,7 @@ fn loadObservabilityComparison(app: *App, pairing_manifest_path: []const u8) !vo
     app.source = null;
     app.cursor = 0;
     app.selected_task_index = null;
-    const label = try std.fmt.allocPrint(app.allocator, "· M20 · {s}", .{app.observability_comparison.?.pairing_id});
+    const label = try std.fmt.allocPrint(app.allocator, "· comparison · {s}", .{app.observability_comparison.?.pairing_id});
     errdefer app.allocator.free(label);
     try appendHistory(app, label);
 }
@@ -619,7 +619,7 @@ fn buildPickerEntry(
     var max_tick: u32 = 0;
     for (result.trace) |event| max_tick = @max(max_tick, event.tick);
 
-    const shortlist_rank = m21TeachingRank(entry.key);
+    const shortlist_rank = teachingRank(entry.key);
 
     return .{
         .scenario_key = entry.path,
@@ -630,7 +630,7 @@ fn buildPickerEntry(
         .description = entry.description,
         .theme_label = if (entry.theme) |theme| scheduler.scenario_packs.curriculumThemeLabel(theme) else null,
         .explanation_doc = entry.explanation_doc,
-        .m21_start_here_rank = shortlist_rank,
+        .start_here_rank = shortlist_rank,
         .cores = scenario.core_count,
         .tasks = @intCast(scenario.tasks.len),
         .ticks = if (result.trace.len == 0) 0 else max_tick + 1,
@@ -652,8 +652,8 @@ fn policyLabel(policy: scheduler.PolicyKind) []const u8 {
     };
 }
 
-fn m21TeachingRank(scenario_key: []const u8) ?u8 {
-    for (scheduler.scenario_packs.listM21TeachingEntries(), 0..) |entry, index| {
+fn teachingRank(scenario_key: []const u8) ?u8 {
+    for (scheduler.scenario_packs.listteachingTeachingEntries(), 0..) |entry, index| {
         if (std.mem.eql(u8, entry.key, scenario_key)) return @intCast(index + 1);
     }
     return null;
@@ -747,13 +747,13 @@ test "interactive runtime rejects missing tty for explicit sources" {
         .runtime_mode = .snapshot,
     }, false, false);
     try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
-        .input_source = .m19_default,
+        .input_source = .observability_default,
     }, false, true));
     try std.testing.expectError(error.NotATerminal, validateTerminalMode(.{
-        .input_source = .m20_default,
+        .input_source = .comparison_default,
     }, true, false));
     try validateTerminalMode(.{
-        .input_source = .m19_default,
+        .input_source = .observability_default,
         .runtime_mode = .snapshot,
     }, false, false);
 }
@@ -765,8 +765,8 @@ test "usage text mentions explicit snapshot mode" {
     try writeUsage(&writer, "zig-scheduler-tui");
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--snapshot") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--width") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--m19") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--m20") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--observability") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--comparison") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "requires a real TTY") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-scheduler-tui") != null);
 }
@@ -985,8 +985,8 @@ test "snapshot render works from simulation path" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "snapshot") != null);
 }
 
-test "M21 anchor scenario snapshots stay deterministic under recommended policies" {
-    const shortlist = scheduler.scenario_packs.listM21TeachingEntries();
+test "teaching anchor scenario snapshots stay deterministic under recommended policies" {
+    const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     for (shortlist) |entry| {
         var app = App{
             .allocator = std.testing.allocator,
@@ -1012,7 +1012,7 @@ test "M21 anchor scenario snapshots stay deterministic under recommended policie
     }
 }
 
-test "M19 snapshot render is deterministic and observability-bounded" {
+test "observability snapshot render is deterministic and observability-bounded" {
     var app = App{
         .allocator = std.testing.allocator,
         .picker_entries = try buildPickerEntries(std.testing.allocator),
@@ -1021,7 +1021,7 @@ test "M19 snapshot render is deterministic and observability-bounded" {
 
     try loadObservabilityFixture(&app, scheduler.observability.default_manifest_path);
     const options = Options{
-        .input_source = .m19_default,
+        .input_source = .observability_default,
         .runtime_mode = .snapshot,
         .snapshot_width = 120,
         .snapshot_height = 40,
@@ -1038,7 +1038,7 @@ test "M19 snapshot render is deterministic and observability-bounded" {
     try std.testing.expect(std.mem.indexOf(u8, first, "policy diff") == null);
 }
 
-test "M20 snapshot render is deterministic and non-fidelity-bounded" {
+test "comparison snapshot render is deterministic and non-fidelity-bounded" {
     var app = App{
         .allocator = std.testing.allocator,
         .picker_entries = try buildPickerEntries(std.testing.allocator),
@@ -1047,7 +1047,7 @@ test "M20 snapshot render is deterministic and non-fidelity-bounded" {
 
     try loadObservabilityComparison(&app, scheduler.observability_comparison.default_pairing_manifest_path);
     const options = Options{
-        .input_source = .m20_default,
+        .input_source = .comparison_default,
         .runtime_mode = .snapshot,
         .snapshot_width = 120,
         .snapshot_height = 40,
@@ -1092,7 +1092,7 @@ test "observability lane keeps simulator-only picker and diff shortcuts disabled
     try std.testing.expect(std.mem.indexOf(u8, help, "policy diff") == null);
 }
 
-test "picker shortcuts open M19 and M20 observability lanes" {
+test "picker shortcuts open observability and comparison observability lanes" {
     var app = App{
         .allocator = std.testing.allocator,
         .picker_entries = try buildPickerEntries(std.testing.allocator),

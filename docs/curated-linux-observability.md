@@ -1,18 +1,18 @@
-# M19 curated Linux-observability snapshots
+# observability curated Linux-observability snapshots
 
-M19 adds a narrow offline import boundary for curated Linux scheduler
+observability adds a narrow offline import boundary for curated Linux scheduler
 observability fixtures.
 
 ## Scope
 
-The M19 implementation is intentionally limited to:
+The observability implementation is intentionally limited to:
 - committed scrubbed fixtures under `fixtures/linux-observability/`
 - manifest validation against `fixtures/linux-observability/support-matrix.json`
 - one approved literal tuple only
 - offline parsing of `tracefs-sched-snapshot` text fixtures
 - a separate observability-only normalized summary path in `src/observability/root.zig`
 
-M19 explicitly does **not**:
+observability explicitly does **not**:
 - run live capture tooling
 - execute `perf`, tracefs, ftrace, or eBPF workflows in the repo
 - support `perf sched`, generic `perf.data`, `perf script`, `trace_pipe`, or
@@ -29,7 +29,7 @@ M19 explicitly does **not**:
 | `kernel_release` | `linux-6.6` |
 | `tool_version` | `tracefs-kernel-6.6` |
 | `tracefs_root` | `/sys/kernel/tracing` |
-| `capture_recipe` | `instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1` |
+| `capture_recipe` | `instance=tracefs-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1` |
 | `trace_clock` | `global` |
 | `enabled_sched_events` | `sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit` |
 | `scope` | `system-wide dedicated instance` |
@@ -44,10 +44,10 @@ Unsupported tuples fail closed by default.
 
 - Loader + normalized summary: `src/observability/root.zig`
 - Governance + smoke tests: `src/tests/linux_observability_test.zig`
-- Fixture manifest: `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json`
-- Fixture payload: `fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace`
+- Fixture manifest: `fixtures/linux-observability/manifests/tracefs-sched-demo.json`
+- Fixture payload: `fixtures/linux-observability/tracefs-sched-snapshot/tracefs-sched-demo.trace`
 - Support matrix: `fixtures/linux-observability/support-matrix.json`
-- TUI observability lane: `zig-out/bin/zig-scheduler --m19` or `--m19-manifest <path>`
+- TUI observability lane: `zig-out/bin/zig-scheduler --observability` or `--observability-manifest <path>`
 
 ## Summary boundary
 

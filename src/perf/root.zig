@@ -34,13 +34,13 @@ pub const Budget = struct {
 };
 
 pub const budgets = [_]Budget{
-    .{ .metric = .case_count, .ceiling = 6, .reason = "M47 baseline matrix remains explicit and reviewable" },
-    .{ .metric = .total_export_bytes, .ceiling = 30_000, .reason = "M53 report export size budget" },
-    .{ .metric = .total_analysis_markdown_bytes, .ceiling = 14_000, .reason = "M55 markdown analysis budget" },
-    .{ .metric = .total_analysis_svg_bytes, .ceiling = 18_000, .reason = "M55 SVG analysis budget" },
-    .{ .metric = .total_trace_events, .ceiling = 200, .reason = "M50 trace volume scaling budget" },
-    .{ .metric = .max_export_bytes, .ceiling = 6_500, .reason = "M53 per-report export ceiling" },
-    .{ .metric = .max_trace_events, .ceiling = 50, .reason = "M49/M50 per-case trace ceiling" },
+    .{ .metric = .case_count, .ceiling = 6, .reason = "baseline matrix remains explicit and reviewable" },
+    .{ .metric = .total_export_bytes, .ceiling = 30_000, .reason = "report export size budget" },
+    .{ .metric = .total_analysis_markdown_bytes, .ceiling = 14_000, .reason = "markdown analysis budget" },
+    .{ .metric = .total_analysis_svg_bytes, .ceiling = 18_000, .reason = "SVG analysis budget" },
+    .{ .metric = .total_trace_events, .ceiling = 200, .reason = "trace volume scaling budget" },
+    .{ .metric = .max_export_bytes, .ceiling = 6_500, .reason = "per-report export ceiling" },
+    .{ .metric = .max_trace_events, .ceiling = 50, .reason = "per-case trace ceiling" },
 };
 
 pub const MetricResult = struct {
@@ -111,7 +111,7 @@ pub fn writeMarkdown(writer: anytype, evaluation: Evaluation) !void {
             metric.reason,
         });
     }
-    try writer.writeAll("\nBudgets compare against the committed M47 benchmark baseline matrix and may change only with reviewed baseline/budget evidence.\n");
+    try writer.writeAll("\nBudgets compare against the committed benchmark baseline matrix and may change only with reviewed baseline/budget evidence.\n");
 }
 
 pub fn renderMarkdown(allocator: std.mem.Allocator) ![]u8 {
@@ -128,7 +128,7 @@ pub fn assertBudgets(allocator: std.mem.Allocator) !void {
     if (!evaluation.all_ok) return error.PerformanceBudgetExceeded;
 }
 
-test "M56 performance budget gate passes against committed benchmark baseline" {
+test "performance gate performance budget gate passes against committed benchmark baseline" {
     const allocator = std.testing.allocator;
     const evaluation = try evaluate(allocator);
     try std.testing.expect(evaluation.all_ok);

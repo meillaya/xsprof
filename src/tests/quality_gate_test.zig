@@ -62,7 +62,7 @@ fn expectCompletionOrderEqual(a: *const sim.SimulationResult, b: *const sim.Simu
     }
 }
 
-test "M37-M46 docs and build graph expose Phase B quality gates" {
+test "quality docs and build graph expose Phase B quality gates" {
     const allocator = std.testing.allocator;
     const quality_doc = try readFileAlloc(allocator, "docs/quality-gates.md");
     defer allocator.free(quality_doc);
@@ -72,13 +72,13 @@ test "M37-M46 docs and build graph expose Phase B quality gates" {
     defer allocator.free(build_file);
 
     try expectContainsAll(quality_doc, &.{
-        "M37 test taxonomy",
-        "M38 golden fixture governance",
-        "M39-M42 executable gates",
-        "M43 CLI and SDK compatibility suite",
-        "M44 dashboard snapshot regression suite",
-        "M45 release checklist",
-        "M46 generated quality dashboard",
+        "test taxonomy",
+        "golden fixture governance",
+        "executable gates",
+        "CLI and SDK compatibility suite",
+        "dashboard snapshot regression suite",
+        "release checklist",
+        "quality dashboard generated quality dashboard",
         "ADR 0003",
         "not a daemon, service, agent",
     });
@@ -92,11 +92,11 @@ test "M37-M46 docs and build graph expose Phase B quality gates" {
         "zig_scheduler_quality",
         "src/quality/root.zig",
         "src/quality/main.zig",
-        "Render the M46 quality dashboard",
+        "Render the quality dashboard",
     });
 }
 
-test "M40 determinism oracle compares repeated curated simulator runs" {
+test "determinism oracle compares repeated curated simulator runs" {
     const allocator = std.testing.allocator;
     const corpus = [_][]const u8{
         "short-vs-long",
@@ -125,7 +125,7 @@ test "M40 determinism oracle compares repeated curated simulator runs" {
     }
 }
 
-test "M41 fault injection asserts stable parser diagnostics" {
+test "fault injection asserts stable parser diagnostics" {
     const allocator = std.testing.allocator;
 
     try std.testing.expectError(error.MissingName, sim.parseScenarioText(allocator, "", ""));
@@ -151,18 +151,18 @@ test "M41 fault injection asserts stable parser diagnostics" {
     , "bad-deadline"));
 }
 
-test "M46 quality dashboard keeps gate count and simulator boundary explicit" {
+test "quality dashboard keeps gate count and simulator boundary explicit" {
     try std.testing.expectEqual(@as(usize, 10), quality.quality_gates.len);
-    var saw_m37 = false;
-    var saw_m46 = false;
+    var saw_taxonomy = false;
+    var saw_quality_dashboard = false;
     for (quality.quality_gates) |gate| {
-        if (std.mem.eql(u8, gate.milestone, "M37")) saw_m37 = true;
-        if (std.mem.eql(u8, gate.milestone, "M46")) saw_m46 = true;
+        if (std.mem.eql(u8, gate.gate, "taxonomy")) saw_taxonomy = true;
+        if (std.mem.eql(u8, gate.gate, "quality dashboard")) saw_quality_dashboard = true;
         try std.testing.expect(gate.owner.len != 0);
         try std.testing.expect(gate.command.len != 0);
     }
-    try std.testing.expect(saw_m37);
-    try std.testing.expect(saw_m46);
+    try std.testing.expect(saw_taxonomy);
+    try std.testing.expect(saw_quality_dashboard);
 
     const allocator = std.testing.allocator;
     const rendered = try quality.renderMarkdown(allocator);
@@ -170,8 +170,8 @@ test "M46 quality dashboard keeps gate count and simulator boundary explicit" {
     try expectContainsAll(rendered, &.{
         "zig-scheduler quality dashboard",
         "simulator-lab/product quality",
-        "M37",
-        "M46",
+        "taxonomy",
+        "quality dashboard",
         "zig build quality",
     });
 }

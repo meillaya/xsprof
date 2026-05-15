@@ -37,7 +37,7 @@ zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --polic
 
 ## What to keep in mind
 - the simulator is a teaching model, not a Linux kernel implementation
-- the required path uses only the three M21 anchor scenarios
+- the required path uses only the three teaching anchor scenarios
 - optional appendices are not needed to complete the core package
 
 ## Where to go next

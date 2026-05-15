@@ -1,15 +1,15 @@
-# M76 LTS simulator-lab release plan
+# release plan LTS simulator-lab release plan
 
-This is the M76 decision package for the production-grade scheduler roadmap. It
+This is the release plan decision package for the production-grade scheduler roadmap. It
 packages an LTS simulator-lab release and does not authorize daemon, service, agent, production runtime, kernel scheduling, live capture, or host automation implementation.
 
 ## Release position
 
-- Decision: reaffirm deferred production runtime via `docs/adr/0004-m75-lts-simulator-lab-release.md`.
+- Decision: reaffirm deferred production runtime via `docs/adr/0004-lts-simulator-lab-release.md`.
 - Scope: deterministic scheduler simulator, courseware/lab surface, CLI/SDK,
   report pipeline, smart dashboard spine, quality gates, performance gates, and
   semantics vocabulary.
-- Boundary: ADR 0003 remains active; M75 did not re-charter production runtime.
+- Boundary: ADR 0003 remains active; release decision did not re-charter production runtime.
 
 ## Required release evidence
 
@@ -28,12 +28,12 @@ packages an LTS simulator-lab release and does not authorize daemon, service, ag
 
 | Artifact | Purpose |
 | --- | --- |
-| `docs/quality-gates.md` | M37-M46 quality gate ownership and governance |
-| `docs/performance-gates.md` | M47-M56 performance budgets and reproducible gate |
-| `docs/scheduler-semantics-v2.md` | M57-M66 semantics vocabulary |
-| `docs/smart-dashboard-spine.md` | M67-M74 dashboard screen IA and no-ad-hoc rule |
-| `docs/adr/0004-m75-lts-simulator-lab-release.md` | M75 decision to ship LTS simulator-lab rather than runtime |
-| `docs/lts-simulator-lab-release-plan.md` | M76 release package checklist |
+| `docs/quality-gates.md` | quality gate ownership and governance |
+| `docs/performance-gates.md` | performance budgets and reproducible gate |
+| `docs/scheduler-semantics-v2.md` | scheduler semantics vocabulary |
+| `docs/smart-dashboard-spine.md` | dashboard screen IA and no-ad-hoc rule |
+| `docs/adr/0004-lts-simulator-lab-release.md` | release decision decision to ship LTS simulator-lab rather than runtime |
+| `docs/lts-simulator-lab-release-plan.md` | release plan release package checklist |
 
 ## Future runtime branch prerequisites
 

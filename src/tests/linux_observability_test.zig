@@ -26,12 +26,12 @@ fn expectLacksAll(haystack: []const u8, needles: []const []const u8) !void {
     }
 }
 
-test "M19 fixture import loads approved tracefs sched snapshot and renders summary smoke" {
+test "observability fixture import loads approved tracefs sched snapshot and renders summary smoke" {
     var loaded = try observability.loadFixture(std.testing.allocator, observability.default_manifest_path);
     defer loaded.deinit(std.testing.allocator);
 
     try std.testing.expectEqual(@as(usize, 5), loaded.events.len);
-    try std.testing.expectEqualStrings("m19-tracefs-sched-demo", loaded.manifest.value.fixture_name);
+    try std.testing.expectEqualStrings("tracefs-sched-demo", loaded.manifest.value.fixture_name);
     try std.testing.expectEqualStrings(observability.approved_family, loaded.manifest.value.tuple.family);
     try std.testing.expectEqual(@as(usize, 2), loaded.summary.cpu_ids.len);
     try std.testing.expectEqual(@as(u16, 0), loaded.summary.cpu_ids[0]);
@@ -54,7 +54,7 @@ test "M19 fixture import loads approved tracefs sched snapshot and renders summa
     try std.testing.expect(std.mem.indexOf(u8, markdown, "sched_process_exit") != null);
 }
 
-test "M19 support matrix rejects unapproved tuple changes" {
+test "observability support matrix rejects unapproved tuple changes" {
     var matrix = try observability.loadSupportMatrix(std.testing.allocator, observability.support_matrix_path);
     defer matrix.deinit();
 
@@ -76,7 +76,7 @@ test "M19 support matrix rejects unapproved tuple changes" {
         .version = 1,
         .fixture_name = "test",
         .source_class = "committed scrubbed offline snapshot",
-        .raw_snapshot_path = "fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace",
+        .raw_snapshot_path = "fixtures/linux-observability/tracefs-sched-snapshot/tracefs-sched-demo.trace",
         .redistribution_basis = "repo fixture",
         .observability_only_caveats = &caveats,
         .tuple = .{
@@ -84,7 +84,7 @@ test "M19 support matrix rejects unapproved tuple changes" {
             .kernel_release = "linux-6.6",
             .tool_version = "tracefs-kernel-6.6",
             .tracefs_root = "/sys/kernel/tracing",
-            .capture_recipe = "instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
+            .capture_recipe = "instance=tracefs-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
             .trace_clock = "global",
             .enabled_sched_events = &sched_events,
             .scope = "system-wide dedicated instance",
@@ -101,7 +101,7 @@ test "M19 support matrix rejects unapproved tuple changes" {
         .version = 1,
         .fixture_name = "test",
         .source_class = "committed scrubbed offline snapshot",
-        .raw_snapshot_path = "fixtures/linux-observability/tracefs-sched-snapshot/m19-tracefs-sched-demo.trace",
+        .raw_snapshot_path = "fixtures/linux-observability/tracefs-sched-snapshot/tracefs-sched-demo.trace",
         .redistribution_basis = "repo fixture",
         .observability_only_caveats = &caveats,
         .tuple = .{
@@ -109,7 +109,7 @@ test "M19 support matrix rejects unapproved tuple changes" {
             .kernel_release = "linux-6.8",
             .tool_version = "tracefs-kernel-6.6",
             .tracefs_root = "/sys/kernel/tracing",
-            .capture_recipe = "instance=m19-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
+            .capture_recipe = "instance=tracefs-snapshot; events=sched_switch,sched_wakeup,sched_wakeup_new,sched_process_fork,sched_process_exit; snapshot=1",
             .trace_clock = "global",
             .enabled_sched_events = &sched_events,
             .scope = "system-wide dedicated instance",
@@ -122,25 +122,25 @@ test "M19 support matrix rejects unapproved tuple changes" {
     try std.testing.expectError(observability.Error.UnsupportedTuple, observability.validateManifestAgainstMatrix(&unsupported_tuple, &matrix.value));
 }
 
-test "M19 docs and fixture surfaces stay separated from simulator-native scenarios" {
+test "observability docs and fixture surfaces stay separated from simulator-native scenarios" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
-    const m19_doc = try readFileAlloc(allocator, "docs/m19-curated-linux-observability.md");
-    defer allocator.free(m19_doc);
+    const observability_doc = try readFileAlloc(allocator, "docs/curated-linux-observability.md");
+    defer allocator.free(observability_doc);
     const fixture_doc = try readFileAlloc(allocator, "fixtures/linux-observability/README.md");
     defer allocator.free(fixture_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "fixtures/linux-observability/") != null);
     try std.testing.expect(std.mem.indexOf(u8, project_doc, "widening `zig-scheduler/report` or `src/analysis`") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m19_doc, "tracefs-sched-snapshot") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m19_doc, "perf sched") != null);
+    try std.testing.expect(std.mem.indexOf(u8, observability_doc, "tracefs-sched-snapshot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, observability_doc, "perf sched") != null);
     try std.testing.expect(std.mem.indexOf(u8, fixture_doc, "offline, observability-only") != null);
 }
 
-test "M20 fixed-input observability fixture remains reproducible across repeated loads" {
+test "comparison fixed-input observability fixture remains reproducible across repeated loads" {
     var first = try observability.loadFixture(std.testing.allocator, observability.default_manifest_path);
     defer first.deinit(std.testing.allocator);
     var second = try observability.loadFixture(std.testing.allocator, observability.default_manifest_path);
@@ -170,14 +170,14 @@ test "M20 fixed-input observability fixture remains reproducible across repeated
     try std.testing.expectEqualStrings(first_markdown, second_markdown);
 }
 
-test "M20 claim-rejection audit keeps observability proof surfaces conservative" {
+test "comparison claim-rejection audit keeps observability proof surfaces conservative" {
     const allocator = std.testing.allocator;
     const readme = try readFileAlloc(allocator, "README.md");
     defer allocator.free(readme);
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
-    const m19_doc = try readFileAlloc(allocator, "docs/m19-curated-linux-observability.md");
-    defer allocator.free(m19_doc);
+    const observability_doc = try readFileAlloc(allocator, "docs/curated-linux-observability.md");
+    defer allocator.free(observability_doc);
     const fixture_doc = try readFileAlloc(allocator, "fixtures/linux-observability/README.md");
     defer allocator.free(fixture_doc);
 
@@ -196,7 +196,7 @@ test "M20 claim-rejection audit keeps observability proof surfaces conservative"
         "replay-fidelity claims",
         "Linux-performance or calibration claims",
     });
-    try expectContainsAll(m19_doc, &[_][]const u8{
+    try expectContainsAll(observability_doc, &[_][]const u8{
         "observability-only",
         "does **not**:",
         "make replay, calibration, or Linux-performance claims",
@@ -211,7 +211,7 @@ test "M20 claim-rejection audit keeps observability proof surfaces conservative"
     });
 
     try expectLacksAll(readme, &forbidden_claim_labels);
-    try expectLacksAll(m19_doc, &forbidden_claim_labels);
+    try expectLacksAll(observability_doc, &forbidden_claim_labels);
     try expectLacksAll(fixture_doc, &forbidden_claim_labels);
     try expectLacksAll(summary_markdown, &forbidden_claim_labels);
 }

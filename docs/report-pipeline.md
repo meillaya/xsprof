@@ -14,7 +14,7 @@ zig build reports
 Run the same pipeline into a separate directory for smoke testing:
 
 ```sh
-zig build reports -- --output-dir zig-out/m16-smoke
+zig build reports -- --output-dir zig-out/report-smoke
 ```
 
 Check for drift without rewriting files:
@@ -30,8 +30,8 @@ The pipeline regenerates these committed artifacts:
 - `docs/examples/exports/multicore-contention-fcfs.report.json`
 - `docs/examples/analysis/multicore-contention-fcfs.md`
 - `docs/examples/analysis/multicore-contention-fcfs.svg`
-- `docs/benchmarks/m45-baselines.md`
-- `docs/benchmarks/m45-baselines.json`
+- `docs/benchmarks/baselines.md`
+- `docs/benchmarks/baselines.json`
 - `docs/labs/reproducible-report-pack.md`
 
 The generated notebook/index (`docs/labs/reproducible-report-pack.md`) records

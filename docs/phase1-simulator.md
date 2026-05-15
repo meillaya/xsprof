@@ -68,7 +68,7 @@ Use `zig build reports -- --output-dir <dir>` for a smoke run that materializes
 the same curated artifact pack outside the committed docs tree.
 
 ### Simulator-local benchmark baselines
-M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/m45-baselines.md` and `docs/benchmarks/m45-baselines.json`.
+M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/baselines.md` and `docs/benchmarks/baselines.json`.
 
 These baselines are simulator-local only: they help compare fixtures/policies within this project, and they must not be presented as Linux scheduler performance measurements.
 
@@ -83,7 +83,7 @@ Required coverage in the canonical corpus includes:
 - deterministic multicore rebalancing (`multicore-balancing`)
 - topology-aware placement (`topology-domains`)
 
-See `docs/m17-scenario-corpus.md` for the index, recommended policies, and
+See `docs/scenario-corpus.md` for the index, recommended policies, and
 manual-demo commands.
 
 ### Deterministic blocked / wakeup model
@@ -144,7 +144,7 @@ M13 extends verification expectations around the existing public scenario surfac
 
 These checks are simulator-local only. They increase confidence in parser, engine, and export invariants, but they do not by themselves justify Linux scheduler fidelity or production-hardening claims.
 
-See `docs/m13-scenario-generator-workflow.md` for the workflow and save-path guidance.
+See `docs/scenario-generator-workflow.md` for the workflow and save-path guidance.
 
 ### Public trace event taxonomy
 The public trace event kinds are:

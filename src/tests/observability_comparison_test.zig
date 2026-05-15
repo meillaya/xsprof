@@ -23,7 +23,7 @@ fn expectJsonObjectFields(value: std.json.Value, expected: []const []const u8) !
     }
 }
 
-test "M20 approved pairing manifest stays frozen to the sole approved inputs" {
+test "comparison approved pairing manifest stays frozen to the sole approved inputs" {
     const allocator = std.testing.allocator;
     var manifest = try comparison.loadPairingManifest(allocator, comparison.default_pairing_manifest_path);
     defer manifest.deinit();
@@ -54,7 +54,7 @@ test "M20 approved pairing manifest stays frozen to the sole approved inputs" {
     });
 }
 
-test "M20 comparison smoke stays reproducible for the approved inputs" {
+test "comparison smoke stays reproducible for the approved inputs" {
     var summary = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer summary.deinit(std.testing.allocator);
 
@@ -108,7 +108,7 @@ test "M20 comparison smoke stays reproducible for the approved inputs" {
     try std.testing.expectApproxEqAbs(6.8, summary.metric_rows[6].delta.float, 0.000001);
 }
 
-test "M20 comparison JSON contract shape stays frozen to v1" {
+test "comparison JSON contract shape stays frozen to v1" {
     var summary = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer summary.deinit(std.testing.allocator);
 
@@ -131,7 +131,7 @@ test "M20 comparison JSON contract shape stays frozen to v1" {
     }
 }
 
-test "M20 comparison numeric semantics stay exact for count and span rows" {
+test "comparison numeric semantics stay exact for count and span rows" {
     var summary = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer summary.deinit(std.testing.allocator);
 
@@ -154,7 +154,7 @@ test "M20 comparison numeric semantics stay exact for count and span rows" {
     try std.testing.expect(metric_rows[6].object.get("delta").? == .float);
 }
 
-test "M20 comparison is deterministic across repeated approved-input runs" {
+test "comparison is deterministic across repeated approved-input runs" {
     var first = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer first.deinit(std.testing.allocator);
     var second = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
@@ -168,7 +168,7 @@ test "M20 comparison is deterministic across repeated approved-input runs" {
     try std.testing.expectEqualStrings(first_json, second_json);
 }
 
-test "M20 comparison rejects unsupported marketing labels and keeps boundary flags false" {
+test "comparison rejects unsupported marketing labels and keeps boundary flags false" {
     inline for (comparison.rejected_claim_labels) |label| {
         try std.testing.expectError(error.UnsupportedClaim, comparison.assertSupportedPresentationLabel(label));
     }
@@ -177,9 +177,9 @@ test "M20 comparison rejects unsupported marketing labels and keeps boundary fla
     try std.testing.expect(!comparison.supports_entity_equivalence);
 }
 
-test "M20 docs and boundary surfaces stay separate from report and analysis contracts" {
+test "comparison docs and boundary surfaces stay separate from report and analysis contracts" {
     const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/m20-simulator-to-trace-comparison.md");
+    const doc = try readFileAlloc(allocator, "docs/simulator-to-trace-comparison.md");
     defer allocator.free(doc);
     const report_contract = try readFileAlloc(allocator, "src/contract/report.zig");
     defer allocator.free(report_contract);
@@ -204,14 +204,14 @@ test "M20 docs and boundary surfaces stay separate from report and analysis cont
     try std.testing.expect(std.mem.indexOf(u8, analysis_main, comparison.schema_name) == null);
 }
 
-test "M20 markdown proof surface renders the approved comparison rows" {
+test "comparison markdown proof surface renders the approved comparison rows" {
     var summary = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer summary.deinit(std.testing.allocator);
 
     const markdown = try comparison.renderComparisonMarkdown(std.testing.allocator, &summary);
     defer std.testing.allocator.free(markdown);
 
-    try std.testing.expect(std.mem.indexOf(u8, markdown, "M20 simulator-to-trace comparison") != null);
+    try std.testing.expect(std.mem.indexOf(u8, markdown, "comparison simulator-to-trace comparison") != null);
     try std.testing.expect(std.mem.indexOf(u8, markdown, "`activation_count_delta`") != null);
     try std.testing.expect(std.mem.indexOf(u8, markdown, "`time_span_delta`") != null);
     try std.testing.expect(std.mem.indexOf(u8, markdown, "`units_not_equivalent`") != null);

@@ -2,7 +2,7 @@ const std = @import("std");
 const list_writer = @import("list_writer");
 
 pub const support_matrix_path = "fixtures/linux-observability/support-matrix.json";
-pub const default_manifest_path = "fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json";
+pub const default_manifest_path = "fixtures/linux-observability/manifests/tracefs-sched-demo.json";
 
 pub const support_matrix_schema = "zig-scheduler/linux-observability-support-matrix";
 pub const fixture_manifest_schema = "zig-scheduler/linux-observability-fixture-manifest";

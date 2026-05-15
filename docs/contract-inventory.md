@@ -4,7 +4,7 @@
 
 M31-M32 inventory artifact for the Phase A cleanup tranche. It documents the
 current simulator/laboratory contracts without reopening the production runtime
-branch. ADR 0003 (`docs/adr/0003-m25-productionization-gate.md`) remains the
+branch. ADR 0003 (`docs/adr/0003-productionization-gate.md`) remains the
 governing productionization gate: this inventory classifies portability and
 ownership, but it does not authorize daemon, service, live-capture, kernel, or
 automation implementation work.
@@ -41,13 +41,13 @@ Classification:
 | Scenario input | `src/sim/scenario.zig`, `src/sim/types.zig`, facade `src/sdk/scenario_io.zig` | Object-style ZON scenario files under `scenarios/basic/` plus parser helpers | Runtime-portable data shape, lab-only semantics | Parser accepts documented scenario fields and returns owned `ScenarioOwned`; scheduler meaning remains simulator-local. | `src/tests/scenario_test.zig`, `src/tests/scenarios_test.zig`, SDK workflow test |
 | Simulator result/value API | `src/sim/engine.zig`, `src/sim/types.zig`, facade `src/lib.zig` / `src/sdk/model.zig` | `simulate(allocator, &scenario, policy) -> SimulationResult` | Runtime-portable data shape, lab-only execution semantics | Caller owns allocated result and may inspect documented result/value fields used by SDK docs/tests. | `src/tests/simulator_test.zig`, `src/tests/library_sdk_test.zig` |
 | Report JSON export | `src/contract/report.zig`, `src/cli/report.zig`, facade `src/sdk/report.zig` | `zig-scheduler/report` schema/version 1 JSON | Runtime-portable serialized artifact | Versioned schema and top-level/nested fields remain explicit; unsupported schema/version is rejected. | `src/tests/cli_smoke_test.zig`, `src/analysis/tests.zig`, report-pipeline tests |
-| SDK facade | `src/lib.zig`, `src/sdk/*.zig` | `zig_scheduler` module, `sdk_api_version`, `model`, `scenario_io`, `simulate`, `report` | Runtime-portable embedder facade, not a production service API | Only the documented narrow stable subset in `docs/m22-library-sdk.md` and this inventory is stable. | `src/tests/library_sdk_test.zig`, `zig build m22-embed-smoke` |
+| SDK facade | `src/lib.zig`, `src/sdk/*.zig` | `zig_scheduler` module, `sdk_api_version`, `model`, `scenario_io`, `simulate`, `report` | Runtime-portable embedder facade, not a production service API | Only the documented narrow stable subset in `docs/library-sdk.md` and this inventory is stable. | `src/tests/library_sdk_test.zig`, `zig build embed-smoke` |
 | CLI arguments | `src/cli/args.zig`, `src/main.zig`, `src/sim_main.zig` | `zig build run`, `zig build sim`, flags for scenario/source/policy/output | Lab-only command contract | Flags remain deterministic simulator/report entrypoints; no live process control is implied. | CLI args tests, CLI smoke tests |
 | TUI snapshot output | `src/tui/args.zig`, `src/tui/root.zig`, `src/tui/render.zig` | `--snapshot`, dimensions, input/report/scenario sources | Lab-only presentation artifact | Explicit snapshot mode renders deterministic report/fixture views; interactive mode requires TTY and is not a service UI. | TUI args/root/render tests |
 | Benchmark output | `src/bench/root.zig`, `docs/benchmarks/*` | `zig-scheduler/benchmark-baseline` schema/version 1 | Lab-only baseline artifact | Baselines record deterministic output sizes/trace volumes over committed fixtures; no Linux-performance claim. | Bench tests, `zig build bench`, report check when artifacts change |
 | Analysis markdown/SVG | `src/analysis/*`, `docs/examples/analysis/*` | Markdown/SVG derived from report JSON | Lab-only downstream reporting | Consumes `zig-scheduler/report` without widening the report contract. | Analysis tests, report-pipeline tests |
 | Offline Linux observability fixtures | `fixtures/linux-observability/*`, `src/observability/*` | Version-pinned imported snapshots and comparison summaries | Intentionally non-runtime | Offline, curated, scrubbed fixtures only; no live capture, replay authority, or monitoring daemon. | Linux observability and comparison tests |
-| Production runtime branch | ADR 0003 plus future M75/M76 planning only | No runtime package/API exists in the current tree | Intentionally non-runtime | Production work remains deferred until a new ADR/re-charter names sponsor, operator, threat model, owners, and compatibility plan. | ADR wording checks and M27-M32 final verification |
+| Production runtime branch | ADR 0003 plus future release decision/release plan planning only | No runtime package/API exists in the current tree | Intentionally non-runtime | Production work remains deferred until a new ADR/re-charter names sponsor, operator, threat model, owners, and compatibility plan. | ADR wording checks and M27-M32 final verification |
 
 ## Public API/error/logging/config boundaries
 

@@ -626,14 +626,14 @@ test "topology-aware JSON export exposes topology domains and domain-tagged trac
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"domain_id\":\"node0\"") != null);
 }
 
-test "M21 teaching-pack commands stay aligned with the exact shortlist" {
+test "teaching-pack commands stay aligned with the exact shortlist" {
     const allocator = std.testing.allocator;
     const readme = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "README.md", allocator, .unlimited);
     defer allocator.free(readme);
     const teaching_pack = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/labs/simulator-teaching-pack.md", allocator, .unlimited);
     defer allocator.free(teaching_pack);
 
-    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
     try std.testing.expectEqual(@as(usize, 3), shortlist.len);
 
     for (shortlist) |entry| {
@@ -660,9 +660,9 @@ test "M21 teaching-pack commands stay aligned with the exact shortlist" {
     }
 }
 
-test "M23 required package commands stay aligned with the exact M21 command pairs" {
+test "required package commands stay aligned with the exact teaching command pairs" {
     const allocator = std.testing.allocator;
-    const package_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/m23-teaching-distribution.md", allocator, .unlimited);
+    const package_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/teaching-distribution.md", allocator, .unlimited);
     defer allocator.free(package_doc);
     const onboarding_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/courseware/student-onboarding.md", allocator, .unlimited);
     defer allocator.free(onboarding_doc);
@@ -675,7 +675,7 @@ test "M23 required package commands stay aligned with the exact M21 command pair
     try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/instructor-guide.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, package_doc, "docs/courseware/assignment-pack-01.md") != null);
 
-    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
     for (shortlist) |entry| {
         const policy = entry.recommended_policy.?;
         const sim_command = try std.fmt.allocPrint(allocator, "zig build sim -- --scenario-file {s} --policy {s}", .{ entry.path, policyCliName(policy) });
@@ -696,8 +696,8 @@ test "M23 required package commands stay aligned with the exact M21 command pair
         try std.testing.expect(std.mem.indexOf(u8, rendered, entry.key) != null);
     }
 
-    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "zig build m22-embed-smoke") == null);
-    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m19") == null);
-    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--m20") == null);
-    try std.testing.expect(std.mem.indexOf(u8, instructor_doc, "zig build m22-embed-smoke") != null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "zig build embed-smoke") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--observability") == null);
+    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "--comparison") == null);
+    try std.testing.expect(std.mem.indexOf(u8, instructor_doc, "zig build embed-smoke") != null);
 }

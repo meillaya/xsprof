@@ -1,13 +1,13 @@
-# M20 simulator-to-trace comparison summary
+# comparison simulator-to-trace comparison summary
 
-M20 adds one narrow reproducible comparison surface between the simulator and the
-committed M19 Linux-observability fixture family.
+comparison adds one narrow reproducible comparison surface between the simulator and the
+committed observability Linux-observability fixture family.
 
 ## Scope boundary
 
 This milestone is intentionally limited to:
 - pairing `scenarios/basic/sleep-wakeup.zon` with `cfs_like`
-- comparing against `fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json`
+- comparing against `fixtures/linux-observability/manifests/tracefs-sched-demo.json`
 - emitting the separate `zig-scheduler/observability-comparison` v1 payload only
 - keeping the surface library/docs/tests only
 
@@ -21,9 +21,9 @@ This milestone does **not**:
 
 ## Approved pairing manifest
 
-- Pairing manifest: `fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json`
+- Pairing manifest: `fixtures/linux-observability/pairings/sleep-wakeup-vs-tracefs-sched-demo.json`
 - Contract: `zig-scheduler/observability-comparison` v1
-- TUI observability lane: `zig-out/bin/zig-scheduler --m20` or `--m20-pairing <path>`
+- TUI observability lane: `zig-out/bin/zig-scheduler --comparison` or `--comparison-pairing <path>`
 - Normalization mapping:
   - `activation` = simulator `arrival|wakeup` vs observability `sched_wakeup|sched_wakeup_new`
   - `selection` = simulator `dispatch` vs observability `sched_switch`
@@ -34,7 +34,7 @@ normalized family summaries.
 
 ## Reproducible smoke values
 
-From the committed simulator input and committed M19 fixture only, the approved
+From the committed simulator input and committed observability fixture only, the approved
 comparison produces:
 
 | metric | simulator | observability | delta | caveat |

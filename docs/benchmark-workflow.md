@@ -31,8 +31,8 @@ zig build bench -- --format json
 ```
 
 ## Committed baseline artifacts
-- `docs/benchmarks/m45-baselines.md`
-- `docs/benchmarks/m45-baselines.json`
+- `docs/benchmarks/baselines.md`
+- `docs/benchmarks/baselines.json`
 
 These artifacts are generated from this fixed fixture/policy matrix:
 - `scenarios/basic/arrivals.zon` with `fcfs`
@@ -56,4 +56,4 @@ Minimum checks:
 - docs audit confirming simulator-local labeling
 
 For the end-to-end reproducible report pack that also regenerates the benchmark
-artifacts, see `docs/m16-report-pipeline.md`.
+artifacts, see `docs/report-pipeline.md`.

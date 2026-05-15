@@ -9,7 +9,7 @@ pub fn main() !void {
 
     const source =
         \\.{
-        \\    .name = "m22-embed-smoke",
+        \\    .name = "embed-smoke",
         \\    .tasks = .{
         \\        .{ .id = "A", .arrival_tick = 0, .burst_ticks = 2 },
         \\        .{ .id = "B", .arrival_tick = 1, .burst_ticks = 1 },
@@ -17,14 +17,14 @@ pub fn main() !void {
         \\}
     ;
 
-    var scenario = try scheduler.scenario_io.parseScenarioText(allocator, source, "m22-embed-smoke");
+    var scenario = try scheduler.scenario_io.parseScenarioText(allocator, source, "embed-smoke");
     defer scenario.deinit();
 
     var result = try scheduler.simulate(allocator, &scenario, scheduler.model.PolicyKind.fcfs);
     defer result.deinit();
 
     const report = scheduler.report.SimulationReport.init(
-        .{ .kind = .file, .value = "inline:m22-embed-smoke" },
+        .{ .kind = .file, .value = "inline:embed-smoke" },
         &scenario,
         &result,
     );
@@ -35,5 +35,5 @@ pub fn main() !void {
     try scheduler.report.writeJsonReport(&writer, report);
 
     if (std.mem.indexOf(u8, buffer.items, scheduler.report.schema_name) == null) return error.SmokeFailure;
-    if (std.mem.indexOf(u8, buffer.items, "\"scenario\":{\"name\":\"m22-embed-smoke\"") == null) return error.SmokeFailure;
+    if (std.mem.indexOf(u8, buffer.items, "\"scenario\":{\"name\":\"embed-smoke\"") == null) return error.SmokeFailure;
 }

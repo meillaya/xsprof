@@ -248,13 +248,13 @@ test "sleep configuration requires positive duration and a valid post-dispatch p
     );
 }
 
-test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
+test "docs keep blocked-state semantics educational and simulator-scoped" {
     const allocator = std.testing.allocator;
     const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
     const linux_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/linux-mapping.md", allocator, .unlimited);
     defer allocator.free(linux_doc);
-    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m17-scenario-corpus.md", allocator, .unlimited);
+    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/scenario-corpus.md", allocator, .unlimited);
     defer allocator.free(corpus_doc);
 
     try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
@@ -265,11 +265,11 @@ test "M6 docs keep blocked-state semantics educational and simulator-scoped" {
     try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
 }
 
-test "M14 registry and docs describe scenario-pack and policy extension boundaries" {
+test "registry and docs describe scenario-pack and policy extension boundaries" {
     const allocator = std.testing.allocator;
     const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
-    const extension_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/m14-extension-boundary.md", allocator, .unlimited);
+    const extension_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/extension-boundary.md", allocator, .unlimited);
     defer allocator.free(extension_doc);
 
     const builtins = scheduler.listBuiltinScenarios();
@@ -313,7 +313,7 @@ test "legacy line oriented scenario text remains supported" {
     try expectTask(scenario.tasks[1], "B", 1, 1, 1);
 }
 
-test "M33 parser mode detection keeps object ZON canonical and legacy compatibility explicit" {
+test "parser mode detection keeps object ZON canonical and legacy compatibility explicit" {
     const object_source =
         \\.{
         \\    .name = "object-mode",
@@ -335,7 +335,7 @@ test "M33 parser mode detection keeps object ZON canonical and legacy compatibil
     try std.testing.expect(std.mem.indexOf(u8, scheduler.parser_contract.compatibility_boundary, "compatibility-only") != null);
 }
 
-test "M33 parser mode errors stay isolated by compatibility boundary" {
+test "parser mode errors stay isolated by compatibility boundary" {
     const malformed_object =
         \\.{
         \\    .name = "malformed-object",
@@ -422,7 +422,7 @@ test "generated scenario helper emits valid scenarios across deterministic seeds
         const source = try buildGeneratedScenarioSource(allocator, @intCast(seed));
         defer allocator.free(source);
 
-        const expected_name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+        const expected_name = try std.fmt.allocPrint(allocator, "generated-property-{d}", .{seed});
         defer allocator.free(expected_name);
 
         var scenario = try scheduler.parseScenarioText(allocator, source, expected_name);
@@ -455,7 +455,7 @@ fn buildGeneratedScenarioSource(allocator: std.mem.Allocator, seed: u32) ![]u8 {
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
 
-    const name = try std.fmt.allocPrint(allocator, "generated-m13-{d}", .{seed});
+    const name = try std.fmt.allocPrint(allocator, "generated-property-{d}", .{seed});
     defer allocator.free(name);
 
     const core_count: u32 = if (seed % 2 == 0) 1 else 2;

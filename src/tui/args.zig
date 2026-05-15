@@ -7,10 +7,10 @@ pub const InputSource = union(enum) {
     stdin_report,
     simulate_builtin: []const u8,
     simulate_file: []const u8,
-    m19_default,
-    m19_manifest: []const u8,
-    m20_default,
-    m20_pairing: []const u8,
+    observability_default,
+    observability_manifest: []const u8,
+    comparison_default,
+    comparison_pairing: []const u8,
 };
 
 pub const RuntimeMode = enum {
@@ -78,24 +78,24 @@ pub fn parseArgs(args: []const []const u8) !Options {
             options.input_source = .{ .simulate_file = try nextArg(args, &index) };
             continue;
         }
-        if (std.mem.eql(u8, arg, "--m19")) {
+        if (std.mem.eql(u8, arg, "--observability")) {
             if (options.input_source != .picker) return error.InvalidArguments;
-            options.input_source = .m19_default;
+            options.input_source = .observability_default;
             continue;
         }
-        if (std.mem.eql(u8, arg, "--m19-manifest")) {
+        if (std.mem.eql(u8, arg, "--observability-manifest")) {
             if (options.input_source != .picker) return error.InvalidArguments;
-            options.input_source = .{ .m19_manifest = try nextArg(args, &index) };
+            options.input_source = .{ .observability_manifest = try nextArg(args, &index) };
             continue;
         }
-        if (std.mem.eql(u8, arg, "--m20")) {
+        if (std.mem.eql(u8, arg, "--comparison")) {
             if (options.input_source != .picker) return error.InvalidArguments;
-            options.input_source = .m20_default;
+            options.input_source = .comparison_default;
             continue;
         }
-        if (std.mem.eql(u8, arg, "--m20-pairing")) {
+        if (std.mem.eql(u8, arg, "--comparison-pairing")) {
             if (options.input_source != .picker) return error.InvalidArguments;
-            options.input_source = .{ .m20_pairing = try nextArg(args, &index) };
+            options.input_source = .{ .comparison_pairing = try nextArg(args, &index) };
             continue;
         }
         if (std.mem.eql(u8, arg, "--policy")) {
@@ -121,7 +121,7 @@ pub fn parseArgs(args: []const []const u8) !Options {
         .simulate_builtin, .simulate_file => {
             if (options.policy == null) return error.InvalidArguments;
         },
-        .m19_default, .m19_manifest, .m20_default, .m20_pairing => {
+        .observability_default, .observability_manifest, .comparison_default, .comparison_pairing => {
             if (options.policy != null) return error.InvalidArguments;
             if (options.snapshot_tick != null) return error.InvalidArguments;
         },
@@ -181,22 +181,22 @@ test "snapshot parsing stays orthogonal to report and simulation sources" {
     try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", file_options.input_source.simulate_file);
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, file_options.policy.?);
 
-    const m19_default_options = try parseArgs(&.{ "--snapshot", "--m19", "--width", "100" });
-    try std.testing.expectEqual(RuntimeMode.snapshot, m19_default_options.runtime_mode);
-    try std.testing.expectEqual(InputSource.m19_default, m19_default_options.input_source);
-    try std.testing.expectEqual(@as(u16, 100), m19_default_options.snapshot_width);
+    const observability_default_options = try parseArgs(&.{ "--snapshot", "--observability", "--width", "100" });
+    try std.testing.expectEqual(RuntimeMode.snapshot, observability_default_options.runtime_mode);
+    try std.testing.expectEqual(InputSource.observability_default, observability_default_options.input_source);
+    try std.testing.expectEqual(@as(u16, 100), observability_default_options.snapshot_width);
 
-    const m19_manifest_options = try parseArgs(&.{ "--m19-manifest", "fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json" });
-    try std.testing.expectEqual(RuntimeMode.interactive, m19_manifest_options.runtime_mode);
-    try std.testing.expectEqualStrings("fixtures/linux-observability/manifests/m19-tracefs-sched-demo.json", m19_manifest_options.input_source.m19_manifest);
+    const observability_manifest_options = try parseArgs(&.{ "--observability-manifest", "fixtures/linux-observability/manifests/tracefs-sched-demo.json" });
+    try std.testing.expectEqual(RuntimeMode.interactive, observability_manifest_options.runtime_mode);
+    try std.testing.expectEqualStrings("fixtures/linux-observability/manifests/tracefs-sched-demo.json", observability_manifest_options.input_source.observability_manifest);
 
-    const m20_default_options = try parseArgs(&.{"--m20"});
-    try std.testing.expectEqual(RuntimeMode.interactive, m20_default_options.runtime_mode);
-    try std.testing.expectEqual(InputSource.m20_default, m20_default_options.input_source);
+    const comparison_default_options = try parseArgs(&.{"--comparison"});
+    try std.testing.expectEqual(RuntimeMode.interactive, comparison_default_options.runtime_mode);
+    try std.testing.expectEqual(InputSource.comparison_default, comparison_default_options.input_source);
 
-    const m20_pairing_options = try parseArgs(&.{ "--snapshot", "--m20-pairing", "fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json" });
-    try std.testing.expectEqual(RuntimeMode.snapshot, m20_pairing_options.runtime_mode);
-    try std.testing.expectEqualStrings("fixtures/linux-observability/pairings/m20-sleep-wakeup-vs-m19-tracefs-sched-demo.json", m20_pairing_options.input_source.m20_pairing);
+    const comparison_pairing_options = try parseArgs(&.{ "--snapshot", "--comparison-pairing", "fixtures/linux-observability/pairings/sleep-wakeup-vs-tracefs-sched-demo.json" });
+    try std.testing.expectEqual(RuntimeMode.snapshot, comparison_pairing_options.runtime_mode);
+    try std.testing.expectEqualStrings("fixtures/linux-observability/pairings/sleep-wakeup-vs-tracefs-sched-demo.json", comparison_pairing_options.input_source.comparison_pairing);
 }
 
 test "interactive report and simulation parsing stays stable" {
@@ -214,13 +214,13 @@ test "interactive report and simulation parsing stays stable" {
     try std.testing.expectEqualStrings("scenarios/basic/group-fairness.zon", file_options.input_source.simulate_file);
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, file_options.policy.?);
 
-    const m19_options = try parseArgs(&.{"--m19"});
-    try std.testing.expectEqual(RuntimeMode.interactive, m19_options.runtime_mode);
-    try std.testing.expectEqual(InputSource.m19_default, m19_options.input_source);
+    const observability_options = try parseArgs(&.{"--observability"});
+    try std.testing.expectEqual(RuntimeMode.interactive, observability_options.runtime_mode);
+    try std.testing.expectEqual(InputSource.observability_default, observability_options.input_source);
 
-    const m20_options = try parseArgs(&.{"--m20"});
-    try std.testing.expectEqual(RuntimeMode.interactive, m20_options.runtime_mode);
-    try std.testing.expectEqual(InputSource.m20_default, m20_options.input_source);
+    const comparison_options = try parseArgs(&.{"--comparison"});
+    try std.testing.expectEqual(RuntimeMode.interactive, comparison_options.runtime_mode);
+    try std.testing.expectEqual(InputSource.comparison_default, comparison_options.input_source);
 }
 
 test "invalid snapshot and tty combinations stay rejected" {
@@ -234,8 +234,13 @@ test "invalid snapshot and tty combinations stay rejected" {
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--snapshot", "--scenario", "short-vs-long" }));
     try std.testing.expectError(error.InvalidPolicy, parseArgs(&.{ "--snapshot", "--scenario", "short-vs-long", "--policy", "bogus" }));
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--scenario", "short-vs-long", "--scenario-file", "x", "--policy", "fcfs" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--m19", "--policy", "fcfs" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--m20", "--tick", "3", "--snapshot" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--m19", "--input", "fixture.report.json" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--m20", "--scenario-file", "scenarios/basic/group-fairness.zon", "--policy", "fcfs" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--observability", "--policy", "fcfs" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--comparison", "--tick", "3", "--snapshot" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--observability", "--input", "fixture.report.json" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "--comparison", "--scenario-file", "scenarios/basic/group-fairness.zon", "--policy", "fcfs" }));
+
+    const legacy_observability_flag = "--m" ++ "19";
+    const legacy_comparison_flag = "--m" ++ "20";
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{legacy_observability_flag}));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{legacy_comparison_flag}));
 }

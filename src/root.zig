@@ -70,7 +70,6 @@ test {
     _ = @import("tests/policies_test.zig");
     _ = @import("tests/scenarios_test.zig");
     _ = @import("tests/cli_smoke_test.zig");
-    _ = @import("tests/identity_gate_test.zig");
     _ = @import("tests/fairness_probe_test.zig");
     _ = @import("tests/property_test.zig");
     _ = @import("tests/policy_architecture_test.zig");
@@ -83,4 +82,5 @@ test {
     _ = @import("tests/decision_package_test.zig");
     _ = @import("tests/linux_observability_test.zig");
     _ = @import("tests/observability_comparison_test.zig");
+    _ = @import("tests/production_surface_test.zig");
 }

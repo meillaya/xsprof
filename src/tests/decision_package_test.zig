@@ -8,9 +8,9 @@ fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
     for (needles) |needle| try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
 }
 
-test "M75 decision reaffirms deferred production runtime" {
+test "release decision decision reaffirms deferred production runtime" {
     const allocator = std.testing.allocator;
-    const adr = try readFileAlloc(allocator, "docs/adr/0004-m75-lts-simulator-lab-release.md");
+    const adr = try readFileAlloc(allocator, "docs/adr/0004-lts-simulator-lab-release.md");
     defer allocator.free(adr);
 
     try expectContainsAll(adr, &.{
@@ -23,7 +23,7 @@ test "M75 decision reaffirms deferred production runtime" {
     });
 }
 
-test "M76 package lists release evidence and forbids runtime authorization" {
+test "release plan package lists release evidence and forbids runtime authorization" {
     const allocator = std.testing.allocator;
     const plan = try readFileAlloc(allocator, "docs/lts-simulator-lab-release-plan.md");
     defer allocator.free(plan);

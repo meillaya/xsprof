@@ -38,7 +38,7 @@ const ChoosingPolicy = struct {
     }
 };
 
-test "M14 built-in policy descriptors remain explicit and complete" {
+test "built-in policy descriptors remain explicit and complete" {
     const descriptors = sim.policies.extension.listPolicyDescriptors();
     try std.testing.expectEqual(@as(usize, 4), descriptors.len);
     try std.testing.expectEqual(sim.PolicyKind.fcfs, descriptors[0].kind);
@@ -55,7 +55,7 @@ test "M14 built-in policy descriptors remain explicit and complete" {
     try std.testing.expect(std.mem.indexOf(u8, class_source, "@import(\"extension.zig\")") != null);
 }
 
-test "M24 experimental policies stay outside the built-in stable descriptor set" {
+test "experimental policies stay outside the built-in stable descriptor set" {
     const stable_descriptors = sim.policies.extension.listPolicyDescriptors();
     const experimental_descriptors = sim.policies.experimental.listExperimentalPolicyDescriptors();
 
@@ -70,7 +70,7 @@ test "M24 experimental policies stay outside the built-in stable descriptor set"
     }
 }
 
-test "M14 built-in policy modules satisfy the documented extension contract" {
+test "built-in policy modules satisfy the documented extension contract" {
     comptime sim.policies.extension.validateModuleContract(sim.policies.fcfs);
     comptime sim.policies.extension.validateModuleContract(sim.policies.round_robin);
     comptime sim.policies.extension.validateModuleContract(sim.policies.cfs_like);
@@ -81,7 +81,7 @@ test "M14 built-in policy modules satisfy the documented extension contract" {
     try std.testing.expect(sim.policies.extension.keepsRunningSelection(sim.policies.deadline));
 }
 
-test "M34 policy boundary separates interface state and implementation ownership" {
+test "policy boundary separates interface state and implementation ownership" {
     const contracts = sim.policies.extension.listPolicyContracts();
     try std.testing.expectEqual(@as(usize, 4), contracts.len);
 
@@ -100,13 +100,13 @@ test "M34 policy boundary separates interface state and implementation ownership
     try std.testing.expectEqual(sim.policies.extension.PolicyInterfaceKind.chooser, sim.policies.extension.describePolicyContract(.deadline).interface_kind);
 }
 
-test "M24 experimental policy satisfies the extension contract but remains unstable" {
+test "experimental policy satisfies the extension contract but remains unstable" {
     comptime sim.policies.extension.validateModuleContract(sim.policies.experimental.lottery_policy);
     try std.testing.expect(!sim.policies.extension.usesSingleCoreReadyQueue(sim.policies.experimental.lottery_policy));
     try std.testing.expect(sim.policies.experimental.lottery_policy.unstable);
 }
 
-test "M14 extension adapter supplies queue defaults without extra engine hooks" {
+test "extension adapter supplies queue defaults without extra engine hooks" {
     var ready_queue: std.ArrayList(usize) = .empty;
     defer ready_queue.deinit(std.testing.allocator);
     try ready_queue.append(std.testing.allocator, 1);
@@ -134,7 +134,7 @@ test "M14 extension adapter supplies queue defaults without extra engine hooks" 
     ));
 }
 
-test "M14 extension adapter supports chooser-style policies with tick hooks" {
+test "extension adapter supports chooser-style policies with tick hooks" {
     var ready_queue: std.ArrayList(usize) = .empty;
     defer ready_queue.deinit(std.testing.allocator);
 

@@ -24,7 +24,7 @@ fn renderJson(
     return try buffer.toOwnedSlice(allocator);
 }
 
-test "M14 scenario pack registry exposes committed core fixtures and optional regression pack" {
+test "scenario pack registry exposes committed core fixtures and optional regression pack" {
     const packs = sim.scenario_packs.listScenarioPacks();
     try std.testing.expectEqual(@as(usize, 2), packs.len);
 
@@ -38,7 +38,7 @@ test "M14 scenario pack registry exposes committed core fixtures and optional re
     try std.testing.expect(packs[1].optional);
 }
 
-test "M14 scenario pack loader resolves core fixtures without optional extras" {
+test "scenario pack loader resolves core fixtures without optional extras" {
     var scenario = try sim.scenario_packs.loadPackScenario(std.testing.allocator, "core/basic", "weighted-fairness");
     defer scenario.deinit();
 
@@ -47,7 +47,7 @@ test "M14 scenario pack loader resolves core fixtures without optional extras" {
     try std.testing.expectEqual(@as(u32, 2), scenario.round_robin_quantum);
 }
 
-test "M14 scenario pack registry keeps optional regression lane isolated from core loading" {
+test "scenario pack registry keeps optional regression lane isolated from core loading" {
     try std.testing.expect(sim.scenario_packs.findScenarioPack("core/basic") != null);
     try std.testing.expect(sim.scenario_packs.findScenarioPack("regressions") != null);
     try std.testing.expectEqual(@as(?[]const sim.scenario_packs.ScenarioPackEntry, null), sim.scenario_packs.listScenarioPackEntries("missing"));
@@ -62,9 +62,9 @@ test "M14 scenario pack registry keeps optional regression lane isolated from co
     try std.testing.expectEqual(@as(usize, 2), scenario.domains.len);
 }
 
-test "M14 docs describe scenario pack layout and extension loading boundary" {
+test "extension docs describe scenario pack layout and loading boundary" {
     const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/m14-extension-boundary.md");
+    const doc = try readFileAlloc(allocator, "docs/extension-boundary.md");
     defer allocator.free(doc);
 
     try std.testing.expect(std.mem.indexOf(u8, doc, "scenarios/basic") != null);
@@ -73,7 +73,7 @@ test "M14 docs describe scenario pack layout and extension loading boundary" {
     try std.testing.expect(std.mem.indexOf(u8, doc, "optional packs") != null);
 }
 
-test "M17 canonical scenario corpus covers required curriculum themes and metadata" {
+test "canonical scenario corpus covers required curriculum themes and metadata" {
     const entries = sim.scenario_packs.listScenarioPackEntries("core/basic").?;
     var saw_convoy = false;
     var saw_starvation = false;
@@ -117,8 +117,8 @@ test "M17 canonical scenario corpus covers required curriculum themes and metada
     try std.testing.expect(saw_topology);
 }
 
-test "M21 shortlist helper stays exact and explanation docs resolve" {
-    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+test "teaching shortlist helper stays exact and explanation docs resolve" {
+    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
     try std.testing.expectEqual(@as(usize, 3), shortlist.len);
 
     try std.testing.expectEqualStrings("short-vs-long", shortlist[0].key);
@@ -132,13 +132,13 @@ test "M21 shortlist helper stays exact and explanation docs resolve" {
         try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.path, .{});
         try std.testing.expect(entry.explanation_doc != null);
         try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.explanation_doc.?, .{});
-        try std.testing.expect(sim.scenario_packs.findM21TeachingEntry(entry.key) != null);
+        try std.testing.expect(sim.scenario_packs.findteachingTeachingEntry(entry.key) != null);
     }
 
-    try std.testing.expect(sim.scenario_packs.findM21TeachingEntry("group-fairness") == null);
+    try std.testing.expect(sim.scenario_packs.findteachingTeachingEntry("group-fairness") == null);
 }
 
-test "M17 canonical scenarios support deterministic smoke runs for demos and regression use" {
+test "canonical scenarios support deterministic smoke runs for demos and regression use" {
     const allocator = std.testing.allocator;
     const entries = sim.scenario_packs.listScenarioPackEntries("core/basic").?;
 
@@ -160,11 +160,11 @@ test "M17 canonical scenarios support deterministic smoke runs for demos and reg
     }
 }
 
-test "M17 docs describe the canonical scenario corpus and manual demo path" {
+test "scenario corpus docs describe the canonical scenario corpus and manual demo path" {
     const allocator = std.testing.allocator;
     const phase_doc = try readFileAlloc(allocator, "docs/phase1-simulator.md");
     defer allocator.free(phase_doc);
-    const corpus_doc = try readFileAlloc(allocator, "docs/m17-scenario-corpus.md");
+    const corpus_doc = try readFileAlloc(allocator, "docs/scenario-corpus.md");
     defer allocator.free(corpus_doc);
     const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
     defer allocator.free(project_doc);
@@ -178,26 +178,26 @@ test "M17 docs describe the canonical scenario corpus and manual demo path" {
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "manual demos") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "automated regression") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "M17") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "M17 adds an explicit canonical scenario corpus") != null);
+    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "canonical scenario corpus") != null);
+    try std.testing.expect(std.mem.indexOf(u8, project_doc, "canonical scenario corpus") != null);
 }
 
-test "M21 teaching docs stay aligned with the exact three-anchor shortlist" {
+test "teaching docs stay aligned with the exact three-anchor shortlist" {
     const allocator = std.testing.allocator;
-    const m21_doc = try readFileAlloc(allocator, "docs/m21-simulator-first-teaching-surface.md");
-    defer allocator.free(m21_doc);
-    const corpus_doc = try readFileAlloc(allocator, "docs/m17-scenario-corpus.md");
+    const teaching_doc = try readFileAlloc(allocator, "docs/simulator-first-teaching-surface.md");
+    defer allocator.free(teaching_doc);
+    const corpus_doc = try readFileAlloc(allocator, "docs/scenario-corpus.md");
     defer allocator.free(corpus_doc);
     const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
     defer allocator.free(teaching_pack);
 
-    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "short-vs-long") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "sleep-wakeup") != null);
-    try std.testing.expect(std.mem.indexOf(u8, m21_doc, "multicore-balancing") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "short-vs-long") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "sleep-wakeup") != null);
+    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "multicore-balancing") != null);
     try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "docs/labs/simulator-teaching-pack.md") != null);
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "three") != null);
 
-    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
     for (shortlist) |entry| {
         try std.testing.expect(std.mem.indexOf(u8, teaching_pack, entry.key) != null);
     }
@@ -206,16 +206,16 @@ test "M21 teaching docs stay aligned with the exact three-anchor shortlist" {
     try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "topology-domains") == null);
 }
 
-test "M23 courseware docs derive the core package from the exact M21 shortlist" {
+test "courseware docs derive the core package from the exact teaching shortlist" {
     const allocator = std.testing.allocator;
-    const package_doc = try readFileAlloc(allocator, "docs/courseware/m23-teaching-distribution.md");
+    const package_doc = try readFileAlloc(allocator, "docs/courseware/teaching-distribution.md");
     defer allocator.free(package_doc);
     const assignment_doc = try readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md");
     defer allocator.free(assignment_doc);
     const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
     defer allocator.free(teaching_pack);
 
-    const shortlist = sim.scenario_packs.listM21TeachingEntries();
+    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
     try std.testing.expectEqual(@as(usize, 3), shortlist.len);
 
     for (shortlist) |entry| {
@@ -223,7 +223,7 @@ test "M23 courseware docs derive the core package from the exact M21 shortlist" 
         try std.testing.expect(std.mem.indexOf(u8, teaching_pack, entry.key) != null);
     }
 
-    try std.testing.expect(std.mem.indexOf(u8, package_doc, "package shell over M21") != null);
+    try std.testing.expect(std.mem.indexOf(u8, package_doc, "package shell over teaching") != null);
     try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "group-fairness") == null);
     try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "topology-domains") == null);
 }
