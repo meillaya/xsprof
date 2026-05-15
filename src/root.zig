@@ -14,6 +14,7 @@ pub const policies = struct {
 };
 pub const scenario = @import("sim/scenario.zig");
 pub const scenario_packs = @import("sim/scenario_pack.zig");
+pub const semantics = @import("semantics/root.zig");
 pub const trace = @import("sim/trace.zig");
 pub const property = @import("testing/property.zig");
 pub const observability = @import("observability/root.zig");
@@ -77,6 +78,7 @@ test {
     _ = @import("tests/policy_extension_boundary_test.zig");
     _ = @import("tests/quality_gate_test.zig");
     _ = @import("tests/perf_gate_test.zig");
+    _ = @import("tests/semantics_v2_test.zig");
     _ = @import("tests/linux_observability_test.zig");
     _ = @import("tests/observability_comparison_test.zig");
 }

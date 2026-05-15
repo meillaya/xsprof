@@ -17,6 +17,7 @@ there instead of copying long status narratives into every milestone note.
 | Production-boundary classification | `docs/m31-m32-contract-inventory.md` and `src/contract/inventory.zig` | roadmap status docs |
 | Phase B quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
 | Phase C performance budgets and reproducible perf gate | `docs/performance-gates.md` and `src/perf/root.zig` | benchmark docs, release notes |
+| Scheduling semantics v2 vocabulary | `docs/scheduler-semantics-v2.md` and `src/semantics/root.zig` | policy docs, dashboard docs, report explanations |
 
 ## M36 maintenance rules
 
@@ -30,6 +31,7 @@ there instead of copying long status narratives into every milestone note.
 5. Run identity/architecture tests after claim edits.
 6. For M37-M46 quality claims, update `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` together.
 7. For M47-M56 performance claims, update `docs/performance-gates.md`, `src/perf/root.zig`, and benchmark baseline docs together.
+8. For M57-M66 semantics claims, update `docs/scheduler-semantics-v2.md`, `src/semantics/root.zig`, and semantics tests together.
 
 ## Known allowed repeated phrases
 

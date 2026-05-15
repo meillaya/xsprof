@@ -99,6 +99,16 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const semantics_mod = addModule(
+        b,
+        "zig_scheduler_semantics",
+        b.path("src/semantics/root.zig"),
+        target,
+        &.{
+            .{ .name = "list_writer", .module = list_writer_mod },
+        },
+    );
+
     const tui_mod = addModule(
         b,
         "zig_scheduler_tui",
@@ -184,6 +194,17 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const semantics_exe = addExecutable(
+        b,
+        "zig-scheduler-semantics",
+        b.path("src/semantics/main.zig"),
+        target,
+        optimize,
+        &.{
+            .{ .name = "semantics_root", .module = semantics_mod },
+        },
+    );
+
     const perf_exe = addExecutable(
         b,
         "zig-scheduler-perf",
@@ -226,6 +247,9 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, sim_exe, "sim", "Run the legacy simulator CLI directly", .{});
     addRunStep(b, analysis_exe, "analyze", "Analyze exported zig-scheduler/report JSON", .{});
     addRunStep(b, bench_exe, "bench", "Render reproducible simulator-local benchmark baselines", .{});
+    addRunStep(b, semantics_exe, "semantics", "Render the M57-M66 scheduling semantics v2 contract", .{
+        .depend_on_install = false,
+    });
     addRunStep(b, perf_exe, "perf", "Check reproducible simulator-local performance budgets", .{
         .depend_on_install = false,
     });
@@ -252,6 +276,7 @@ pub fn build(b: *std.Build) void {
         report_pipeline_mod,
         quality_mod,
         perf_mod,
+        semantics_mod,
         exe.root_module,
         sim_exe.root_module,
         tui_mod,

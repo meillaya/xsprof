@@ -647,3 +647,12 @@ Phase C performance work is owned by `docs/performance-gates.md`,
 reproducible simulator-local budgets against committed benchmark baselines via
 `zig build perf`; it is explicitly not Linux-performance or production-runtime
 evidence under ADR 0003.
+
+
+### M57-M66 scheduling semantics v2 spine
+
+Phase D semantics are owned by `docs/scheduler-semantics-v2.md` and
+`src/semantics/root.zig`. The contract gives policies, reports, and future
+dashboard panels one vocabulary for priority/nice, fairness, deadlines,
+runqueues, affinity, topology, group budgets, explainable decisions, and
+replay/diff diagnostics without changing the ADR 0003 simulator-lab boundary.
