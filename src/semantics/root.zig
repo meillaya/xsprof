@@ -106,10 +106,11 @@ pub fn admitDeadline(spec: DeadlineSpec) bool {
     return spec.runtime_ticks <= spec.deadline_tick - spec.arrival_tick;
 }
 
-pub fn fullAffinity(core_count: u6) u64 {
+pub fn fullAffinity(core_count: u8) u64 {
     if (core_count == 0) return 0;
-    if (core_count == 64) return std.math.maxInt(u64);
-    return (@as(u64, 1) << core_count) - 1;
+    if (core_count >= 64) return std.math.maxInt(u64);
+    const shift: u6 = @intCast(core_count);
+    return (@as(u64, 1) << shift) - 1;
 }
 
 pub fn allowsCore(mask: u64, core_id: u6) bool {
@@ -240,6 +241,7 @@ test "deadline affinity topology and group budget semantics are explicit" {
     try std.testing.expect(allowsCore(mask, 0));
     try std.testing.expect(allowsCore(mask, 3));
     try std.testing.expect(!allowsCore(mask, 4));
+    try std.testing.expectEqual(std.math.maxInt(u64), fullAffinity(64));
     try std.testing.expect(topologyCost(.same_core) < topologyCost(.same_domain));
     try std.testing.expect(topologyCost(.same_domain) < topologyCost(.cross_domain));
     const budget = groupBudgetState(.{ .quota_ticks = 10, .used_ticks = 12, .burst_credit = 1 });
