@@ -62,7 +62,7 @@ fn expectCompletionOrderEqual(a: *const sim.SimulationResult, b: *const sim.Simu
     }
 }
 
-test "quality docs and build graph expose Phase B quality gates" {
+test "quality docs and build graph expose quality gates" {
     const allocator = std.testing.allocator;
     const quality_doc = try readFileAlloc(allocator, "docs/quality-gates.md");
     defer allocator.free(quality_doc);
@@ -78,7 +78,7 @@ test "quality docs and build graph expose Phase B quality gates" {
         "CLI and SDK compatibility suite",
         "dashboard snapshot regression suite",
         "release checklist",
-        "quality dashboard generated quality dashboard",
+        "Generated quality dashboard",
         "ADR 0003",
         "not a daemon, service, agent",
     });

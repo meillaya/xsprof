@@ -1,6 +1,6 @@
-# M8 fairness and latency probes
+# fairness and latency probes
 
-M8 adds deterministic probe fixtures and metrics for fairness-oriented discussion across policies.
+the simulator adds deterministic probe fixtures and metrics for fairness-oriented discussion across policies.
 
 ## Scope and caution
 - These fixtures are simulator-local teaching probes.
@@ -45,6 +45,6 @@ zig build sim -- --scenario-file scenarios/basic/starvation-pressure.zon --polic
 ## Evidence-based interpretation
 - If `max_response_time` drops under Round Robin relative to FCFS, that is evidence of better short-task latency in this simulator workload.
 - If `max_waiting_time` and `waiting_time_spread` grow under a weighted fairness probe, that is evidence of starvation pressure on some tasks in this simulator workload.
-- If a future milestone adds aging strategies, these same fixtures can be reused to compare whether the pressure decreases.
+- If a future workstream adds aging strategies, these same fixtures can be reused to compare whether the pressure decreases.
 
 Keep explanations evidence-based: describe what the deterministic fixture and metrics show in this repo, and avoid projecting beyond that scope.

@@ -1,6 +1,6 @@
-# M4 analysis workflow
+# analysis workflow
 
-Milestone M4 adds deterministic downstream analysis surfaces that consume only exported `zig-scheduler/report` JSON.
+The simulator adds deterministic downstream analysis surfaces that consume only exported `zig-scheduler/report` JSON.
 
 ## Supported contract gate
 The analyzer accepts exports only when both of these are true:
@@ -10,14 +10,14 @@ The analyzer accepts exports only when both of these are true:
 Missing schema/version fields or unsupported values fail fast. The analyzer does not guess or silently coerce unsupported exports.
 
 ## CLI workflow
-The narrow analysis commands still exist, but M16 now provides the canonical
+The narrow analysis commands still exist, but the simulator now provides the canonical
 single-path regeneration surface for committed artifacts:
 
 ```sh
 zig build reports
 ```
 
-Use the M4 commands below when you intentionally want to render one analysis
+Use the simulator commands below when you intentionally want to render one analysis
 artifact by hand.
 
 Generate an export from the simulator CLI:

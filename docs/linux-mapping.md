@@ -1,11 +1,11 @@
 # Linux Mapping Notes
 
-This repository's Phase 1 deliverable is a **user-space, in-process CPU scheduling simulator** written in Zig.
+This repository's simulator baseline deliverable is a **user-space, in-process CPU scheduling simulator** written in Zig.
 It is designed to teach Linux scheduler ideas **without** claiming to be the Linux kernel scheduler.
 
 ## Scope boundary
 
-Phase 1 remains:
+simulator baseline remains:
 - simulator only
 - user-space only
 - single-process and in-process only
@@ -20,7 +20,7 @@ Current repo scope does **not** include:
 
 ## Simulator concept to Linux concept mapping
 
-| Simulator concept | Phase 1 meaning | Linux concept it helps teach | Important simplification |
+| Simulator concept | simulator baseline meaning | Linux concept it helps teach | Important simplification |
 | --- | --- | --- | --- |
 | Task | Simulated schedulable workload with arrival tick and CPU burst ticks | schedulable entity / `task_struct`-like mental model | Not a real process or thread |
 | Arrival tick | When a task becomes runnable in the simulation | initial enqueue into a runnable set | No interrupts or wakeup races |

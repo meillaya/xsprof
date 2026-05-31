@@ -3,7 +3,7 @@
 Use this guide to deliver the first packaged teaching cut consistently.
 
 Canonical package entrypoint:
-- `docs/courseware/m23-teaching-distribution.md`
+- `docs/courseware/teaching-distribution.md`
 
 ## Suggested pacing
 - Module 1: `short-vs-long` + `fcfs`

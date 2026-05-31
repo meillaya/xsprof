@@ -26,7 +26,7 @@ pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
 }
 
 fn writeScenarioList(writer: anytype) !void {
-    try writer.writeAll("Phase 1 scenario packs:\n");
+    try writer.writeAll("simulator baseline scenario packs:\n");
     for (scheduler.scenario_packs.listScenarioPacks()) |pack| {
         try writer.print("Pack {s} ({s})\n", .{ pack.key, pack.directory });
         for (pack.scenarios) |entry| {
@@ -99,7 +99,7 @@ test "list command exposes scenario pack registry layout" {
 
     try writeScenarioList(&writer);
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Phase 1 scenario packs:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "simulator baseline scenario packs:") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Pack core/basic (scenarios/basic)") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "short-vs-long [core/basic:short-vs-long]") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "starvation-pressure [core/basic:starvation-pressure]") != null);

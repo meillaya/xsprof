@@ -1,4 +1,4 @@
-# Phase 1 Simulator Semantics
+# Simulator semantics
 
 ## Tick order
 Each simulation tick follows the same deterministic sequence:
@@ -42,7 +42,7 @@ Machine-readable export is versioned JSON with:
 - `schema = "zig-scheduler/report"`
 - `version = 1`
 
-Version `1` is stable for consumers, but later milestones may add backward-compatible fields or introduce a new schema version for breaking changes.
+Version `1` is stable for consumers, but later workstreams may add backward-compatible fields or introduce a new schema version for breaking changes.
 Current additive version-1 core identity fields are:
 - top-level `core_count`
 - per-trace-entry `core_id` for core-scoped events such as dispatch, tick, preempt, complete, and idle
@@ -54,11 +54,11 @@ Consumers should treat the export as supported only when:
 Missing schema/version fields or unsupported values should be rejected rather than guessed.
 
 ### Downstream analysis workflow
-M4 analysis/report tooling consumes only the exported `zig-scheduler/report` JSON. The canonical committed example export is `docs/examples/exports/multicore-contention-fcfs.report.json`, with paired deterministic outputs at `docs/examples/analysis/multicore-contention-fcfs.md` and `docs/examples/analysis/multicore-contention-fcfs.svg`.
+the simulator analysis/report tooling consumes only the exported `zig-scheduler/report` JSON. The canonical committed example export is `docs/examples/exports/multicore-contention-fcfs.report.json`, with paired deterministic outputs at `docs/examples/analysis/multicore-contention-fcfs.md` and `docs/examples/analysis/multicore-contention-fcfs.svg`.
 
 Use `zig build analyze -- --input <report.json>` for the Markdown surface or add `--format svg` for the visualization surface. Consumers must keep the same schema/version gate and reject unsupported export versions instead of guessing.
 
-M16 adds the canonical end-to-end regeneration path:
+the simulator adds the canonical end-to-end regeneration path:
 
 ```sh
 zig build reports
@@ -68,12 +68,12 @@ Use `zig build reports -- --output-dir <dir>` for a smoke run that materializes
 the same curated artifact pack outside the committed docs tree.
 
 ### Simulator-local benchmark baselines
-M4.5 adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/baselines.md` and `docs/benchmarks/baselines.json`.
+benchmark workflow adds `zig build bench` for deterministic baseline generation over committed fixtures. The harness records output-size and trace-volume metrics into `docs/benchmarks/baselines.md` and `docs/benchmarks/baselines.json`.
 
 These baselines are simulator-local only: they help compare fixtures/policies within this project, and they must not be presented as Linux scheduler performance measurements.
 
-### M17 canonical scenario corpus
-M17 promotes the strongest teaching fixtures into an explicit curriculum-grade
+### canonical scenario corpus
+the simulator promotes the strongest teaching fixtures into an explicit curriculum-grade
 corpus with stable metadata, explanation docs, and demo/regression guidance.
 
 Required coverage in the canonical corpus includes:
@@ -87,22 +87,22 @@ See `docs/scenario-corpus.md` for the index, recommended policies, and
 manual-demo commands.
 
 ### Deterministic blocked / wakeup model
-M6 adds one intentionally simple blocked-state model: a task may declare a single `sleep_after_ticks` / `sleep_duration` pair in object-style ZON. After the task accumulates `sleep_after_ticks` executed ticks, it emits a `block` trace event, becomes unrunnable for `sleep_duration` ticks, then emits a `wakeup` trace event and re-enters the runnable set.
+the simulator adds one intentionally simple blocked-state model: a task may declare a single `sleep_after_ticks` / `sleep_duration` pair in object-style ZON. After the task accumulates `sleep_after_ticks` executed ticks, it emits a `block` trace event, becomes unrunnable for `sleep_duration` ticks, then emits a `wakeup` trace event and re-enters the runnable set.
 
 This is an educational deterministic model only. It does not attempt to reproduce Linux wakeup races, interrupt timing, wait queues, or I/O completion behavior.
 
 ### Multi-phase workload model
-M7 extends the object-style scenario surface with explicit `phases` arrays so a task can alternate CPU and wait segments deterministically. Each task phase sequence must start with `cpu`, alternate between `cpu` and `wait`, and end with `cpu`.
+the simulator extends the object-style scenario surface with explicit `phases` arrays so a task can alternate CPU and wait segments deterministically. Each task phase sequence must start with `cpu`, alternate between `cpu` and `wait`, and end with `cpu`.
 
-For backward compatibility, the earlier M6 `sleep_after_ticks` / `sleep_duration` pair is still accepted and normalized to an equivalent three-phase `cpu -> wait -> cpu` plan. Existing single-burst scenarios remain valid with no migration.
+For backward compatibility, the earlier the simulator `sleep_after_ticks` / `sleep_duration` pair is still accepted and normalized to an equivalent three-phase `cpu -> wait -> cpu` plan. Existing single-burst scenarios remain valid with no migration.
 
 ### Deadline-inspired teaching policy
-M10 adds a deterministic deadline-inspired policy. Tasks may declare `deadline_tick`, and the policy chooses the runnable task with the earliest deadline, tie-breaking by stable scenario order. If an earlier-deadline task becomes runnable, the current task is preempted.
+the simulator adds a deterministic deadline-inspired policy. Tasks may declare `deadline_tick`, and the policy chooses the runnable task with the earliest deadline, tie-breaking by stable scenario order. If an earlier-deadline task becomes runnable, the current task is preempted.
 
 This is an educational policy only. It does not model Linux deadline scheduling, admission control, runtime budgets, or real-time guarantees.
 
 ### Topology-aware multicore model
-M12 adds an explicit `topology_domains` surface so multicore scenarios can group cores into one higher-level topology distinction such as a simplified NUMA node or cache domain.
+the simulator adds an explicit `topology_domains` surface so multicore scenarios can group cores into one higher-level topology distinction such as a simplified NUMA node or cache domain.
 
 Current deterministic rules:
 - arrivals choose the least-loaded topology domain first, then the least-loaded core within that domain
@@ -112,19 +112,19 @@ Current deterministic rules:
 This is a teaching simplification only. It does not model Linux scheduler domains, NUMA balancing, cache hierarchies, or kernel migration cost fidelity.
 
 ### group-level scheduling ideas
-M11 adds a simulator-safe group model. Scenarios may declare top-level `groups`, and tasks may reference a `group_id`. Groups currently carry:
+the simulator adds a simulator-safe group model. Scenarios may declare top-level `groups`, and tasks may reference a `group_id`. Groups currently carry:
 - `weight`
 - `quota_ticks`
 
 In the current mainline implementation, the CFS-inspired policy uses group weight as part of effective fairness accounting and uses quota-like caps to keep other runnable groups visible in deterministic experiments. This is an analogy to group fairness ideas, not Linux cgroups or kernel group scheduling fidelity.
 
 ### Scheduling-class boundary
-M9 refactors the engine so policy-specific selection, preemption, and tick-accounting hooks flow through an explicit scheduling-class boundary (`src/policies/class.zig`). The engine still owns common simulation state and trace/metric production, while policy families provide their own scheduling decisions behind that boundary.
+the simulator refactors the engine so policy-specific selection, preemption, and tick-accounting hooks flow through an explicit scheduling-class boundary (`src/policies/class.zig`). The engine still owns common simulation state and trace/metric production, while policy families provide their own scheduling decisions behind that boundary.
 
 This is an internal architecture cleanup only: current FCFS, Round Robin, and CFS-inspired behavior should remain semantically unchanged.
 
 ### Scenario-pack convention and extension boundary
-M14 keeps extension points narrow and reviewable instead of adding a plugin runtime.
+the simulator keeps extension points narrow and reviewable instead of adding a plugin runtime.
 
 Scenario-pack convention:
 - curated built-ins and pack-qualified names stay registered in `src/sim/scenario.zig`
@@ -139,8 +139,8 @@ Policy-extension boundary:
 
 This keeps the mainline core operable without optional extras while still leaving a documented path for new teaching fixtures or policy families.
 
-### M13 scenario generation and regression workflow
-M13 extends verification expectations around the existing public scenario surface: generated cases should still serialize to the canonical object-style ZON dialect, shrinking should preserve a clear failing predicate, and minimized failures should be saved under `scenarios/regressions/` rather than mixed into the curated teaching corpus.
+### scenario generation and regression workflow
+the simulator extends verification expectations around the existing public scenario surface: generated cases should still serialize to the canonical object-style ZON dialect, shrinking should preserve a clear failing predicate, and minimized failures should be saved under `scenarios/regressions/` rather than mixed into the curated teaching corpus.
 
 These checks are simulator-local only. They increase confidence in parser, engine, and export invariants, but they do not by themselves justify Linux scheduler fidelity or production-hardening claims.
 
@@ -226,7 +226,7 @@ Aggregate fields:
 These field lists define the required version `1` baseline. Any later version-`1` extension must remain additive, be documented here, and land with regression coverage for the new fields.
 
 ### Fairness / latency probe metrics
-M8 adds a few explicit experiment-oriented aggregate metrics:
+the simulator adds a few explicit experiment-oriented aggregate metrics:
 - `max_waiting_time`
 - `max_response_time`
 - `response_time_spread`

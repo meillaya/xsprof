@@ -5,13 +5,13 @@ committed observability Linux-observability fixture family.
 
 ## Scope boundary
 
-This milestone is intentionally limited to:
+This workstream is intentionally limited to:
 - pairing `scenarios/basic/sleep-wakeup.zon` with `cfs_like`
 - comparing against `fixtures/linux-observability/manifests/tracefs-sched-demo.json`
 - emitting the separate `zig-scheduler/observability-comparison` v1 payload only
 - keeping the surface library/docs/tests only
 
-This milestone does **not**:
+This workstream does **not**:
 - widen `zig-scheduler/report`
 - widen `src/analysis/*`
 - add a CLI or report-export entrypoint

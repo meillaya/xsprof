@@ -1,12 +1,12 @@
-# Future Directions: Reopening and Completing M26
+# Future Directions: Reopening and Completing the optional production branch
 
 ## Status
-As of April 23, 2026, M26 remains **deferred indefinitely** under `docs/adr/0003-productionization-gate.md`.
+As of April 23, 2026, the optional production branch remains **deferred indefinitely** under `docs/adr/0003-productionization-gate.md`.
 
-This document does not reopen M26. It is a plain-English planning guide for a future return if there is a serious reason to revisit the optional production branch.
+This document does not reopen the optional production branch. It is a plain-English planning guide for a future return if there is a serious reason to revisit the optional production branch.
 
 ## Purpose of this document
-This file explains the most disciplined path back to M26. It is intentionally explanatory rather than authoritative.
+This file explains the most disciplined path back to the optional production branch. It is intentionally explanatory rather than authoritative.
 
 Canonical project governance remains in:
 - `docs/adr/0003-productionization-gate.md`
@@ -21,12 +21,12 @@ Canonical project governance remains in:
 ## Current position
 The repository is still **simulator-first**.
 
-M26 exists only as an optional future branch for a scheduler-driven automation prototype. Its presence in the roadmap is not approval to begin implementation. The project may return to M26 only if a future decision explicitly reopens it.
+the optional production branch exists only as an optional future branch for a scheduler-driven automation prototype. Its presence in the roadmap is not approval to begin implementation. The project may return to the optional production branch only if a future decision explicitly reopens it.
 
 ## Recommended return strategy
 If this project is revisited later, the safest path is a two-gate approach:
 
-1. **Gate A: decide whether M26 should be reopened at all.**
+1. **Gate A: decide whether the optional production branch should be reopened at all.**
 2. **Gate B: only after approval, plan and execute the work in a controlled way.**
 
 This prevents roadmap inertia from quietly turning a deferred idea into an active code path.
@@ -35,14 +35,14 @@ This prevents roadmap inertia from quietly turning a deferred idea into an activ
 
 ## Gate A — Reopen decision
 
-### What must be true before M26 can reopen
+### What must be true before the optional production branch can reopen
 A future return should begin with a fresh **ralplan** pass and a **new ADR**. That ADR must either:
-- reopen M26 with explicit constraints, or
-- reaffirm that M26 should remain deferred.
+- reopen the optional production branch with explicit constraints, or
+- reaffirm that the optional production branch should remain deferred.
 
 No lighter-weight memo or informal note should be treated as sufficient authority.
 
-Before reopening M26, the following should exist:
+Before reopening the optional production branch, the following should exist:
 
 1. **A written problem statement and sponsor**
    - Why is a scheduler-driven automation prototype needed now?
@@ -62,21 +62,21 @@ Before reopening M26, the following should exist:
    - failure escalation expectations
 
 5. **A boundary hypothesis**
-   - Will M26 live as a clearly separated in-repo optional branch?
+   - Will the optional production branch live as a clearly separated in-repo optional branch?
    - Or should it become a sibling package or separately packaged surface?
 
 6. **An explicit statement that first-pass execution will be team-based**
-   - If M26 is reopened, the initial execution should not be treated as solo exploratory work.
+   - If the optional production branch is reopened, the initial execution should not be treated as solo exploratory work.
 
 ### Gate A decision rule
-If any of the items above are missing, M26 should remain deferred.
+If any of the items above are missing, the optional production branch should remain deferred.
 
 If all of them are present, the new ADR may authorize post-approval planning.
 
 ---
 
 ## Boundary decision: in-repo branch or separate package?
-If M26 is reopened, the first major choice is whether the work belongs inside this repository as a tightly scoped optional branch or as a more strongly separated package surface.
+If the optional production branch is reopened, the first major choice is whether the work belongs inside this repository as a tightly scoped optional branch or as a more strongly separated package surface.
 
 ### Option B — constrained in-repo optional branch
 This is appropriate only if all of the following stay true:
@@ -98,12 +98,12 @@ If the decision is mixed or unclear, prefer **stronger separation**. In practice
 ---
 
 ## Gate B — Post-approval execution plan
-Gate B starts only after a new ADR explicitly reopens M26.
+Gate B starts only after a new ADR explicitly reopens the optional production branch.
 
-### Phase 1 — Scope and boundary definition
-The first post-approval task is to define exactly what M26 is and is not.
+### Scope and boundary definition
+The first post-approval task is to define exactly what the optional production branch is and is not.
 
-This phase should:
+This step should:
 - apply the chosen boundary decision,
 - define what code may be shared with simulator or library surfaces,
 - define what must stay branch-local,
@@ -115,10 +115,10 @@ Expected outputs:
 - a packaging and layout proposal,
 - a clear list of branch-specific deliverables.
 
-### Phase 2 — Operational and security design before coding
-M26 should not begin with implementation. It should begin with operational design.
+### Operational and security design before coding
+The optional production branch should not begin with implementation. It should begin with operational design.
 
-This phase should define:
+This step should define:
 - configuration sources, defaults, and overrides,
 - invalid-configuration behavior,
 - secrets boundaries,
@@ -130,13 +130,13 @@ This phase should define:
 
 Expected outputs:
 - an operational and security design note,
-- an M26 PRD,
-- an M26 test specification.
+- an optional-production-branch PRD,
+- an optional-production-branch test specification.
 
-### Phase 3 — Team execution planning
+### Team execution planning
 The initial reopened implementation should be planned as coordinated team work.
 
-This phase should:
+This step should:
 - identify the runtime entrypoints,
 - divide the work into implementation, boundary, security, documentation, and verification lanes,
 - assign named ownership for each lane,
@@ -147,8 +147,8 @@ Expected outputs:
 - a lane ownership plan,
 - a dependency order for delivery.
 
-### Phase 4 — Controlled implementation
-Only after the earlier phases are complete should implementation begin.
+### Controlled implementation
+Only after the earlier planning steps are complete should implementation begin.
 
 The first execution pass should remain team-based and should cover at least:
 - runtime behavior,
@@ -158,10 +158,10 @@ The first execution pass should remain team-based and should cover at least:
 - explanatory documentation,
 - verification evidence.
 
-### Phase 5 — Completion and truthfulness audit
-Before calling M26 complete, the project should confirm that the optional production branch has not silently rewritten the repository’s identity.
+### Completion and truthfulness audit
+Before calling the optional production branch complete, the project should confirm that the optional production branch has not silently rewritten the repository’s identity.
 
-This phase should:
+This step should:
 - re-audit project wording,
 - confirm that branch boundaries remain explicit,
 - confirm that operational and security owners have signed off their surfaces,
@@ -170,11 +170,11 @@ This phase should:
 ---
 
 ## Verification expectations
-A future M26 should not be considered complete unless it can show evidence for all of the following:
+A future the optional production branch should not be considered complete unless it can show evidence for all of the following:
 
 1. **Governance evidence**
    - ADR 0003 is cited as the prior approved state.
-   - A newer ADR explicitly reopens M26.
+   - A newer ADR explicitly reopens the optional production branch.
 
 2. **Service and integration evidence**
    - the prototype starts in its supported launch mode,
@@ -212,9 +212,9 @@ The completion audit should explicitly review:
 ---
 
 ## Recommended execution mode
-If M26 is ever reopened, the initial implementation should remain **team-only**.
+If the optional production branch is ever reopened, the initial implementation should remain **team-only**.
 
-That recommendation is based on the shape of the work. M26 is not just a coding milestone. It also includes boundary management, documentation, operational design, security review, and verification. Those concerns are easier to keep honest when they are treated as separate but coordinated lanes.
+That recommendation is based on the shape of the work. the optional production branch is not just a coding effort. It also includes boundary management, documentation, operational design, security review, and verification. Those concerns are easier to keep honest when they are treated as separate but coordinated lanes.
 
 A later narrow fix or verification follow-up may be handled by a single-owner loop, but the first reopened execution should not.
 
@@ -232,20 +232,20 @@ The most important risks are:
 ---
 
 ## Practical checklist for a future return
-If returning to this project later with serious intent to revisit M26, use this order:
+If returning to this project later with serious intent to revisit the optional production branch, use this order:
 
-1. Re-read ADR 0003 and the roadmap M26 sections.
-2. Run a fresh **ralplan** pass focused on whether M26 should be reopened.
-3. Write a **new ADR** that either reopens M26 with constraints or reaffirms deferment.
+1. Re-read ADR 0003 and the roadmap production-branch sections.
+2. Run a fresh **ralplan** pass focused on whether the optional production branch should be reopened.
+3. Write a **new ADR** that either reopens the optional production branch with constraints or reaffirms deferment.
 4. Name the operational owner and security review owner.
 5. Decide the boundary model using the in-repo versus separate-package rubric.
 6. Write the operational and security design before coding.
 7. Prepare the PRD and test specification.
 8. Execute the first implementation pass with a coordinated team workflow.
 9. Complete the audit across the required documentation and test surfaces.
-10. Only then decide whether M26 is truly complete.
+10. Only then decide whether the optional production branch is truly complete.
 
 ## Final guidance
-The disciplined way to complete M26 is to treat it as a governed re-charter, not as a backlog item waiting for spare time.
+The disciplined way to complete the optional production branch is to treat it as a governed re-charter, not as a backlog item waiting for spare time.
 
 If the project ever returns to this branch, the strongest sign of maturity will be restraint at the beginning: reopen it explicitly, define its boundary carefully, specify operational and security obligations before coding, and verify that the repository still tells the truth about what it is.

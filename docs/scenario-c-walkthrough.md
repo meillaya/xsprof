@@ -1,8 +1,8 @@
-# Phase 1 Scenario C Walkthrough
+# Simulator scenario C walkthrough
 
 Canonical fixture: `scenarios/basic/short-vs-long.zon`
 
-Scenario C from the approved test spec is the best explanatory example for Phase 1 because it makes latency and fairness tradeoffs visible with a very small workload.
+Scenario C from the approved test spec is the best explanatory example for simulator baseline because it makes latency and fairness tradeoffs visible with a very small workload.
 
 ## Scenario definition
 
@@ -76,7 +76,7 @@ Aggregate expectations:
 
 ## Simplified CFS-inspired review target
 
-Phase 1 does not freeze an exact Scenario C golden output for the CFS-inspired policy unless the implementation later freezes vruntime arithmetic more tightly.
+simulator baseline does not freeze an exact Scenario C golden output for the CFS-inspired policy unless the implementation later freezes vruntime arithmetic more tightly.
 
 Required review invariants:
 - at least one short task completes before `L`
@@ -96,7 +96,7 @@ Scenario C is useful in docs and review because it exposes three teaching points
 When this scenario is referenced in docs, examples, or CLI help text:
 - say the policies are **Linux-inspired** or **teaching models**
 - call the fair policy **CFS-inspired** or **simplified CFS-like**
-- avoid wording that says Phase 1 "implements Linux CFS"
+- avoid wording that says simulator baseline "implements Linux CFS"
 
 ## Review checklist for Scenario C implementation
 

@@ -10,9 +10,9 @@ Run the generated contract view with:
 zig build semantics
 ```
 
-## Milestone map
+## workstream map
 
-| Milestone | Semantics | Contract owner |
+| workstream | Semantics | Contract owner |
 | --- | --- | --- |
 | semantics contract | Scheduling-class contract v2 names FCFS, Round Robin, CFS-inspired fairness, and deadline-inspired classes. | `src/semantics/root.zig` |
 | priority mapping | Priority/nice semantics use deterministic `nice[-20,19]` to weight and priority mappings. | `niceToWeight`, `priorityFromNice` |

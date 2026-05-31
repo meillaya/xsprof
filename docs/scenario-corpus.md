@@ -1,6 +1,6 @@
-# M17 canonical scenario corpus
+# canonical scenario corpus
 
-M17 turns the existing fixture set into an explicit curriculum-grade corpus for
+the simulator turns the existing fixture set into an explicit curriculum-grade corpus for
 teaching demos and automated regression use.
 
 ## Manual demos
@@ -20,7 +20,7 @@ zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --polic
 zig build run -- --scenario-file scenarios/basic/multi-phase-io.zon --policy round_robin
 ```
 
-## teaching simulator-first teaching shortlist
+## Simulator-first teaching shortlist
 
 The current simulator-first “start here” path is intentionally smaller than the
 full canonical corpus:
@@ -38,9 +38,9 @@ review notes:
 
 | scenario | theme | recommended policy | explanation doc | role |
 | --- | --- | --- | --- | --- |
-| `short-vs-long` | convoy | `fcfs` + compare with `round_robin` | `docs/phase1-scenario-c-walkthrough.md` | manual demos + automated regression |
-| `sleep-wakeup` | blocked/wakeup burstiness | `cfs-like` | `docs/phase1-simulator.md` | manual demos + automated regression |
-| `multi-phase-io` | phased bursty I/O | `round_robin` | `docs/phase1-simulator.md` | manual demos + automated regression |
+| `short-vs-long` | convoy | `fcfs` + compare with `round_robin` | `docs/scenario-c-walkthrough.md` | manual demos + automated regression |
+| `sleep-wakeup` | blocked/wakeup burstiness | `cfs-like` | `docs/simulator-semantics.md` | manual demos + automated regression |
+| `multi-phase-io` | phased bursty I/O | `round_robin` | `docs/simulator-semantics.md` | manual demos + automated regression |
 | `starvation-pressure` | starvation pressure | `cfs-like` | `docs/fairness-probes.md` | manual demos + automated regression |
 | `deadline-priority` | deadline comparison | `deadline` | `docs/deadline-policy.md` | manual demos + automated regression |
 | `group-fairness` | group fairness | `cfs-like` | `docs/group-scheduling.md` | manual demos + automated regression |
@@ -50,7 +50,7 @@ review notes:
 
 ## Why these scenarios are canonical
 
-- They cover the main teaching milestones without leaving the simulator-local
+- They cover the main teaching workstreams without leaving the simulator-local
   scope.
 - They are deterministic and committed, so they can be used in automated
   regression checks.

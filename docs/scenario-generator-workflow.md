@@ -1,6 +1,6 @@
-# M13 Scenario Generation, Shrinking, and Regression Workflow
+# Scenario Generation, Shrinking, and Regression Workflow
 
-M13 adds a workflow goal rather than a Linux-facing claim: generate valid deterministic simulator scenarios, shrink failing cases, and preserve reduced failures as repo-local regression fixtures.
+the simulator adds a workflow goal rather than a Linux-facing claim: generate valid deterministic simulator scenarios, shrink failing cases, and preserve reduced failures as repo-local regression fixtures.
 
 ## Scope boundary
 - Scenario generation in this repo is for the simulator's public scenario contract.
@@ -45,7 +45,7 @@ Keep generated or shrunk regression cases separate from `scenarios/basic/`.
 If a regression fixture later becomes a canonical teaching example, copy or rewrite it into `scenarios/basic/` with explanation docs instead of silently reusing the raw regression artifact.
 
 ## Recommended review invariants
-Useful M13 properties should stay close to the simulator's documented guarantees:
+Useful the simulator properties should stay close to the simulator's documented guarantees:
 - repeated runs of the same scenario stay deterministic
 - per-task accounting remains internally consistent
 - generated scenarios satisfy parser/validation rules

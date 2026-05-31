@@ -39,13 +39,13 @@ pub const ScreenSpec = struct {
 };
 
 pub const screens = [_]ScreenSpec{
-    .{ .area = "dashboard home", .screen = .home, .purpose = "one smart dashboard shell, scenario launcher, status summary", .primary_artifact = "src/dashboard/root.zig" },
+    .{ .area = "dashboard home", .screen = .home, .purpose = "one smart dashboard shell, scenario browser, status summary", .primary_artifact = "src/dashboard/root.zig" },
     .{ .area = "dashboard scenario", .screen = .scenario, .purpose = "scenario metadata, parser mode, fixture provenance, drilldown entry", .primary_artifact = "src/sim/scenario.zig" },
     .{ .area = "dashboard timeline", .screen = .timeline, .purpose = "trace timeline, tick scrubber, deterministic snapshot replay", .primary_artifact = "src/tui/render.zig" },
     .{ .area = "dashboard tasks", .screen = .tasks_cores, .purpose = "task table, core lanes, runqueue and affinity drilldowns", .primary_artifact = "src/semantics/root.zig" },
     .{ .area = "policy compare", .screen = .policy_compare, .purpose = "side-by-side policy comparison and decision deltas", .primary_artifact = "src/tui/render.zig" },
     .{ .area = "observability screen", .screen = .observability, .purpose = "offline fixture calibration and simulator-to-observability caveats", .primary_artifact = "src/observability/root.zig" },
-    .{ .area = "performance screen", .screen = .performance, .purpose = "performance lab budgets, benchmark status, reproducible perf gate", .primary_artifact = "src/perf/root.zig" },
+    .{ .area = "performance screen", .screen = .performance, .purpose = "performance status, benchmark budgets, reproducible perf gate", .primary_artifact = "src/perf/root.zig" },
     .{ .area = "reports/help", .screen = .reports, .purpose = "report artifact index, generated pack status, export contract links", .primary_artifact = "src/report_pipeline/root.zig" },
     .{ .area = "reports/help", .screen = .help, .purpose = "keyboard help, screen glossary, ADR guardrails", .primary_artifact = "docs/smart-dashboard-spine.md" },
 };
@@ -63,7 +63,7 @@ pub const navigation = [_]NavigationEdge{
     .{ .from = .timeline, .to = .tasks_cores, .key = "tab", .reason = "drill into task/core details" },
     .{ .from = .timeline, .to = .policy_compare, .key = "d", .reason = "compare active policy against paired run" },
     .{ .from = .home, .to = .observability, .key = "o", .reason = "open offline observability lane" },
-    .{ .from = .home, .to = .performance, .key = "p", .reason = "open performance lab" },
+    .{ .from = .home, .to = .performance, .key = "p", .reason = "open performance status" },
     .{ .from = .home, .to = .reports, .key = "r", .reason = "open generated report pack status" },
     .{ .from = .home, .to = .help, .key = "?", .reason = "show dashboard help" },
 };

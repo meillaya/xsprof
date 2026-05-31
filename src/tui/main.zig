@@ -16,7 +16,7 @@ pub fn main(init: std.process.Init) !void {
                 try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler-tui interactive mode requires a TTY; use --snapshot for redirected output\n");
                 return;
             },
-            error.NonTtyPickerRequiresSnapshot => {
+            error.NonTtyDashboardRequiresSnapshot => {
                 try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler-tui without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
                 return;
             },

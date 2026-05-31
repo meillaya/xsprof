@@ -5,6 +5,7 @@ const analysis = @import("analysis_root");
 const args_mod = @import("args.zig");
 const term_mod = @import("terminal.zig");
 const render = @import("render.zig");
+const actions = @import("actions.zig");
 
 pub const Options = args_mod.Options;
 pub const InputSource = args_mod.InputSource;
@@ -23,13 +24,13 @@ const LoadedFixture = scheduler.observability.LoadedFixture;
 const ComparisonSummary = scheduler.observability_comparison.ComparisonSummary;
 
 const DomainMode = render.DomainMode;
-const PickerEntry = render.PickerEntry;
+const DashboardEntry = render.DashboardEntry;
 const AppView = render.AppView;
 const ThemeKind = render.ThemeKind;
 const View = render.View;
 const PaneFocus = render.PaneFocus;
 
-const PickerSource = union(enum) {
+const SimulationSource = union(enum) {
     builtin: []const u8,
     file: []const u8,
 };
@@ -41,16 +42,16 @@ const App = struct {
     observability_fixture: ?LoadedFixture = null,
     observability_comparison: ?ComparisonSummary = null,
     domain_mode: DomainMode = .simulator,
-    view: View = .picker,
+    view: View = .home,
     theme: ThemeKind = .dark,
     focus: PaneFocus = .gantt,
     cursor: u32 = 0,
     selected_task_index: ?usize = null,
-    picker_index: usize = 0,
+    dashboard_index: usize = 0,
     playing: bool = false,
-    picker_entries: []PickerEntry,
+    dashboard_entries: []DashboardEntry,
     history: std.ArrayList([]const u8) = .empty,
-    source: ?PickerSource = null,
+    source: ?SimulationSource = null,
 
     fn deinit(self: *App) void {
         if (self.current_report) |*parsed| parsed.deinit();
@@ -59,7 +60,7 @@ const App = struct {
         if (self.observability_comparison) |*loaded_comparison| loaded_comparison.deinit(self.allocator);
         for (self.history.items) |entry| self.allocator.free(entry);
         self.history.deinit(self.allocator);
-        self.allocator.free(self.picker_entries);
+        self.allocator.free(self.dashboard_entries);
     }
 
     fn report(self: *const App) ?*const analysis.model.Report {
@@ -96,7 +97,7 @@ fn normalizeInteractiveSize(raw: term_mod.Size, fallback: term_mod.Size) term_mo
 pub fn run(allocator: std.mem.Allocator, options: Options) !void {
     var app = App{
         .allocator = allocator,
-        .picker_entries = try buildPickerEntries(allocator),
+        .dashboard_entries = try buildDashboardEntries(allocator),
     };
     defer app.deinit();
 
@@ -174,10 +175,10 @@ pub fn run(allocator: std.mem.Allocator, options: Options) !void {
 
 fn bootstrap(app: *App, options: Options, stdin_is_tty: bool) !void {
     switch (options.input_source) {
-        .picker => {
-            if (!stdin_is_tty) return error.NonTtyPickerRequiresSnapshot;
+        .dashboard => {
+            if (!stdin_is_tty) return error.NonTtyDashboardRequiresSnapshot;
             app.domain_mode = .simulator;
-            app.view = .picker;
+            app.view = .home;
         },
         .input_file => |path| {
             const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, app.allocator, .unlimited);
@@ -228,13 +229,13 @@ fn appView(app: *App) AppView {
         .focus = app.focus,
         .cursor = app.cursor,
         .selected_task_index = app.selected_task_index,
-        .picker_index = app.picker_index,
+        .dashboard_index = app.dashboard_index,
         .playing = app.playing,
         .report = app.report(),
         .compare_report = app.compare(),
         .observability_summary = app.summary(),
         .observability_comparison = app.comparison(),
-        .picker_entries = app.picker_entries,
+        .dashboard_entries = app.dashboard_entries,
         .history = app.history.items,
     };
 }
@@ -242,12 +243,12 @@ fn appView(app: *App) AppView {
 fn validateTerminalMode(options: Options, stdin_is_tty: bool, stdout_is_tty: bool) !void {
     if (options.runtime_mode == .snapshot) return;
     if (stdin_is_tty and stdout_is_tty) return;
-    if (options.input_source == .picker and !stdin_is_tty) return error.NonTtyPickerRequiresSnapshot;
+    if (options.input_source == .dashboard and !stdin_is_tty) return error.NonTtyDashboardRequiresSnapshot;
     return error.NotATerminal;
 }
 
 fn renderSnapshotAlloc(allocator: std.mem.Allocator, app: *App, options: Options) ![]u8 {
-    if (options.input_source == .picker) return error.InvalidArguments;
+    if (options.input_source == .dashboard) return error.InvalidArguments;
     switch (app.domain_mode) {
         .simulator => {
             const report = app.report() orelse return error.InvalidArguments;
@@ -284,47 +285,123 @@ fn normalizeLayoutState(app: *App, size: term_mod.Size) void {
 
 fn handleEvent(app: *App, event: term_mod.Event, size: term_mod.Size) !bool {
     const contract = activeContract(app, size);
-    switch (event) {
-        .left => if (app.domain_mode == .simulator) moveCursor(app, -1),
-        .right => if (app.domain_mode == .simulator) moveCursor(app, 1),
-        .up => if (app.domain_mode == .simulator) try moveSelection(app, -1, contract),
-        .down => if (app.domain_mode == .simulator) try moveSelection(app, 1, contract),
-        .home => {
-            if (app.domain_mode == .simulator) app.cursor = 0;
-        },
-        .end => if (app.domain_mode == .simulator) {
-            if (app.report()) |report| app.cursor = lastTick(report);
-        },
-        .enter => try handleEnter(app, contract),
-        .tab => cycleFocus(app, contract),
-        .backtab => cycleFocusReverse(app, contract),
-        .space => {
-            if (app.domain_mode == .simulator and app.view == .explorer and contract.tier != .too_small) app.playing = !app.playing;
-        },
-        .escape => handleEscape(app),
-        else => {},
+    const key = keyNameForEvent(event) orelse return false;
+    if (actions.actionForKey(render.dashboardScreenForView(app.view), key)) |action| {
+        return try handleAction(app, action, contract, event);
     }
     return false;
 }
 
 fn handleChar(app: *App, ch: u8, size: term_mod.Size) !bool {
     const contract = activeContract(app, size);
-    switch (ch) {
-        'q' => return true,
-        'j' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, 1),
-        'k' => if (app.domain_mode == .simulator and contract.tier != .too_small) try moveTask(app, -1),
-        'd' => if (app.domain_mode == .simulator and (app.view != .explorer or contract.tier != .too_small)) try toggleDiff(app, contract),
-        's' => if (app.domain_mode == .simulator) togglePicker(app),
-        'm' => if (app.domain_mode == .simulator and app.view == .picker) try openPickerobservability(app),
-        'c' => if (app.domain_mode == .simulator and app.view == .picker) try openPickercomparison(app),
-        'w' => app.theme = if (app.theme == .dark) .light else .dark,
-        '?' => {
+    const key = keyNameForChar(ch) orelse return false;
+    if (actions.actionForKey(render.dashboardScreenForView(app.view), key)) |action| {
+        return try handleAction(app, action, contract, .{ .char = ch });
+    }
+    return false;
+}
+
+fn keyNameForEvent(event: term_mod.Event) ?[]const u8 {
+    return switch (event) {
+        .escape => "esc",
+        .enter => "enter",
+        .tab => "tab",
+        .backtab => "shift-tab",
+        .space => "space",
+        .left => "left",
+        .right => "right",
+        .up => "up",
+        .down => "down",
+        .home => "home",
+        .end => "end",
+        else => null,
+    };
+}
+
+fn keyNameForChar(ch: u8) ?[]const u8 {
+    return switch (ch) {
+        3 => "ctrl-c",
+        'q' => "q",
+        '?' => "?",
+        'h' => "h",
+        'w' => "w",
+        'j' => "j",
+        'k' => "k",
+        's' => "s",
+        't' => "t",
+        'o' => "o",
+        'c' => "c",
+        'p' => "p",
+        'r' => "r",
+        'd' => "d",
+        '[' => "[",
+        ']' => "]",
+        else => null,
+    };
+}
+
+fn handleAction(app: *App, action: actions.ActionId, contract: render.ViewLayoutContract, event: term_mod.Event) !bool {
+    switch (action) {
+        .quit => return true,
+        .help => {
             if (contract.help_mode != .disabled or app.view == .help) {
                 app.view = if (app.view == .help) primaryView(app) else .help;
             }
         },
-        'p' => if (app.domain_mode == .simulator and app.view == .picker) cyclePickerPolicy(app),
-        else => {},
+        .back => handleEscape(app),
+        .home => {
+            app.domain_mode = .simulator;
+            app.view = .home;
+            app.playing = false;
+        },
+        .theme => {
+            app.theme = if (app.theme == .dark) .light else .dark;
+        },
+        .move_up => if (app.domain_mode == .simulator) try moveSelection(app, -1, contract),
+        .move_down => if (app.domain_mode == .simulator) try moveSelection(app, 1, contract),
+        .next_focus => cycleFocus(app, contract),
+        .previous_focus => cycleFocusReverse(app, contract),
+        .activate => try handleEnter(app, contract),
+        .scenario_details => {
+            if (app.domain_mode == .simulator) app.view = .scenario;
+        },
+        .timeline => if (app.domain_mode == .simulator) {
+            if (app.report() != null) {
+                app.view = .explorer;
+            } else {
+                try openDashboardSelection(app);
+                app.view = .explorer;
+            }
+        },
+        .observability => try openObservabilitySummary(app),
+        .observability_comparison => try openObservabilityComparison(app),
+        .performance => {
+            app.view = .performance;
+        },
+        .reports => {
+            app.view = .reports;
+        },
+        .play_pause => {
+            if (app.domain_mode == .simulator and app.view == .explorer and contract.tier != .too_small) app.playing = !app.playing;
+        },
+        .scrub_left => if (app.domain_mode == .simulator) {
+            switch (event) {
+                .home => app.cursor = 0,
+                else => moveCursor(app, -1),
+            }
+        },
+        .scrub_right => if (app.domain_mode == .simulator) {
+            switch (event) {
+                .end => {
+                    if (app.report()) |report| app.cursor = lastTick(report);
+                },
+                else => moveCursor(app, 1),
+            }
+        },
+        .task_details => try handleEnter(app, contract),
+        .policy_compare => if (app.domain_mode == .simulator and (app.view != .explorer or contract.tier != .too_small)) try toggleDiff(app, contract),
+        .previous_policy => if (app.domain_mode == .simulator and (app.view == .home or app.view == .scenario)) cycleDashboardPolicy(app, true),
+        .next_policy => if (app.domain_mode == .simulator and (app.view == .home or app.view == .scenario)) cycleDashboardPolicy(app, false),
     }
     return false;
 }
@@ -343,13 +420,13 @@ fn advanceCursor(app: *App) void {
 }
 
 fn moveSelection(app: *App, delta: i32, contract: render.ViewLayoutContract) !void {
-    if (app.view == .picker) {
-        const len = app.picker_entries.len;
+    if (app.view == .home) {
+        const len = app.dashboard_entries.len;
         if (len == 0) return;
         if (delta < 0) {
-            app.picker_index = if (app.picker_index == 0) 0 else app.picker_index - 1;
+            app.dashboard_index = if (app.dashboard_index == 0) 0 else app.dashboard_index - 1;
         } else {
-            app.picker_index = @min(len - 1, app.picker_index + 1);
+            app.dashboard_index = @min(len - 1, app.dashboard_index + 1);
         }
         return;
     }
@@ -369,11 +446,15 @@ fn moveTask(app: *App, delta: i32) !void {
 
 fn handleEnter(app: *App, contract: render.ViewLayoutContract) !void {
     switch (app.view) {
-        .picker => try openPickerSelection(app),
+        .home => try openDashboardSelection(app),
+        .scenario => {
+            try openDashboardSelection(app);
+            app.view = .explorer;
+        },
         .explorer => {
             if (contract.can_enter_drawer and app.selected_task_index != null) app.view = .drawer;
         },
-        .drawer, .diff, .observability_summary, .observability_comparison => {},
+        .performance, .reports, .drawer, .diff, .observability_summary, .observability_comparison => {},
         .help => app.view = primaryView(app),
     }
 }
@@ -382,7 +463,8 @@ fn handleEscape(app: *App) void {
     switch (app.view) {
         .help => app.view = primaryView(app),
         .drawer, .diff => app.view = .explorer,
-        .picker => {
+        .scenario, .performance, .reports => app.view = .home,
+        .home => {
             if (app.domain_mode == .simulator and app.report() != null) app.view = .explorer;
         },
         .explorer => app.selected_task_index = null,
@@ -398,8 +480,8 @@ fn cycleFocusReverse(app: *App, contract: render.ViewLayoutContract) void {
     if (render.nextFocus(app.focus, contract, true)) |focus| app.focus = focus;
 }
 
-fn togglePicker(app: *App) void {
-    app.view = if (app.view == .picker and app.report() != null) .explorer else .picker;
+fn toggleHome(app: *App) void {
+    app.view = if (app.view == .home and app.report() != null) .explorer else .home;
     app.playing = false;
 }
 
@@ -417,39 +499,39 @@ fn toggleDiff(app: *App, contract: render.ViewLayoutContract) !void {
 
 fn primaryView(app: *const App) View {
     return switch (app.domain_mode) {
-        .simulator => if (app.report() != null) .explorer else .picker,
+        .simulator => if (app.view == .help and app.report() != null) .explorer else .home,
         .observability_summary => .observability_summary,
         .observability_comparison => .observability_comparison,
     };
 }
 
-fn openPickerSelection(app: *App) !void {
-    const entry = app.picker_entries[app.picker_index];
+fn openDashboardSelection(app: *App) !void {
+    const entry = app.dashboard_entries[app.dashboard_index];
     try loadSimulation(app, .{ .file = entry.scenario_key }, entry.policy);
     app.view = .explorer;
 }
 
-fn openPickerobservability(app: *App) !void {
+fn openObservabilitySummary(app: *App) !void {
     try loadObservabilityFixture(app, scheduler.observability.default_manifest_path);
     app.view = .observability_summary;
 }
 
-fn openPickercomparison(app: *App) !void {
+fn openObservabilityComparison(app: *App) !void {
     try loadObservabilityComparison(app, scheduler.observability_comparison.default_pairing_manifest_path);
     app.view = .observability_comparison;
 }
 
-fn cyclePickerPolicy(app: *App) void {
-    const current = app.picker_entries[app.picker_index].policy;
+fn cycleDashboardPolicy(app: *App, reverse: bool) void {
+    const current = app.dashboard_entries[app.dashboard_index].policy;
     const order = [_]scheduler.PolicyKind{ .fcfs, .round_robin, .cfs_like, .deadline };
     var next_policy = current;
     for (order, 0..) |policy, idx| {
         if (policy == current) {
-            next_policy = order[(idx + 1) % order.len];
+            next_policy = if (reverse) order[(idx + order.len - 1) % order.len] else order[(idx + 1) % order.len];
             break;
         }
     }
-    updatePickerEntry(app, app.picker_index, next_policy) catch {};
+    updateDashboardEntry(app, app.dashboard_index, next_policy) catch {};
 }
 
 fn loadReportBytes(app: *App, bytes: []const u8) !void {
@@ -468,7 +550,7 @@ fn loadReportBytes(app: *App, bytes: []const u8) !void {
     try appendHistory(app, label);
 }
 
-fn loadSimulation(app: *App, source: PickerSource, policy: scheduler.PolicyKind) !void {
+fn loadSimulation(app: *App, source: SimulationSource, policy: scheduler.PolicyKind) !void {
     var scenario = try switch (source) {
         .builtin => |name| scheduler.loadScenarioByName(app.allocator, name),
         .file => |path| scheduler.loadScenarioFile(app.allocator, path),
@@ -593,23 +675,23 @@ fn lastTick(report: *const analysis.model.Report) u32 {
     return max_tick;
 }
 
-fn buildPickerEntries(allocator: std.mem.Allocator) ![]PickerEntry {
+fn buildDashboardEntries(allocator: std.mem.Allocator) ![]DashboardEntry {
     const entries = scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key) orelse return error.UnknownScenarioPack;
-    var picker_entries = try allocator.alloc(PickerEntry, entries.len);
-    errdefer allocator.free(picker_entries);
+    var dashboard_entries = try allocator.alloc(DashboardEntry, entries.len);
+    errdefer allocator.free(dashboard_entries);
 
     for (entries, 0..) |entry, index| {
-        picker_entries[index] = try buildPickerEntry(allocator, entry, entry.picker_policy);
+        dashboard_entries[index] = try buildDashboardEntry(allocator, entry, entry.dashboard_policy);
     }
 
-    return picker_entries;
+    return dashboard_entries;
 }
 
-fn buildPickerEntry(
+fn buildDashboardEntry(
     allocator: std.mem.Allocator,
     entry: scheduler.scenario_packs.ScenarioPackEntry,
     policy: scheduler.PolicyKind,
-) !PickerEntry {
+) !DashboardEntry {
     var scenario = try scheduler.loadScenarioFile(allocator, entry.path);
     defer scenario.deinit();
 
@@ -637,10 +719,10 @@ fn buildPickerEntry(
     };
 }
 
-fn updatePickerEntry(app: *App, index: usize, policy: scheduler.PolicyKind) !void {
-    const scenario_label = app.picker_entries[index].scenario_label;
+fn updateDashboardEntry(app: *App, index: usize, policy: scheduler.PolicyKind) !void {
+    const scenario_label = app.dashboard_entries[index].scenario_label;
     const entry = scheduler.scenario_packs.findScenarioPackEntry(scheduler.scenario_packs.core_pack_key, scenario_label) orelse return error.UnknownScenario;
-    app.picker_entries[index] = try buildPickerEntry(app.allocator, entry, policy);
+    app.dashboard_entries[index] = try buildDashboardEntry(app.allocator, entry, policy);
 }
 
 fn policyLabel(policy: scheduler.PolicyKind) []const u8 {
@@ -663,8 +745,8 @@ test {
     _ = @import("args.zig");
 }
 
-test "picker metadata matches mockup lanes" {
-    const entries = try buildPickerEntries(std.testing.allocator);
+test "dashboard metadata matches mockup lanes" {
+    const entries = try buildDashboardEntries(std.testing.allocator);
     defer std.testing.allocator.free(entries);
     try std.testing.expectEqual(scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key).?.len, entries.len);
     try std.testing.expectEqualStrings("scenarios/basic/arrivals.zon", entries[0].scenario_key);
@@ -675,9 +757,9 @@ test "picker metadata matches mockup lanes" {
     try std.testing.expectEqual(scheduler.PolicyKind.cfs_like, entries[16].policy);
 }
 
-test "picker metadata stays aligned with canonical scenario files" {
+test "dashboard metadata stays aligned with canonical scenario files" {
     const allocator = std.testing.allocator;
-    const entries = try buildPickerEntries(allocator);
+    const entries = try buildDashboardEntries(allocator);
     defer allocator.free(entries);
 
     for (entries) |entry| {
@@ -695,17 +777,17 @@ test "picker metadata stays aligned with canonical scenario files" {
     }
 }
 
-test "picker policy presets stay aligned with canonical scenario recommendations" {
+test "dashboard policy presets stay aligned with canonical scenario recommendations" {
     const canonical_entries = scheduler.scenario_packs.listScenarioPackEntries(scheduler.scenario_packs.core_pack_key).?;
-    const picker_entries = try buildPickerEntries(std.testing.allocator);
-    defer std.testing.allocator.free(picker_entries);
+    const dashboard_entries = try buildDashboardEntries(std.testing.allocator);
+    defer std.testing.allocator.free(dashboard_entries);
 
-    for (picker_entries) |picker_entry| {
+    for (dashboard_entries) |dashboard_entry| {
         for (canonical_entries) |canonical_entry| {
-            if (!std.mem.eql(u8, picker_entry.scenario_key, canonical_entry.path)) continue;
-            try std.testing.expectEqual(canonical_entry.picker_policy, picker_entry.policy);
+            if (!std.mem.eql(u8, dashboard_entry.scenario_key, canonical_entry.path)) continue;
+            try std.testing.expectEqual(canonical_entry.dashboard_policy, dashboard_entry.policy);
             if (canonical_entry.canonical) {
-                try std.testing.expectEqual(canonical_entry.recommended_policy.?, picker_entry.policy);
+                try std.testing.expectEqual(canonical_entry.recommended_policy.?, dashboard_entry.policy);
             }
         }
     }
@@ -724,14 +806,14 @@ test "normalize interactive size falls back for zero or absurd area" {
     try std.testing.expectEqual(term_mod.Size{ .cols = 160, .rows = 48 }, normalizeInteractiveSize(.{ .cols = 160, .rows = 48 }, default_interactive_size));
 }
 
-test "interactive picker rejects missing tty without snapshot" {
+test "interactive dashboard rejects missing tty without snapshot" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
-    try std.testing.expectError(error.NonTtyPickerRequiresSnapshot, bootstrap(&app, .{}, false));
+    try std.testing.expectError(error.NonTtyDashboardRequiresSnapshot, bootstrap(&app, .{}, false));
 }
 
 test "interactive runtime rejects missing tty for explicit sources" {
@@ -794,7 +876,7 @@ test "explorer focus contract skips hidden panes in too-small tier" {
 test "snapshot render is deterministic for fixture report" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -826,7 +908,7 @@ test "snapshot render is deterministic for fixture report" {
 test "snapshot render adapts across large medium compact and too-small tiers" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -880,10 +962,10 @@ test "snapshot render adapts across large medium compact and too-small tiers" {
     try std.testing.expect(std.mem.indexOf(u8, too_small, "trace · cpu lanes") == null);
 }
 
-test "compact picker, help, drawer, and diff snapshots stay usable" {
+test "compact dashboard, help, drawer, and diff snapshots stay usable" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -899,12 +981,12 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
         .snapshot_height = 24,
     };
 
-    app.view = .picker;
-    const picker = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
-    defer std.testing.allocator.free(picker);
-    try std.testing.expect(std.mem.indexOf(u8, picker, "scenarios") != null);
-    try std.testing.expect(std.mem.indexOf(u8, picker, "sources") != null);
-    try std.testing.expect(std.mem.indexOf(u8, picker, "start here path") != null);
+    app.view = .home;
+    const dashboard_home = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
+    defer std.testing.allocator.free(dashboard_home);
+    try std.testing.expect(std.mem.indexOf(u8, dashboard_home, "scenarios") != null);
+    try std.testing.expect(std.mem.indexOf(u8, dashboard_home, "sources") != null);
+    try std.testing.expect(std.mem.indexOf(u8, dashboard_home, "start here path") != null);
 
     app.view = .help;
     const help = try render.renderSnapshotFrame(std.testing.allocator, base_options.snapshot_width, base_options.snapshot_height, appView(&app));
@@ -913,7 +995,7 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
     try std.testing.expect(std.mem.indexOf(u8, help, "NAVIGATION") != null);
     try std.testing.expect(std.mem.indexOf(u8, help, "START HERE") != null);
     try std.testing.expect(std.mem.indexOf(u8, help, "sleep-wakeup") != null);
-    try std.testing.expect((std.mem.indexOf(u8, help, "START HERE") orelse 0) < (std.mem.indexOf(u8, help, "m / c") orelse help.len));
+    try std.testing.expect(std.mem.indexOf(u8, help, "legacy observability shortcut") == null);
 
     app.view = .drawer;
     app.selected_task_index = 0;
@@ -932,7 +1014,7 @@ test "compact picker, help, drawer, and diff snapshots stay usable" {
 test "compact and too-small contracts gate explorer actions" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -964,7 +1046,7 @@ test "compact and too-small contracts gate explorer actions" {
 test "snapshot render works from simulation path" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -990,7 +1072,7 @@ test "teaching anchor scenario snapshots stay deterministic under recommended po
     for (shortlist) |entry| {
         var app = App{
             .allocator = std.testing.allocator,
-            .picker_entries = try buildPickerEntries(std.testing.allocator),
+            .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
         };
         defer app.deinit();
 
@@ -1015,7 +1097,7 @@ test "teaching anchor scenario snapshots stay deterministic under recommended po
 test "observability snapshot render is deterministic and observability-bounded" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -1041,7 +1123,7 @@ test "observability snapshot render is deterministic and observability-bounded" 
 test "comparison snapshot render is deterministic and non-fidelity-bounded" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -1064,10 +1146,10 @@ test "comparison snapshot render is deterministic and non-fidelity-bounded" {
     try std.testing.expect(std.mem.indexOf(u8, first, "policy diff") == null);
 }
 
-test "observability lane keeps simulator-only picker and diff shortcuts disabled" {
+test "observability lane keeps simulator-only dashboard and diff shortcuts disabled" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
@@ -1092,23 +1174,19 @@ test "observability lane keeps simulator-only picker and diff shortcuts disabled
     try std.testing.expect(std.mem.indexOf(u8, help, "policy diff") == null);
 }
 
-test "picker shortcuts open observability and comparison observability lanes" {
+test "dashboard shortcuts open observability and comparison observability lanes" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 
-    app.view = .picker;
+    app.view = .home;
 
-    _ = try handleChar(&app, 'm', .{ .cols = 120, .rows = 40 });
+    _ = try handleChar(&app, 'o', .{ .cols = 120, .rows = 40 });
     try std.testing.expectEqual(DomainMode.observability_summary, app.domain_mode);
     try std.testing.expectEqual(View.observability_summary, app.view);
     try std.testing.expect(app.summary() != null);
-
-    app.domain_mode = .simulator;
-    app.view = .picker;
-    clearObservabilityState(&app);
 
     _ = try handleChar(&app, 'c', .{ .cols = 120, .rows = 40 });
     try std.testing.expectEqual(DomainMode.observability_comparison, app.domain_mode);
@@ -1116,10 +1194,42 @@ test "picker shortcuts open observability and comparison observability lanes" {
     try std.testing.expect(app.comparison() != null);
 }
 
+test "dashboard status shortcuts are command-only and policy cycling uses brackets" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    app.view = .home;
+    const initial_policy = app.dashboard_entries[app.dashboard_index].policy;
+
+    _ = try handleChar(&app, 'p', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(View.performance, app.view);
+    const performance = try render.renderSnapshotFrame(std.testing.allocator, 120, 40, appView(&app));
+    defer std.testing.allocator.free(performance);
+    try std.testing.expect(std.mem.indexOf(u8, performance, "zig build perf") != null);
+    try std.testing.expect(std.mem.indexOf(u8, performance, "no subprocess runner") != null);
+
+    _ = try handleChar(&app, 'h', .{ .cols = 120, .rows = 40 });
+    _ = try handleChar(&app, 'r', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(View.reports, app.view);
+    const reports = try render.renderSnapshotFrame(std.testing.allocator, 120, 40, appView(&app));
+    defer std.testing.allocator.free(reports);
+    try std.testing.expect(std.mem.indexOf(u8, reports, "zig build reports") != null);
+    try std.testing.expect(std.mem.indexOf(u8, reports, "no subprocess runner") != null);
+
+    _ = try handleChar(&app, 'h', .{ .cols = 120, .rows = 40 });
+    _ = try handleChar(&app, ']', .{ .cols = 120, .rows = 40 });
+    try std.testing.expect(app.dashboard_entries[app.dashboard_index].policy != initial_policy);
+    _ = try handleChar(&app, '[', .{ .cols = 120, .rows = 40 });
+    try std.testing.expectEqual(initial_policy, app.dashboard_entries[app.dashboard_index].policy);
+}
+
 test "snapshot rejects out of range tick" {
     var app = App{
         .allocator = std.testing.allocator,
-        .picker_entries = try buildPickerEntries(std.testing.allocator),
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
     };
     defer app.deinit();
 

@@ -1,6 +1,6 @@
-# M10 deadline-inspired teaching policy
+# deadline-inspired teaching policy
 
-M10 adds a deterministic deadline-inspired teaching policy for cross-policy comparison.
+the simulator adds a deterministic deadline-inspired teaching policy for cross-policy comparison.
 
 ## Scope and caveats
 - This is a simulator-local teaching policy.

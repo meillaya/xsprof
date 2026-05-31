@@ -90,7 +90,7 @@ pub fn renderMarkdown(allocator: std.mem.Allocator) ![]u8 {
     return try out.toOwnedSlice(allocator);
 }
 
-test "quality dashboard enumerates all Phase B gates" {
+test "quality dashboard enumerates all quality gates" {
     const allocator = std.testing.allocator;
     const rendered = try renderMarkdown(allocator);
     defer allocator.free(rendered);

@@ -1,6 +1,6 @@
 # Release checklist
 
-This checklist is the M45 dry-run gate for simulator-lab/product-quality
+This checklist is the simulator dry-run gate for simulator-lab/product-quality
 releases. It preserves ADR 0003: no daemon, service, agent, production runtime,
 or live automation is released from this branch unless a later approved ADR
 explicitly re-charters that work.

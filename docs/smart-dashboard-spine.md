@@ -12,7 +12,7 @@ zig build dashboard
 
 ## Screens
 
-| Milestone | Screen | Responsibility |
+| workstream | Screen | Responsibility |
 | --- | --- | --- |
 | dashboard home | Home | one shell, launcher, current quality/perf status, no ad hoc TUI modes |
 | dashboard scenario | Scenario | scenario metadata, parser mode, fixture provenance, drilldown entry |

@@ -250,7 +250,7 @@ test "sleep configuration requires positive duration and a valid post-dispatch p
 
 test "docs keep blocked-state semantics educational and simulator-scoped" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
     const linux_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/linux-mapping.md", allocator, .unlimited);
     defer allocator.free(linux_doc);
@@ -267,7 +267,7 @@ test "docs keep blocked-state semantics educational and simulator-scoped" {
 
 test "registry and docs describe scenario-pack and policy extension boundaries" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
     const extension_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/extension-boundary.md", allocator, .unlimited);
     defer allocator.free(extension_doc);

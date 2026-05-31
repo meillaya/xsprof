@@ -1,6 +1,6 @@
 # Regression Fixtures
 
-This directory is reserved for minimized deterministic regression scenarios found by the M13 generator/shrinker workflow.
+This directory is reserved for minimized deterministic regression scenarios found by the generator/shrinker workflow.
 
 Guidelines:
 - keep fixtures in canonical object-style ZON so they remain runnable through `--scenario-file`

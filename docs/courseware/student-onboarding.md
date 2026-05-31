@@ -3,7 +3,7 @@
 This guide gets a learner from repo checkout to the first bounded teaching run.
 
 For package context, start from:
-- `docs/courseware/m23-teaching-distribution.md`
+- `docs/courseware/teaching-distribution.md`
 
 ## 1. Validate the local repo state
 
@@ -42,4 +42,4 @@ zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --polic
 
 ## Where to go next
 - assignment work: `docs/courseware/assignment-pack-01.md`
-- package overview: `docs/courseware/m23-teaching-distribution.md`
+- package overview: `docs/courseware/teaching-distribution.md`

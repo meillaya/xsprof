@@ -55,8 +55,8 @@ test "report docs expose the regeneration path" {
     defer allocator.free(readme);
     const workflow = try readFileAlloc(allocator, "docs/report-pipeline.md");
     defer allocator.free(workflow);
-    const phase1 = try readFileAlloc(allocator, "docs/phase1-simulator.md");
-    defer allocator.free(phase1);
+    const simulator_baseline = try readFileAlloc(allocator, "docs/simulator-semantics.md");
+    defer allocator.free(simulator_baseline);
     const analysis_doc = try readFileAlloc(allocator, "docs/analysis-workflow.md");
     defer allocator.free(analysis_doc);
     const benchmark_doc = try readFileAlloc(allocator, "docs/benchmark-workflow.md");
@@ -68,7 +68,7 @@ test "report docs expose the regeneration path" {
 
     try std.testing.expect(std.mem.indexOf(u8, readme, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, workflow, "zig build reports") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase1, "zig build reports") != null);
+    try std.testing.expect(std.mem.indexOf(u8, simulator_baseline, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, analysis_doc, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, benchmark_doc, "zig build reports") != null);
     try std.testing.expect(std.mem.indexOf(u8, architecture, "zig build reports") != null);

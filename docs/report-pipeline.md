@@ -1,6 +1,6 @@
-# M16 reproducible report pipeline
+# reproducible report pipeline
 
-M16 turns the existing analysis and benchmark surfaces into one canonical,
+the simulator turns the existing analysis and benchmark surfaces into one canonical,
 deterministic regeneration path for the curated teaching/research artifact set.
 
 ## Canonical commands
@@ -46,8 +46,8 @@ contributors.
 - Simulator-local wording still applies; this pipeline does not turn the repo
   into a Linux-performance or kernel-fidelity tool.
 
-## Relationship to earlier milestones
+## Relationship to earlier workstreams
 
-- M4 still defines the export-only analysis boundary.
-- M4.5 still defines the benchmark baseline contract and fixture matrix.
-- M16 adds the repo-native path that regenerates those surfaces together.
+- the simulator still defines the export-only analysis boundary.
+- benchmark workflow still defines the benchmark baseline contract and fixture matrix.
+- the simulator adds the repo-native path that regenerates those surfaces together.

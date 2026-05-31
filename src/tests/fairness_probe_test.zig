@@ -46,7 +46,7 @@ test "starvation-pressure fixture exposes uneven waiting under weighted fair sch
 
 test "fairness docs keep claims evidence-based" {
     const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/phase1-simulator.md", allocator, .unlimited);
+    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
     defer allocator.free(phase_doc);
     const fairness_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/fairness-probes.md", allocator, .unlimited);
     defer allocator.free(fairness_doc);

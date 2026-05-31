@@ -2,7 +2,7 @@ const std = @import("std");
 const scheduler = @import("zig_scheduler_internal");
 
 pub const InputSource = union(enum) {
-    picker,
+    dashboard,
     input_file: []const u8,
     stdin_report,
     simulate_builtin: []const u8,
@@ -22,7 +22,7 @@ pub const default_snapshot_width: u16 = 120;
 pub const default_snapshot_height: u16 = 40;
 
 pub const Options = struct {
-    input_source: InputSource = .picker,
+    input_source: InputSource = .dashboard,
     runtime_mode: RuntimeMode = .interactive,
     policy: ?scheduler.PolicyKind = null,
     snapshot_width: u16 = default_snapshot_width,
@@ -59,42 +59,42 @@ pub fn parseArgs(args: []const []const u8) !Options {
             continue;
         }
         if (std.mem.eql(u8, arg, "--input")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .{ .input_file = try nextArg(args, &index) };
             continue;
         }
         if (std.mem.eql(u8, arg, "--stdin")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .stdin_report;
             continue;
         }
         if (std.mem.eql(u8, arg, "--scenario")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .{ .simulate_builtin = try nextArg(args, &index) };
             continue;
         }
         if (std.mem.eql(u8, arg, "--scenario-file")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .{ .simulate_file = try nextArg(args, &index) };
             continue;
         }
         if (std.mem.eql(u8, arg, "--observability")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .observability_default;
             continue;
         }
         if (std.mem.eql(u8, arg, "--observability-manifest")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .{ .observability_manifest = try nextArg(args, &index) };
             continue;
         }
         if (std.mem.eql(u8, arg, "--comparison")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .comparison_default;
             continue;
         }
         if (std.mem.eql(u8, arg, "--comparison-pairing")) {
-            if (options.input_source != .picker) return error.InvalidArguments;
+            if (options.input_source != .dashboard) return error.InvalidArguments;
             options.input_source = .{ .comparison_pairing = try nextArg(args, &index) };
             continue;
         }
@@ -107,7 +107,7 @@ pub fn parseArgs(args: []const []const u8) !Options {
     }
 
     switch (options.input_source) {
-        .picker => {
+        .dashboard => {
             if (options.policy != null) return error.InvalidArguments;
             if (options.runtime_mode == .snapshot) return error.InvalidArguments;
         },
@@ -150,9 +150,9 @@ fn parseTick(raw: []const u8) !u32 {
     return std.fmt.parseUnsigned(u32, raw, 10) catch error.InvalidArguments;
 }
 
-test "no args launches interactive picker" {
+test "no args launches interactive dashboard" {
     const options = try parseArgs(&.{});
-    try std.testing.expectEqual(InputSource.picker, options.input_source);
+    try std.testing.expectEqual(InputSource.dashboard, options.input_source);
     try std.testing.expectEqual(RuntimeMode.interactive, options.runtime_mode);
     try std.testing.expectEqual(default_snapshot_width, options.snapshot_width);
     try std.testing.expectEqual(default_snapshot_height, options.snapshot_height);

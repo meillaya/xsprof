@@ -50,7 +50,7 @@ fn runTui(allocator: std.mem.Allocator, args: []const []const u8) !void {
                 try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler interactive mode requires a TTY; use --snapshot for redirected output\n");
                 return;
             },
-            error.NonTtyPickerRequiresSnapshot => {
+            error.NonTtyDashboardRequiresSnapshot => {
                 try std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "zig-scheduler without a TTY needs an explicit source plus --snapshot, e.g. --stdin --snapshot or --input <report.json> --snapshot\n");
                 return;
             },

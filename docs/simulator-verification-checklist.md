@@ -1,8 +1,8 @@
-# Phase 1 Verification Checklist
+# Simulator verification checklist
 
 Use this checklist when reviewing the implementation against:
-- `docs/roadmap/phase1/prd-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
-- `docs/roadmap/phase1/test-spec-sequential-milestones-zig-scheduler-roadmap.md` (M1.5 section)
+- `docs/roadmap/simulator-baseline/prd-sequential-workstreams-zig-scheduler-roadmap.md` (the simulator section)
+- `docs/roadmap/simulator-baseline/test-spec-sequential-workstreams-zig-scheduler-roadmap.md` (the simulator section)
 
 ## 1. Build and project scaffold
 
@@ -13,7 +13,7 @@ Use this checklist when reviewing the implementation against:
 
 ## 2. Scope-boundary checks
 
-Implementation must remain Phase-1 only:
+Implementation must remain simulator-only:
 - [ ] no real process execution
 - [ ] no kernel integration
 - [ ] no daemon/service/cron behavior
@@ -77,7 +77,7 @@ Required aggregate metrics:
 
 ## 6. Scenario coverage
 
-Committed multicore fixture corpus to exercise during M3.5:
+Committed multicore fixture corpus to exercise during the simulator:
 - [ ] multicore-contention
 - [ ] multicore-balancing
 - [ ] multicore-staggered
@@ -126,7 +126,7 @@ Scenario C definition:
 
 ## 8. Documentation checks
 
-- [ ] docs state that Phase 1 is a simulator only
+- [ ] docs state that simulator baseline is a simulator only
 - [ ] docs explicitly say no real process execution occurs
 - [ ] docs explicitly say no kernel integration occurs
 - [ ] docs explain Linux inspiration without overclaiming fidelity

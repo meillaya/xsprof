@@ -3,7 +3,7 @@
 This is the canonical teaching simulator-first teaching index.
 
 For the packaged courseware shell built on top of this spine, start from:
-- `docs/courseware/m23-teaching-distribution.md`
+- `docs/courseware/teaching-distribution.md`
 
 It intentionally covers only **three** start-here anchors:
 - `short-vs-long` + `fcfs`
@@ -31,7 +31,7 @@ What to notice:
 - the trace and waiting-time output show why short jobs finish later than intuition might expect
 
 Deeper explanation:
-- `docs/phase1-scenario-c-walkthrough.md`
+- `docs/scenario-c-walkthrough.md`
 
 ## 2. sleep-wakeup — blocked/wakeup burstiness
 
@@ -51,7 +51,7 @@ What to notice:
 - the TUI makes the arrival/block/wakeup/complete sequence easy to inspect locally
 
 Deeper explanation:
-- `docs/phase1-simulator.md`
+- `docs/simulator-semantics.md`
 
 ## 3. multicore-balancing — deterministic rebalance story
 

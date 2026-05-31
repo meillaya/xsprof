@@ -162,7 +162,7 @@ test "canonical scenarios support deterministic smoke runs for demos and regress
 
 test "scenario corpus docs describe the canonical scenario corpus and manual demo path" {
     const allocator = std.testing.allocator;
-    const phase_doc = try readFileAlloc(allocator, "docs/phase1-simulator.md");
+    const phase_doc = try readFileAlloc(allocator, "docs/simulator-semantics.md");
     defer allocator.free(phase_doc);
     const corpus_doc = try readFileAlloc(allocator, "docs/scenario-corpus.md");
     defer allocator.free(corpus_doc);

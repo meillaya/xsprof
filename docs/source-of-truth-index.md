@@ -1,8 +1,8 @@
 # Source-of-truth index
 
-This index is the M36 de-duplication hub for claims that are repeated across the
+This index is the current-doc de-duplication hub for claims that are repeated across the
 repository. Keep the detailed content in the owning document and point readers
-there instead of copying long status narratives into every milestone note.
+there instead of copying long status narratives into every workstream note.
 
 ## Canonical claim owners
 
@@ -15,13 +15,13 @@ there instead of copying long status narratives into every milestone note.
 | Report JSON contract | `src/contract/report.zig` | analysis, benchmark, dashboard, courseware docs |
 | Public SDK ownership | `docs/library-sdk.md` and `src/lib.zig` | examples and release notes |
 | Production-boundary classification | `docs/contract-inventory.md` and `src/contract/inventory.zig` | roadmap status docs |
-| Phase B quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
-| Phase C performance budgets and reproducible perf gate | `docs/performance-gates.md` and `src/perf/root.zig` | benchmark docs, release notes |
+| Quality gates and release discipline | `docs/quality-gates.md`, `docs/release-checklist.md`, and `src/quality/root.zig` | PRDs, release notes, dashboard docs |
+| Performance budgets and reproducible perf gate | `docs/performance-gates.md` and `src/perf/root.zig` | benchmark docs, release notes |
 | Scheduling semantics v2 vocabulary | `docs/scheduler-semantics-v2.md` and `src/semantics/root.zig` | policy docs, dashboard docs, report explanations |
 | Smart dashboard screen IA and no-ad-hoc-mode rule | `docs/smart-dashboard-spine.md` and `src/dashboard/root.zig` | TUI docs, screenshots, help text |
 | LTS simulator-lab release decision | `docs/adr/0004-lts-simulator-lab-release.md` and `docs/lts-simulator-lab-release-plan.md` | release notes, roadmap closeout |
 
-## M36 maintenance rules
+## Maintenance rules
 
 1. Use short summaries in mirrors; link to the canonical owner for details.
 2. If production/runtime wording changes, update ADR 0003 or a superseding ADR in

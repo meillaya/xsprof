@@ -1,12 +1,12 @@
-# Phase 1 Signoff Report
+# Simulator signoff report
 
-Reviewed against the green Phase 1 implementation snapshot on 2026-04-20.
+Reviewed against the green simulator baseline implementation snapshot on 2026-04-20.
 
 ## Signoff verdict
 
-Phase 1 is now **acceptance-ready** based on the current leader snapshot.
+simulator baseline is now **acceptance-ready** based on the current leader snapshot.
 
-This report is the canonical end-state artifact for Phase 1 signoff and supersedes earlier intermediate review/blocker/handoff notes.
+This report is the canonical end-state artifact for simulator baseline signoff and supersedes earlier intermediate review/blocker/handoff notes.
 
 The two prior blockers have been cleared:
 - the public CLI now runs scenarios by policy and prints trace/metrics output
@@ -51,7 +51,7 @@ Confirmed output sections:
 - trace
 - per-task metrics
 - aggregate metrics
-- Phase 1 notes
+- simulator baseline notes
 
 Golden-oracle values observed:
 - completion order: `L -> S1 -> S2`
@@ -99,7 +99,7 @@ Observed summary:
 
 ## Condensed traceability summary
 
-The final reviewed snapshot satisfies the approved Phase 1 scope:
+The final reviewed snapshot satisfies the approved simulator baseline scope:
 - build scaffold present and green
 - deterministic canned scenarios present and loadable
 - FCFS, Round Robin, and simplified CFS-inspired policies available
@@ -110,7 +110,7 @@ The final reviewed snapshot satisfies the approved Phase 1 scope:
 
 ## Scope-boundary disposition
 
-Phase 1 review still confirms:
+simulator baseline review still confirms:
 - simulator only
 - no real process execution
 - no kernel integration
@@ -121,12 +121,12 @@ Phase 1 review still confirms:
 
 Task 3 can now be marked **completed** once the team owner/claim holder performs the lifecycle transition on the integration branch.
 
-## Retained Phase 1 docs
+## Retained simulator baseline docs
 
-After cleanup, the main long-lived Phase 1 docs are:
+After cleanup, the main long-lived simulator baseline docs are:
 - `README.md`
-- `docs/phase1-simulator.md`
+- `docs/simulator-semantics.md`
 - `docs/linux-mapping.md`
-- `docs/phase1-scenario-c-walkthrough.md`
-- `docs/phase1-verification-checklist.md`
-- `docs/phase1-signoff-report.md`
+- `docs/scenario-c-walkthrough.md`
+- `docs/simulator-verification-checklist.md`
+- `docs/simulator-signoff-report.md`

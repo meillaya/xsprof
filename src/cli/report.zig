@@ -197,7 +197,7 @@ pub const SimulationReport = struct {
 };
 
 const report_notes = [_][]const u8{
-    "Phase 1 is an in-process simulator only; it does not spawn or control real processes.",
+    "Demo v1 is an in-process simulator only; it does not spawn or control real processes.",
     "The CFS-inspired policy uses simple virtual-runtime-style accounting and is not faithful Linux CFS.",
     "The deadline-inspired policy is a deterministic teaching model, not a Linux real-time scheduler implementation.",
     "The group scheduling model is a simulator-safe teaching analogy, not Linux cgroups or kernel group scheduling fidelity.",

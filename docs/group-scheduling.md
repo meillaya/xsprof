@@ -1,12 +1,12 @@
-# M11 group scheduling model
+# group scheduling model
 
-M11 introduces a simulator-safe group scheduling model for teaching group fairness ideas.
+the simulator introduces a simulator-safe group scheduling model for teaching group fairness ideas.
 
 ## Scope and caveats
 - This is a deterministic teaching model.
 - Scenarios may declare top-level groups and task membership via `group_id`.
 - Groups currently support `weight` and `quota_ticks`.
-- The CFS-inspired policy is the main consumer of these fields in the current milestone.
+- The CFS-inspired policy is the main consumer of these fields in the current workstream.
 - This is **not** Linux cgroups, kernel group scheduling, or bandwidth control.
 
 ## Scenario surface
@@ -38,4 +38,4 @@ The versioned export now includes:
 - per-trace-entry `group_id` when the event is task-scoped
 
 ## Evidence-based interpretation
-Use this milestone to discuss how grouped workloads can change fairness outcomes inside this simulator. Avoid projecting the results onto Linux cgroups or kernel scheduler guarantees.
+Use this workstream to discuss how grouped workloads can change fairness outcomes inside this simulator. Avoid projecting the results onto Linux cgroups or kernel scheduler guarantees.

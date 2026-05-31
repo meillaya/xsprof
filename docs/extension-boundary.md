@@ -1,6 +1,6 @@
-# M14 Scenario Pack and Policy Extension Boundary
+# Scenario Pack and Policy Extension Boundary
 
-M14 defines a reviewable extension boundary without turning the simulator into a plugin host.
+the simulator defines a reviewable extension boundary without turning the simulator into a plugin host.
 
 ## Scenario pack convention
 

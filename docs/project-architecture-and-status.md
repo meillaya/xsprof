@@ -9,12 +9,12 @@ The current project identity is fixed by
 `docs/adr/0001-project-identity.md`,
 `docs/adr/0002-linux-observability-gate.md`, and the observability execution
 boundary documented in `docs/curated-linux-observability.md`, plus the
-M25 production gate decision in `docs/adr/0003-productionization-gate.md`:
+the productionization gate decision in `docs/adr/0003-productionization-gate.md`:
 
 - the **implementation today** is still a simulator-first mainline
 - the **roadmap** is a broader scheduler laboratory with a simulator-only mainline
 - Linux-facing, productized, and research-heavy branches remain explicitly gated
-- the optional production branch is currently deferred indefinitely after M25
+- the optional production branch is currently deferred indefinitely by ADR 0003
 - the observability Linux-observability surface is limited to **offline,
   observability-only, version-pinned snapshot fixtures** with a separate import
   boundary unless a later gate re-charters it
@@ -127,7 +127,7 @@ src/policies/deadline.zig
 ```
 
 This keeps policy growth reviewable and prevents the engine core from turning
-into a large policy switchboard. M34 policy contracts record descriptor, state,
+into a large policy switchboard. the simulator policy contracts record descriptor, state,
 and implementation ownership in `src/policies/extension.zig`.
 
 ### 4. Reporting/export layer
@@ -204,7 +204,7 @@ src/sdk/
 ## Source-of-truth and de-duplication
 
 Repeated production, observability, scenario, report, SDK, and contract claims
-are indexed in the M36 de-duplication hub `docs/source-of-truth-index.md`. When milestone docs need one of
+are indexed in the current-doc de-duplication hub `docs/source-of-truth-index.md`. When workstream docs need one of
 those claims, they should summarize and link to the owner instead of creating a
 new authority.
 
@@ -227,7 +227,7 @@ scenarios/
 docs/
   adr/        # architecture decisions
   benchmarks/ # reproducible benchmark outputs
-  *.md        # milestone-specific docs and deep dives
+  *.md        # current docs and deep dives
 
 fixtures/
   linux-observability/ # offline observability fixtures, manifests, and support matrix
@@ -235,33 +235,33 @@ fixtures/
 
 ## Implementation details achieved so far
 
-### M1.5 — CLI / scenario I/O / report-export polish
+### CLI / scenario I/O / report-export polish
 
 The project established a stable CLI surface, public scenario-file loading,
 and a versioned JSON export contract.
 
-### M2 / M2.5 — fairness semantics and export hardening
+### fairness semantics and export hardening
 
 Weighted fairness semantics were added for the CFS-inspired path, and the trace
 and export contract were frozen tightly enough for downstream consumers.
 
-### M3 / M3.5 — multicore simulation and stronger fixtures
+### multicore simulation and stronger fixtures
 
 The simulator moved from single-core to deterministic multicore behavior.
 Fixture coverage was expanded to include balancing, simultaneous completions,
 and multicore RR pressure.
 
-### M4 / M4.5 — analysis and benchmark surfaces
+### analysis and benchmark surfaces
 
 The repo added export-driven analysis and reproducible benchmark baselines.
 These surfaces are deterministic and committed as artifacts.
 
-### M5 — identity gate
+### identity gate
 
 An ADR was landed to lock the repo’s current simulator-only truth while keeping
 the broader roadmap explicit and gated.
 
-### M6 / M7 — blocked transitions and multi-phase workloads
+### blocked transitions and multi-phase workloads
 
 The simulator now models:
 
@@ -269,7 +269,7 @@ The simulator now models:
 - alternating CPU/wait phases
 - backward-compatible single-sleep shorthand
 
-### M8 — fairness probes
+### fairness probes
 
 Fairness and latency probe fixtures were added, along with probe-style metrics
 such as:
@@ -278,33 +278,33 @@ such as:
 - `max_response_time`
 - `response_time_spread`
 
-### M9 — scheduling-class architecture
+### scheduling-class architecture
 
 Policy logic was isolated behind an explicit scheduling-class boundary so new
 families can be added without re-tangling the engine.
 
-### M10 — deadline-inspired policy
+### deadline-inspired policy
 
 A deterministic deadline-oriented teaching policy was added, with optional
 per-task `deadline_tick` inputs and reproducible cross-policy comparisons.
 
-### M11 — group scheduling model
+### group scheduling model
 
 The simulator now supports group membership plus group weights/quota-like caps.
 The current group behavior is intentionally narrow and framed as a teaching
 analogy, not as Linux cgroup fidelity.
 
-### M12 — topology-aware simulation
+### topology-aware simulation
 
 The multicore model now supports declared topology domains and domain-aware
 placement/stealing rules. Traces expose `domain_id` alongside `core_id`.
 
-### M13 — generator, shrinker, and property-style testing
+### generator, shrinker, and property-style testing
 
 The repo now contains a deterministic generator/shrinker/property harness plus
 regression fixture save-path guidance under `scenarios/regressions/`.
 
-### M14 — scenario-pack convention and extension boundary
+### scenario-pack convention and extension boundary
 
 The project now documents and tests a stable extension boundary:
 
@@ -313,31 +313,31 @@ The project now documents and tests a stable extension boundary:
 - policy extension remains routed through the scheduling-class boundary
 - core behavior stays operable without optional extras
 
-### M15 — interactive TUI trace explorer
+### interactive TUI trace explorer
 
 The repo now includes a local interactive trace explorer plus explicit
 snapshot rendering. The default `zig-scheduler` entrypoint is TUI-first, while
 the dedicated `zig-scheduler-tui` binary remains available for direct launch.
 
-### M16 — reproducible lab notebooks / report pipeline
+### reproducible lab notebooks / report pipeline
 
-M16 now provides one canonical regeneration path for the committed export,
+the simulator now provides one canonical regeneration path for the committed export,
 analysis, benchmark, and notebook artifacts:
 
 ```sh
 zig build reports
 ```
 
-### M17 — scenario corpus expansion and curriculum-grade examples
+### scenario corpus expansion and curriculum-grade examples
 
-M17 adds an explicit canonical scenario corpus on top of the existing fixture
+the simulator adds an explicit canonical scenario corpus on top of the existing fixture
 set. The core pack identifies curriculum-grade scenarios with stable metadata
 (theme, explanation doc, recommended policy, demo/regression role), and the
 repo documents the corpus in `docs/scenario-corpus.md`.
 
-### M18 — Linux-observability planning gate
+### Linux-observability planning gate
 
-M18 approved the narrow charter in `docs/adr/0002-linux-observability-gate.md`.
+the simulator approved the narrow charter in `docs/adr/0002-linux-observability-gate.md`.
 The repo still treats Linux observability as a separate bounded branch rather
 than a simulator-mainline feature.
 
@@ -357,7 +357,7 @@ simulator pairing and one committed observability fixture family, using a separa
 main simulator export/report surfaces.
 
 The TUI can now open this comparison explicitly via `--comparison` / `--comparison-pairing`,
-while keeping picker/explorer/diff simulator-only and preserving the
+while keeping dashboard/explorer/diff simulator-only and preserving the
 observability-only, non-fidelity boundary.
 
 ## Building, running, and testing
@@ -436,31 +436,31 @@ well-structured scheduling laboratory with explicit scope boundaries, a
 stronger local teaching surface, and a still-bounded Linux-observability side
 branch.
 
-## Current milestone status
+## Current workstream status
 
-As of 2026-05-15, the implemented/gated milestone picture is:
+As of 2026-05-15, the implemented/gated workstream picture is:
 
-- the mainline simulator branch is implemented through **M17**
-- the Linux-observability branch approved by **M18** is implemented through
-  **comparison**
+- the mainline simulator branch includes the simulator, report, dashboard, SDK, and quality surfaces
+- the Linux-observability branch approved by ADR 0002 is implemented through
+  **observability** and **comparison** surfaces
 - the teaching, SDK, courseware, research, and production-gate documentation
-  lanes are represented through **teaching-M25**
-- **M26 remains blocked** because `docs/adr/0003-productionization-gate.md`
-  deferred the optional daemon/service/agent/automation branch indefinitely
+  lanes are represented through their named docs and proof surfaces
+- **the optional production branch remains blocked** because `docs/adr/0003-productionization-gate.md`
+  deferred daemon/service/agent/automation work indefinitely
 - the newer production-grade roadmap in `.omx/plans/` is a roadmap for a
   production-grade scheduler **laboratory/product**, not approval for runtime
   production automation
 - the current proof surface is expected to stay green under
   `zig build test --summary all` and `zig build reports -- --check`
 
-### Governance reset for M27-M28
+### Governance reset for contract-governance
 
-M27-M28 are documentation/governance cleanup milestones. Their job is to keep
+The contract-governance cleanup is documentation/governance work. Their job is to keep
 current truth obvious before later cleanup, performance, dashboard, and contract
 inventory work proceeds:
 
 - README, roadmap, and status docs should say **production-grade laboratory**
-  when describing the M27+ roadmap.
+  when describing the later roadmap.
 - ADR 0003 remains the active productionization gate; roadmap text alone must
   never authorize daemon, service, agent, automation, live OS scheduler, or
   runtime implementation work.
@@ -551,18 +551,18 @@ This remains an optional library branch. It does not re-charter the repo away
 from its simulator-first identity, and it does not imply browser, service, or
 packaging scope.
 
-### M23 — packaged teaching distribution and courseware
+### packaged teaching distribution and courseware
 
-M23 packages the existing teaching simulator-first spine into one bounded courseware
+the simulator packages the existing teaching simulator-first spine into one bounded courseware
 shell. The canonical package entrypoint is:
 
-- `docs/courseware/m23-teaching-distribution.md`
+- `docs/courseware/teaching-distribution.md`
 
 observability/comparison and SDK remain optional appendix sections only.
 
-### M24 — research sandbox branch
+### research sandbox branch
 
-M24 adds a bounded research sandbox so new policy ideas can move faster without
+the simulator adds a bounded research sandbox so new policy ideas can move faster without
 destabilizing the supported teaching spine.
 
 The canonical sandbox governance doc is:
@@ -570,19 +570,19 @@ The canonical sandbox governance doc is:
 - `docs/research-sandbox.md`
 
 Experimental policies remain unstable, sandbox-only, and outside the supported
-default policy surface until a later milestone/ADR promotes them explicitly.
+default policy surface until a later workstream/ADR promotes them explicitly.
 
-### M25 / M26 — productionization gate and deferred branch
+### productionization gate and deferred branch
 
-M25 is decided: the optional production branch is **deferred indefinitely**.
+the simulator is decided: the optional production branch is **deferred indefinitely**.
 
 The governing ADR is:
 
 - `docs/adr/0003-productionization-gate.md`
 
-This means M26 remains blocked unless a future explicit re-charter reopens it.
+This means the optional production branch remains blocked unless a future explicit re-charter reopens it.
 `docs/future-directions.md` explains how such a future reconsideration should
-be governed; it does not reopen M26.
+be governed; it does not reopen the optional production branch.
 
 ## Notes on implementation philosophy
 
@@ -597,7 +597,7 @@ and keep every claim narrower than the implementation can prove.
 ```
 
 That is why the codebase prefers committed fixtures, explicit trace fields,
-small milestones, and simulator-scoped wording.
+small workstreams, and simulator-scoped wording.
 
 ## References
 
@@ -618,21 +618,21 @@ from scratch in an evidence-based way.
 - **NUMA and scheduler-domain documentation in the Linux kernel tree**
   - required before deepening topology costs, migration heuristics, or locality claims
 - **Queueing/scheduling textbooks or lecture notes covering FCFS, RR, EDF, weighted fair scheduling, starvation, and latency tradeoffs**
-  - required for the teaching theory behind the simulator’s milestone progression
+  - required for the teaching theory behind the simulator’s workstream progression
 - **Zig language and standard library references**
   - required for implementing deterministic parsers, data models, tests, and CLI/report surfaces in Zig
 - **Property-based testing literature**
   - e.g. QuickCheck-style generator/shrinker design references
   - required for designing useful generators, shrinkers, and invariant suites
 - **TUI design/accessibility references**
-  - required for M15 and the recommended teaching-surface polish work
+  - required for the simulator and the recommended teaching-surface polish work
 
 When extending the repo, prefer official docs, seminal scheduler papers, and
 the repo’s own committed fixtures/contracts before adding new abstractions.
 
 ### quality gate spine
 
-Phase B quality work is now owned by `docs/quality-gates.md`,
+Quality-gate work is owned by `docs/quality-gates.md`,
 `docs/release-checklist.md`, and the generated maintainer dashboard exposed as
 `zig build quality`. These surfaces keep test taxonomy, golden fixture governance,
 property/determinism/fault/architecture gates, CLI/SDK compatibility, dashboard
@@ -642,7 +642,7 @@ preserving ADR 0003.
 
 ### performance gate spine
 
-Phase C performance work is owned by `docs/performance-gates.md`,
+Performance-gate work is owned by `docs/performance-gates.md`,
 `docs/benchmarks/baselines.*`, and `src/perf/root.zig`. The gate compares
 reproducible simulator-local budgets against committed benchmark baselines via
 `zig build perf`; it is explicitly not Linux-performance or production-runtime
@@ -651,7 +651,7 @@ evidence under ADR 0003.
 
 ### scheduling semantics v2 spine
 
-Phase D semantics are owned by `docs/scheduler-semantics-v2.md` and
+Scheduling semantics are owned by `docs/scheduler-semantics-v2.md` and
 `src/semantics/root.zig`. The contract gives policies, reports, and future
 dashboard panels one vocabulary for priority/nice, fairness, deadlines,
 runqueues, affinity, topology, group budgets, explainable decisions, and
@@ -660,7 +660,7 @@ replay/diff diagnostics without changing the ADR 0003 simulator-lab boundary.
 
 ### smart dashboard spine
 
-Phase E dashboard work is owned by `docs/smart-dashboard-spine.md` and
+Dashboard-spine work is owned by `docs/smart-dashboard-spine.md` and
 `src/dashboard/root.zig`. The contract defines one dashboard shell with Home,
 Scenario, Timeline, Tasks/Cores, Policy Compare, Observability, Performance,
 Reports, and Help screens, and `src/tui/render.zig` maps existing TUI views into

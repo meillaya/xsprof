@@ -58,14 +58,14 @@ re-charter before any implementation starts.
 
 Roadmap source-of-truth surfaces:
 
-- `docs/project-architecture-and-status.md` — current repo identity, milestone
+- `docs/project-architecture-and-status.md` — current repo identity, workstream
   status, and active proof surfaces
 - `docs/roadmap/README.md` — information architecture for active plans, gates,
   drafts, and archived roadmap material
-- `.omx/plans/prd-production-grade-scheduler-50-milestones.md` — future
-  production-grade scheduler laboratory roadmap, including M27+ cleanup and
-  governance milestones
-- `.omx/plans/test-spec-production-grade-scheduler-50-milestones.md` —
+- `.omx/plans/prd-production-grade-scheduler-50-workstreams.md` — future
+  production-grade scheduler laboratory roadmap, including later roadmap cleanup and
+  governance workstreams
+- `.omx/plans/test-spec-production-grade-scheduler-50-workstreams.md` —
   verification expectations for that roadmap
 
 ## Theory

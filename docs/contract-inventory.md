@@ -1,8 +1,8 @@
-# M31-M32 memory ownership and production-boundary contract inventory
+# contract-governance memory ownership and production-boundary contract inventory
 
 ## Status
 
-M31-M32 inventory artifact for the Phase A cleanup tranche. It documents the
+The contract-governance inventory artifact for the contract cleanup tranche. It documents the
 current simulator/laboratory contracts without reopening the production runtime
 branch. ADR 0003 (`docs/adr/0003-productionization-gate.md`) remains the
 governing productionization gate: this inventory classifies portability and
@@ -12,7 +12,7 @@ automation implementation work.
 The lightweight test metadata mirror for owner/classification checks lives in
 `src/contract/inventory.zig`.
 
-## M31 allocator and lifetime ownership rules
+## allocator and lifetime ownership rules
 
 | Surface | Owner module | Allocator/lifetime rule | Deinit/release rule | Notes |
 | --- | --- | --- | --- | --- |
@@ -22,10 +22,10 @@ The lightweight test metadata mirror for owner/classification checks lives in
 | Report JSON writing | `src/cli/report.zig`; public facade `src/sdk/report.zig`; schema constants in `src/contract/report.zig` | `SimulationReport` borrows `ScenarioOwned`, `SimulationResult`, and source metadata slices while `writeJsonReport` serializes. | No report-owned heap state exists in `SimulationReport`; release borrowed scenario/result separately. | The stable external contract is `zig-scheduler/report` v1. |
 | Analysis parsed JSON | `src/analysis/model.zig`, `src/analysis/root.zig` | `std.json.Parsed(analysis.model.Report)` owns parsed JSON memory through its arena/parser allocation. Rendered markdown/SVG buffers are caller-owned returned slices. | Call `parsed.deinit()` for parsed reports; free rendered buffers with the allocator that requested them. | Analysis is a downstream consumer of report JSON, not an owner of simulator state. |
 | Generated workloads / property cases | `src/testing/property.zig`, `src/tests/property_test.zig` | Generators allocate temporary scenarios and case data under the test allocator. | Tests release generated owned scenarios/results before exit; `std.testing.allocator` remains the leak detector. | This is lab/test workload generation, not a production fuzzing or live workload API. |
-| TUI history and loaded data | `src/tui/root.zig` | The TUI `App` owns parsed reports, observability fixtures, comparison summaries, picker entries, and duplicated history entries while the UI loop/snapshot runs. | `App.deinit()` releases parsed reports, fixtures, comparison summaries, history entries, and picker entries. | Snapshot output is an explicitly requested rendering surface, not a daemon UI loop contract. |
+| TUI history and loaded data | `src/tui/root.zig` | The TUI `App` owns parsed reports, observability fixtures, comparison summaries, dashboard entries, and duplicated history entries while the UI loop/snapshot runs. | `App.deinit()` releases parsed reports, fixtures, comparison summaries, history entries, and dashboard entries. | Snapshot output is an explicitly requested rendering surface, not a daemon UI loop contract. |
 | Benchmark report data | `src/bench/root.zig` | `bench.run` owns benchmark `cases`; transient scenarios/results/exports/analysis outputs are released per case. | `Report.deinit(allocator)` releases the cases slice; transient values use local `defer` cleanup. | Baselines are deterministic lab artifacts, not Linux or production performance claims. |
 
-## M32 public contract and production-boundary matrix
+## public contract and production-boundary matrix
 
 Classification:
 
@@ -47,7 +47,7 @@ Classification:
 | Benchmark output | `src/bench/root.zig`, `docs/benchmarks/*` | `zig-scheduler/benchmark-baseline` schema/version 1 | Lab-only baseline artifact | Baselines record deterministic output sizes/trace volumes over committed fixtures; no Linux-performance claim. | Bench tests, `zig build bench`, report check when artifacts change |
 | Analysis markdown/SVG | `src/analysis/*`, `docs/examples/analysis/*` | Markdown/SVG derived from report JSON | Lab-only downstream reporting | Consumes `zig-scheduler/report` without widening the report contract. | Analysis tests, report-pipeline tests |
 | Offline Linux observability fixtures | `fixtures/linux-observability/*`, `src/observability/*` | Version-pinned imported snapshots and comparison summaries | Intentionally non-runtime | Offline, curated, scrubbed fixtures only; no live capture, replay authority, or monitoring daemon. | Linux observability and comparison tests |
-| Production runtime branch | ADR 0003 plus future release decision/release plan planning only | No runtime package/API exists in the current tree | Intentionally non-runtime | Production work remains deferred until a new ADR/re-charter names sponsor, operator, threat model, owners, and compatibility plan. | ADR wording checks and M27-M32 final verification |
+| Production runtime branch | ADR 0003 plus future release decision/release plan planning only | No runtime package/API exists in the current tree | Intentionally non-runtime | Production work remains deferred until a new ADR/re-charter names sponsor, operator, threat model, owners, and compatibility plan. | ADR wording checks and contract-governance final verification |
 
 ## Public API/error/logging/config boundaries
 
@@ -55,7 +55,7 @@ Classification:
   tools that need wider internals import `zig_scheduler_internal`; embedders use
   only `zig_scheduler`.
 - **Error boundary:** parser, validation, CLI, and report contract errors are
-  Zig error sets surfaced by their owning modules. M31-M32 does not translate
+  Zig error sets surfaced by their owning modules. contract-governance does not translate
   them into production service status codes.
 - **Logging boundary:** the current simulator surfaces user-facing output
   through CLI/TUI/report writers. There is no stable production logging,

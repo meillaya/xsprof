@@ -1,11 +1,11 @@
 # quality gates
 
-This is the canonical Phase B quality gate for the simulator-lab/product-quality
+This is the canonical quality gate for the simulator-lab/product-quality
 track. It preserves ADR 0003: the repository remains a deterministic scheduler
 simulator and teaching laboratory, not a daemon, service, agent, or production
 automation runtime.
 
-## M37 test taxonomy and ownership
+## test taxonomy and ownership
 
 | Taxonomy | Primary owner | Build evidence | Update rule |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ automation runtime.
 | Contract tests | `src/tests/library_sdk_test.zig`, `src/tests/cli_smoke_test.zig` | `zig build embed-smoke`; `zig build test --summary all` | Changes require migration notes and examples. |
 | Architecture tests | `src/tests/policy_architecture_test.zig`, `src/tests/quality_gate_test.zig` | `zig build test --summary all` | Forbidden imports fail the build before cleanup or feature work proceeds. |
 
-## M38 golden fixture governance
+## golden fixture governance
 
 Golden artifacts are intentionally committed only when they improve reviewability.
 The owner of each artifact class decides when regeneration is valid:
@@ -29,21 +29,21 @@ The owner of each artifact class decides when regeneration is valid:
 | Dashboard snapshots | TUI snapshot tests and future `docs/snapshots/` fixtures | `zig build test --summary all` | Compact/medium/large rendering changes require snapshot review. |
 | Courseware reports | `docs/courseware/` and `docs/labs/` | `zig build reports -- --check` | Keep simulator-first language and ADR guardrails intact. |
 
-## M39-M42 executable gates
+## contract-governance executable gates
 
-- **M39 property testing expansion:** generated scenarios must exercise groups,
+- **the simulator property testing expansion:** generated scenarios must exercise groups,
   topology, CPU/wait phases, deadlines, policy classes, report export accounting,
   and shrinker regression-save workflows.
-- **M40 determinism oracle:** repeated runs over curated fixtures and generated
+- **the simulator determinism oracle:** repeated runs over curated fixtures and generated
   cases must produce identical traces, task metrics, and completion order.
-- **M41 mutation/fault injection harness:** invalid scenario/report/policy inputs
+- **the simulator mutation/fault injection harness:** invalid scenario/report/policy inputs
   assert stable diagnostics such as `MissingName`, `InvalidInteger`,
   `ZeroBurstTicks`, and `UnsupportedSchema`; they must not crash.
-- **M42 static architecture checks:** downstream tools consume report contracts,
+- **the simulator static architecture checks:** downstream tools consume report contracts,
   not simulator engine internals; policy implementations stay behind the class and
   extension metadata boundaries.
 
-## M43 CLI and SDK compatibility suite
+## CLI and SDK compatibility suite
 
 Public CLI and SDK workflows stay frozen by tests:
 
@@ -55,7 +55,7 @@ Public CLI and SDK workflows stay frozen by tests:
 Compatibility changes require updating `docs/library-sdk.md`, examples,
 contract inventory metadata, and release notes in the same commit.
 
-## M44 dashboard snapshot regression suite
+## dashboard snapshot regression suite
 
 The TUI must remain deterministic in snapshot mode. Snapshot coverage is grouped
 by terminal tier rather than by ad hoc modes:
@@ -67,13 +67,13 @@ by terminal tier rather than by ad hoc modes:
 Future screens must be added to the unified dashboard spine instead of creating
 new one-off TUI modes.
 
-## M45 release checklist and changelog discipline
+## release checklist and changelog discipline
 
 Use `docs/release-checklist.md` for release dry-runs. Every release candidate
 must document version bumps, contract migrations, benchmark/budget status,
 quality dashboard output, and known simulator-lab limits.
 
-## quality dashboard generated quality dashboard
+## Generated quality dashboard
 
 Run:
 
@@ -82,5 +82,5 @@ zig build quality
 ```
 
 The command renders the current quality dashboard from `src/quality/root.zig`.
-The dashboard is maintainer evidence for Phase B gates; it is not a runtime
+The dashboard is maintainer evidence for quality gates; it is not a runtime
 service or external automation surface.

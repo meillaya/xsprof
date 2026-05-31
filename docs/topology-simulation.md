@@ -1,6 +1,6 @@
-# M12 topology-aware simulation
+# topology-aware simulation
 
-M12 introduces a deterministic topology layer on top of the existing multicore simulator.
+the simulator introduces a deterministic topology layer on top of the existing multicore simulator.
 
 ## Scope and caveats
 - This is a simulator-local teaching model.
@@ -28,4 +28,4 @@ M12 introduces a deterministic topology layer on top of the existing multicore s
 - topology information is exported via top-level `topology_domains` and trace-level `domain_id`
 
 ## Evidence-based interpretation
-Use this milestone to explain how a simple topology distinction can change placement and migration behavior in the simulator. Avoid projecting the result onto Linux NUMA or scheduler-domain guarantees.
+Use this workstream to explain how a simple topology distinction can change placement and migration behavior in the simulator. Avoid projecting the result onto Linux NUMA or scheduler-domain guarantees.

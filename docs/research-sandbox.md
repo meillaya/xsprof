@@ -1,6 +1,6 @@
-# M24 research sandbox
+# research sandbox
 
-M24 is the optional research sandbox branch for experimental policies and
+the simulator is the optional research sandbox branch for experimental policies and
 experiments.
 
 ## Purpose
@@ -37,14 +37,14 @@ Experimental policies:
 An experimental policy may be promoted only when all of the following happen:
 1. the sandbox experiment is documented clearly enough to explain its purpose
 2. dedicated tests prove its intended semantics
-3. a milestone/ADR explicitly approves promotion into the supported surface
+3. a workstream/ADR explicitly approves promotion into the supported surface
 4. stable docs/tests are updated to include the new supported policy intentionally
 
 Without those steps, the policy remains experimental-only.
 
 ## Non-goals
 
-M24 does not imply:
+the simulator does not imply:
 - browser/WASM work
 - service or production scope
 - live observability capture

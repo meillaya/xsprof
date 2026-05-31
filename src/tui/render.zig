@@ -3,6 +3,7 @@ const list_writer = @import("list_writer");
 const analysis = @import("analysis_root");
 const scheduler = @import("zig_scheduler_internal");
 const dashboard = @import("dashboard_root");
+const actions = @import("actions.zig");
 
 pub const Report = analysis.model.Report;
 pub const TraceEntry = analysis.model.TraceEntry;
@@ -12,12 +13,15 @@ pub const ObservabilitySummary = scheduler.observability.ObservabilitySummary;
 pub const ComparisonSummary = scheduler.observability_comparison.ComparisonSummary;
 
 pub const View = enum {
-    picker,
+    home,
+    scenario,
     explorer,
     drawer,
     diff,
     observability_summary,
     observability_comparison,
+    performance,
+    reports,
     help,
 };
 
@@ -25,11 +29,14 @@ pub const DashboardScreen = dashboard.Screen;
 
 pub fn dashboardScreenForView(view: View) DashboardScreen {
     return switch (view) {
-        .picker => .home,
+        .home => .home,
+        .scenario => .scenario,
         .explorer => .timeline,
         .drawer => .tasks_cores,
         .diff => .policy_compare,
         .observability_summary, .observability_comparison => .observability,
+        .performance => .performance,
+        .reports => .reports,
         .help => .help,
     };
 }
@@ -90,7 +97,7 @@ pub const ViewLayoutContract = struct {
     dense_task_table: bool = false,
 };
 
-pub const PickerEntry = struct {
+pub const DashboardEntry = struct {
     scenario_key: []const u8,
     scenario_label: []const u8,
     pack: []const u8,
@@ -112,13 +119,13 @@ pub const AppView = struct {
     focus: PaneFocus,
     cursor: u32,
     selected_task_index: ?usize,
-    picker_index: usize,
+    dashboard_index: usize,
     playing: bool,
     report: ?*const Report,
     compare_report: ?*const Report,
     observability_summary: ?*const ObservabilitySummary,
     observability_comparison: ?*const ComparisonSummary,
-    picker_entries: []const PickerEntry,
+    dashboard_entries: []const DashboardEntry,
     history: []const []const u8,
 };
 
@@ -253,7 +260,7 @@ pub fn viewContract(view: View, width: usize, height: usize, has_compare: bool) 
                 .help_mode = .overlay,
             },
         },
-        .picker => switch (tier) {
+        .home, .scenario, .performance, .reports => switch (tier) {
             .compact => .{
                 .tier = .compact,
                 .help_mode = .fullscreen,
@@ -561,12 +568,15 @@ fn renderFrameWithMode(allocator: std.mem.Allocator, width: usize, height: usize
     }
 
     switch (app.view) {
-        .picker => renderPicker(&canvas, app, theme, output_mode),
+        .home => renderDashboardHome(&canvas, app, theme, output_mode),
+        .scenario => renderScenario(&canvas, app, theme, output_mode),
         .explorer => renderExplorer(&canvas, app, theme, output_mode),
         .drawer => renderDrawer(&canvas, app, theme, output_mode),
         .diff => renderDiff(&canvas, app, theme, output_mode),
         .observability_summary => renderObservabilitySummary(&canvas, app, theme, output_mode),
         .observability_comparison => renderObservabilityComparison(&canvas, app, theme, output_mode),
+        .performance => renderCommandStatusScreen(&canvas, app, theme, output_mode, .performance),
+        .reports => renderCommandStatusScreen(&canvas, app, theme, output_mode, .reports),
         .help => renderHelp(&canvas, app, theme, output_mode),
     }
 
@@ -690,26 +700,13 @@ fn renderStatusBar(canvas: *Canvas, rect: Rect, app: AppView, _: Theme, mode_lab
     }
 
     const hints = switch (output_mode) {
-        .interactive => switch (app.view) {
-            .explorer => if (contract.tier == .too_small)
-                "resize to at least 80x24 · q quit"
-            else if (contract.tier == .compact)
-                "tab enter d ? q"
-            else
-                "← → scrub  j k task  tab pane  space play  d diff  s open  ? help  q quit",
-            .picker => "↑ ↓ select  ↵ open  p policy  m observability  c comparison  w theme  ? help  q quit",
-            .drawer => if (contract.tier == .compact) "esc back  d diff  ? help  q quit" else "esc back  ← → scrub  j k task  d diff  s open  ? help  q quit",
-            .diff => if (contract.tier == .compact) "d exit diff  ? help  q quit" else "d exit diff  ← → scrub  w theme  s open  ? help  q quit",
-            .observability_summary => "w theme  ? help  q quit",
-            .observability_comparison => "w theme  ? help  q quit",
-            .help => if (contract.tier == .compact) "esc close help  q quit" else "? or esc close  q quit",
-        },
+        .interactive => actions.statusHint(dashboardScreenForView(app.view), contract.tier == .compact),
         .snapshot => "snapshot · non-interactive render · rerun without --snapshot for controls",
     };
     canvas.drawTextClipped(rect.x + rect.w / 2, rect.y, rect.w / 2 - 2, hints, .{ .fg = .fg_inv, .bg = .bg_inv, .bold = false });
 }
 
-fn renderPane(canvas: *Canvas, rect: Rect, title: []const u8, badge: ?[]const u8, subtitle: ?[]const u8, active: bool, _: Theme) Rect {
+fn renderPane(canvas: *Canvas, rect: Rect, title: []const u8, badge: ?[]const u8, subtitle: ?[]const u8, active: bool) Rect {
     const border_style: Style = .{ .fg = if (active) .fg else .fg_faint, .bg = .bg };
     canvas.fillRect(rect, .{ .fg = .fg, .bg = .bg });
     canvas.drawBox(rect, border_style);
@@ -780,9 +777,9 @@ fn renderObservabilitySummary(canvas: *Canvas, app: AppView, theme: Theme, outpu
         const meta_rect = Rect{ .x = 1, .y = top, .w = canvas.width - 2, .h = meta_h };
         const counts_rect = Rect{ .x = 1, .y = meta_rect.y + meta_rect.h + gap, .w = canvas.width - 2, .h = counts_h };
         const boundary_rect = Rect{ .x = 1, .y = counts_rect.y + counts_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (counts_rect.y + counts_rect.h + gap) };
-        const meta_inner = renderPane(canvas, meta_rect, "fixture + tuple", null, null, true, theme);
-        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false, theme);
-        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false, theme);
+        const meta_inner = renderPane(canvas, meta_rect, "fixture + tuple", null, null, true);
+        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false);
+        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false);
         var row_buf: [8][128]u8 = undefined;
         const meta_rows = [_][]const u8{
             std.fmt.bufPrint(&row_buf[0], "fixture `{s}`", .{summary.fixture_name}) catch "",
@@ -815,10 +812,10 @@ fn renderObservabilitySummary(canvas: *Canvas, app: AppView, theme: Theme, outpu
         const scope_rect = Rect{ .x = left_rect.x, .y = tuple_rect.y + tuple_rect.h + gap, .w = left_rect.w, .h = left_rect.h - tuple_rect.h - gap };
         const counts_rect = Rect{ .x = right_rect.x, .y = right_rect.y, .w = right_rect.w, .h = right_rect.h / 2 };
         const boundary_rect = Rect{ .x = right_rect.x, .y = counts_rect.y + counts_rect.h + gap, .w = right_rect.w, .h = right_rect.h - counts_rect.h - gap };
-        const tuple_inner = renderPane(canvas, tuple_rect, "fixture + tuple", null, null, true, theme);
-        const scope_inner = renderPane(canvas, scope_rect, "scope", null, null, false, theme);
-        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false, theme);
-        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false, theme);
+        const tuple_inner = renderPane(canvas, tuple_rect, "fixture + tuple", null, null, true);
+        const scope_inner = renderPane(canvas, scope_rect, "scope", null, null, false);
+        const counts_inner = renderPane(canvas, counts_rect, "event counts", null, null, false);
+        const boundary_inner = renderPane(canvas, boundary_rect, "boundary", null, null, false);
         var row_buf: [12][160]u8 = undefined;
         const tuple_rows = [_][]const u8{
             std.fmt.bufPrint(&row_buf[0], "fixture: `{s}`", .{summary.fixture_name}) catch "",
@@ -882,10 +879,10 @@ fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, ou
         const family_rect = Rect{ .x = 1, .y = meta_rect.y + meta_rect.h + gap, .w = canvas.width - 2, .h = family_h };
         const metric_rect = Rect{ .x = 1, .y = family_rect.y + family_rect.h + gap, .w = canvas.width - 2, .h = metric_h };
         const caveat_rect = Rect{ .x = 1, .y = metric_rect.y + metric_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (metric_rect.y + metric_rect.h + gap) };
-        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true, theme);
-        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false, theme);
-        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false, theme);
-        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false, theme);
+        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true);
+        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false);
+        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false);
+        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false);
         var row_buf: [12][160]u8 = undefined;
         const meta_rows = [_][]const u8{
             std.fmt.bufPrint(&row_buf[0], "pairing `{s}`", .{comparison.pairing_id}) catch "",
@@ -914,10 +911,10 @@ fn renderObservabilityComparison(canvas: *Canvas, app: AppView, theme: Theme, ou
         const family_rect = Rect{ .x = left_rect.x, .y = meta_rect.y + meta_rect.h + gap, .w = left_rect.w, .h = left_rect.h - meta_rect.h - gap };
         const metric_rect = Rect{ .x = right_rect.x, .y = right_rect.y, .w = right_rect.w, .h = right_rect.h * 3 / 5 };
         const caveat_rect = Rect{ .x = right_rect.x, .y = metric_rect.y + metric_rect.h + gap, .w = right_rect.w, .h = right_rect.h - metric_rect.h - gap };
-        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true, theme);
-        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false, theme);
-        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false, theme);
-        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false, theme);
+        const meta_inner = renderPane(canvas, meta_rect, "pairing", null, null, true);
+        const family_inner = renderPane(canvas, family_rect, "normalized families", null, null, false);
+        const metric_inner = renderPane(canvas, metric_rect, "metric rows", null, null, false);
+        const caveat_inner = renderPane(canvas, caveat_rect, "caveats", null, null, false);
         var row_buf: [12][180]u8 = undefined;
         const meta_rows = [_][]const u8{
             std.fmt.bufPrint(&row_buf[0], "pairing id: `{s}`", .{comparison.pairing_id}) catch "",
@@ -985,7 +982,7 @@ fn renderComparisonMetricRows(canvas: *Canvas, rect: Rect, metric_rows: []const 
 }
 
 fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
-    const report = app.report orelse return renderPicker(canvas, app, theme, output_mode);
+    const report = app.report orelse return renderDashboardHome(canvas, app, theme, output_mode);
     const contract = viewContract(.explorer, canvas.width, canvas.height, app.compare_report != null);
     renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report, theme, app.playing, null);
 
@@ -1008,13 +1005,13 @@ fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Outp
         const tasks_rect = Rect{ .x = 1, .y = bottom_y, .w = canvas.width - 2, .h = task_h };
         const tick_rect = Rect{ .x = 1, .y = tasks_rect.y + tasks_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (tasks_rect.y + tasks_rect.h + gap) };
 
-        const gantt_inner = renderPane(canvas, gantt_rect, "trace · cpu lanes", null, policySubtitle(report), app.focus == .gantt, theme);
+        const gantt_inner = renderPane(canvas, gantt_rect, "trace · cpu lanes", null, policySubtitle(report), app.focus == .gantt);
         renderGantt(canvas, gantt_inner, report, app, theme, false);
 
-        const tasks_inner = renderPane(canvas, tasks_rect, "tasks", task_badge, null, app.focus == .tasks, theme);
+        const tasks_inner = renderPane(canvas, tasks_rect, "tasks", task_badge, null, app.focus == .tasks);
         renderTaskTable(canvas, tasks_inner, report, app, theme, true);
 
-        const tick_inner = renderPane(canvas, tick_rect, "tick", tick_badge, null, app.focus == .tick, theme);
+        const tick_inner = renderPane(canvas, tick_rect, "tick", tick_badge, null, app.focus == .tick);
         renderCompactTickPane(canvas, tick_inner, report, app.cursor);
     } else {
         const gantt_h = if (contract.tier == .medium) @min(@as(usize, 12), body_height / 2 + 1) else @min(@as(usize, 16), body_height / 2 + 2);
@@ -1029,21 +1026,21 @@ fn renderExplorer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Outp
         const right_top_rect = Rect{ .x = mid_rect.x + mid_rect.w + gap, .y = bottom_y, .w = right_w, .h = bottom_h / 2 };
         const right_bottom_rect = Rect{ .x = right_top_rect.x, .y = right_top_rect.y + right_top_rect.h + gap, .w = right_w, .h = bottom_h - right_top_rect.h - gap };
 
-        const gantt_inner = renderPane(canvas, gantt_rect, "trace · cpu lanes", null, policySubtitle(report), app.focus == .gantt, theme);
+        const gantt_inner = renderPane(canvas, gantt_rect, "trace · cpu lanes", null, policySubtitle(report), app.focus == .gantt);
         renderGantt(canvas, gantt_inner, report, app, theme, contract.tier == .large);
 
-        const tasks_inner = renderPane(canvas, left_rect, "tasks", task_badge, null, app.focus == .tasks, theme);
+        const tasks_inner = renderPane(canvas, left_rect, "tasks", task_badge, null, app.focus == .tasks);
         renderTaskTable(canvas, tasks_inner, report, app, theme, contract.dense_task_table);
 
-        const events_inner = renderPane(canvas, mid_rect, "events", event_badge, null, app.focus == .events, theme);
-        renderEventLog(canvas, events_inner, report, app.cursor, theme);
+        const events_inner = renderPane(canvas, mid_rect, "events", event_badge, null, app.focus == .events);
+        renderEventLog(canvas, events_inner, report, app.cursor);
 
-        const tick_inner = renderPane(canvas, right_top_rect, "tick", tick_badge, null, app.focus == .tick, theme);
-        renderTickDetail(canvas, tick_inner, report, app.cursor, theme);
+        const tick_inner = renderPane(canvas, right_top_rect, "tick", tick_badge, null, app.focus == .tick);
+        renderTickDetail(canvas, tick_inner, report, app.cursor);
 
         if (contract.show_aggregate_pane) {
-            const agg_inner = renderPane(canvas, right_bottom_rect, "aggregate", null, null, false, theme);
-            renderAggregate(canvas, agg_inner, report, theme);
+            const agg_inner = renderPane(canvas, right_bottom_rect, "aggregate", null, null, false);
+            renderAggregate(canvas, agg_inner, report);
         } else {
             renderAggregateCompact(canvas, tick_inner, report, app.cursor);
         }
@@ -1076,17 +1073,17 @@ fn renderDrawer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
             std.fmt.bufPrint(&badge_buf, "group {s}", .{group_id}) catch ""
         else
             null;
-        const detail_inner = renderPane(canvas, detail_rect, std.fmt.bufPrint(&badge_buf, "task · {s}", .{task.id}) catch "task", badge, null, true, theme);
-        renderTaskDetail(canvas, detail_inner, report, task, app.cursor, theme);
+        const detail_inner = renderPane(canvas, detail_rect, std.fmt.bufPrint(&badge_buf, "task · {s}", .{task.id}) catch "task", badge, null, true);
+        renderTaskDetail(canvas, detail_inner, report, task, app.cursor);
 
-        const wait_inner = renderPane(canvas, waiting_rect, "waiting profile", null, null, false, theme);
-        renderWaitingProfile(canvas, wait_inner, task, theme);
-        const cores_inner = renderPane(canvas, cores_rect, "cores used", null, null, false, theme);
-        renderTaskCoreUsage(canvas, cores_inner, report, task, theme);
-        const order_inner = renderPane(canvas, order_rect, "neighbors · completion order", null, null, false, theme);
-        renderCompletionOrder(canvas, order_inner, report, task.id, theme);
-        const events_inner = renderPane(canvas, events_rect, "events · this task", null, null, false, theme);
-        renderTaskEventLog(canvas, events_inner, report, task.id, app.cursor, theme);
+        const wait_inner = renderPane(canvas, waiting_rect, "waiting profile", null, null, false);
+        renderWaitingProfile(canvas, wait_inner, task);
+        const cores_inner = renderPane(canvas, cores_rect, "cores used", null, null, false);
+        renderTaskCoreUsage(canvas, cores_inner, report, task);
+        const order_inner = renderPane(canvas, order_rect, "neighbors · completion order", null, null, false);
+        renderCompletionOrder(canvas, order_inner, report, task.id);
+        const events_inner = renderPane(canvas, events_rect, "events · this task", null, null, false);
+        renderTaskEventLog(canvas, events_inner, report, task.id, app.cursor);
 
         renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "TASK", output_mode);
         return;
@@ -1108,21 +1105,21 @@ fn renderDrawer(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
         std.fmt.bufPrint(&badge_buf, "group {s}", .{group_id}) catch ""
     else
         null;
-    const detail_inner = renderPane(canvas, detail_rect, std.fmt.bufPrint(&badge_buf, "task · {s}", .{task.id}) catch "task", badge, null, true, theme);
-    renderTaskDetail(canvas, detail_inner, report, task, app.cursor, theme);
+    const detail_inner = renderPane(canvas, detail_rect, std.fmt.bufPrint(&badge_buf, "task · {s}", .{task.id}) catch "task", badge, null, true);
+    renderTaskDetail(canvas, detail_inner, report, task, app.cursor);
 
-    const task_events_inner = renderPane(canvas, events_rect, "events · this task", null, null, false, theme);
-    renderTaskEventLog(canvas, task_events_inner, report, task.id, app.cursor, theme);
+    const task_events_inner = renderPane(canvas, events_rect, "events · this task", null, null, false);
+    renderTaskEventLog(canvas, task_events_inner, report, task.id, app.cursor);
 
     const wait_rect = Rect{ .x = right_rect.x, .y = right_rect.y, .w = right_rect.w, .h = 8 };
     const cores_rect = Rect{ .x = right_rect.x, .y = right_rect.y + 9, .w = right_rect.w, .h = 8 };
     const neigh_rect = Rect{ .x = right_rect.x, .y = right_rect.y + 18, .w = right_rect.w, .h = right_rect.h - 18 };
-    const wait_inner = renderPane(canvas, wait_rect, "waiting profile", null, null, false, theme);
-    renderWaitingProfile(canvas, wait_inner, task, theme);
-    const cores_inner = renderPane(canvas, cores_rect, "cores used", null, null, false, theme);
-    renderTaskCoreUsage(canvas, cores_inner, report, task, theme);
-    const neigh_inner = renderPane(canvas, neigh_rect, "neighbors · completion order", null, null, false, theme);
-    renderCompletionOrder(canvas, neigh_inner, report, task.id, theme);
+    const wait_inner = renderPane(canvas, wait_rect, "waiting profile", null, null, false);
+    renderWaitingProfile(canvas, wait_inner, task);
+    const cores_inner = renderPane(canvas, cores_rect, "cores used", null, null, false);
+    renderTaskCoreUsage(canvas, cores_inner, report, task);
+    const neigh_inner = renderPane(canvas, neigh_rect, "neighbors · completion order", null, null, false);
+    renderCompletionOrder(canvas, neigh_inner, report, task.id);
 
     renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "TASK", output_mode);
 }
@@ -1145,14 +1142,14 @@ fn renderDiff(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
         const delta_rect = Rect{ .x = 1, .y = b_rect.y + b_rect.h + gap, .w = full_w, .h = summary_h };
         const agg_rect = Rect{ .x = 1, .y = delta_rect.y + delta_rect.h + gap, .w = full_w, .h = canvas.height - 1 - (delta_rect.y + delta_rect.h + gap) };
 
-        const a_inner = renderPane(canvas, a_rect, "A · current", report_a.policy.display_name, null, true, theme);
+        const a_inner = renderPane(canvas, a_rect, "A · current", report_a.policy.display_name, null, true);
         renderGantt(canvas, a_inner, report_a, app, theme, false);
-        const b_inner = renderPane(canvas, b_rect, "B · compare", report_b.policy.display_name, null, true, theme);
+        const b_inner = renderPane(canvas, b_rect, "B · compare", report_b.policy.display_name, null, true);
         renderGantt(canvas, b_inner, report_b, app, theme, false);
-        const delta_inner = renderPane(canvas, delta_rect, "per-task deltas", null, null, false, theme);
-        renderDiffTable(canvas, delta_inner, report_a, report_b, theme);
-        const agg_inner = renderPane(canvas, agg_rect, "aggregate", null, null, false, theme);
-        renderDiffAggregate(canvas, agg_inner, report_a, report_b, theme);
+        const delta_inner = renderPane(canvas, delta_rect, "per-task deltas", null, null, false);
+        renderDiffTable(canvas, delta_inner, report_a, report_b);
+        const agg_inner = renderPane(canvas, agg_rect, "aggregate", null, null, false);
+        renderDiffAggregate(canvas, agg_inner, report_a, report_b);
 
         renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "DIFF", output_mode);
         return;
@@ -1169,34 +1166,34 @@ fn renderDiff(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
     const deltas_rect = Rect{ .x = 1, .y = bottom_top, .w = half_w, .h = bottom_h };
     const agg_rect = Rect{ .x = deltas_rect.x + deltas_rect.w + gap, .y = bottom_top, .w = canvas.width - deltas_rect.w - 3, .h = bottom_h };
 
-    const a_inner = renderPane(canvas, pane_a, "A · current", report_a.policy.display_name, null, true, theme);
+    const a_inner = renderPane(canvas, pane_a, "A · current", report_a.policy.display_name, null, true);
     renderGantt(canvas, a_inner, report_a, app, theme, false);
-    const b_inner = renderPane(canvas, pane_b, "B · compare", report_b.policy.display_name, null, true, theme);
+    const b_inner = renderPane(canvas, pane_b, "B · compare", report_b.policy.display_name, null, true);
     renderGantt(canvas, b_inner, report_b, app, theme, false);
-    const delta_inner = renderPane(canvas, deltas_rect, "per-task deltas", null, null, false, theme);
-    renderDiffTable(canvas, delta_inner, report_a, report_b, theme);
-    const agg_inner = renderPane(canvas, agg_rect, "aggregate", null, null, false, theme);
-    renderDiffAggregate(canvas, agg_inner, report_a, report_b, theme);
+    const delta_inner = renderPane(canvas, deltas_rect, "per-task deltas", null, null, false);
+    renderDiffTable(canvas, delta_inner, report_a, report_b);
+    const agg_inner = renderPane(canvas, agg_rect, "aggregate", null, null, false);
+    renderDiffAggregate(canvas, agg_inner, report_a, report_b);
 
     renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "DIFF", output_mode);
 }
 
-fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+fn renderDashboardHome(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
     const fallback_report = app.report orelse blk: {
         canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = canvas.height }, .{ .fg = .fg, .bg = .bg });
         break :blk null;
     };
-    const contract = viewContract(.picker, canvas.width, canvas.height, app.compare_report != null);
+    const contract = viewContract(.home, canvas.width, canvas.height, app.compare_report != null);
     if (fallback_report) |report| renderHeader(canvas, .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, report, theme, false, "trace explorer") else {
         canvas.fillRect(.{ .x = 0, .y = 0, .w = canvas.width, .h = 3 }, .{ .fg = .fg, .bg = .bg });
-        canvas.drawText(1, 0, "▚ zig-scheduler · trace explorer", .{ .fg = .dispatch, .bg = .bg, .bold = true });
-        canvas.drawText(1, 1, "load a scenario, pick a policy, replay the trace.", .{ .fg = .fg_dim, .bg = .bg });
+        canvas.drawText(1, 0, "▚ zig-scheduler · dashboard home", .{ .fg = .dispatch, .bg = .bg, .bold = true });
+        canvas.drawText(1, 1, "choose a scenario, inspect status cards, or open help.", .{ .fg = .fg_dim, .bg = .bg });
         canvas.drawHLine(0, 2, canvas.width, '─', .{ .fg = .fg_faint, .bg = .bg });
     }
 
     const banner = [_][]const u8{
         "   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
-        "   ┃  a deterministic cpu scheduling laboratory · phase 1 · simulator only   ┃",
+        "   ┃  a deterministic cpu scheduling laboratory · offline simulator only    ┃",
         "   ┃  schema · zig-scheduler/report v1   ·   built-in packs + .zon fixtures  ┃",
         "   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
     };
@@ -1216,16 +1213,16 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
         const sources_rect = Rect{ .x = 1, .y = list_rect.y + list_rect.h + gap, .w = canvas.width - 2, .h = side_h };
         const policies_rect = Rect{ .x = 1, .y = sources_rect.y + sources_rect.h + gap, .w = canvas.width - 2, .h = side_h };
         const recent_rect = Rect{ .x = 1, .y = policies_rect.y + policies_rect.h + gap, .w = canvas.width - 2, .h = canvas.height - 1 - (policies_rect.y + policies_rect.h + gap) };
-        const scenarios_badge = std.fmt.allocPrint(canvas.allocator, "{d} available", .{app.picker_entries.len}) catch null;
+        const scenarios_badge = std.fmt.allocPrint(canvas.allocator, "{d} available", .{app.dashboard_entries.len}) catch null;
         defer if (scenarios_badge) |owned| canvas.allocator.free(owned);
-        const list_inner = renderPane(canvas, list_rect, "scenarios", scenarios_badge, null, true, theme);
-        renderPickerList(canvas, list_inner, app, theme);
-        const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false, theme);
-        renderPickerSources(canvas, sources_inner, theme);
-        const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false, theme);
-        renderPickerStartHere(canvas, start_here_inner, theme);
-        const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false, theme);
-        renderPickerRecent(canvas, recent_inner, app.history, theme);
+        const list_inner = renderPane(canvas, list_rect, "scenarios", scenarios_badge, null, true);
+        renderDashboardScenarioList(canvas, list_inner, app);
+        const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false);
+        renderDashboardSources(canvas, sources_inner);
+        const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false);
+        renderDashboardStartHere(canvas, start_here_inner);
+        const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false);
+        renderDashboardRecent(canvas, recent_inner, app.history);
         renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "OPEN", output_mode);
         return;
     }
@@ -1233,22 +1230,71 @@ fn renderPicker(canvas: *Canvas, app: AppView, theme: Theme, output_mode: Output
     const gap: usize = 1;
     const list_rect = Rect{ .x = 1, .y = 9, .w = (canvas.width * 16 / 25), .h = canvas.height - 12 };
     const side_rect = Rect{ .x = list_rect.x + list_rect.w + gap, .y = 9, .w = canvas.width - list_rect.w - 3, .h = canvas.height - 12 };
-    const scenarios_badge = std.fmt.allocPrint(canvas.allocator, "{d} available", .{app.picker_entries.len}) catch null;
+    const scenarios_badge = std.fmt.allocPrint(canvas.allocator, "{d} available", .{app.dashboard_entries.len}) catch null;
     defer if (scenarios_badge) |owned| canvas.allocator.free(owned);
-    const list_inner = renderPane(canvas, list_rect, "scenarios", scenarios_badge, null, true, theme);
-    renderPickerList(canvas, list_inner, app, theme);
+    const list_inner = renderPane(canvas, list_rect, "scenarios", scenarios_badge, null, true);
+    renderDashboardScenarioList(canvas, list_inner, app);
 
     const sources_rect = Rect{ .x = side_rect.x, .y = side_rect.y, .w = side_rect.w, .h = 8 };
     const policies_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 9, .w = side_rect.w, .h = 8 };
     const recent_rect = Rect{ .x = side_rect.x, .y = side_rect.y + 18, .w = side_rect.w, .h = satSub(side_rect.h, 18) };
-    const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false, theme);
-    renderPickerSources(canvas, sources_inner, theme);
-    const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false, theme);
-    renderPickerStartHere(canvas, start_here_inner, theme);
-    const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false, theme);
-    renderPickerRecent(canvas, recent_inner, app.history, theme);
+    const sources_inner = renderPane(canvas, sources_rect, "sources", null, null, false);
+    renderDashboardSources(canvas, sources_inner);
+    const start_here_inner = renderPane(canvas, policies_rect, "start here", null, null, false);
+    renderDashboardStartHere(canvas, start_here_inner);
+    const recent_inner = renderPane(canvas, recent_rect, "recent", null, null, false);
+    renderDashboardRecent(canvas, recent_inner, app.history);
 
     renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "OPEN", output_mode);
+}
+
+fn renderScenario(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
+    renderDashboardHome(canvas, app, theme, output_mode);
+    const rect = Rect{ .x = 2, .y = 3, .w = canvas.width - 4, .h = @min(@as(usize, 5), canvas.height - 4) };
+    canvas.fillRect(rect, .{ .fg = .fg, .bg = .bg });
+    canvas.drawText(rect.x, rect.y, "SCENARIO / SOURCE DETAILS", .{ .fg = .dispatch, .bg = .bg, .bold = true });
+    if (app.dashboard_entries.len != 0 and app.dashboard_index < app.dashboard_entries.len) {
+        const entry = app.dashboard_entries[app.dashboard_index];
+        var line_buf: [256]u8 = undefined;
+        const line = std.fmt.bufPrint(&line_buf, "{s} · {s} · {s}", .{ entry.scenario_label, entry.policy_label, entry.description }) catch "";
+        canvas.drawTextClipped(rect.x, rect.y + 2, rect.w, line, .{ .fg = .fg, .bg = .bg });
+        if (entry.explanation_doc) |doc| canvas.drawTextClipped(rect.x, rect.y + 3, rect.w, doc, .{ .fg = .fg_dim, .bg = .bg });
+    }
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "SCENARIO", output_mode);
+}
+
+fn renderCommandStatusScreen(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode, screen: DashboardScreen) void {
+    const is_performance = screen == .performance;
+    renderBannerHeader(
+        canvas,
+        .{ .x = 0, .y = 0, .w = canvas.width, .h = 3 },
+        if (is_performance) "performance status" else "reports status",
+        if (is_performance) "command card only · no subprocess runner" else "artifact card only · no subprocess runner",
+        if (output_mode == .snapshot) "SNAPSHOT" else if (is_performance) "PERF" else "REPORTS",
+    );
+    const body = Rect{ .x = 1, .y = 3, .w = canvas.width - 2, .h = canvas.height - 4 };
+    const left = Rect{ .x = body.x, .y = body.y, .w = (body.w - 1) / 2, .h = body.h };
+    const right = Rect{ .x = left.x + left.w + 1, .y = body.y, .w = body.w - left.w - 1, .h = body.h };
+    const command_inner = renderPane(canvas, left, "exact commands", null, null, true);
+    const boundary_inner = renderPane(canvas, right, "boundary", null, null, false);
+    const perf_rows = [_][]const u8{
+        "zig build perf",
+        "zig build bench",
+        "zig build test --summary all",
+    };
+    const report_rows = [_][]const u8{
+        "zig build reports",
+        "zig build reports -- --check",
+        "zig build dashboard",
+    };
+    renderTextRows(canvas, command_inner, if (is_performance) &perf_rows else &report_rows);
+    const boundary_rows = [_][]const u8{
+        "This TUI screen is status and guidance only.",
+        "It does not spawn, fork, exec, or supervise commands.",
+        "Run commands from your shell or CI when you choose.",
+    };
+    renderTextRows(canvas, boundary_inner, &boundary_rows);
+    renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else if (is_performance) "PERF" else "REPORTS", output_mode);
 }
 
 fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMode) void {
@@ -1262,13 +1308,13 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
                 .focus = app.focus,
                 .cursor = app.cursor,
                 .selected_task_index = app.selected_task_index,
-                .picker_index = app.picker_index,
+                .dashboard_index = app.dashboard_index,
                 .playing = app.playing,
                 .report = app.report,
                 .compare_report = app.compare_report,
                 .observability_summary = app.observability_summary,
                 .observability_comparison = app.observability_comparison,
-                .picker_entries = app.picker_entries,
+                .dashboard_entries = app.dashboard_entries,
                 .history = app.history,
             }, theme, output_mode),
             .observability_summary => renderObservabilitySummary(canvas, AppView{
@@ -1278,13 +1324,13 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
                 .focus = app.focus,
                 .cursor = app.cursor,
                 .selected_task_index = app.selected_task_index,
-                .picker_index = app.picker_index,
+                .dashboard_index = app.dashboard_index,
                 .playing = false,
                 .report = app.report,
                 .compare_report = app.compare_report,
                 .observability_summary = app.observability_summary,
                 .observability_comparison = app.observability_comparison,
-                .picker_entries = app.picker_entries,
+                .dashboard_entries = app.dashboard_entries,
                 .history = app.history,
             }, theme, output_mode),
             .observability_comparison => renderObservabilityComparison(canvas, AppView{
@@ -1294,13 +1340,13 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
                 .focus = app.focus,
                 .cursor = app.cursor,
                 .selected_task_index = app.selected_task_index,
-                .picker_index = app.picker_index,
+                .dashboard_index = app.dashboard_index,
                 .playing = false,
                 .report = app.report,
                 .compare_report = app.compare_report,
                 .observability_summary = app.observability_summary,
                 .observability_comparison = app.observability_comparison,
-                .picker_entries = app.picker_entries,
+                .dashboard_entries = app.dashboard_entries,
                 .history = app.history,
             }, theme, output_mode),
         }
@@ -1331,7 +1377,6 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
         } },
         .{ .title = "SELECTION", .rows = &.{ .{ "j  k", "select next / previous task" }, .{ "esc", "clear or close" }, .{ "enter", "open task detail drawer" } } },
         .{ .title = "PANES", .rows = &.{ .{ "tab", "cycle pane focus" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
-        .{ .title = "VIEWS", .rows = &.{ .{ "d", "policy diff" }, .{ "s", "open scenario picker" }, .{ "m / c", "open observability / comparison from picker" }, .{ "q", "quit" } } },
     };
     const observability_sections = [_]HelpSection{
         .{ .title = "NAVIGATION", .rows = &.{ .{ "esc", "close help" }, .{ "w", "toggle dark / light" }, .{ "?", "open this help" } } },
@@ -1360,14 +1405,47 @@ fn renderHelp(canvas: *Canvas, app: AppView, theme: Theme, output_mode: OutputMo
         sec_y = row_y + 1;
     }
 
+    if (app.domain_mode == .simulator) {
+        const action_rows = [_]HelpActionRow{
+            .{ .screen = .home, .id = .scenario_details },
+            .{ .screen = .home, .id = .timeline },
+            .{ .screen = .home, .id = .observability },
+            .{ .screen = .home, .id = .performance },
+            .{ .screen = .home, .id = .reports },
+            .{ .screen = .timeline, .id = .policy_compare },
+        };
+        _ = renderHelpActionSection(canvas, rect.x + 3 + col, sec_y, "ACTIONS", action_rows[0..]);
+    }
+
     renderStatusBar(canvas, .{ .x = 0, .y = canvas.height - 1, .w = canvas.width, .h = 1 }, app, theme, if (output_mode == .snapshot) "SNAPSHOT" else "HELP", output_mode);
+}
+
+const HelpActionRow = struct {
+    screen: dashboard.Screen,
+    id: actions.ActionId,
+};
+
+fn renderHelpActionSection(canvas: *Canvas, x: usize, y: usize, title: []const u8, rows: []const HelpActionRow) usize {
+    if (y >= if (canvas.height == 0) 0 else canvas.height - 1) return y;
+    canvas.drawText(x, y, title, .{ .fg = .dispatch, .bg = .bg, .bold = true });
+    var row_y = y + 2;
+    for (rows) |row| {
+        if (row_y >= if (canvas.height == 0) 0 else canvas.height - 1) break;
+        const action = actions.find(row.id, row.screen) orelse continue;
+        var key_buffer: [64]u8 = undefined;
+        const keys = actions.keySummary(action, &key_buffer);
+        canvas.drawText(x, row_y, keys, .{ .fg = .fg, .bg = .bg, .bold = true });
+        canvas.drawText(x + 14, row_y, action.label, .{ .fg = .fg_dim, .bg = .bg });
+        row_y += 2;
+    }
+    return row_y + 1;
 }
 
 fn satSub(lhs: usize, rhs: usize) usize {
     return if (lhs > rhs) lhs - rhs else 0;
 }
 
-fn renderGantt(canvas: *Canvas, rect: Rect, report: *const Report, app: AppView, theme: Theme, show_legend: bool) void {
+fn renderGantt(canvas: *Canvas, rect: Rect, report: *const Report, app: AppView, _: Theme, show_legend: bool) void {
     const ticks = lastTick(report) + 1;
     if (ticks == 0) return;
     const usable_width = satSub(rect.w, 8);
@@ -1408,17 +1486,17 @@ fn renderGantt(canvas: *Canvas, rect: Rect, report: *const Report, app: AppView,
         while (t < ticks) : (t += 1) {
             const cell_x = grid_x + @as(usize, t) * cell_w;
             const selected_id = if (selectedTask(report, app.selected_task_index)) |task| task.id else null;
-            drawLaneCell(canvas, cell_x, y, cell_w, lane[@intCast(t)], selected_id, t == app.cursor, report, theme);
+            drawLaneCell(canvas, cell_x, y, cell_w, lane[@intCast(t)], selected_id, t == app.cursor, report);
         }
         y += 1;
     }
 
     y += 1;
-    renderScrubBar(canvas, .{ .x = left, .y = y, .w = satSub(rect.w, 4), .h = 2 }, report, app.cursor, theme);
-    if (show_legend and y + 2 < rect.y + rect.h) renderLegend(canvas, .{ .x = left, .y = y + 2, .w = satSub(rect.w, 4), .h = 1 }, report, theme);
+    renderScrubBar(canvas, .{ .x = left, .y = y, .w = satSub(rect.w, 4), .h = 2 }, report, app.cursor);
+    if (show_legend and y + 2 < rect.y + rect.h) renderLegend(canvas, .{ .x = left, .y = y + 2, .w = satSub(rect.w, 4), .h = 1 }, report);
 }
 
-fn drawLaneCell(canvas: *Canvas, x: usize, y: usize, cell_w: usize, cell_value: ?[]const u8, selected_id: ?[]const u8, is_cursor: bool, report: *const Report, _: Theme) void {
+fn drawLaneCell(canvas: *Canvas, x: usize, y: usize, cell_w: usize, cell_value: ?[]const u8, selected_id: ?[]const u8, is_cursor: bool, report: *const Report) void {
     var style: Style = .{ .fg = .fg, .bg = .bg_alt, .bold = false };
     var label: []const u8 = "·";
     if (cell_value) |task_id| {
@@ -1438,7 +1516,7 @@ fn drawLaneCell(canvas: *Canvas, x: usize, y: usize, cell_w: usize, cell_value: 
     canvas.drawTextClipped(x, y, cell_w, label, style);
 }
 
-fn renderScrubBar(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32, _: Theme) void {
+fn renderScrubBar(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32) void {
     var buf: [32]u8 = undefined;
     const label = std.fmt.bufPrint(&buf, "tick {d:0>2} / {d}", .{ cursor, lastTick(report) }) catch "tick";
     canvas.drawText(rect.x, rect.y, label, .{ .fg = .fg_dim, .bg = .bg });
@@ -1454,7 +1532,7 @@ fn renderScrubBar(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u3
     if (rect.w > 12) canvas.drawText(rect.x + rect.w - 12, rect.y, "◀ ▶  SPC", .{ .fg = .fg_dim, .bg = .bg });
 }
 
-fn renderLegend(canvas: *Canvas, rect: Rect, report: *const Report, _: Theme) void {
+fn renderLegend(canvas: *Canvas, rect: Rect, report: *const Report) void {
     var x = rect.x;
     for (report.tasks) |task| {
         if (x + 10 >= rect.x + rect.w) break;
@@ -1629,7 +1707,7 @@ fn drawValue(canvas: *Canvas, x: usize, y: usize, width: usize, value: anytype, 
     canvas.drawTextClipped(x, y, width, text, style);
 }
 
-fn renderEventLog(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32, _: Theme) void {
+fn renderEventLog(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32) void {
     const rows = rect.h;
     const target_index = nearestEventIndex(report, cursor);
     const start = selectionStart(report.trace.len, rows, target_index);
@@ -1661,7 +1739,7 @@ fn drawEventRow(canvas: *Canvas, x: usize, y: usize, width: usize, event: TraceE
     if (cpu_text.len + 1 < width) canvas.drawTextClipped(x + width - cpu_text.len - 1, y, cpu_text.len, cpu_text, .{ .fg = if (style.bg == .bg_inv) .fg_inv else .fg_dim, .bg = style.bg });
 }
 
-fn renderTickDetail(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32, _: Theme) void {
+fn renderTickDetail(canvas: *Canvas, rect: Rect, report: *const Report, cursor: u32) void {
     const evs = eventsAt(canvas.allocator, report, cursor) catch return;
     defer canvas.allocator.free(evs);
     if (evs.len == 0) {
@@ -1681,7 +1759,7 @@ fn renderTickDetail(canvas: *Canvas, rect: Rect, report: *const Report, cursor: 
     }
 }
 
-fn renderAggregate(canvas: *Canvas, rect: Rect, report: *const Report, _: Theme) void {
+fn renderAggregate(canvas: *Canvas, rect: Rect, report: *const Report) void {
     const rows = [_]struct { label: []const u8, value: f64, int_value: ?u32 = null }{
         .{ .label = "avg wait", .value = report.aggregate.average_waiting_time },
         .{ .label = "avg response", .value = report.aggregate.average_response_time },
@@ -1705,7 +1783,7 @@ fn renderAggregate(canvas: *Canvas, rect: Rect, report: *const Report, _: Theme)
     }
 }
 
-fn renderTaskDetail(canvas: *Canvas, rect: Rect, report: *const Report, task: TaskMetrics, cursor: u32, _: Theme) void {
+fn renderTaskDetail(canvas: *Canvas, rect: Rect, report: *const Report, task: TaskMetrics, cursor: u32) void {
     const metrics = [_]struct { label: []const u8, value: []const u8 }{};
     _ = metrics;
     const kv = [_]struct { label: []const u8, text: []const u8 }{
@@ -1748,7 +1826,7 @@ fn renderTaskDetail(canvas: *Canvas, rect: Rect, report: *const Report, task: Ta
     canvas.drawText(rect.x, rect.y + 9, "▶ dispatch  █ running  ✗ preempt  ■ blocked  ✓ complete  ░ waiting", .{ .fg = .fg_dim, .bg = .bg });
 }
 
-fn renderTaskEventLog(canvas: *Canvas, rect: Rect, report: *const Report, task_id: []const u8, cursor: u32, _: Theme) void {
+fn renderTaskEventLog(canvas: *Canvas, rect: Rect, report: *const Report, task_id: []const u8, cursor: u32) void {
     var filtered: std.ArrayList(TraceEntry) = .empty;
     defer filtered.deinit(canvas.allocator);
     for (report.trace) |event| {
@@ -1767,7 +1845,7 @@ fn renderTaskEventLog(canvas: *Canvas, rect: Rect, report: *const Report, task_i
     }
 }
 
-fn renderWaitingProfile(canvas: *Canvas, rect: Rect, task: TaskMetrics, _: Theme) void {
+fn renderWaitingProfile(canvas: *Canvas, rect: Rect, task: TaskMetrics) void {
     const entries = [_][]const u8{
         fmtStatic(canvas.allocator, "arrived        t={d}", .{task.arrival_tick}),
         fmtStatic(canvas.allocator, "first run      t={d} (+{d})", .{ task.first_dispatch_tick, task.response_time }),
@@ -1783,7 +1861,7 @@ fn renderWaitingProfile(canvas: *Canvas, rect: Rect, task: TaskMetrics, _: Theme
     }
 }
 
-fn renderTaskCoreUsage(canvas: *Canvas, rect: Rect, report: *const Report, task: TaskMetrics, _: Theme) void {
+fn renderTaskCoreUsage(canvas: *Canvas, rect: Rect, report: *const Report, task: TaskMetrics) void {
     var y = rect.y;
     for (0..report.core_count) |cpu_index| {
         if (y >= rect.y + rect.h) break;
@@ -1803,7 +1881,7 @@ fn renderTaskCoreUsage(canvas: *Canvas, rect: Rect, report: *const Report, task:
     }
 }
 
-fn renderCompletionOrder(canvas: *Canvas, rect: Rect, report: *const Report, selected_id: []const u8, _: Theme) void {
+fn renderCompletionOrder(canvas: *Canvas, rect: Rect, report: *const Report, selected_id: []const u8) void {
     var x = rect.x;
     var y = rect.y;
     for (report.completion_order, 0..) |task_id, idx| {
@@ -1824,7 +1902,7 @@ fn renderCompletionOrder(canvas: *Canvas, rect: Rect, report: *const Report, sel
     }
 }
 
-fn renderDiffTable(canvas: *Canvas, rect: Rect, report_a: *const Report, report_b: *const Report, _: Theme) void {
+fn renderDiffTable(canvas: *Canvas, rect: Rect, report_a: *const Report, report_b: *const Report) void {
     canvas.drawText(rect.x, rect.y, "task   wait      response   turnaround   Δwait", .{ .fg = .fg_dim, .bg = .bg, .bold = true });
     canvas.drawHLine(rect.x, rect.y + 1, rect.w, '─', .{ .fg = .rule, .bg = .bg });
     for (report_a.tasks, 0..) |task_a, idx| {
@@ -1837,7 +1915,7 @@ fn renderDiffTable(canvas: *Canvas, rect: Rect, report_a: *const Report, report_
     }
 }
 
-fn renderDiffAggregate(canvas: *Canvas, rect: Rect, report_a: *const Report, report_b: *const Report, _: Theme) void {
+fn renderDiffAggregate(canvas: *Canvas, rect: Rect, report_a: *const Report, report_b: *const Report) void {
     const lines = [_][]const u8{
         fmtStatic(canvas.allocator, "average waiting   {d:.3} → {d:.3}", .{ report_a.aggregate.average_waiting_time, report_b.aggregate.average_waiting_time }),
         fmtStatic(canvas.allocator, "average response  {d:.3} → {d:.3}", .{ report_a.aggregate.average_response_time, report_b.aggregate.average_response_time }),
@@ -1855,15 +1933,15 @@ fn renderDiffAggregate(canvas: *Canvas, rect: Rect, report_a: *const Report, rep
     }
 }
 
-fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
+fn renderDashboardScenarioList(canvas: *Canvas, rect: Rect, app: AppView) void {
     canvas.drawText(rect.x, rect.y, "scenario                 policy          cores  tasks  ticks", .{ .fg = .fg_dim, .bg = .bg, .bold = true });
     canvas.drawHLine(rect.x, rect.y + 1, rect.w, '─', .{ .fg = .rule, .bg = .bg });
     const rows = rect.h - 2;
-    const start = selectionStart(app.picker_entries.len, rows, app.picker_index);
+    const start = selectionStart(app.dashboard_entries.len, rows, app.dashboard_index);
     for (0..rows) |row| {
-        if (start + row >= app.picker_entries.len) break;
-        const entry = app.picker_entries[start + row];
-        const selected = start + row == app.picker_index;
+        if (start + row >= app.dashboard_entries.len) break;
+        const entry = app.dashboard_entries[start + row];
+        const selected = start + row == app.dashboard_index;
         const style = if (selected) Style{ .fg = .fg_inv, .bg = .bg_inv, .bold = true } else Style{ .fg = .fg, .bg = .bg, .bold = false };
         canvas.fillRect(.{ .x = rect.x, .y = rect.y + 2 + row, .w = rect.w, .h = 1 }, style);
         var buf: [160]u8 = undefined;
@@ -1893,7 +1971,7 @@ fn renderPickerList(canvas: *Canvas, rect: Rect, app: AppView, _: Theme) void {
     }
 }
 
-fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
+fn renderDashboardSources(canvas: *Canvas, rect: Rect) void {
     const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     var line_buf: [3][96]u8 = undefined;
     const lines = [_][]const u8{
@@ -1902,8 +1980,8 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
         std.fmt.bufPrint(&line_buf[1], "2. {s} · {s}", .{ shortlist[1].key, teachingPolicyLabel(shortlist[1].recommended_policy.?) }) catch "",
         std.fmt.bufPrint(&line_buf[2], "3. {s} · {s}", .{ shortlist[2].key, teachingPolicyLabel(shortlist[2].recommended_policy.?) }) catch "",
         "",
-        "picker shortcuts:",
-        "m/c         observability side lane",
+        "dashboard shortcuts:",
+        "o / c       observability side lane",
         "",
         "load any exported report:",
         "zig build sim -- --scenario-file <path> --format json | zig-out/bin/zig-scheduler --stdin --snapshot",
@@ -1920,7 +1998,7 @@ fn renderPickerSources(canvas: *Canvas, rect: Rect, _: Theme) void {
     }
 }
 
-fn renderPickerStartHere(canvas: *Canvas, rect: Rect, _: Theme) void {
+fn renderDashboardStartHere(canvas: *Canvas, rect: Rect) void {
     const shortlist = scheduler.scenario_packs.listteachingTeachingEntries();
     for (shortlist, 0..) |entry, idx| {
         if (rect.y + idx >= rect.y + rect.h) break;
@@ -1933,11 +2011,11 @@ fn renderPickerStartHere(canvas: *Canvas, rect: Rect, _: Theme) void {
     }
     if (rect.y + shortlist.len < rect.y + rect.h) {
         canvas.drawText(rect.x, rect.y + shortlist.len, "side lane", .{ .fg = .fg_dim, .bg = .bg, .bold = true });
-        canvas.drawTextClipped(rect.x + 14, rect.y + shortlist.len, satSub(rect.w, 14), "m/c keep observability/comparison reachable but secondary", .{ .fg = .fg_dim, .bg = .bg });
+        canvas.drawTextClipped(rect.x + 14, rect.y + shortlist.len, satSub(rect.w, 14), "o opens observability; c compares from observability", .{ .fg = .fg_dim, .bg = .bg });
     }
 }
 
-fn renderPickerRecent(canvas: *Canvas, rect: Rect, history: []const []const u8, _: Theme) void {
+fn renderDashboardRecent(canvas: *Canvas, rect: Rect, history: []const []const u8) void {
     if (history.len == 0) {
         canvas.drawText(rect.x, rect.y, "· no recent scenarios in this session", .{ .fg = .fg_dim, .bg = .bg });
         return;
@@ -2158,17 +2236,17 @@ test "too-small renderer handles tiny heights without underflow" {
     const app: AppView = .{
         .domain_mode = .simulator,
         .theme = .dark,
-        .view = .picker,
+        .view = .home,
         .focus = .gantt,
         .cursor = 0,
         .selected_task_index = null,
-        .picker_index = 0,
+        .dashboard_index = 0,
         .playing = false,
         .report = null,
         .compare_report = null,
         .observability_summary = null,
         .observability_comparison = null,
-        .picker_entries = &.{},
+        .dashboard_entries = &.{},
         .history = &.{},
     };
 
@@ -2183,17 +2261,17 @@ test "snapshot rendering is stable across compact medium and large tiers" {
     const app: AppView = .{
         .domain_mode = .simulator,
         .theme = .dark,
-        .view = .picker,
+        .view = .home,
         .focus = .gantt,
         .cursor = 0,
         .selected_task_index = null,
-        .picker_index = 0,
+        .dashboard_index = 0,
         .playing = false,
         .report = null,
         .compare_report = null,
         .observability_summary = null,
         .observability_comparison = null,
-        .picker_entries = &.{},
+        .dashboard_entries = &.{},
         .history = &.{},
     };
 
@@ -2224,7 +2302,7 @@ test "dashboard home TUI views map into the smart dashboard spine" {
         view: View,
         screen: DashboardScreen,
     }{
-        .{ .view = .picker, .screen = .home },
+        .{ .view = .home, .screen = .home },
         .{ .view = .explorer, .screen = .timeline },
         .{ .view = .drawer, .screen = .tasks_cores },
         .{ .view = .diff, .screen = .policy_compare },

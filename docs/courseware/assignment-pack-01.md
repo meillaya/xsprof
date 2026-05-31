@@ -4,7 +4,7 @@ This assignment pack contains exactly three required modules derived from the
 teaching shortlist. It does not widen the required scenario set.
 
 For package context, start from:
-- `docs/courseware/m23-teaching-distribution.md`
+- `docs/courseware/teaching-distribution.md`
 
 ## Module 1 — Convoy and baseline output reading
 

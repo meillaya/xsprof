@@ -1,6 +1,6 @@
-# M4.5 benchmark workflow
+# Benchmark workflow
 
-M4.5 adds a reproducible benchmark harness for simulator-local baseline comparisons.
+benchmark workflow adds a reproducible benchmark harness for simulator-local baseline comparisons.
 
 ## Scope and labeling
 - Simulator-local benchmark baseline only; not a Linux performance claim.
@@ -8,14 +8,14 @@ M4.5 adds a reproducible benchmark harness for simulator-local baseline comparis
 - The harness is intended for fixed-input repeatability, not for publishing host-runtime performance numbers.
 
 ## Commands
-The narrow benchmark commands still exist, but M16 now makes the canonical
+The narrow benchmark commands still exist, but the simulator now makes the canonical
 multi-artifact regeneration path:
 
 ```sh
 zig build reports
 ```
 
-Use the M4.5 commands below when you intentionally want only the benchmark
+Use the benchmark workflow commands below when you intentionally want only the benchmark
 surfaces.
 
 Render the human-readable benchmark baseline report:
@@ -43,7 +43,7 @@ These artifacts are generated from this fixed fixture/policy matrix:
 - `scenarios/basic/multicore-weighted.zon` with `cfs_like`
 
 ## Repeatability
-Repeatability is the core guarantee for this milestone:
+Repeatability is the core guarantee for this workstream:
 1. Run `zig build bench` twice.
 2. Run `zig build bench -- --format json` twice.
 3. Compare against the committed baseline artifacts.

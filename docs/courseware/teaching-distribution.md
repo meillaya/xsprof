@@ -1,15 +1,15 @@
-# M23 teaching distribution
+# teaching distribution
 
-This is the canonical M23 package entrypoint.
+This is the canonical the simulator package entrypoint.
 
-M23 is a **package shell over teaching**, not a new teaching spine. The required
+the simulator is a **package shell over teaching**, not a new teaching spine. The required
 teaching path still comes from the exact teaching shortlist:
 - `short-vs-long` + `fcfs`
 - `sleep-wakeup` + `cfs-like`
 - `multicore-balancing` + `fcfs`
 
 Use this document as the single entrypoint for the first packaged teaching cut.
-Other M23 docs should point back here rather than becoming competing “start
+Other the simulator docs should point back here rather than becoming competing “start
 here” surfaces.
 
 ## Audience
@@ -20,7 +20,7 @@ here” surfaces.
 
 ## Package structure
 This first package ships **four** primary docs total:
-1. `docs/courseware/m23-teaching-distribution.md`
+1. `docs/courseware/teaching-distribution.md`
 2. `docs/courseware/student-onboarding.md`
 3. `docs/courseware/instructor-guide.md`
 4. `docs/courseware/assignment-pack-01.md`
@@ -44,7 +44,7 @@ Required module commands are the same teaching command pairs already published i
 - `README.md`
 - `docs/labs/simulator-teaching-pack.md`
 
-M23 may reorganize and explain those commands, but it does not replace them.
+the simulator may reorganize and explain those commands, but it does not replace them.
 
 ## Canonical underlying teaching spine
 The underlying simulator-first spine remains:
