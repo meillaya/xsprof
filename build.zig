@@ -309,6 +309,11 @@ pub fn build(b: *std.Build) void {
     }) |module| {
         addTestDependency(b, test_step, module);
     }
+
+    const tui_pty_exit_test = b.addSystemCommand(&.{"python3"});
+    tui_pty_exit_test.addFileArg(b.path("tools/tui_pty_exit_test.py"));
+    tui_pty_exit_test.addArtifactArg(tui_exe);
+    test_step.dependOn(&tui_pty_exit_test.step);
 }
 
 fn addModule(

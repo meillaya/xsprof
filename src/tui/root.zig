@@ -314,6 +314,7 @@ fn keyNameForEvent(event: term_mod.Event) ?[]const u8 {
         .down => "down",
         .home => "home",
         .end => "end",
+        .char => |ch| keyNameForChar(ch),
         else => null,
     };
 }
@@ -1192,6 +1193,45 @@ test "dashboard shortcuts open observability and comparison observability lanes"
     try std.testing.expectEqual(DomainMode.observability_comparison, app.domain_mode);
     try std.testing.expectEqual(View.observability_comparison, app.view);
     try std.testing.expect(app.comparison() != null);
+}
+
+test "dashboard action matrix covers core screen transitions" {
+    var app = App{
+        .allocator = std.testing.allocator,
+        .dashboard_entries = try buildDashboardEntries(std.testing.allocator),
+    };
+    defer app.deinit();
+
+    app.view = .home;
+    try std.testing.expectEqual(false, try handleChar(&app, 's', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.scenario, app.view);
+
+    try std.testing.expectEqual(false, try handleChar(&app, 't', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.explorer, app.view);
+    try std.testing.expect(app.report() != null);
+
+    try std.testing.expectEqual(false, try handleChar(&app, 'd', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.diff, app.view);
+    try std.testing.expect(app.compare() != null);
+
+    try std.testing.expectEqual(false, try handleChar(&app, 't', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.explorer, app.view);
+
+    app.selected_task_index = 0;
+    try std.testing.expectEqual(false, try handleEvent(&app, .enter, .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.drawer, app.view);
+    try std.testing.expectEqual(false, try handleEvent(&app, .escape, .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.explorer, app.view);
+
+    try std.testing.expectEqual(false, try handleChar(&app, 'h', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.home, app.view);
+    try std.testing.expectEqual(false, try handleChar(&app, '?', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.help, app.view);
+    try std.testing.expectEqual(false, try handleChar(&app, '?', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(View.explorer, app.view);
+
+    try std.testing.expectEqual(true, try handleChar(&app, 'q', .{ .cols = 120, .rows = 40 }));
+    try std.testing.expectEqual(true, try handleChar(&app, 3, .{ .cols = 120, .rows = 40 }));
 }
 
 test "dashboard status shortcuts are command-only and policy cycling uses brackets" {

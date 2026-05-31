@@ -2303,11 +2303,14 @@ test "dashboard home TUI views map into the smart dashboard spine" {
         screen: DashboardScreen,
     }{
         .{ .view = .home, .screen = .home },
+        .{ .view = .scenario, .screen = .scenario },
         .{ .view = .explorer, .screen = .timeline },
         .{ .view = .drawer, .screen = .tasks_cores },
         .{ .view = .diff, .screen = .policy_compare },
         .{ .view = .observability_summary, .screen = .observability },
         .{ .view = .observability_comparison, .screen = .observability },
+        .{ .view = .performance, .screen = .performance },
+        .{ .view = .reports, .screen = .reports },
         .{ .view = .help, .screen = .help },
     };
 

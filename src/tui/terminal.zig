@@ -1,5 +1,9 @@
 const std = @import("std");
 
+pub const enter_alternate_screen_sequence = "\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H";
+pub const exit_and_clear_terminal_sequence = "\x1b[0m\x1b[?25h\x1b[?1049l\x1b[2J\x1b[H";
+pub const frame_home_sequence = "\x1b[H";
+
 pub const Event = union(enum) {
     none,
     escape,
@@ -43,35 +47,22 @@ pub const Terminal = struct {
         }
 
         term.original_termios = try std.posix.tcgetattr(term.stdin.handle);
-        var raw = term.original_termios.?;
-        raw.iflag.BRKINT = false;
-        raw.iflag.ICRNL = false;
-        raw.iflag.INPCK = false;
-        raw.iflag.ISTRIP = false;
-        raw.iflag.IXON = false;
-        raw.oflag.OPOST = true;
-        raw.cflag.CSIZE = .CS8;
-        raw.cflag.CREAD = true;
-        raw.lflag.ECHO = false;
-        raw.lflag.ICANON = false;
-        raw.lflag.IEXTEN = false;
-        raw.cc[@intFromEnum(std.c.V.MIN)] = 0;
-        raw.cc[@intFromEnum(std.c.V.TIME)] = 1;
+        const raw = rawModeFrom(term.original_termios.?);
         try std.posix.tcsetattr(term.stdin.handle, .FLUSH, raw);
 
-        try term.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H");
+        try term.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), enter_alternate_screen_sequence);
         term.alt_screen_enabled = true;
         return term;
     }
 
     pub fn deinit(self: *Terminal) void {
-        if (self.alt_screen_enabled) {
-            self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[0m\x1b[2J\x1b[H\x1b[?25h\x1b[?1049l") catch {};
-            self.alt_screen_enabled = false;
-        }
         if (self.original_termios) |original| {
             std.posix.tcsetattr(self.stdin.handle, .FLUSH, original) catch {};
             self.original_termios = null;
+        }
+        if (self.alt_screen_enabled) {
+            self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), exit_and_clear_terminal_sequence) catch {};
+            self.alt_screen_enabled = false;
         }
     }
 
@@ -87,7 +78,7 @@ pub const Terminal = struct {
     }
 
     pub fn writeFrame(self: *Terminal, bytes: []const u8) !void {
-        try self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), "\x1b[H");
+        try self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), frame_home_sequence);
         try self.stdout.writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), bytes);
     }
 
@@ -107,6 +98,25 @@ pub const Terminal = struct {
         return parseEvent(buf[0..n]);
     }
 };
+
+pub fn rawModeFrom(original: std.posix.termios) std.posix.termios {
+    var raw = original;
+    raw.iflag.BRKINT = false;
+    raw.iflag.ICRNL = false;
+    raw.iflag.INPCK = false;
+    raw.iflag.ISTRIP = false;
+    raw.iflag.IXON = false;
+    raw.oflag.OPOST = true;
+    raw.cflag.CSIZE = .CS8;
+    raw.cflag.CREAD = true;
+    raw.lflag.ECHO = false;
+    raw.lflag.ICANON = false;
+    raw.lflag.IEXTEN = false;
+    raw.lflag.ISIG = false;
+    raw.cc[@intFromEnum(std.c.V.MIN)] = 0;
+    raw.cc[@intFromEnum(std.c.V.TIME)] = 1;
+    return raw;
+}
 
 fn parseEvent(bytes: []const u8) Event {
     if (bytes.len == 0) return .none;
@@ -129,4 +139,43 @@ fn parseEvent(bytes: []const u8) Event {
         0x7f => .backspace,
         else => .{ .char = bytes[0] },
     };
+}
+
+test "raw terminal mode routes ctrl-c through input instead of signal" {
+    var original = std.mem.zeroes(std.posix.termios);
+    original.lflag.ECHO = true;
+    original.lflag.ICANON = true;
+    original.lflag.IEXTEN = true;
+    original.lflag.ISIG = true;
+    original.iflag.BRKINT = true;
+    original.iflag.ICRNL = true;
+    original.iflag.INPCK = true;
+    original.iflag.ISTRIP = true;
+    original.iflag.IXON = true;
+
+    const raw = rawModeFrom(original);
+    try std.testing.expect(!raw.lflag.ECHO);
+    try std.testing.expect(!raw.lflag.ICANON);
+    try std.testing.expect(!raw.lflag.IEXTEN);
+    try std.testing.expect(!raw.lflag.ISIG);
+    try std.testing.expect(!raw.iflag.BRKINT);
+    try std.testing.expect(!raw.iflag.ICRNL);
+    try std.testing.expectEqual(@as(u8, 0), raw.cc[@intFromEnum(std.c.V.MIN)]);
+    try std.testing.expectEqual(@as(u8, 1), raw.cc[@intFromEnum(std.c.V.TIME)]);
+}
+
+test "terminal cleanup sequence exits alternate screen then clears visible terminal" {
+    try std.testing.expect(std.mem.indexOf(u8, enter_alternate_screen_sequence, "\x1b[?1049h") != null);
+    try std.testing.expect(std.mem.indexOf(u8, enter_alternate_screen_sequence, "\x1b[?25l") != null);
+    const exit_index = std.mem.indexOf(u8, exit_and_clear_terminal_sequence, "\x1b[?1049l") orelse return error.TestUnexpectedResult;
+    const clear_index = std.mem.lastIndexOf(u8, exit_and_clear_terminal_sequence, "\x1b[2J") orelse return error.TestUnexpectedResult;
+    const home_index = std.mem.lastIndexOf(u8, exit_and_clear_terminal_sequence, "\x1b[H") orelse return error.TestUnexpectedResult;
+    try std.testing.expect(std.mem.indexOf(u8, exit_and_clear_terminal_sequence, "\x1b[?25h") != null);
+    try std.testing.expect(exit_index < clear_index);
+    try std.testing.expect(clear_index < home_index);
+}
+
+test "ctrl-c byte is parsed as an input character for action dispatch" {
+    const event = parseEvent(&.{3});
+    try std.testing.expectEqual(Event{ .char = 3 }, event);
 }

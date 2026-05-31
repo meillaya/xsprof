@@ -155,3 +155,34 @@ test "dashboard navigation keys resolve through registry" {
         try std.testing.expect(actionForKey(edge.from, edge.key) != null);
     }
 }
+
+test "visible actions are registry-resolvable and display-ready" {
+    for (all) |action| {
+        if (!action.visible) continue;
+        try std.testing.expect(action.keys.len != 0);
+        try std.testing.expect(action.label.len != 0);
+        try std.testing.expect(action.description.len != 0);
+        for (action.keys) |key| {
+            try std.testing.expect(key.len != 0);
+            if (action.screen) |screen| {
+                try std.testing.expectEqual(action.id, actionForKey(screen, key).?);
+            } else {
+                try std.testing.expectEqual(action.id, actionForKey(.home, key).?);
+            }
+        }
+        var buffer: [64]u8 = undefined;
+        try std.testing.expect(keySummary(action, &buffer).len != 0);
+    }
+}
+
+test "every dashboard screen has a status hint and registered action path" {
+    inline for (dashboard.screens) |screen_spec| {
+        try std.testing.expect(statusHint(screen_spec.screen, false).len != 0);
+        try std.testing.expect(statusHint(screen_spec.screen, true).len != 0);
+        var has_action = actionForKey(screen_spec.screen, "q") != null;
+        for (all) |action| {
+            if (action.screen != null and action.screen.? == screen_spec.screen) has_action = true;
+        }
+        try std.testing.expect(has_action);
+    }
+}
