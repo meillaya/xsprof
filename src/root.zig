@@ -1,91 +1,87 @@
-const types = @import("sim/types.zig");
+const std = @import("std");
 
-pub const cli = @import("cli/root.zig");
 pub const controller = @import("controller/root.zig");
-pub const engine = @import("sim/engine.zig");
-pub const metrics = @import("sim/metrics.zig");
 pub const sched_ext = @import("sched_ext/root.zig");
-
-pub const policies = struct {
-    pub const fcfs = @import("policies/fcfs.zig");
-    pub const round_robin = @import("policies/round_robin.zig");
-    pub const cfs_like = @import("policies/cfs_like.zig");
-    pub const deadline = @import("policies/deadline.zig");
-    pub const class = @import("policies/class.zig");
-    pub const extension = @import("policies/extension.zig");
-    pub const experimental = @import("policies/experimental/root.zig");
-};
-pub const scenario = @import("sim/scenario.zig");
-pub const scenario_packs = @import("sim/scenario_pack.zig");
-pub const semantics = @import("semantics/root.zig");
-pub const trace = @import("sim/trace.zig");
-pub const property = @import("testing/property.zig");
 pub const observability = @import("observability/root.zig");
-pub const observability_comparison = @import("observability/comparison.zig");
 
-pub const AggregateMetrics = types.AggregateMetrics;
-pub const BuiltinScenario = scenario.BuiltinScenario;
-pub const BuiltinScenarioMeta = scenario.BuiltinScenarioMeta;
-pub const CoreId = types.CoreId;
-pub const DomainSpec = types.DomainSpec;
-pub const GroupSpec = types.GroupSpec;
-pub const PolicyKind = types.PolicyKind;
-pub const PolicyName = types.PolicyName;
-pub const Scenario = types.Scenario;
-pub const ScenarioPack = scenario.ScenarioPack;
-pub const ScenarioPackEntryMeta = scenario.ScenarioPackEntryMeta;
-pub const ScenarioPackMeta = scenario.ScenarioPackMeta;
-pub const ScenarioFormat = scenario.ScenarioFormat;
-pub const ScenarioParserContract = scenario.ScenarioParserContract;
-pub const ScenarioOwned = types.ScenarioOwned;
-pub const SimulationResult = types.SimulationResult;
-pub const TaskMetrics = types.TaskMetrics;
-pub const TaskPhase = types.TaskPhase;
-pub const TaskPhaseKind = types.TaskPhaseKind;
-pub const TaskSpec = types.TaskSpec;
-pub const TaskState = types.TaskState;
-pub const TraceEntry = types.TraceEntry;
-pub const TraceEventKind = types.TraceEventKind;
-pub const ValidationError = types.ValidationError;
-pub const default_task_weight = types.default_task_weight;
-pub const max_task_weight = types.max_task_weight;
-pub const public_trace_event_kinds = trace.public_event_kinds;
+pub const PreflightReport = observability.PreflightReport;
+pub const OutputFormat = enum { text, json };
 
-pub const freeScenario = scenario.freeScenario;
-pub const listBuiltinScenarios = scenario.listBuiltinScenarios;
-pub const listScenarioPackEntries = scenario.listScenarioPackEntries;
-pub const listScenarioPacks = scenario.listScenarioPacks;
-pub const loadBuiltinScenario = scenario.loadBuiltinScenario;
-pub const loadNamedScenario = scenario.loadNamedScenario;
-pub const loadScenarioPackEntry = scenario.loadScenarioPackEntry;
-pub const loadScenarioByName = scenario.loadScenarioByName;
-pub const loadScenarioFile = scenario.loadScenarioFile;
-pub const parser_contract = scenario.parser_contract;
-pub const detectScenarioFormat = scenario.detectScenarioFormat;
-pub const parseScenario = scenario.parseScenario;
-pub const parseScenarioText = scenario.parseScenarioText;
-pub const estimateTraceCapacity = engine.estimateTraceCapacity;
-pub const simulate = engine.simulate;
+pub fn collectPreflight(allocator: std.mem.Allocator) !PreflightReport {
+    return observability.collectPreflight(allocator);
+}
 
-test {
-    _ = @import("tests/scenario_test.zig");
-    _ = @import("tests/simulator_test.zig");
-    _ = @import("tests/policies_test.zig");
-    _ = @import("tests/scenarios_test.zig");
-    _ = @import("tests/cli_smoke_test.zig");
-    _ = @import("tests/fairness_probe_test.zig");
-    _ = @import("tests/property_test.zig");
-    _ = @import("tests/policy_architecture_test.zig");
-    _ = @import("tests/scenario_pack_test.zig");
-    _ = @import("tests/policy_extension_boundary_test.zig");
-    _ = @import("tests/quality_gate_test.zig");
-    _ = @import("tests/perf_gate_test.zig");
-    _ = @import("tests/semantics_v2_test.zig");
-    _ = @import("tests/dashboard_spine_test.zig");
-    _ = @import("tests/decision_package_test.zig");
-    _ = @import("tests/linux_observability_test.zig");
-    _ = @import("tests/observability_comparison_test.zig");
-    _ = @import("tests/production_surface_test.zig");
-    _ = @import("tests/controller_test.zig");
-    _ = @import("tests/sched_ext_gate_test.zig");
+pub fn writePreflightJson(writer: anytype, report: PreflightReport) !void {
+    try observability.writeJson(writer, report);
+}
+
+pub fn writePreflightText(writer: anytype, report: PreflightReport) !void {
+    try writer.print(
+        "Linux scheduler preflight (read-only)\n" ++
+            "kernel: {s} arch={s}\n" ++
+            "sched_ext: state={s} enable_seq={s} switch_all={s} nr_rejected={s}\n" ++
+            "cgroup v2: {s} controllers={s}\n" ++
+            "btf: {s}\n" ++
+            "capabilities: effective={s}\n" ++
+            "safety: {s}\n",
+        .{
+            report.kernel_release,
+            report.arch,
+            @tagName(report.sched_ext.state.status),
+            @tagName(report.sched_ext.enable_seq.status),
+            @tagName(report.sched_ext.switch_all.status),
+            @tagName(report.sched_ext.nr_rejected.status),
+            @tagName(report.cgroup_v2.status),
+            report.cgroup_v2.controllers,
+            @tagName(report.btf.status),
+            report.capabilities.effective_hex,
+            report.safety_summary,
+        },
+    );
+}
+
+pub fn isUnsafeCommand(command: []const u8) bool {
+    return std.mem.eql(u8, command, "load") or
+        std.mem.eql(u8, command, "attach") or
+        std.mem.eql(u8, command, "enable") or
+        std.mem.eql(u8, command, "mutate") or
+        std.mem.eql(u8, command, "apply");
+}
+
+pub fn writeHelp(writer: anytype, exe_name: []const u8) !void {
+    try writer.print(
+        "usage: {s} [help | preflight --json | sched-ext preflight --json | controller plan --dry-run]\n\n" ++
+            "zig-scheduler is now a fail-closed Linux scheduler operator surface.\n" ++
+            "Initial commands are read-only or dry-run only; no BPF load, cgroup write, affinity write, or scheduler mutation is implemented.\n" ++
+            "The simulator is archived separately under simulator/ and runs from that package root.\n",
+        .{exe_name},
+    );
+}
+
+test "unsafe root commands are refused by name" {
+    try std.testing.expect(isUnsafeCommand("load"));
+    try std.testing.expect(isUnsafeCommand("attach"));
+    try std.testing.expect(isUnsafeCommand("enable"));
+    try std.testing.expect(isUnsafeCommand("mutate"));
+    try std.testing.expect(isUnsafeCommand("apply"));
+    try std.testing.expect(!isUnsafeCommand("preflight"));
+}
+
+test "dry-run controller plan fails closed without gates" {
+    try std.testing.expectError(error.LabGateRequired, controller.buildDryRunPlan(.{
+        .dry_run = true,
+        .lab_gate = false,
+        .target_allowlisted = true,
+        .rollback_snapshot_id = "rollback-001",
+        .audit_id = "audit-001",
+        .operator_confirmed = true,
+    }));
+    try std.testing.expectError(error.DryRunRequired, controller.buildDryRunPlan(.{
+        .dry_run = false,
+        .lab_gate = true,
+        .target_allowlisted = true,
+        .rollback_snapshot_id = "rollback-001",
+        .audit_id = "audit-001",
+        .operator_confirmed = true,
+    }));
 }

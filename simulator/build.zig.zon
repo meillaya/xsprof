@@ -1,0 +1,18 @@
+.{
+    .name = .zig_scheduler,
+    .version = "0.1.0",
+    .fingerprint = 0xabe1ac7175213bb1,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{
+        "AGENTS.md",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "docs",
+        "fixtures",
+        "scenarios",
+        "src",
+        "tools",
+    },
+}

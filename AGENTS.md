@@ -1,85 +1,51 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-06-10T21:25:48Z
-**Commit:** ebe1bff
+**Generated:** 2026-06-10T23:16:00-04:00
 **Branch:** master
 
 ## OVERVIEW
-`zig-scheduler` is a deterministic CPU scheduling simulator/lab in Zig. It is for repeatable scenario runs, policy comparison, teaching/research workflows, and offline observability fixtures; it is not a live kernel scheduler or production scheduling daemon.
+`zig-scheduler` root is now the fail-closed Linux scheduler operator surface. The deterministic simulator/lab was archived under `simulator/` and must be run from that package root.
+
+## ROOT SCOPE
+- Root code is Linux-scheduler-facing preflight, dry-run planning, and lab-gated `sched_ext` readiness work.
+- Root must not claim production readiness.
+- Root must not load BPF programs or mutate cgroups, cpusets, affinities, priorities, or scheduler state in the initial implementation.
+- Root operator TUI preserves the simulator TUI visual language while displaying Linux/preflight concepts only.
 
 ## STRUCTURE
 ```text
 ./
-├── build.zig                     # canonical build/test/run graph
-├── build.zig.zon                 # Zig package metadata; minimum Zig 0.16.0
-├── src/main.zig                  # primary CLI; default is TUI, `sim` dispatches legacy simulator CLI
-├── src/lib.zig                   # narrow public SDK facade
-├── src/root.zig                  # broad internal simulator facade + test aggregator
-├── src/sim/                      # scheduler data model, scenario parser, engine, trace/metrics
-├── src/tui/                      # interactive/snapshot terminal dashboard
-├── src/tests/                    # broad fixture/golden/contract test suite
-├── scenarios/                    # committed simulator scenario corpus
-├── fixtures/linux-observability/ # offline-only curated Linux observability fixtures
-└── tools/tui_pty_exit_test.py    # PTY cleanup test invoked by `zig build test`
+├── build.zig                    # root Linux scheduler build/test/run graph
+├── src/main.zig                 # fail-closed root CLI
+├── src/preflight_main.zig       # read-only preflight entrypoint
+├── src/controller/              # dry-run-only control-plan contracts
+├── src/sched_ext/               # sched_ext fact/readiness helpers; no load path
+├── src/observability/           # read-only host fact collection
+├── src/tui/                     # Linux operator TUI snapshots
+├── qa/                          # external restructuring acceptance checks
+├── tools/                       # root QA helpers
+└── simulator/                   # archived deterministic simulator package
 ```
-
-## WHERE TO LOOK
-| Task | Location | Notes |
-|------|----------|-------|
-| Build graph, run steps, test graph | `build.zig` | Single orchestration root; no Makefile/CI workflow. |
-| Public embedder API | `src/lib.zig`, `src/sdk/` | Keep smaller than `zig_scheduler_internal`. |
-| Internal simulator API | `src/root.zig`, `src/sim/` | Re-exports core scheduler, scenario, policy, trace APIs. |
-| Policies | `src/policies/`, `src/policies/class.zig`, `src/policies/extension.zig` | Keep engine-policy boundary through class/extension layers. |
-| CLI report/output | `src/cli/`, `src/sim_cli_app.zig` | Snapshot/report strings are test-sensitive. |
-| TUI/dashboard | `src/tui/`, `src/dashboard/` | Default main interface; see child `src/tui/AGENTS.md`. |
-| Tests | `src/tests/`, module-local `tests.zig` | See child `src/tests/AGENTS.md`; `zig build test` is umbrella gate. |
-| Scenario corpus | `scenarios/basic/`, `scenarios/regressions/README.md` | New regression fixtures should be minimized deterministic object-style ZON. |
-| Offline observability | `fixtures/linux-observability/`, `src/observability/` | No live capture, replay authority, calibration, or Linux-performance claims. |
-| Report artifacts | `src/report_pipeline/root.zig` | Generated notebook text says `zig build reports`; do not hand-edit generated output. |
-
-## CODE MAP
-| Symbol/module | Type | Location | Role |
-|---------------|------|----------|------|
-| `zig_scheduler_report_contract` | leaf module | `src/contract/report.zig` | Report schema contract; keep dependency-light. |
-| `list_writer` | leaf module | `src/list_writer.zig` | Shared writer adapter for ArrayList-backed output. |
-| `zig_scheduler_internal` | module | `src/root.zig` | Broad internal simulator/tooling API. |
-| `zig_scheduler` | module | `src/lib.zig` | Curated SDK facade wrapping internal simulator deliberately. |
-| `zig_scheduler_analysis` | module | `src/analysis/root.zig` | Report model/derive/render path; contract-backed. |
-| `zig_scheduler_bench` | module | `src/bench/root.zig` | Reproducible simulator-local benchmarks. |
-| `zig_scheduler_report_pipeline` | module | `src/report_pipeline/root.zig` | Regenerates curated report artifacts. |
-| `zig_scheduler_tui` | module | `src/tui/root.zig` | TUI runtime; depends on internal sim, analysis, dashboard. |
-
-## CONVENTIONS
-- Build/test/run through Zig build steps only: `zig build test --summary all`, `zig build quality`, `zig build reports`, `zig build reports -- --check`, `zig build embed-smoke`.
-- Formatting gate is `zig fmt --check build.zig build.zig.zon $(find src -name '*.zig' -print)` plus `git diff --check`.
-- Keep module boundaries explicit in `build.zig`; do not add ad-hoc deep imports when an existing root/contract module is intended.
-- Downstream tools should consume contracts/facades rather than importing `src/sim/engine.zig` or `src/sim/types.zig` directly; `src/tests/policy_architecture_test.zig` enforces this style.
-- Allocator ownership must be explicit: caller-owned values expose `deinit` or a matching SDK free helper exactly once.
-- Keep generated report/notebook content generated. If the source says generated by `zig build reports`, regenerate instead of hand-editing.
-
-## ANTI-PATTERNS (THIS PROJECT)
-- Do not widen offline observability fixtures into live capture, replay matching, calibration authority, or Linux performance claims.
-- Do not treat comparison rows as replay fidelity scores; they are bounded teaching/comparison artifacts.
-- Do not silently add broad startup precompute or per-frame/per-tick allocations in TUI/simulator hot paths.
-- Do not make `zig_scheduler` public SDK expose the whole internal simulator surface unless the facade contract is intentionally expanded.
-- Do not add new scenario fixture formats casually; legacy line-style exists, but new regression fixtures should be canonical object-style ZON.
-
-## UNIQUE STYLES
-- Commit messages follow the repo Lore protocol: intent line first, narrative body, useful git trailers (`Constraint`, `Rejected`, `Confidence`, `Scope-risk`, `Directive`, `Tested`, `Not-tested`).
-- Productionization is gated by existing planning/ADR context under `.omx/plans`/`.omx/context`; do not imply live scheduler readiness from simulator features.
-- UI design advisor preference: use Antigravity CLI `agy`; default Google model for UI design critique/spec work is `Gemini 3.5 Flash (High)`, second opinion is `Gemini 3.1 Pro (High)`, and visual/image/mockup generation should use Nano Banana Pro / Gemini 3 Pro Image when available.
 
 ## COMMANDS
 ```bash
 zig build test --summary all
-zig build quality
-zig build reports -- --check
-zig build embed-smoke
+zig build linux-preflight -- --json
+zig build run -- --help
+zig build tui -- --snapshot --screen preflight --width 100 --height 30
+zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 zig fmt --check build.zig build.zig.zon $(find src -name '*.zig' -print)
 git diff --check
 ```
 
-## NOTES
-- `build.zig.zon` still lists `docs` in package paths even though this trimmed tree may not have a `docs/` directory.
-- `.omx/state/sessions/*/AGENTS.md` are session artifacts, not repo-scoped instructions for source files.
-- `zig build test` also invokes `python3 tools/tui_pty_exit_test.py` against the TUI artifact.
+Simulator commands must be run from `simulator/`.
+
+## SAFETY RULES
+- Read-only file opens for host preflight are allowed.
+- Writes to `/sys`, `/proc`, cgroups, scheduler APIs, or BPF syscalls are forbidden unless a later explicit user approval changes scope.
+- Any future mutation-capable feature requires lab tuple evidence, rollback drill, audit id, security review, and explicit approval.
+- Unsafe verbs (`load`, `attach`, `enable`, `mutate`, `apply`) must refuse with non-zero exit.
+
+## UI RULES
+- Keep root TUI in the same product family as the simulator TUI: dense terminal dashboard, box-drawing panes, compact header/status bars, glyph-rich labels, deterministic snapshots.
+- Do not reuse simulator semantics in root TUI. Avoid simulator metrics, Gantt/task labels, or Linux performance/fidelity claims.

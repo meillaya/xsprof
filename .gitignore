@@ -1,3 +1,4 @@
 .omx/
 .zig-cache/
 zig-out/
+.omo/

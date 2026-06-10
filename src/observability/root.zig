@@ -1,524 +1,179 @@
 const std = @import("std");
-const list_writer = @import("list_writer");
+const builtin = @import("builtin");
+const sched_ext = @import("../sched_ext/root.zig");
 
-pub const support_matrix_path = "fixtures/linux-observability/support-matrix.json";
-pub const default_manifest_path = "fixtures/linux-observability/manifests/tracefs-sched-demo.json";
+pub const FactStatus = sched_ext.FactStatus;
+pub const TextFact = sched_ext.TextFact;
 
-pub const support_matrix_schema = "zig-scheduler/linux-observability-support-matrix";
-pub const fixture_manifest_schema = "zig-scheduler/linux-observability-fixture-manifest";
-pub const approved_family = "tracefs-sched-snapshot";
-pub const approved_snapshot_format_version = "tracefs-sched-text-v1";
-pub const approved_scrub_policy_version = "linux-observability-scrub-v1";
+const proc_text_limit = 256 * 1024;
 
-pub const OfflineObserverContract = struct {
-    mode_label: []const u8,
-    fixture_root: []const u8,
-    allowed_input: []const u8,
-    forbidden_live_capture: []const u8,
-    forbidden_control: []const u8,
-    claim_boundary: []const u8,
+pub const CgroupFacts = struct {
+    status: FactStatus,
+    controllers: []const u8,
 };
 
-pub fn offlineObserverContract() OfflineObserverContract {
-    return .{
-        .mode_label = "offline-linux-workload-observer",
-        .fixture_root = "fixtures/linux-observability/",
-        .allowed_input = "committed scrubbed version-pinned fixture manifests and payloads",
-        .forbidden_live_capture = "no live trace capture, perf execution, eBPF collection, or trace_pipe streaming",
-        .forbidden_control = "no scheduler control, affinity changes, cgroup mutation, or host automation",
-        .claim_boundary = "observability-only summary; not replay, calibration, Linux-performance, or scheduler-fidelity evidence",
-    };
-}
-
-pub const Error = error{
-    InvalidManifest,
-    InvalidSupportMatrix,
-    InvalidSnapshotLine,
-    MissingPayloadField,
-    UnsupportedFamily,
-    UnsupportedSchema,
-    UnsupportedTuple,
-    UnsupportedEvent,
-    LiveObserverGateClosed,
-    LabEnvironmentRequired,
-    OperatorConfirmationRequired,
-    PrivacyPolicyRequired,
-    KernelTupleRequired,
-    AuditIdRequired,
+pub const CapabilityFacts = struct {
+    effective_hex: []const u8,
+    status: FactStatus,
 };
 
-pub const LiveObserverPreflight = struct {
-    gate_open: bool = false,
-    approved_lab_environment: bool = false,
-    operator_confirmed: bool = false,
-    privacy_policy_confirmed: bool = false,
-    kernel_tuple: []const u8 = "unverified",
-    audit_session_id: []const u8 = "unrecorded",
-};
-
-pub const LiveObserverReadiness = struct {
-    mode_label: []const u8,
-    kernel_tuple: []const u8,
-    audit_session_id: []const u8,
-    refusal_policy: []const u8,
-};
-
-pub fn validateLiveObserverPreflight(preflight: LiveObserverPreflight) Error!LiveObserverReadiness {
-    if (!preflight.gate_open) return Error.LiveObserverGateClosed;
-    if (!preflight.approved_lab_environment) return Error.LabEnvironmentRequired;
-    if (!preflight.operator_confirmed) return Error.OperatorConfirmationRequired;
-    if (!preflight.privacy_policy_confirmed) return Error.PrivacyPolicyRequired;
-    if (preflight.kernel_tuple.len == 0 or std.mem.eql(u8, preflight.kernel_tuple, "unverified")) return Error.KernelTupleRequired;
-    if (preflight.audit_session_id.len == 0 or std.mem.eql(u8, preflight.audit_session_id, "unrecorded")) return Error.AuditIdRequired;
-    return .{
-        .mode_label = "lab-only-live-observer-readiness",
-        .kernel_tuple = preflight.kernel_tuple,
-        .audit_session_id = preflight.audit_session_id,
-        .refusal_policy = "refuse outside approved VM/lab before any live read or collection command",
-    };
-}
-
-pub const EventKind = enum {
-    sched_switch,
-    sched_wakeup,
-    sched_wakeup_new,
-    sched_process_fork,
-    sched_process_exit,
-
-    pub fn label(kind: EventKind) []const u8 {
-        return @tagName(kind);
-    }
-};
-
-pub const Event = struct {
-    kind: EventKind,
-    cpu: u16,
-    timestamp: f64,
-    subject_pid: ?u32,
-    related_pid: ?u32,
-    comm: ?[]const u8,
-    related_comm: ?[]const u8,
-    raw_line: []const u8,
-};
-
-pub const EventCounts = struct {
-    sched_switch: usize = 0,
-    sched_wakeup: usize = 0,
-    sched_wakeup_new: usize = 0,
-    sched_process_fork: usize = 0,
-    sched_process_exit: usize = 0,
-
-    fn bump(counts: *EventCounts, kind: EventKind) void {
-        switch (kind) {
-            .sched_switch => counts.sched_switch += 1,
-            .sched_wakeup => counts.sched_wakeup += 1,
-            .sched_wakeup_new => counts.sched_wakeup_new += 1,
-            .sched_process_fork => counts.sched_process_fork += 1,
-            .sched_process_exit => counts.sched_process_exit += 1,
-        }
-    }
-};
-
-pub const Tuple = struct {
-    family: []const u8,
+pub const PreflightReport = struct {
+    allocator: std.mem.Allocator,
     kernel_release: []const u8,
-    tool_version: []const u8,
-    tracefs_root: []const u8,
-    capture_recipe: []const u8,
-    trace_clock: []const u8,
-    enabled_sched_events: []const []const u8,
-    scope: []const u8,
-    mode: []const u8,
-    time_window: []const u8,
-    snapshot_format_version: []const u8,
-    scrub_policy_version: []const u8,
-};
+    arch: []const u8,
+    sched_ext: sched_ext.SchedExtFacts,
+    btf: TextFact,
+    cgroup_v2: CgroupFacts,
+    capabilities: CapabilityFacts,
+    safety_summary: []const u8,
 
-pub const FixtureManifest = struct {
-    schema: []const u8,
-    version: u32,
-    fixture_name: []const u8,
-    source_class: []const u8,
-    raw_snapshot_path: []const u8,
-    redistribution_basis: []const u8,
-    observability_only_caveats: []const []const u8,
-    tuple: Tuple,
-};
-
-pub const SupportMatrix = struct {
-    schema: []const u8,
-    version: u32,
-    approved_tuples: []const Tuple,
-    rejected_families: []const []const u8,
-};
-
-pub const ObservabilitySummary = struct {
-    fixture_name: []const u8,
-    family: []const u8,
-    kernel_release: []const u8,
-    snapshot_format_version: []const u8,
-    scrub_policy_version: []const u8,
-    source_class: []const u8,
-    redistribution_basis: []const u8,
-    event_count: usize,
-    cpu_ids: []u16,
-    pid_ids: []u32,
-    first_timestamp: f64,
-    last_timestamp: f64,
-    counts: EventCounts,
-
-    pub fn deinit(summary: *ObservabilitySummary, allocator: std.mem.Allocator) void {
-        allocator.free(summary.cpu_ids);
-        allocator.free(summary.pid_ids);
+    pub fn deinit(self: *PreflightReport) void {
+        self.allocator.free(self.kernel_release);
+        sched_ext.deinit(&self.sched_ext, self.allocator);
+        sched_ext.freeFact(self.allocator, self.btf);
+        if (self.cgroup_v2.controllers.len != 0) self.allocator.free(self.cgroup_v2.controllers);
+        if (self.capabilities.effective_hex.len != 0) self.allocator.free(self.capabilities.effective_hex);
     }
 };
 
-pub const LoadedFixture = struct {
-    manifest: std.json.Parsed(FixtureManifest),
-    snapshot_bytes: []u8,
-    events: []Event,
-    summary: ObservabilitySummary,
-
-    pub fn deinit(loaded: *LoadedFixture, allocator: std.mem.Allocator) void {
-        loaded.summary.deinit(allocator);
-        allocator.free(loaded.events);
-        allocator.free(loaded.snapshot_bytes);
-        loaded.manifest.deinit();
-    }
-};
-
-pub fn loadSupportMatrix(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(SupportMatrix) {
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
-    defer allocator.free(bytes);
-
-    var parsed = try std.json.parseFromSlice(SupportMatrix, allocator, bytes, .{
-        .ignore_unknown_fields = false,
-        .allocate = .alloc_always,
-    });
-    errdefer parsed.deinit();
-
-    if (!std.mem.eql(u8, parsed.value.schema, support_matrix_schema) or parsed.value.version != 1) {
-        return Error.UnsupportedSchema;
-    }
-    if (parsed.value.approved_tuples.len != 1) return Error.InvalidSupportMatrix;
-
-    return parsed;
-}
-
-pub fn loadManifest(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(FixtureManifest) {
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
-    defer allocator.free(bytes);
-
-    var parsed = try std.json.parseFromSlice(FixtureManifest, allocator, bytes, .{
-        .ignore_unknown_fields = false,
-        .allocate = .alloc_always,
-    });
-    errdefer parsed.deinit();
-
-    if (!std.mem.eql(u8, parsed.value.schema, fixture_manifest_schema) or parsed.value.version != 1) {
-        return Error.UnsupportedSchema;
-    }
-    if (parsed.value.observability_only_caveats.len == 0) return Error.InvalidManifest;
-
-    return parsed;
-}
-
-pub fn validateManifestAgainstMatrix(manifest: *const FixtureManifest, matrix: *const SupportMatrix) Error!void {
-    if (!std.mem.eql(u8, manifest.tuple.family, approved_family)) return Error.UnsupportedFamily;
-    if (!std.mem.eql(u8, manifest.tuple.snapshot_format_version, approved_snapshot_format_version)) return Error.UnsupportedTuple;
-    if (!std.mem.eql(u8, manifest.tuple.scrub_policy_version, approved_scrub_policy_version)) return Error.UnsupportedTuple;
-
-    for (matrix.rejected_families) |rejected_family| {
-        if (std.mem.eql(u8, manifest.tuple.family, rejected_family)) return Error.UnsupportedFamily;
-    }
-
-    for (matrix.approved_tuples) |tuple| {
-        if (tupleEql(&manifest.tuple, &tuple)) return;
-    }
-    return Error.UnsupportedTuple;
-}
-
-pub fn loadFixture(allocator: std.mem.Allocator, manifest_path: []const u8) !LoadedFixture {
-    var matrix = try loadSupportMatrix(allocator, support_matrix_path);
-    defer matrix.deinit();
-
-    var manifest = try loadManifest(allocator, manifest_path);
-    errdefer manifest.deinit();
-
-    try validateManifestAgainstMatrix(&manifest.value, &matrix.value);
-
-    const snapshot_bytes = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), manifest.value.raw_snapshot_path, allocator, .unlimited);
-    errdefer allocator.free(snapshot_bytes);
-
-    const events = try parseSnapshot(allocator, snapshot_bytes, &manifest.value.tuple);
-    errdefer allocator.free(events);
-
-    var summary = try summarizeEvents(allocator, &manifest.value, events);
-    errdefer summary.deinit(allocator);
-
+pub fn collectPreflight(allocator: std.mem.Allocator) !PreflightReport {
     return .{
-        .manifest = manifest,
-        .snapshot_bytes = snapshot_bytes,
-        .events = events,
-        .summary = summary,
+        .allocator = allocator,
+        .kernel_release = try readTrimmedOrUnknown(allocator, "/proc/sys/kernel/osrelease"),
+        .arch = @tagName(builtin.cpu.arch),
+        .sched_ext = try sched_ext.collect(allocator),
+        .btf = try btfFact(allocator),
+        .cgroup_v2 = try cgroupFacts(allocator),
+        .capabilities = try capabilityFacts(allocator),
+        .safety_summary = "read-only preflight; mutation, attach, enable, and BPF load paths are intentionally absent",
     };
 }
 
-pub fn renderSummaryMarkdown(allocator: std.mem.Allocator, summary: *const ObservabilitySummary) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    var writer = list_writer.writer(&buffer, allocator);
-
-    try writer.print(
-        "# Linux observability summary\n\n" ++
-            "- Fixture: `{s}`\n" ++
-            "- Approved tuple: `{s}` / `{s}` / `{s}` / `{s}`\n" ++
-            "- Source class: {s}\n" ++
-            "- Redistribution basis: {s}\n" ++
-            "- Observer mode: {s}\n" ++
-            "- Observability boundary: offline committed fixture only; not replay, calibration, or Linux-performance evidence\n" ++
-            "- Live/control boundary: no live trace capture and no scheduler control from this summary\n" ++
-            "- Event count: {}\n" ++
-            "- Timestamp span: {d:.6} -> {d:.6}\n",
-        .{
-            summary.fixture_name,
-            summary.family,
-            summary.kernel_release,
-            summary.snapshot_format_version,
-            summary.scrub_policy_version,
-            summary.source_class,
-            summary.redistribution_basis,
-            offlineObserverContract().mode_label,
-            summary.event_count,
-            summary.first_timestamp,
-            summary.last_timestamp,
-        },
-    );
-
-    try writer.writeAll("- CPUs seen: ");
-    try writeIntegerList(u16, &writer, summary.cpu_ids);
-    try writer.writeByte('\n');
-
-    try writer.writeAll("- PIDs seen: ");
-    try writeIntegerList(u32, &writer, summary.pid_ids);
-    try writer.writeByte('\n');
-
-    try writer.writeAll("\n## Event counts\n\n");
-    try writer.print(
-        "- `sched_switch`: {}\n- `sched_wakeup`: {}\n- `sched_wakeup_new`: {}\n- `sched_process_fork`: {}\n- `sched_process_exit`: {}\n",
-        .{
-            summary.counts.sched_switch,
-            summary.counts.sched_wakeup,
-            summary.counts.sched_wakeup_new,
-            summary.counts.sched_process_fork,
-            summary.counts.sched_process_exit,
-        },
-    );
-
-    return try buffer.toOwnedSlice(allocator);
+pub fn writeJson(writer: anytype, report: PreflightReport) !void {
+    try writer.writeAll("{\"schema\":\"zig-scheduler/linux-preflight\",\"version\":1");
+    try writer.writeAll(",\"kernel\":{");
+    try writer.writeAll("\"release\":");
+    try writeJsonString(writer, report.kernel_release);
+    try writer.writeAll(",\"arch\":");
+    try writeJsonString(writer, report.arch);
+    try writer.writeAll("}");
+    try writer.writeAll(",\"sched_ext\":{");
+    try writeNamedFact(writer, "state", report.sched_ext.state);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "enable_seq", report.sched_ext.enable_seq);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "switch_all", report.sched_ext.switch_all);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "nr_rejected", report.sched_ext.nr_rejected);
+    try writer.writeAll("}");
+    try writer.writeAll(",\"btf\":");
+    try writeFact(writer, report.btf);
+    try writer.writeAll(",\"cgroup_v2\":{");
+    try writer.writeAll("\"status\":");
+    try writeJsonString(writer, @tagName(report.cgroup_v2.status));
+    try writer.writeAll(",\"controllers\":");
+    try writeJsonString(writer, report.cgroup_v2.controllers);
+    try writer.writeAll("}");
+    try writer.writeAll(",\"capabilities\":{");
+    try writer.writeAll("\"status\":");
+    try writeJsonString(writer, @tagName(report.capabilities.status));
+    try writer.writeAll(",\"effective\":");
+    try writeJsonString(writer, report.capabilities.effective_hex);
+    try writer.writeAll("}");
+    try writer.writeAll(",\"safety\":{");
+    try writer.writeAll("\"mode\":\"read_only_fail_closed\",\"mutation_paths\":false,\"summary\":");
+    try writeJsonString(writer, report.safety_summary);
+    try writer.writeAll("}}");
 }
 
-pub fn loadFixtureSummaryMarkdown(allocator: std.mem.Allocator, manifest_path: []const u8) ![]u8 {
-    var loaded = try loadFixture(allocator, manifest_path);
-    defer loaded.deinit(allocator);
-    return try renderSummaryMarkdown(allocator, &loaded.summary);
+fn writeNamedFact(writer: anytype, name: []const u8, fact: TextFact) !void {
+    try writeJsonString(writer, name);
+    try writer.writeAll(":");
+    try writeFact(writer, fact);
 }
 
-fn tupleEql(lhs: *const Tuple, rhs: *const Tuple) bool {
-    return std.mem.eql(u8, lhs.family, rhs.family) and
-        std.mem.eql(u8, lhs.kernel_release, rhs.kernel_release) and
-        std.mem.eql(u8, lhs.tool_version, rhs.tool_version) and
-        std.mem.eql(u8, lhs.tracefs_root, rhs.tracefs_root) and
-        std.mem.eql(u8, lhs.capture_recipe, rhs.capture_recipe) and
-        std.mem.eql(u8, lhs.trace_clock, rhs.trace_clock) and
-        stringSliceEql(lhs.enabled_sched_events, rhs.enabled_sched_events) and
-        std.mem.eql(u8, lhs.scope, rhs.scope) and
-        std.mem.eql(u8, lhs.mode, rhs.mode) and
-        std.mem.eql(u8, lhs.time_window, rhs.time_window) and
-        std.mem.eql(u8, lhs.snapshot_format_version, rhs.snapshot_format_version) and
-        std.mem.eql(u8, lhs.scrub_policy_version, rhs.scrub_policy_version);
+fn writeFact(writer: anytype, fact: TextFact) !void {
+    try writer.writeAll("{\"status\":");
+    try writeJsonString(writer, @tagName(fact.status));
+    try writer.writeAll(",\"value\":");
+    try writeJsonString(writer, fact.value);
+    try writer.writeAll("}");
 }
 
-fn stringSliceEql(lhs: []const []const u8, rhs: []const []const u8) bool {
-    if (lhs.len != rhs.len) return false;
-    for (lhs, rhs) |lhs_item, rhs_item| {
-        if (!std.mem.eql(u8, lhs_item, rhs_item)) return false;
-    }
-    return true;
-}
-
-fn parseSnapshot(allocator: std.mem.Allocator, snapshot_bytes: []const u8, tuple: *const Tuple) ![]Event {
-    var events: std.ArrayList(Event) = .empty;
-    errdefer events.deinit(allocator);
-
-    var line_iter = std.mem.splitScalar(u8, snapshot_bytes, '\n');
-    while (line_iter.next()) |raw_line| {
-        const line = std.mem.trim(u8, raw_line, " \t\r");
-        if (line.len == 0 or line[0] == '#') continue;
-
-        const event = try parseEventLine(line, tuple);
-        try events.append(allocator, event);
-    }
-
-    if (events.items.len == 0) return Error.InvalidManifest;
-    return try events.toOwnedSlice(allocator);
-}
-
-fn parseEventLine(line: []const u8, tuple: *const Tuple) !Event {
-    const event_marker = std.mem.indexOf(u8, line, ": sched_") orelse return Error.InvalidSnapshotLine;
-    const left = line[0..event_marker];
-    const after_timestamp = line[event_marker + 2 ..];
-    const kind_end = std.mem.indexOfScalar(u8, after_timestamp, ':') orelse return Error.InvalidSnapshotLine;
-
-    var token_iter = std.mem.tokenizeAny(u8, left, " \t");
-    var timestamp_token: ?[]const u8 = null;
-    while (token_iter.next()) |token| {
-        timestamp_token = token;
-    }
-    const timestamp = try std.fmt.parseFloat(f64, timestamp_token orelse return Error.InvalidSnapshotLine);
-
-    const cpu = try parseCpu(line);
-    const kind_name = after_timestamp[0..kind_end];
-    const kind = try parseEventKind(kind_name);
-    try ensureEventAllowed(kind, tuple);
-
-    const payload = std.mem.trimStart(u8, after_timestamp[kind_end + 1 ..], " \t");
-
-    return switch (kind) {
-        .sched_switch => .{
-            .kind = kind,
-            .cpu = cpu,
-            .timestamp = timestamp,
-            .subject_pid = try parsePayloadInt(payload, "next_pid"),
-            .related_pid = try parsePayloadInt(payload, "prev_pid"),
-            .comm = try parsePayloadString(payload, "next_comm"),
-            .related_comm = try parsePayloadString(payload, "prev_comm"),
-            .raw_line = line,
-        },
-        .sched_process_fork => .{
-            .kind = kind,
-            .cpu = cpu,
-            .timestamp = timestamp,
-            .subject_pid = try parsePayloadInt(payload, "pid"),
-            .related_pid = try parsePayloadInt(payload, "child_pid"),
-            .comm = try parsePayloadString(payload, "comm"),
-            .related_comm = try parsePayloadString(payload, "child_comm"),
-            .raw_line = line,
-        },
-        else => .{
-            .kind = kind,
-            .cpu = cpu,
-            .timestamp = timestamp,
-            .subject_pid = try parsePayloadInt(payload, "pid"),
-            .related_pid = null,
-            .comm = try parsePayloadString(payload, "comm"),
-            .related_comm = null,
-            .raw_line = line,
-        },
+pub fn writeJsonString(writer: anytype, value: []const u8) !void {
+    try writer.writeByte('"');
+    for (value) |byte| switch (byte) {
+        '"' => try writer.writeAll("\\\""),
+        '\\' => try writer.writeAll("\\\\"),
+        '\n' => try writer.writeAll("\\n"),
+        '\r' => try writer.writeAll("\\r"),
+        '\t' => try writer.writeAll("\\t"),
+        else => if (byte < 0x20) try writer.print("\\u{x:0>4}", .{byte}) else try writer.writeByte(byte),
     };
+    try writer.writeByte('"');
 }
 
-fn ensureEventAllowed(kind: EventKind, tuple: *const Tuple) !void {
-    for (tuple.enabled_sched_events) |allowed| {
-        if (std.mem.eql(u8, allowed, kind.label())) return;
-    }
-    return Error.UnsupportedEvent;
+fn btfFact(allocator: std.mem.Allocator) !TextFact {
+    return sched_ext.presenceFact(allocator, "/sys/kernel/btf/vmlinux", "/sys/kernel/btf/vmlinux");
 }
 
-fn parseEventKind(kind_name: []const u8) !EventKind {
-    inline for (std.meta.fields(EventKind)) |field| {
-        if (std.mem.eql(u8, field.name, kind_name)) {
-            return @field(EventKind, field.name);
-        }
-    }
-    return Error.UnsupportedEvent;
+fn cgroupFacts(allocator: std.mem.Allocator) !CgroupFacts {
+    const mountinfo = try sched_ext.readLimitedTextFact(allocator, "/proc/self/mountinfo", proc_text_limit);
+    defer sched_ext.freeFact(allocator, mountinfo);
+    if (mountinfo.status != .present) return .{
+        .status = mountinfo.status,
+        .controllers = try allocator.dupe(u8, ""),
+    };
+    if (!hasCgroup2Mount(mountinfo.value)) return .{
+        .status = .missing,
+        .controllers = try allocator.dupe(u8, ""),
+    };
+    const controllers = try sched_ext.readSmallFact(allocator, "/sys/fs/cgroup/cgroup.controllers");
+    defer sched_ext.freeFact(allocator, controllers);
+    return .{ .status = controllers.status, .controllers = try allocator.dupe(u8, controllers.value) };
 }
 
-fn parseCpu(line: []const u8) !u16 {
-    const start = std.mem.indexOfScalar(u8, line, '[') orelse return Error.InvalidSnapshotLine;
-    const end = std.mem.indexOfScalarPos(u8, line, start + 1, ']') orelse return Error.InvalidSnapshotLine;
-    return try std.fmt.parseInt(u16, line[start + 1 .. end], 10);
+fn capabilityFacts(allocator: std.mem.Allocator) !CapabilityFacts {
+    const status = try sched_ext.readLimitedTextFact(allocator, "/proc/self/status", proc_text_limit);
+    defer sched_ext.freeFact(allocator, status);
+    if (status.status != .present) return .{ .effective_hex = try allocator.dupe(u8, ""), .status = status.status };
+    if (capEffValue(status.value)) |value| return .{ .effective_hex = try allocator.dupe(u8, value), .status = .present };
+    return .{ .effective_hex = try allocator.dupe(u8, ""), .status = .unknown };
 }
 
-fn parsePayloadString(payload: []const u8, key: []const u8) ![]const u8 {
-    return findPayloadValue(payload, key) orelse Error.MissingPayloadField;
+fn readTrimmedOrUnknown(allocator: std.mem.Allocator, absolute_path: []const u8) ![]u8 {
+    const fact = try sched_ext.readSmallFact(allocator, absolute_path);
+    defer sched_ext.freeFact(allocator, fact);
+    if (fact.status != .present) return try allocator.dupe(u8, @tagName(fact.status));
+    return try allocator.dupe(u8, fact.value);
 }
 
-fn parsePayloadInt(payload: []const u8, key: []const u8) !u32 {
-    const value = findPayloadValue(payload, key) orelse return Error.MissingPayloadField;
-    return try std.fmt.parseInt(u32, value, 10);
+fn hasCgroup2Mount(mountinfo: []const u8) bool {
+    return std.mem.indexOf(u8, mountinfo, " - cgroup2 ") != null;
 }
 
-fn findPayloadValue(payload: []const u8, key: []const u8) ?[]const u8 {
-    var token_iter = std.mem.tokenizeScalar(u8, payload, ' ');
-    while (token_iter.next()) |token| {
-        if (std.mem.eql(u8, token, "==>")) continue;
-        if (!std.mem.containsAtLeast(u8, token, 1, "=")) continue;
-
-        const eq_index = std.mem.indexOfScalar(u8, token, '=') orelse continue;
-        if (!std.mem.eql(u8, token[0..eq_index], key)) continue;
-        return token[eq_index + 1 ..];
+fn capEffValue(status: []const u8) ?[]const u8 {
+    var lines = std.mem.splitScalar(u8, status, '\n');
+    while (lines.next()) |line| {
+        if (std.mem.startsWith(u8, line, "CapEff:")) return std.mem.trim(u8, line["CapEff:".len..], " \t");
     }
     return null;
 }
 
-fn summarizeEvents(allocator: std.mem.Allocator, manifest: *const FixtureManifest, events: []const Event) !ObservabilitySummary {
-    var cpu_set = std.AutoHashMap(u16, void).init(allocator);
-    defer cpu_set.deinit();
-    var pid_set = std.AutoHashMap(u32, void).init(allocator);
-    defer pid_set.deinit();
-
-    var counts: EventCounts = .{};
-    var first_timestamp = events[0].timestamp;
-    var last_timestamp = events[0].timestamp;
-
-    for (events) |event| {
-        counts.bump(event.kind);
-        try cpu_set.put(event.cpu, {});
-        if (event.subject_pid) |pid| try pid_set.put(pid, {});
-        if (event.related_pid) |pid| try pid_set.put(pid, {});
-        first_timestamp = @min(first_timestamp, event.timestamp);
-        last_timestamp = @max(last_timestamp, event.timestamp);
-    }
-
-    const cpu_ids = try sortedKeys(u16, allocator, &cpu_set);
-    errdefer allocator.free(cpu_ids);
-    const pid_ids = try sortedKeys(u32, allocator, &pid_set);
-    errdefer allocator.free(pid_ids);
-
-    return .{
-        .fixture_name = manifest.fixture_name,
-        .family = manifest.tuple.family,
-        .kernel_release = manifest.tuple.kernel_release,
-        .snapshot_format_version = manifest.tuple.snapshot_format_version,
-        .scrub_policy_version = manifest.tuple.scrub_policy_version,
-        .source_class = manifest.source_class,
-        .redistribution_basis = manifest.redistribution_basis,
-        .event_count = events.len,
-        .cpu_ids = cpu_ids,
-        .pid_ids = pid_ids,
-        .first_timestamp = first_timestamp,
-        .last_timestamp = last_timestamp,
-        .counts = counts,
-    };
+test "json string escaping is deterministic" {
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(std.testing.allocator, &buffer);
+    try writeJsonString(&writer.writer, "a\"b\\c\x01");
+    buffer = writer.toArrayList();
+    try std.testing.expectEqualStrings("\"a\\\"b\\\\c\\u0001\"", buffer.items);
 }
 
-fn sortedKeys(comptime T: type, allocator: std.mem.Allocator, map: *std.AutoHashMap(T, void)) ![]T {
-    var list: std.ArrayList(T) = .empty;
-    errdefer list.deinit(allocator);
+test "preflight parsers handle large proc-style text" {
+    const prefix = "0 0 0:0 / / rw - proc proc rw\n" ** 200;
+    const mountinfo = prefix ++ "42 24 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw\n";
+    try std.testing.expect(hasCgroup2Mount(mountinfo));
 
-    var iterator = map.keyIterator();
-    while (iterator.next()) |key| {
-        try list.append(allocator, key.*);
-    }
-
-    std.mem.sort(T, list.items, {}, comptime std.sort.asc(T));
-    return try list.toOwnedSlice(allocator);
-}
-
-fn writeIntegerList(comptime T: type, writer: anytype, values: []const T) !void {
-    for (values, 0..) |value, index| {
-        if (index != 0) try writer.writeAll(", ");
-        try writer.print("{}", .{value});
-    }
+    const status = prefix ++ "CapEff:\t0000000000000000\n";
+    try std.testing.expectEqualStrings("0000000000000000", capEffValue(status).?);
 }
