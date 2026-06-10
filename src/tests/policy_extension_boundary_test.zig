@@ -169,3 +169,35 @@ test "extension adapter supports chooser-style policies with tick hooks" {
     sim.policies.extension.onTaskTick(ChoosingPolicy, &task);
     try std.testing.expectEqual(@as(u64, 7), task.vruntime);
 }
+
+test "policy model bridge records deterministic fairness latency explanations" {
+    const models = sim.policies.extension.listPolicyModels();
+    try std.testing.expectEqual(@as(usize, 4), models.len);
+
+    for (models) |model| {
+        const descriptor = sim.policies.extension.describePolicy(model.kind);
+        try std.testing.expectEqual(model.kind, descriptor.kind);
+        try std.testing.expect(model.decision_signal.len != 0);
+        try std.testing.expect(model.fairness_signal.len != 0);
+        try std.testing.expect(model.latency_signal.len != 0);
+        try std.testing.expect(model.deterministic_tie_break.len != 0);
+        try std.testing.expect(model.explanation.len != 0);
+    }
+
+    const fcfs_model = sim.policies.extension.describePolicyModel(.fcfs);
+    try std.testing.expectEqual(sim.policies.extension.PolicyObjective.convoy_baseline, fcfs_model.objective);
+    try std.testing.expect(std.mem.indexOf(u8, fcfs_model.latency_signal, "convoy") != null);
+
+    const rr_model = sim.policies.extension.describePolicyModel(.round_robin);
+    try std.testing.expectEqual(sim.policies.extension.PolicyObjective.time_slice_latency, rr_model.objective);
+    try std.testing.expect(std.mem.indexOf(u8, rr_model.fairness_signal, "rotation") != null);
+
+    const cfs_model = sim.policies.extension.describePolicyModel(.cfs_like);
+    try std.testing.expectEqual(sim.policies.extension.PolicyObjective.weighted_fairness, cfs_model.objective);
+    try std.testing.expect(std.mem.indexOf(u8, cfs_model.decision_signal, "virtual runtime") != null);
+    try std.testing.expect(std.mem.indexOf(u8, cfs_model.fairness_signal, "weight-normalized") != null);
+
+    const deadline_model = sim.policies.extension.describePolicyModel(.deadline);
+    try std.testing.expectEqual(sim.policies.extension.PolicyObjective.deadline_order, deadline_model.objective);
+    try std.testing.expect(std.mem.indexOf(u8, deadline_model.explanation, "without") != null);
+}

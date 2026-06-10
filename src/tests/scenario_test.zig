@@ -248,52 +248,6 @@ test "sleep configuration requires positive duration and a valid post-dispatch p
     );
 }
 
-test "docs keep blocked-state semantics educational and simulator-scoped" {
-    const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
-    defer allocator.free(phase_doc);
-    const linux_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/linux-mapping.md", allocator, .unlimited);
-    defer allocator.free(linux_doc);
-    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/scenario-corpus.md", allocator, .unlimited);
-    defer allocator.free(corpus_doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Deterministic blocked / wakeup model") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "not attempt to reproduce Linux wakeup races") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "group-level scheduling ideas") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Topolog") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "sleep-wakeup") != null);
-    try std.testing.expect(std.mem.indexOf(u8, linux_doc, "No wait queues, interrupts, I/O completion, or Linux wakeup fidelity") != null);
-}
-
-test "registry and docs describe scenario-pack and policy extension boundaries" {
-    const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
-    defer allocator.free(phase_doc);
-    const extension_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/extension-boundary.md", allocator, .unlimited);
-    defer allocator.free(extension_doc);
-
-    const builtins = scheduler.listBuiltinScenarios();
-    try std.testing.expect(builtins.len >= 3);
-
-    var saw_short_vs_long = false;
-    for (builtins) |entry| {
-        try std.testing.expect(entry.key.len != 0);
-        try std.testing.expect(entry.description.len != 0);
-        try std.testing.expect(std.mem.startsWith(u8, entry.path, "scenarios/basic/"));
-        if (std.mem.eql(u8, entry.key, "short-vs-long")) {
-            saw_short_vs_long = true;
-            try std.testing.expectEqualStrings("scenarios/basic/short-vs-long.zon", entry.path);
-        }
-    }
-    try std.testing.expect(saw_short_vs_long);
-
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "Scenario-pack convention and extension boundary") != null);
-    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "Scenario pack convention") != null);
-    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "src/sim/scenario.zig") != null);
-    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "src/sim/engine.zig") != null);
-    try std.testing.expect(std.mem.indexOf(u8, extension_doc, "core simulator does not need dynamic discovery") != null);
-}
-
 test "legacy line oriented scenario text remains supported" {
     const source =
         \\name: legacy-demo

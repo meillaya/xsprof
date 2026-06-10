@@ -64,6 +64,10 @@ def run_case(exe, name, input_bytes):
                     chunk = os.read(master_fd, 8192)
                 except OSError as exc:
                     if exc.errno == errno.EIO:
+                        try:
+                            proc.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            pass
                         break
                     raise
                 if not chunk:
@@ -75,6 +79,11 @@ def run_case(exe, name, input_bytes):
             if sent and proc.poll() is not None:
                 output.extend(drain(master_fd))
                 break
+        if proc.poll() is None:
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
         if proc.poll() is None:
             proc.terminate()
             try:

@@ -14,6 +14,23 @@ pub const PolicyInterfaceKind = enum {
     chooser,
 };
 
+pub const PolicyObjective = enum {
+    convoy_baseline,
+    time_slice_latency,
+    weighted_fairness,
+    deadline_order,
+};
+
+pub const PolicyModel = struct {
+    kind: types.PolicyKind,
+    objective: PolicyObjective,
+    decision_signal: []const u8,
+    fairness_signal: []const u8,
+    latency_signal: []const u8,
+    deterministic_tie_break: []const u8,
+    explanation: []const u8,
+};
+
 pub const PolicyContract = struct {
     kind: types.PolicyKind,
     interface_kind: PolicyInterfaceKind,
@@ -84,12 +101,55 @@ const builtin_policy_contracts = [_]PolicyContract{
     },
 };
 
+const builtin_policy_models = [_]PolicyModel{
+    .{
+        .kind = .fcfs,
+        .objective = .convoy_baseline,
+        .decision_signal = "oldest-ready-task",
+        .fairness_signal = "declaration-order waiting exposure",
+        .latency_signal = "convoy and response-time baseline",
+        .deterministic_tie_break = "ready-queue order then scenario declaration order",
+        .explanation = "FCFS is the deterministic baseline for showing how arrival order can dominate latency.",
+    },
+    .{
+        .kind = .round_robin,
+        .objective = .time_slice_latency,
+        .decision_signal = "ready-queue rotation after quantum pressure",
+        .fairness_signal = "bounded turn rotation among runnable peers",
+        .latency_signal = "shorter first-response opportunities under runnable contention",
+        .deterministic_tie_break = "ready-queue order after explicit rotation",
+        .explanation = "Round Robin models time-sliced latency pressure without claiming any host scheduler behavior.",
+    },
+    .{
+        .kind = .cfs_like,
+        .objective = .weighted_fairness,
+        .decision_signal = "lowest virtual runtime",
+        .fairness_signal = "weight-normalized virtual runtime",
+        .latency_signal = "preemption when a runnable peer has lower virtual runtime",
+        .deterministic_tie_break = "scenario declaration order for equal virtual runtime",
+        .explanation = "CFS-inspired selection makes fairness pressure explainable through deterministic virtual-runtime accounting.",
+    },
+    .{
+        .kind = .deadline,
+        .objective = .deadline_order,
+        .decision_signal = "earliest declared deadline",
+        .fairness_signal = "deadline priority can intentionally dominate equal-share fairness",
+        .latency_signal = "preemption when an earlier deadline becomes runnable",
+        .deterministic_tie_break = "scenario declaration order for equal deadline",
+        .explanation = "Deadline-inspired selection explains deadline pressure without admission-control or real-time guarantees.",
+    },
+};
+
 pub fn listPolicyDescriptors() []const PolicyDescriptor {
     return builtin_policy_descriptors[0..];
 }
 
 pub fn listPolicyContracts() []const PolicyContract {
     return builtin_policy_contracts[0..];
+}
+
+pub fn listPolicyModels() []const PolicyModel {
+    return builtin_policy_models[0..];
 }
 
 pub fn describePolicy(kind: types.PolicyKind) PolicyDescriptor {
@@ -102,6 +162,13 @@ pub fn describePolicy(kind: types.PolicyKind) PolicyDescriptor {
 pub fn describePolicyContract(kind: types.PolicyKind) PolicyContract {
     for (builtin_policy_contracts) |contract| {
         if (contract.kind == kind) return contract;
+    }
+    unreachable;
+}
+
+pub fn describePolicyModel(kind: types.PolicyKind) PolicyModel {
+    for (builtin_policy_models) |model| {
+        if (model.kind == kind) return model;
     }
     unreachable;
 }

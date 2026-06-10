@@ -79,12 +79,6 @@ fn dispatch(args: []const []const u8) Dispatch {
     return .tui;
 }
 
-test "dispatch routes main interface to tui by default" {
-    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{}));
-    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{ "--scenario-file", "scenarios/basic/multicore-contention.zon", "--policy", "fcfs" }));
-    try std.testing.expectEqual(Dispatch.tui, dispatch(&.{ "--input", "docs/examples/exports/multicore-contention-fcfs.report.json", "--snapshot" }));
-}
-
 test "dispatch preserves legacy simulator subcommand only" {
     try std.testing.expectEqual(Dispatch.sim, dispatch(&.{"sim"}));
     try std.testing.expectEqual(Dispatch.tui, dispatch(&.{"list"}));

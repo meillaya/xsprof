@@ -10,6 +10,26 @@ pub const approved_family = "tracefs-sched-snapshot";
 pub const approved_snapshot_format_version = "tracefs-sched-text-v1";
 pub const approved_scrub_policy_version = "linux-observability-scrub-v1";
 
+pub const OfflineObserverContract = struct {
+    mode_label: []const u8,
+    fixture_root: []const u8,
+    allowed_input: []const u8,
+    forbidden_live_capture: []const u8,
+    forbidden_control: []const u8,
+    claim_boundary: []const u8,
+};
+
+pub fn offlineObserverContract() OfflineObserverContract {
+    return .{
+        .mode_label = "offline-linux-workload-observer",
+        .fixture_root = "fixtures/linux-observability/",
+        .allowed_input = "committed scrubbed version-pinned fixture manifests and payloads",
+        .forbidden_live_capture = "no live trace capture, perf execution, eBPF collection, or trace_pipe streaming",
+        .forbidden_control = "no scheduler control, affinity changes, cgroup mutation, or host automation",
+        .claim_boundary = "observability-only summary; not replay, calibration, Linux-performance, or scheduler-fidelity evidence",
+    };
+}
+
 pub const Error = error{
     InvalidManifest,
     InvalidSupportMatrix,
@@ -19,7 +39,44 @@ pub const Error = error{
     UnsupportedSchema,
     UnsupportedTuple,
     UnsupportedEvent,
+    LiveObserverGateClosed,
+    LabEnvironmentRequired,
+    OperatorConfirmationRequired,
+    PrivacyPolicyRequired,
+    KernelTupleRequired,
+    AuditIdRequired,
 };
+
+pub const LiveObserverPreflight = struct {
+    gate_open: bool = false,
+    approved_lab_environment: bool = false,
+    operator_confirmed: bool = false,
+    privacy_policy_confirmed: bool = false,
+    kernel_tuple: []const u8 = "unverified",
+    audit_session_id: []const u8 = "unrecorded",
+};
+
+pub const LiveObserverReadiness = struct {
+    mode_label: []const u8,
+    kernel_tuple: []const u8,
+    audit_session_id: []const u8,
+    refusal_policy: []const u8,
+};
+
+pub fn validateLiveObserverPreflight(preflight: LiveObserverPreflight) Error!LiveObserverReadiness {
+    if (!preflight.gate_open) return Error.LiveObserverGateClosed;
+    if (!preflight.approved_lab_environment) return Error.LabEnvironmentRequired;
+    if (!preflight.operator_confirmed) return Error.OperatorConfirmationRequired;
+    if (!preflight.privacy_policy_confirmed) return Error.PrivacyPolicyRequired;
+    if (preflight.kernel_tuple.len == 0 or std.mem.eql(u8, preflight.kernel_tuple, "unverified")) return Error.KernelTupleRequired;
+    if (preflight.audit_session_id.len == 0 or std.mem.eql(u8, preflight.audit_session_id, "unrecorded")) return Error.AuditIdRequired;
+    return .{
+        .mode_label = "lab-only-live-observer-readiness",
+        .kernel_tuple = preflight.kernel_tuple,
+        .audit_session_id = preflight.audit_session_id,
+        .refusal_policy = "refuse outside approved VM/lab before any live read or collection command",
+    };
+}
 
 pub const EventKind = enum {
     sched_switch,
@@ -218,7 +275,9 @@ pub fn renderSummaryMarkdown(allocator: std.mem.Allocator, summary: *const Obser
             "- Approved tuple: `{s}` / `{s}` / `{s}` / `{s}`\n" ++
             "- Source class: {s}\n" ++
             "- Redistribution basis: {s}\n" ++
+            "- Observer mode: {s}\n" ++
             "- Observability boundary: offline committed fixture only; not replay, calibration, or Linux-performance evidence\n" ++
+            "- Live/control boundary: no live trace capture and no scheduler control from this summary\n" ++
             "- Event count: {}\n" ++
             "- Timestamp span: {d:.6} -> {d:.6}\n",
         .{
@@ -229,6 +288,7 @@ pub fn renderSummaryMarkdown(allocator: std.mem.Allocator, summary: *const Obser
             summary.scrub_policy_version,
             summary.source_class,
             summary.redistribution_basis,
+            offlineObserverContract().mode_label,
             summary.event_count,
             summary.first_timestamp,
             summary.last_timestamp,

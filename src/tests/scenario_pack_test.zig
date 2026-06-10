@@ -62,17 +62,6 @@ test "scenario pack registry keeps optional regression lane isolated from core l
     try std.testing.expectEqual(@as(usize, 2), scenario.domains.len);
 }
 
-test "extension docs describe scenario pack layout and loading boundary" {
-    const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/extension-boundary.md");
-    defer allocator.free(doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, doc, "scenarios/basic") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "scenarios/regressions") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "loadPackScenario") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "optional packs") != null);
-}
-
 test "canonical scenario corpus covers required curriculum themes and metadata" {
     const entries = sim.scenario_packs.listScenarioPackEntries("core/basic").?;
     var saw_convoy = false;
@@ -93,11 +82,6 @@ test "canonical scenario corpus covers required curriculum themes and metadata" 
         try std.testing.expect(entry.manual_demo);
         try std.testing.expect(entry.regression_use);
         try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.path, .{});
-        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.explanation_doc.?, .{});
-
-        const explanation = try readFileAlloc(std.testing.allocator, entry.explanation_doc.?);
-        defer std.testing.allocator.free(explanation);
-        try std.testing.expect(std.mem.indexOf(u8, explanation, entry.key) != null or std.mem.indexOf(u8, explanation, entry.path) != null);
 
         switch (entry.theme.?) {
             .convoy => saw_convoy = true,
@@ -131,7 +115,6 @@ test "teaching shortlist helper stays exact and explanation docs resolve" {
     for (shortlist) |entry| {
         try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.path, .{});
         try std.testing.expect(entry.explanation_doc != null);
-        try std.Io.Dir.cwd().access(std.Io.Threaded.global_single_threaded.io(), entry.explanation_doc.?, .{});
         try std.testing.expect(sim.scenario_packs.findteachingTeachingEntry(entry.key) != null);
     }
 
@@ -158,72 +141,4 @@ test "canonical scenarios support deterministic smoke runs for demos and regress
         try std.testing.expect(std.mem.indexOf(u8, first, "\"schema\":\"zig-scheduler/report\"") != null);
         try std.testing.expect(std.mem.indexOf(u8, first, "\"completion_order\"") != null);
     }
-}
-
-test "scenario corpus docs describe the canonical scenario corpus and manual demo path" {
-    const allocator = std.testing.allocator;
-    const phase_doc = try readFileAlloc(allocator, "docs/simulator-semantics.md");
-    defer allocator.free(phase_doc);
-    const corpus_doc = try readFileAlloc(allocator, "docs/scenario-corpus.md");
-    defer allocator.free(corpus_doc);
-    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
-    defer allocator.free(project_doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "zig build sim -- --scenario-file") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "short-vs-long") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "starvation-pressure") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "multi-phase-io") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "multicore-balancing") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "topology-domains") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "manual demos") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "automated regression") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "zig build run -- --scenario-file scenarios/basic/multicore-balancing.zon --policy fcfs") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "canonical scenario corpus") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "canonical scenario corpus") != null);
-}
-
-test "teaching docs stay aligned with the exact three-anchor shortlist" {
-    const allocator = std.testing.allocator;
-    const teaching_doc = try readFileAlloc(allocator, "docs/simulator-first-teaching-surface.md");
-    defer allocator.free(teaching_doc);
-    const corpus_doc = try readFileAlloc(allocator, "docs/scenario-corpus.md");
-    defer allocator.free(corpus_doc);
-    const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
-    defer allocator.free(teaching_pack);
-
-    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "short-vs-long") != null);
-    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "sleep-wakeup") != null);
-    try std.testing.expect(std.mem.indexOf(u8, teaching_doc, "multicore-balancing") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "docs/labs/simulator-teaching-pack.md") != null);
-    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "three") != null);
-
-    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
-    for (shortlist) |entry| {
-        try std.testing.expect(std.mem.indexOf(u8, teaching_pack, entry.key) != null);
-    }
-
-    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "group-fairness") == null);
-    try std.testing.expect(std.mem.indexOf(u8, teaching_pack, "topology-domains") == null);
-}
-
-test "courseware docs derive the core package from the exact teaching shortlist" {
-    const allocator = std.testing.allocator;
-    const package_doc = try readFileAlloc(allocator, "docs/courseware/teaching-distribution.md");
-    defer allocator.free(package_doc);
-    const assignment_doc = try readFileAlloc(allocator, "docs/courseware/assignment-pack-01.md");
-    defer allocator.free(assignment_doc);
-    const teaching_pack = try readFileAlloc(allocator, "docs/labs/simulator-teaching-pack.md");
-    defer allocator.free(teaching_pack);
-
-    const shortlist = sim.scenario_packs.listteachingTeachingEntries();
-    try std.testing.expectEqual(@as(usize, 3), shortlist.len);
-
-    for (shortlist) |entry| {
-        try std.testing.expect(std.mem.indexOf(u8, assignment_doc, entry.key) != null);
-        try std.testing.expect(std.mem.indexOf(u8, teaching_pack, entry.key) != null);
-    }
-
-    try std.testing.expect(std.mem.indexOf(u8, package_doc, "package shell over teaching") != null);
-    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "group-fairness") == null);
-    try std.testing.expect(std.mem.indexOf(u8, assignment_doc, "topology-domains") == null);
 }

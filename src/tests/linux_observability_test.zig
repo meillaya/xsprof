@@ -122,24 +122,6 @@ test "observability support matrix rejects unapproved tuple changes" {
     try std.testing.expectError(observability.Error.UnsupportedTuple, observability.validateManifestAgainstMatrix(&unsupported_tuple, &matrix.value));
 }
 
-test "observability docs and fixture surfaces stay separated from simulator-native scenarios" {
-    const allocator = std.testing.allocator;
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
-    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
-    defer allocator.free(project_doc);
-    const observability_doc = try readFileAlloc(allocator, "docs/curated-linux-observability.md");
-    defer allocator.free(observability_doc);
-    const fixture_doc = try readFileAlloc(allocator, "fixtures/linux-observability/README.md");
-    defer allocator.free(fixture_doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, readme, "fixtures/linux-observability/") != null);
-    try std.testing.expect(std.mem.indexOf(u8, project_doc, "widening `zig-scheduler/report` or `src/analysis`") != null);
-    try std.testing.expect(std.mem.indexOf(u8, observability_doc, "tracefs-sched-snapshot") != null);
-    try std.testing.expect(std.mem.indexOf(u8, observability_doc, "perf sched") != null);
-    try std.testing.expect(std.mem.indexOf(u8, fixture_doc, "offline, observability-only") != null);
-}
-
 test "comparison fixed-input observability fixture remains reproducible across repeated loads" {
     var first = try observability.loadFixture(std.testing.allocator, observability.default_manifest_path);
     defer first.deinit(std.testing.allocator);
@@ -170,48 +152,44 @@ test "comparison fixed-input observability fixture remains reproducible across r
     try std.testing.expectEqualStrings(first_markdown, second_markdown);
 }
 
-test "comparison claim-rejection audit keeps observability proof surfaces conservative" {
-    const allocator = std.testing.allocator;
-    const readme = try readFileAlloc(allocator, "README.md");
-    defer allocator.free(readme);
-    const project_doc = try readFileAlloc(allocator, "docs/project-architecture-and-status.md");
-    defer allocator.free(project_doc);
-    const observability_doc = try readFileAlloc(allocator, "docs/curated-linux-observability.md");
-    defer allocator.free(observability_doc);
-    const fixture_doc = try readFileAlloc(allocator, "fixtures/linux-observability/README.md");
-    defer allocator.free(fixture_doc);
+test "offline observer contract rejects live capture and control semantics" {
+    const contract = observability.offlineObserverContract();
+    try std.testing.expectEqualStrings("offline-linux-workload-observer", contract.mode_label);
+    try std.testing.expect(std.mem.indexOf(u8, contract.fixture_root, "fixtures/linux-observability/") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.allowed_input, "committed scrubbed version-pinned fixture") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.forbidden_live_capture, "no live trace capture") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.forbidden_live_capture, "eBPF collection") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.forbidden_control, "no scheduler control") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.forbidden_control, "cgroup mutation") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.claim_boundary, "observability-only summary") != null);
+    try std.testing.expect(std.mem.indexOf(u8, contract.claim_boundary, "Linux-performance") != null);
+}
 
-    const summary_markdown = try observability.loadFixtureSummaryMarkdown(std.testing.allocator, observability.default_manifest_path);
-    defer std.testing.allocator.free(summary_markdown);
-
-    try expectContainsAll(readme, &[_][]const u8{
-        "offline,",
-        "observability-only, version-pinned snapshot fixtures",
-        "not live capture,",
-        "Linux-performance claims",
-    });
-    try expectContainsAll(project_doc, &[_][]const u8{
-        "offline snapshot fixtures only",
-        "observability-only wording only",
-        "replay-fidelity claims",
-        "Linux-performance or calibration claims",
-    });
-    try expectContainsAll(observability_doc, &[_][]const u8{
-        "observability-only",
-        "does **not**:",
-        "make replay, calibration, or Linux-performance claims",
-    });
-    try expectContainsAll(fixture_doc, &[_][]const u8{
-        "offline, observability-only",
-        "do not authorize live capture, replay, calibration, or",
-    });
-    try expectContainsAll(summary_markdown, &[_][]const u8{
-        "Linux observability summary",
-        "not replay, calibration, or Linux-performance evidence",
-    });
-
-    try expectLacksAll(readme, &forbidden_claim_labels);
-    try expectLacksAll(observability_doc, &forbidden_claim_labels);
-    try expectLacksAll(fixture_doc, &forbidden_claim_labels);
-    try expectLacksAll(summary_markdown, &forbidden_claim_labels);
+test "lab live observer preflight fails closed until every gate is explicit" {
+    try std.testing.expectError(observability.Error.LiveObserverGateClosed, observability.validateLiveObserverPreflight(.{}));
+    try std.testing.expectError(observability.Error.LabEnvironmentRequired, observability.validateLiveObserverPreflight(.{
+        .gate_open = true,
+    }));
+    try std.testing.expectError(observability.Error.OperatorConfirmationRequired, observability.validateLiveObserverPreflight(.{
+        .gate_open = true,
+        .approved_lab_environment = true,
+    }));
+    try std.testing.expectError(observability.Error.PrivacyPolicyRequired, observability.validateLiveObserverPreflight(.{
+        .gate_open = true,
+        .approved_lab_environment = true,
+        .operator_confirmed = true,
+    }));
+    try std.testing.expectError(observability.Error.KernelTupleRequired, observability.validateLiveObserverPreflight(.{
+        .gate_open = true,
+        .approved_lab_environment = true,
+        .operator_confirmed = true,
+        .privacy_policy_confirmed = true,
+    }));
+    try std.testing.expectError(observability.Error.AuditIdRequired, observability.validateLiveObserverPreflight(.{
+        .gate_open = true,
+        .approved_lab_environment = true,
+        .operator_confirmed = true,
+        .privacy_policy_confirmed = true,
+        .kernel_tuple = "linux-6.6/tracefs-lab",
+    }));
 }

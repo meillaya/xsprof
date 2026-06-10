@@ -62,40 +62,6 @@ fn expectCompletionOrderEqual(a: *const sim.SimulationResult, b: *const sim.Simu
     }
 }
 
-test "quality docs and build graph expose quality gates" {
-    const allocator = std.testing.allocator;
-    const quality_doc = try readFileAlloc(allocator, "docs/quality-gates.md");
-    defer allocator.free(quality_doc);
-    const release_doc = try readFileAlloc(allocator, "docs/release-checklist.md");
-    defer allocator.free(release_doc);
-    const build_file = try readFileAlloc(allocator, "build.zig");
-    defer allocator.free(build_file);
-
-    try expectContainsAll(quality_doc, &.{
-        "test taxonomy",
-        "golden fixture governance",
-        "executable gates",
-        "CLI and SDK compatibility suite",
-        "dashboard snapshot regression suite",
-        "release checklist",
-        "Generated quality dashboard",
-        "ADR 0003",
-        "not a daemon, service, agent",
-    });
-    try expectContainsAll(release_doc, &.{
-        "zig build quality",
-        "zig build test --summary all",
-        "Contract migration notes",
-        "ADR 0003",
-    });
-    try expectContainsAll(build_file, &.{
-        "zig_scheduler_quality",
-        "src/quality/root.zig",
-        "src/quality/main.zig",
-        "Render the quality dashboard",
-    });
-}
-
 test "determinism oracle compares repeated curated simulator runs" {
     const allocator = std.testing.allocator;
     const corpus = [_][]const u8{

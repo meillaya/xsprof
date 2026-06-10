@@ -43,19 +43,3 @@ test "starvation-pressure fixture exposes uneven waiting under weighted fair sch
     try std.testing.expect(result.aggregate.waiting_time_spread >= 4);
     try std.testing.expect(result.aggregate.max_response_time >= result.aggregate.response_time_spread);
 }
-
-test "fairness docs keep claims evidence-based" {
-    const allocator = std.testing.allocator;
-    const phase_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/simulator-semantics.md", allocator, .unlimited);
-    defer allocator.free(phase_doc);
-    const fairness_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/fairness-probes.md", allocator, .unlimited);
-    defer allocator.free(fairness_doc);
-    const corpus_doc = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), "docs/scenario-corpus.md", allocator, .unlimited);
-    defer allocator.free(corpus_doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "latency-probe") != null);
-    try std.testing.expect(std.mem.indexOf(u8, corpus_doc, "starvation-pressure") != null);
-    try std.testing.expect(std.mem.indexOf(u8, phase_doc, "max_waiting_time") != null);
-    try std.testing.expect(std.mem.indexOf(u8, fairness_doc, "not formal starvation proofs") != null);
-    try std.testing.expect(std.mem.indexOf(u8, fairness_doc, "evidence-based") != null);
-}

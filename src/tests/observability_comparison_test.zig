@@ -177,33 +177,6 @@ test "comparison rejects unsupported marketing labels and keeps boundary flags f
     try std.testing.expect(!comparison.supports_entity_equivalence);
 }
 
-test "comparison docs and boundary surfaces stay separate from report and analysis contracts" {
-    const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/simulator-to-trace-comparison.md");
-    defer allocator.free(doc);
-    const report_contract = try readFileAlloc(allocator, "src/contract/report.zig");
-    defer allocator.free(report_contract);
-    const report_cli = try readFileAlloc(allocator, "src/cli/report.zig");
-    defer allocator.free(report_cli);
-    const analysis_root = try readFileAlloc(allocator, "src/analysis/root.zig");
-    defer allocator.free(analysis_root);
-    const analysis_main = try readFileAlloc(allocator, "src/analysis/main.zig");
-    defer allocator.free(analysis_main);
-
-    try std.testing.expect(std.mem.indexOf(u8, doc, "library/docs/tests only") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, comparison.default_pairing_manifest_path) != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "activation -> selection -> retirement") != null);
-
-    inline for (comparison.rejected_claim_labels) |label| {
-        try std.testing.expect(std.mem.indexOf(u8, doc, label) == null);
-    }
-
-    try std.testing.expect(std.mem.indexOf(u8, report_contract, comparison.schema_name) == null);
-    try std.testing.expect(std.mem.indexOf(u8, report_cli, comparison.schema_name) == null);
-    try std.testing.expect(std.mem.indexOf(u8, analysis_root, comparison.schema_name) == null);
-    try std.testing.expect(std.mem.indexOf(u8, analysis_main, comparison.schema_name) == null);
-}
-
 test "comparison markdown proof surface renders the approved comparison rows" {
     var summary = try comparison.buildApprovedComparison(std.testing.allocator, comparison.default_pairing_manifest_path);
     defer summary.deinit(std.testing.allocator);

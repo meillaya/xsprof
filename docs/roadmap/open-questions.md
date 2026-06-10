@@ -1,4 +1,0 @@
-- [x] M5 decided the repo remains simulator-only in current implementation while the roadmap broadens into a scheduler lab with gated optional branches; see `docs/adr/0001-m5-project-identity.md`.
-- [x] M18 decided that any future Linux-observability branch is limited to offline, observability-only, version-pinned scrubbed snapshot fixtures; see `docs/adr/0002-m18-linux-observability-gate.md`.
-- [x] M25 decided that the optional production branch is deferred indefinitely; see `docs/adr/0003-m25-productionization-gate.md`.
-- [ ] For M4 delivery, decide whether generated analysis artifacts should be committed to the repo or regenerated on demand in docs/examples only.

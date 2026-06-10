@@ -65,3 +65,7 @@ test "production terminal surfaces use domain labels" {
         try std.testing.expect(!has_vocab);
     }
 }
+
+fn expectContainsAll(haystack: []const u8, needles: []const []const u8) !void {
+    for (needles) |needle| try std.testing.expect(std.mem.indexOf(u8, haystack, needle) != null);
+}

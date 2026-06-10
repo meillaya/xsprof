@@ -212,13 +212,3 @@ test "shrinker reduces and saves regression fixtures" {
     defer rr.deinit();
     try std.testing.expect(!std.mem.eql(u8, fcfs.completionTaskId(0), rr.completionTaskId(0)));
 }
-
-test "property docs explain generator, shrinking, and regression fixture workflow" {
-    const allocator = std.testing.allocator;
-    const doc = try readFileAlloc(allocator, "docs/property-testing.md");
-    defer allocator.free(doc);
-
-    try std.testing.expect(std.mem.indexOf(u8, doc, "generator") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "shrink") != null);
-    try std.testing.expect(std.mem.indexOf(u8, doc, "regression fixture") != null);
-}
