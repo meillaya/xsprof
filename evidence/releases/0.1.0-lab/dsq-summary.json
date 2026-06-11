@@ -1,4 +1,6 @@
 {
+  "bpf_metadata_object_sha256": "af51e3db9662e0873442fea676e8e968ed855275206f7511fc1985f0b968f7f0",
+  "bpf_metadata_path": "zig-out/bpf/zigsched_minimal.bpf.meta.json",
   "custom_dsq": "vtime",
   "duration": "30s",
   "events_after": "fallback=0 reject=0 watchdog=0",
@@ -7,6 +9,8 @@
   "max_wait_ns": 1260027,
   "nr_rejected_after": "0",
   "policy": "vtime",
+  "release_eligible": true,
+  "release_ineligible_reason": "",
   "repeated_fallback_or_reject_counters": false,
   "rollback_success": true,
   "schema": "zig-scheduler/dsq-policy-smoke-summary/v1",
@@ -17,6 +21,8 @@
   "status": "PASS",
   "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/dsq-vtime.scope",
   "transcript": "evidence/lab/dsq-vtime/dsq-policy-transcript.txt",
+  "verifier_evidence_path": "evidence/lab/dsq-vtime-verifier/host-refusal.json",
+  "verifier_metadata_object_sha256": "af51e3db9662e0873442fea676e8e968ed855275206f7511fc1985f0b968f7f0",
   "vm_kind": "disposable-vm-marker-present",
   "vtime_phase_present": true,
   "vtime_phase_source": "bpf_enqueue_branch"

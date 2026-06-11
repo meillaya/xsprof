@@ -1,12 +1,16 @@
 {
   "artifacts": {
+    "bpf-object-metadata.json": {
+      "path": "evidence/releases/0.1.0-lab/bpf-object-metadata.json",
+      "sha256": "344ff01a7e59b82dc6b39214289fc9eb0be6e3cca6444b27899632bdc47ef2d3"
+    },
     "bpf-static-check.txt": {
       "path": "evidence/releases/0.1.0-lab/bpf-static-check.txt",
       "sha256": "dfa9811ed8e3f07869461e9b6c16cbb1cf8464eb9ac0f2f14796fe47a767bacd"
     },
     "bpf-verifier-host-refusal.json": {
       "path": "evidence/releases/0.1.0-lab/bpf-verifier-host-refusal.json",
-      "sha256": "256e41d6343655adf22f7226ded340581fcdeb12d8ff04b5e9e03da7c5ad0e51"
+      "sha256": "28101007989c6df3254927c1647698cff1ffd0d01f8c553d4d9cd7a86b723e2f"
     },
     "cgroup-allowlist-proof.json": {
       "path": "evidence/releases/0.1.0-lab/cgroup-allowlist-proof.json",
@@ -14,11 +18,11 @@
     },
     "dsq-policy-transcript.txt": {
       "path": "evidence/releases/0.1.0-lab/dsq-policy-transcript.txt",
-      "sha256": "ae8d0dd0d5f5a97f232f557bbe1f5cdf95ee9e87d9a7411360db6ea0aec614a6"
+      "sha256": "25af49b6f0e92f8c16279f17cf1ce0055334db77db1633be598a616c448b4225"
     },
     "dsq-summary.json": {
       "path": "evidence/releases/0.1.0-lab/dsq-summary.json",
-      "sha256": "3b57663c0a76aaeac6520bfbbe7aee68f251e54858cfe62c637db781d30a0c35"
+      "sha256": "19ffb9ffa9dde7803f23961b5e9318e7c9df0c637cf88fd850b4000b1b0cc315"
     },
     "governance-gate.md": {
       "path": "evidence/releases/0.1.0-lab/governance-gate.md",
@@ -34,11 +38,11 @@
     },
     "partial-attach-host-refusal.json": {
       "path": "evidence/releases/0.1.0-lab/partial-attach-host-refusal.json",
-      "sha256": "f85aa6c899130462ed73335e5448ed86491ab215f247cbc95f1ae6cbef14d586"
+      "sha256": "4cae10db0073861324401a6d2cf0e8bc8b6394ea25995f556e61184ebe7d356f"
     },
     "partial-attach-manual-transcript.txt": {
       "path": "evidence/releases/0.1.0-lab/partial-attach-manual-transcript.txt",
-      "sha256": "5e6abb86b088dd09ae6eb87e491e5534c2f14e8390b01715b72464112a652543"
+      "sha256": "b83934dccb1a07dd221c2922c6979f18d150aefdbd3ff60172996df04bc4b092"
     },
     "rollback-snapshot.json": {
       "path": "evidence/releases/0.1.0-lab/rollback-snapshot.json",

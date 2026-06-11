@@ -36,6 +36,13 @@ def reject(label, func):
 def check_dsq(dsq):
     if dsq.get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
     if dsq.get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
+    if dsq.get('starvation_breach') is not False: raise SystemExit('dsq starvation threshold breached')
+    if dsq.get('repeated_fallback_or_reject_counters') is not False: raise SystemExit('dsq fallback/reject counters repeated')
+    if dsq.get('release_eligible') is not True: raise SystemExit('dsq is not release eligible')
+    if dsq.get('vm_kind') != 'disposable-vm-marker-present': raise SystemExit('dsq evidence is not disposable VM evidence')
+    if not dsq.get('bpf_metadata_object_sha256'): raise SystemExit('dsq missing BPF metadata sha')
+    if dsq.get('verifier_metadata_object_sha256') != dsq.get('bpf_metadata_object_sha256'):
+        raise SystemExit('dsq verifier metadata sha mismatch')
 
 def check_stress(stress):
     if stress.get('status') != 'PASS': raise SystemExit('stress summary not PASS')
@@ -52,13 +59,35 @@ def check_summary(summary):
     if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm':
         raise SystemExit('summary/status contradiction')
 
+def check_skip_cleanup():
+    out = Path('evidence/releases/self-test-skip-cleanup')
+    out.mkdir(parents=True, exist_ok=True)
+    stale_names = ['release-approval.json', 'artifact-hashes.json']
+    for name in stale_names:
+        (out / name).write_text('stale release claim\n')
+    for name in stale_names:
+        stale = out / name
+        if stale.exists() or stale.is_symlink():
+            stale.unlink()
+    if any((out / name).exists() for name in stale_names):
+        raise SystemExit('stale skip approval/hash cleanup failed')
+    for child in out.iterdir():
+        child.unlink()
+    out.rmdir()
+
 reject('rollback_success=false', lambda: check_dsq({'status': 'PASS', 'rollback_success': False}))
+reject('starvation breach', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': True}))
+reject('fallback reject counters', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': True}))
+reject('host-safe dsq release eligible', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'host-safe-disposable-sysroot', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'}))
+reject('missing verifier metadata', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc'}))
 reject('stale current approval', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': False}))
 reject('missing hash manifest', lambda: check_existing_approval({'git_sha': current, 'artifact_hash_manifest': 'evidence/releases/missing-hashes.json'}))
 reject('skipped stress release-ready', lambda: check_stress({'status': 'SKIP', 'release_ready': True}))
 reject('summary contradiction', lambda: check_summary({'status': 'PASS', 'release_status': 'skipped_no_vm'}))
 check_existing_approval({'git_sha': '0' * 40, 'historical': True})
-print('PASS release gate self-test: stale SHA, rollback, hash manifest, skipped stress, and contradictions rejected')
+check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'})
+check_skip_cleanup()
+print('PASS release gate self-test: stale SHA, rollback, DSQ policy, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
 PY
   exit 0
 fi
@@ -122,8 +151,48 @@ checks['security'] = json.loads(Path('fixtures/lab/security-review-approved.json
 checks['partial_refusal'] = json.loads(Path('evidence/lab/partial-attach/host-refusal.json').read_text())
 checks['verifier_refusal'] = json.loads(Path('evidence/lab/dsq-vtime-verifier/host-refusal.json').read_text())
 checks['bpf_metadata'] = json.loads(Path('zig-out/bpf/zigsched_minimal.bpf.meta.json').read_text())
+
+def write_skip_summary(reason):
+    for stale_name in ('release-approval.json', 'artifact-hashes.json'):
+        stale_path = out / stale_name
+        if stale_path.exists() or stale_path.is_symlink():
+            stale_path.unlink()
+    summary = {
+        'schema': 'zig-scheduler/release-gate-summary/v1',
+        'version': version,
+        'status': 'SKIP',
+        'release_status': 'skipped_no_vm',
+        'reason': reason,
+        'production_ready': False,
+        'arbitrary_host_safe': False,
+        'required_artifacts_present': True,
+        'artifact_count': 0,
+        'artifact_hash_manifest': '',
+        'evidence_dir': str(out),
+    }
+    summary_tmp = out / 'summary.json.tmp'
+    summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+    summary_tmp.replace(out / 'summary.json')
+    print('SKIP: release gate did not create approval: ' + reason)
+    raise SystemExit(0)
+
+if checks['dsq'].get('release_eligible') is False:
+    host_safe_skip = (
+        checks['dsq'].get('status') == 'PASS'
+        and checks['dsq'].get('rollback_success') is True
+        and checks['dsq'].get('starvation_breach') is False
+        and checks['dsq'].get('repeated_fallback_or_reject_counters') is False
+        and checks['dsq'].get('simulator_evidence_used') is False
+        and checks['dsq'].get('vm_kind') == 'host-safe-disposable-sysroot'
+    )
+    if host_safe_skip:
+        write_skip_summary('DSQ evidence is marked non-release-eligible')
+    raise SystemExit('dsq is non-release-eligible for unexpected reason')
 if checks['dsq'].get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
 if checks['dsq'].get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
+if checks['dsq'].get('starvation_breach') is not False: raise SystemExit('dsq starvation threshold breached')
+if checks['dsq'].get('repeated_fallback_or_reject_counters') is not False: raise SystemExit('dsq fallback/reject counters repeated')
+if checks['dsq'].get('release_eligible') is not True: raise SystemExit('dsq missing release eligibility proof')
 if checks['dsq'].get('simulator_evidence_used') is not False: raise SystemExit('dsq uses simulator evidence')
 if checks['dsq'].get('vm_kind') != 'disposable-vm-marker-present': raise SystemExit('dsq evidence is not disposable VM marker evidence')
 if checks['rollback'].get('status') != 'PASS': raise SystemExit('rollback summary not PASS')
@@ -137,6 +206,10 @@ if checks['verifier_refusal'].get('host_mutation') is not False: raise SystemExi
 if checks['bpf_metadata'].get('status') != 'built': raise SystemExit('BPF metadata is not a built object')
 if checks['bpf_metadata'].get('object_sha256') in (None, ''): raise SystemExit('BPF metadata missing object sha')
 if checks['bpf_metadata'].get('verification_claimed') is not False: raise SystemExit('BPF metadata must not claim verifier success')
+if checks['dsq'].get('bpf_metadata_object_sha256') != checks['bpf_metadata'].get('object_sha256'):
+    raise SystemExit('dsq BPF metadata sha mismatch')
+if checks['dsq'].get('verifier_metadata_object_sha256') != checks['bpf_metadata'].get('object_sha256'):
+    raise SystemExit('dsq verifier metadata sha mismatch')
 rollback_snapshot = checks['rollback'].get('rollback_snapshot')
 rollback_transcript = checks['rollback'].get('transcript')
 if not rollback_snapshot or not Path(rollback_snapshot).is_file(): raise SystemExit('rollback snapshot missing')
@@ -207,7 +280,7 @@ approval = {
  'approval_required_before_mutation_release': True,
  'production_ready': False,
  'arbitrary_host_safe': False,
- 'historical': False,
+ 'historical': existing_approval.get('historical') is True,
  'artifact_hash_manifest': str(hash_manifest),
  'evidence': [str(out / name) for name in required_sources] + [str(hash_manifest)],
 }
@@ -234,6 +307,18 @@ summary_tmp = out / 'summary.json.tmp'
 summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
 summary_tmp.replace(out / 'summary.json')
 PY
+release_summary_status="$(python3 - "$evidence_dir/summary.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+print(json.loads(path.read_text()).get('status', 'missing') if path.is_file() else 'missing')
+PY
+)"
+if [ "$release_summary_status" = "SKIP" ]; then
+  printf 'summary=%s\n' "$evidence_dir/summary.json"
+  printf 'SKIP: release gate skipped approval for non-release-eligible evidence\n'
+  exit 0
+fi
 printf 'summary=%s\n' "$evidence_dir/summary.json"
 printf 'approval=%s\n' "$evidence_dir/release-approval.json"
 printf 'hashes=%s\n' "$evidence_dir/artifact-hashes.json"

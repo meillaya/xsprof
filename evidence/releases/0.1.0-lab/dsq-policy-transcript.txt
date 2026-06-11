@@ -22,3 +22,6 @@ nr_rejected_after=0
 events_fallback_reject_repeats=0
 rollback=PASS
 verifier_static=PASS
+bpf_metadata=zig-out/bpf/zigsched_minimal.bpf.meta.json
+verifier_evidence=evidence/lab/dsq-vtime-verifier/host-refusal.json
+release_eligible=true

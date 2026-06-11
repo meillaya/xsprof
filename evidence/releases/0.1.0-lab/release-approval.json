@@ -8,6 +8,7 @@
     "evidence/releases/0.1.0-lab/supported-tuples.json",
     "evidence/releases/0.1.0-lab/dsq-summary.json",
     "evidence/releases/0.1.0-lab/bpf-static-check.txt",
+    "evidence/releases/0.1.0-lab/bpf-object-metadata.json",
     "evidence/releases/0.1.0-lab/dsq-policy-transcript.txt",
     "evidence/releases/0.1.0-lab/bpf-verifier-host-refusal.json",
     "evidence/releases/0.1.0-lab/partial-attach-host-refusal.json",
@@ -25,7 +26,7 @@
     "evidence/releases/0.1.0-lab/governance-gate.md",
     "evidence/releases/0.1.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "78e6d15750eaa654cd55e7b89359a60837be3605",
+  "git_sha": "acca29299d9de21bc789255da667a42f2ea0812f",
   "historical": true,
   "owner": "repository-owner-operator",
   "production_ready": false,

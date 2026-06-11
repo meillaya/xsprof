@@ -10,6 +10,8 @@ duration=""
 out_dir=""
 vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
 sys_root="${ZIG_SCHEDULER_SYS_ROOT:-}"
+bpf_meta="zig-out/bpf/zigsched_minimal.bpf.meta.json"
+verifier_evidence="${ZIG_SCHEDULER_DSQ_VERIFIER_EVIDENCE:-evidence/lab/dsq-vtime-verifier/host-refusal.json}"
 allow_prefix="/sys/fs/cgroup/zig-scheduler-lab.slice/"
 
 target="${ZIG_SCHEDULER_DSQ_TARGET:-/sys/fs/cgroup/zig-scheduler-lab.slice/dsq-vtime.scope}"
@@ -76,6 +78,7 @@ series="$out_dir/fairness-series.jsonl"
 : > "$series"
 
 bash qa/bpf_static_check.sh > "$out_dir/bpf-static-check.txt"
+[ -f "$bpf_meta" ] || fail 'BPF object metadata missing after static check'
 
 grep -q 'ZIGSCHED_DSQ_FIFO' bpf/include/zigsched_common.h || fail 'FIFO DSQ missing from header'
 grep -q 'ZIGSCHED_DSQ_VTIME' bpf/include/zigsched_common.h || fail 'vtime DSQ missing from header'
@@ -161,9 +164,14 @@ state_after="$(read_fact /sys/kernel/sched_ext/state)"
 ops_after="$(read_fact /sys/kernel/sched_ext/root/ops)"
 enable_seq_after="$(read_fact /sys/kernel/sched_ext/enable_seq)"
 
-case "$events_after $nr_rejected_after" in
-  *'fallback=0'*'reject=0'*|*'0'*) repeated_fallback=false ;;
-  *) repeated_fallback=false ;;
+repeated_fallback=false
+if printf '%s\n' "$events_after" | grep -Eq '(^|[[:space:]])(fallback|reject|nr_rejected|dispatch_failed)[=: ][1-9][0-9]*'; then
+  repeated_fallback=true
+fi
+case "$nr_rejected_after" in
+  ''|unavailable|missing|0) ;;
+  *[!0-9]*) repeated_fallback=true ;;
+  *) repeated_fallback=true ;;
 esac
 
 if [ -n "${lab_root:-}" ]; then
@@ -194,13 +202,23 @@ fi
   printf 'enable_seq_after=%s\n' "$enable_seq_after"
   printf 'events_after=%s\n' "$events_after"
   printf 'nr_rejected_after=%s\n' "$nr_rejected_after"
-  printf 'events_fallback_reject_repeats=0\n'
+  if [ "$repeated_fallback" = true ]; then printf 'events_fallback_reject_repeats=1\n'; else printf 'events_fallback_reject_repeats=0\n'; fi
   printf 'rollback=PASS\n'
   printf 'verifier_static=PASS\n'
+  printf 'bpf_metadata=%s\n' "$bpf_meta"
+  printf 'verifier_evidence=%s\n' "$verifier_evidence"
 } > "$transcript"
 
-POLICY="$policy" DURATION="$duration" TARGET_CGROUP="$target" MAX_WAIT="$max_wait_ns" THRESHOLD="$threshold_ns" SERIES="$series" TRANSCRIPT="$transcript" VM_KIND="$vm_kind" STATE_AFTER="$state_after" OPS_AFTER="$ops_after" EVENTS_AFTER="$events_after" NR_REJECTED_AFTER="$nr_rejected_after" python3 - <<'PY' > "$summary"
+POLICY="$policy" DURATION="$duration" TARGET_CGROUP="$target" MAX_WAIT="$max_wait_ns" THRESHOLD="$threshold_ns" SERIES="$series" TRANSCRIPT="$transcript" VM_KIND="$vm_kind" STATE_AFTER="$state_after" OPS_AFTER="$ops_after" EVENTS_AFTER="$events_after" NR_REJECTED_AFTER="$nr_rejected_after" REPEATED_FALLBACK="$repeated_fallback" BPF_META="$bpf_meta" VERIFIER_EVIDENCE="$verifier_evidence" python3 - <<'PY' > "$summary"
 import json, os
+from pathlib import Path
+meta = json.loads(Path(os.environ['BPF_META']).read_text())
+verifier_path = Path(os.environ['VERIFIER_EVIDENCE'])
+verifier = json.loads(verifier_path.read_text()) if verifier_path.is_file() else {}
+rollback_success = os.environ['STATE_AFTER'] in ('disabled','unavailable') or os.environ['OPS_AFTER'] in ('none','unavailable')
+repeated_fallback = os.environ['REPEATED_FALLBACK'] == 'true'
+verifier_sha = verifier.get('bpf_metadata_object_sha256', verifier.get('object_sha256', ''))
+release_eligible = os.environ['VM_KIND'] == 'disposable-vm-marker-present' and rollback_success and not repeated_fallback and verifier_sha == meta.get('object_sha256', '')
 print(json.dumps({
   "schema":"zig-scheduler/dsq-policy-smoke-summary/v1",
   "status":"PASS",
@@ -216,8 +234,14 @@ print(json.dumps({
   "max_wait_ns":int(os.environ['MAX_WAIT']),
   "starvation_threshold_ns":int(os.environ['THRESHOLD']),
   "starvation_breach":False,
-  "repeated_fallback_or_reject_counters":False,
-  "rollback_success":os.environ['STATE_AFTER'] in ('disabled','unavailable') or os.environ['OPS_AFTER'] in ('none','unavailable'),
+  "repeated_fallback_or_reject_counters":repeated_fallback,
+  "rollback_success":rollback_success,
+  "release_eligible":release_eligible,
+  "release_ineligible_reason":"" if release_eligible else "host-safe-surrogate-or-rollback-missing",
+  "bpf_metadata_path":os.environ['BPF_META'],
+  "bpf_metadata_object_sha256":meta.get('object_sha256', ''),
+  "verifier_evidence_path":os.environ['VERIFIER_EVIDENCE'],
+  "verifier_metadata_object_sha256":verifier_sha,
   "events_after":os.environ['EVENTS_AFTER'],
   "nr_rejected_after":os.environ['NR_REJECTED_AFTER'],
   "series":os.environ['SERIES'],
