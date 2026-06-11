@@ -1,0 +1,108 @@
+{
+  "generated_for": "next-linux-scheduler-maturity T02",
+  "schema_version": 1,
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "purpose": "future-agent operator guidance and fail-closed invariants",
+      "required": true,
+      "sha256": "7a39cbe52dc1476b30707770815759e4c42b20790087dee138bc41de49bd7323"
+    },
+    {
+      "path": "WORKLOG.md",
+      "purpose": "historical checkpoints and current project posture",
+      "required": true,
+      "sha256": "da035c5e5d9516baf2ba79f134eb85fcc135d4e1074d1231244a561a085cf7ff"
+    },
+    {
+      "path": "qa/release_gate.sh",
+      "purpose": "release evidence gate consumed by lab/release checks",
+      "required": true,
+      "sha256": "42a357f8318d2dd080f6da8426a16c98436732bcac9693bd3953ecb0d98ec571"
+    },
+    {
+      "path": "qa/security_gate.sh",
+      "purpose": "security profile gate consumed by governance checks",
+      "required": true,
+      "sha256": "e9d27cd60e7bc9b1902bf9ca80197da51ba918cbb1fcb53e435cc0bbb726bdd8"
+    },
+    {
+      "path": "qa/wording_audit.sh",
+      "purpose": "wording and production-claim audit gate",
+      "required": true,
+      "sha256": "af28e985f3a86cb8cfe1f07c6a25182de58e51eb50b5e3ca501fece93e73c142"
+    },
+    {
+      "path": "packaging/systemd/zig-scheduler-lab-mutation.service",
+      "purpose": "systemd packaging safety source",
+      "required": true,
+      "sha256": "e406d966bd60080868412352d2d1005f31f29e92c107de6db172f075f109f102"
+    },
+    {
+      "path": "packaging/systemd/zig-scheduler-preflight.service",
+      "purpose": "systemd packaging safety source",
+      "required": true,
+      "sha256": "33446da45600296f87ded85c89622fd0e6661766389010abd00aa07858a4ab22"
+    },
+    {
+      "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "41d0735ad976cf6e9fcd65caf0f2a2e3ad0a8d9299030b87be720428276b5a64"
+    },
+    {
+      "path": "docs/adr/0002-loader-architecture.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "32cd41df68f96c7546415795ee234faa1400323d3753bc517dd4eb170ed6aea5"
+    },
+    {
+      "path": "docs/ci.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "27c307c5bfecde495c1dd2f474db862b7abaf15a16b5dea08158e850d1ee6527"
+    },
+    {
+      "path": "docs/releases/governance-gate.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "bcaa14c2dfd2183fb2e60b0f6e332a4eb37d2d4348d5941d15d8490c72c43afd"
+    },
+    {
+      "path": "docs/releases/supported-kernel-tuples.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "2021d536764c86de315bec8f1b530b4e25a282f69eb493d7399cdd06300cfec9"
+    },
+    {
+      "path": "docs/runbooks/sched-ext-fallback.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "9cac80013d3f9d52b4a01c960a083a0034f20fcd8e12fb2049c2105a569479e2"
+    },
+    {
+      "path": "docs/runbooks/verifier-and-incident.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "1eb821868975b38a8a548055f1a44a65a69c8ce870b856365a5eceb6b1acef45"
+    },
+    {
+      "path": "docs/runbooks/vm-lab.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "c1a433fba73c7899eb25ed5481a3f6f0c0d28a9ce4c0a94975be4d28a52b5323"
+    },
+    {
+      "path": "docs/security/review-checklist.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "7302bfe206ec2fae36cee1f4ed677804ded8fd5c226da5b4fd7887e0c62ff616"
+    },
+    {
+      "path": "docs/security/threat-model.md",
+      "purpose": "tracked governance documentation source",
+      "required": true,
+      "sha256": "a7260335769211911636f7170fa1f7b5ed1e2a4fa1cace1db6c0378280d44560"
+    }
+  ]
+}
