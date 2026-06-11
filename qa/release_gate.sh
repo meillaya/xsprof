@@ -255,12 +255,6 @@ approval_path = out / 'release-approval.json'
 existing_approval = {}
 if approval_path.exists() and not approval_path.is_symlink(): existing_approval = json.loads(approval_path.read_text())
 current_git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-existing_git_sha = existing_approval.get('git_sha')
-if existing_git_sha and existing_git_sha != current_git_sha and existing_approval.get('historical') is not True:
-    raise SystemExit('stale current release approval git_sha')
-existing_hash_manifest = existing_approval.get('artifact_hash_manifest')
-if existing_hash_manifest and not Path(str(existing_hash_manifest)).is_file() and existing_approval.get('historical') is not True:
-    raise SystemExit('missing artifact hash manifest')
 existing_summary_path = out / 'summary.json'
 if existing_summary_path.exists() and not existing_summary_path.is_symlink():
     existing_summary = json.loads(existing_summary_path.read_text())
@@ -288,6 +282,54 @@ def check_existing_approval(approval):
     if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
         raise SystemExit('missing artifact hash manifest')
 
+def sha256_file(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+expected_artifact_hashes = {
+    name: {'path': str(out / name), 'sha256': sha256_file(src)}
+    for name, src in required_sources.items()
+}
+expected_hash_manifest = {
+    'schema': 'zig-scheduler/release-artifact-hashes/v1',
+    'artifacts': expected_artifact_hashes,
+}
+
+def existing_hashes_match_expected(approval):
+    manifest = approval.get('artifact_hash_manifest')
+    if not manifest or not Path(str(manifest)).is_file():
+        return False
+    try:
+        observed = json.loads(Path(str(manifest)).read_text())
+    except json.JSONDecodeError:
+        return False
+    return observed == expected_hash_manifest
+
+def is_ancestor_of_head(revision):
+    if not revision:
+        return False
+    result = subprocess.run(
+        ['git', 'merge-base', '--is-ancestor', str(revision), current_git_sha],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+preserve_existing_approval = False
+if existing_approval:
+    existing_git_sha = existing_approval.get('git_sha')
+    if existing_approval.get('historical') is True:
+        check_existing_approval(existing_approval)
+    elif existing_git_sha == current_git_sha:
+        check_existing_approval(existing_approval)
+        preserve_existing_approval = existing_hashes_match_expected(existing_approval)
+    elif is_ancestor_of_head(existing_git_sha) and existing_hashes_match_expected(existing_approval):
+        policy_approval = dict(existing_approval)
+        policy_approval['git_sha'] = current_git_sha
+        check_existing_approval(policy_approval)
+        preserve_existing_approval = True
+    else:
+        raise SystemExit('stale current release approval git_sha')
+
 for name, src in required_sources.items():
     dst = out / name
     if dst.is_symlink(): raise SystemExit(f'release artifact destination is symlink: {dst}')
@@ -303,6 +345,8 @@ hash_manifest = out / 'artifact-hashes.json'
 hash_tmp = out / 'artifact-hashes.json.tmp'
 hash_tmp.write_text(json.dumps({'schema': 'zig-scheduler/release-artifact-hashes/v1', 'artifacts': artifact_hashes}, indent=2, sort_keys=True) + '\n')
 hash_tmp.replace(hash_manifest)
+if artifact_hashes != expected_artifact_hashes:
+    raise SystemExit('internal artifact hash mismatch')
 reviewer = checks['security'].get('reviewer')
 date = checks['security'].get('signed_attestation', {}).get('signed_at') or '2026-06-11T00:00:00Z'
 security_attestation = checks['security'].get('signed_attestation', {})
@@ -335,9 +379,10 @@ required_approval = ['version', 'git_sha', 'audit_id', 'rollback_id', 'reviewer'
 missing = [key for key in required_approval if not approval.get(key)]
 if missing: raise SystemExit('approval missing fields: ' + ','.join(missing))
 check_existing_approval(approval)
-approval_tmp = out / 'release-approval.json.tmp'
-approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
-approval_tmp.replace(approval_path)
+if not preserve_existing_approval:
+    approval_tmp = out / 'release-approval.json.tmp'
+    approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
+    approval_tmp.replace(approval_path)
 summary = {
  'schema': 'zig-scheduler/release-gate-summary/v1',
  'version': version,
