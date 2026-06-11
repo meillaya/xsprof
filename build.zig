@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, tui_exe, "tui", "Render the Linux scheduler operator TUI", .{});
     const tui_pty_step = addTuiPtyStep(b, tui_exe);
     addBpfStep(b);
+    addPackageStep(b);
 
     const test_step = b.step("test", "Run root Linux scheduler safety and TUI tests");
     for ([_]*Module{ root_mod, tui_mod, exe.root_module, preflight_exe.root_module, tui_exe.root_module }) |module| {
@@ -49,6 +50,17 @@ fn addBpfStep(b: *Build) void {
 
     const bpf_step = b.step("bpf", "Build sched_ext BPF object skeleton or record explicit SKIP");
     bpf_step.dependOn(&bpf_build.step);
+}
+
+fn addPackageStep(b: *Build) void {
+    const package_build = b.addSystemCommand(&.{"bash"});
+    package_build.addFileArg(b.path("packaging/build_package.sh"));
+    package_build.addArg("--out");
+    package_build.addArg("zig-out/package");
+    package_build.step.dependOn(b.getInstallStep());
+
+    const package_step = b.step("package", "Stage a safe installable package artifact manifest");
+    package_step.dependOn(&package_build.step);
 }
 
 fn addTuiPtyStep(b: *Build, tui_exe: *Compile) *Build.Step {
