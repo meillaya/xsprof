@@ -27,8 +27,11 @@ Every mutation-capable security review and release approval must include:
 
 - Reviewer identity.
 - Signed attestation kind, signer, signing date, authorized status, scope, and statement.
-- Git SHA policy: current approvals must match the current git SHA; stale approvals
-  are accepted only when marked historical with a historical reason.
+- Git SHA policy: current approvals must match the current git SHA, or declare a
+  `content-bound-ancestor` policy that proves the approval commit is an ancestor
+  and every listed tracked source hash still matches. Historical approvals must be
+  marked `historical=true` with a historical reason and are not current release
+  eligibility by themselves.
 - Authorized status of `controlled_lab_pilot_candidate`.
 - Scope of `controlled-lab-only`.
 

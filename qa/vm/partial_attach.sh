@@ -10,6 +10,7 @@ audit_id=""
 rollback_id=""
 out_dir=""
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
+approval_file=""
 vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
 sys_root="${ZIG_SCHEDULER_SYS_ROOT:-}"
 allow_prefix="/sys/fs/cgroup/zig-scheduler-lab.slice/"
@@ -20,7 +21,7 @@ fail() {
 }
 
 usage() {
-  printf 'usage: %s --target <allowlisted-cgroup> --audit-id <id> --rollback-id <id> --out <evidence-dir> [--object <bpf-object>]\n' "$0" >&2
+  printf 'usage: %s --target <allowlisted-cgroup> --audit-id <id> --rollback-id <id> --out <evidence-dir> [--object <bpf-object>] [--approval evidence/releases/<version>/release-approval.json]\n' "$0" >&2
 }
 
 host_path() {
@@ -59,6 +60,11 @@ while [ "$#" -gt 0 ]; do
       object_file="$2"
       shift 2
       ;;
+    --approval)
+      [ "$#" -ge 2 ] || fail '--approval requires a value'
+      approval_file="$2"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -74,7 +80,7 @@ done
 [ -n "$rollback_id" ] || fail '--rollback-id is required'
 [ -n "$out_dir" ] || fail '--out is required'
 
-case "$target$audit_id$rollback_id$out_dir$object_file" in
+case "$target$audit_id$rollback_id$out_dir$object_file$approval_file" in
   *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;;
 esac
 case "$target" in
@@ -283,6 +289,41 @@ current_membership="$(membership_digest_file "$procs_path")"
 [ "$parent_cgroup" = "$initial_parent" ] || refuse_stale_scope 'parent scope changed after dry-run'
 [ "$current_membership" = "$initial_membership" ] || refuse_stale_scope 'process membership changed unexpectedly'
 [ "$rollback_id" = "$initial_rollback" ] || refuse_stale_scope 'rollback id no longer matches current plan'
+
+if [ -z "$approval_file" ]; then
+  json_refusal APPROVAL_MISSING 'partial attach requires signed release approval before any cgroup, bpftool, or sched_ext mutation'
+  printf 'REFUSE: partial attach requires signed release approval before mutation
+'
+  printf 'refusal=%s
+' "$host_refusal"
+  exit 1
+fi
+case "$approval_file" in evidence/releases/*/release-approval.json) ;; *) fail 'approval must be evidence/releases/<version>/release-approval.json' ;; esac
+case "$approval_file" in *'/../'*|../*|*/..) fail 'unsafe approval path' ;; esac
+[ -f "$approval_file" ] || fail "approval artifact missing: $approval_file"
+APPROVAL="$approval_file" python3 - <<'APPROVALPY'
+import json, os, subprocess, sys
+from pathlib import Path
+path = Path(os.environ['APPROVAL'])
+data = json.loads(path.read_text())
+if data.get('schema') != 'zig-scheduler/release-approval/v1': sys.exit('bad release approval schema')
+if data.get('status') != 'controlled_lab_pilot_candidate': sys.exit('approval is not controlled lab candidate')
+if data.get('production_ready') is not False: sys.exit('approval must not be production-ready')
+if data.get('arbitrary_host_safe') is not False: sys.exit('approval must not be arbitrary-host-safe')
+if data.get('approval_required_before_mutation_release') is not True: sys.exit('approval missing mutation-release requirement')
+att = data.get('signed_attestation') or {}
+for key in ['kind', 'signed_by', 'signed_at', 'statement', 'authorized_status', 'scope']:
+    if not att.get(key): sys.exit('approval missing signed_attestation.' + key)
+if att.get('authorized_status') != data.get('status'): sys.exit('approval attestation status mismatch')
+current = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+sha = data.get('git_sha')
+if not sha: sys.exit('approval missing git_sha')
+if sha != current:
+    ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', str(sha), current], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if ancestor.returncode != 0: sys.exit('approval git_sha is not current or ancestor')
+manifest = data.get('artifact_hash_manifest')
+if not manifest or not Path(str(manifest)).is_file(): sys.exit('approval missing artifact hash manifest')
+APPROVALPY
 
 {
   printf 'schema=zig-scheduler/partial-attach-transcript/v1\n'

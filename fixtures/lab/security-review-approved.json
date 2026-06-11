@@ -14,7 +14,17 @@
     "root_privileges_capabilities": true,
     "security_signoff": true
   },
-  "historical": true,
+  "git_sha": "7b7a23c72efa362c65e487b800b54698092d447d",
+  "git_sha_policy": {
+    "kind": "content-bound-ancestor",
+    "reason": "committed review artifacts cannot contain the SHA of the commit that contains themselves; stale ancestor SHA is accepted only while listed content hashes match",
+    "sha256": {
+      "AGENTS.md": "aed6e229950d4afd0d5c69c3defd8c8044f25dc729f96e85b9a5fc8ddcd158f6",
+      "docs/security/review-checklist.md": "019950561ff0f5005bcb1c78c094b96981150603ab11b945f1557dc84abec93a",
+      "docs/security/threat-model.md": "a7260335769211911636f7170fa1f7b5ed1e2a4fa1cace1db6c0378280d44560"
+    }
+  },
+  "historical": false,
   "profile": "mutation-capable-lab",
   "reviewer": "owner-override:repository-owner-operator",
   "reviewer_policy": {

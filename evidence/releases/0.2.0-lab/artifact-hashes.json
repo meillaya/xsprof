@@ -2,7 +2,7 @@
   "artifacts": {
     "bpf-object-metadata.json": {
       "path": "evidence/releases/0.2.0-lab/bpf-object-metadata.json",
-      "sha256": "f2bfca49c627bdd6d77d614286f0f4558d5e75b7429c663211bcb199f09b20b7"
+      "sha256": "49582ffc964033c50a078e2baafa5e0c6b30b6cbd6549c205e36bfbbc65dca6d"
     },
     "bpf-static-check.txt": {
       "path": "evidence/releases/0.2.0-lab/bpf-static-check.txt",
@@ -58,7 +58,7 @@
     },
     "security-review-approved.json": {
       "path": "evidence/releases/0.2.0-lab/security-review-approved.json",
-      "sha256": "a27010abcef909bdf7ef7d0ca9a7fc52a2841bf6c83a95c4011de1e40eec1dc8"
+      "sha256": "41ee86ac62b034faf445eb6f99f3a0861e1af5c371c4edda9949060eb43b650c"
     },
     "security-threat-model.md": {
       "path": "evidence/releases/0.2.0-lab/security-threat-model.md",

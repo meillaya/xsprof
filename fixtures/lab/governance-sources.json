@@ -36,13 +36,13 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "907eb1fee85a6bc182dc0fdca7a276c38e836eaee41f8103cfa63ece7f8efebd"
+      "sha256": "f7dff5c693e77a424abcd577515f62fa1afc3871dc5685b36270c930ac516f5c"
     },
     {
       "path": "qa/security_gate.sh",
       "purpose": "security profile gate consumed by governance checks",
       "required": true,
-      "sha256": "e6bc5982bb7e2702a910ebb0ca1175dc729b032ccf15510864d8fd192c910e95"
+      "sha256": "916215fada520801967d9bdc5755796d6d7dfe793bdf3fc9e46df300b44b00b3"
     },
     {
       "path": "qa/wording_audit.sh",
@@ -114,7 +114,7 @@
       "path": "docs/security/review-checklist.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "5267cbc2b7d382892561a2869c19f71dbc1a26fa286099e229c8d86efb8225c5"
+      "sha256": "019950561ff0f5005bcb1c78c094b96981150603ab11b945f1557dc84abec93a"
     },
     {
       "path": "docs/security/threat-model.md",

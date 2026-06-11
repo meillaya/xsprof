@@ -43,5 +43,5 @@
     "statement": "Controlled lab candidate approval only; no production or arbitrary-host approval is granted."
   },
   "status": "controlled_lab_pilot_candidate",
-  "version": "0.2.0-lab"
+  "version": "0.1.0-lab"
 }

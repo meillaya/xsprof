@@ -60,7 +60,8 @@ def run(argv: list[str]) -> int:
     seen: set[str] = set()
     for item in data.get("files", []):
         rel = str(item.get("path", ""))
-        require(rel and not rel.startswith("/") and ".." not in Path(rel).parts, f"unsafe file path: {rel}")
+        safe_relative = rel != "" and not rel.startswith("/") and ".." not in Path(rel).parts
+        require(safe_relative, f"unsafe file path: {rel}")
         path = install_root / rel
         require(path.is_file(), f"missing packaged file: {rel}")
         require(file_digest(path) == item.get("sha256"), f"checksum mismatch: {rel}")

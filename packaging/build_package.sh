@@ -15,8 +15,22 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$out_dir" in zig-out/package|zig-out/package/*) ;; *) fail '--out must remain under zig-out/package' ;; esac
-case "$out_dir" in *$'\n'*|*$'\r'*|*'/../'*|../*|*/..) fail 'unsafe output path' ;; esac
-
+case "$out_dir" in *$'\n'*|*$'\r'*|*'/../'*|../*|*/..|*/./*|./*|*/.|*'//'*) fail 'unsafe output path' ;; esac
+if [ -L zig-out ]; then fail 'zig-out must not be a symlink'; fi
+mkdir -p zig-out
+IFS='/' read -r -a out_components <<< "$out_dir"
+component_path=""
+for component in "${out_components[@]}"; do
+  [ -n "$component" ] || continue
+  component_path="${component_path:+$component_path/}$component"
+  if [ -L "$component_path" ]; then fail "package output contains symlink component: $component_path"; fi
+done
+out_parent="$(dirname "$out_dir")"
+mkdir -p "$out_parent"
+zig_out_real="$(realpath zig-out)"
+out_parent_real="$(realpath "$out_parent")"
+case "$out_parent_real" in "$zig_out_real"|"$zig_out_real"/*) ;; *) fail 'package output parent escapes zig-out' ;; esac
+if [ -e "$out_dir" ] && [ -L "$out_dir" ]; then fail 'package output path must not be a symlink'; fi
 if [ ! -x zig-out/bin/zig-scheduler ] || [ ! -x zig-out/bin/zig-scheduler-linux-preflight ] || [ ! -x zig-out/bin/zig-scheduler-tui ]; then
   zig build install --summary all >/dev/null
 fi

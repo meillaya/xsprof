@@ -98,7 +98,7 @@ run_case() {
       --audit-id AUD-20990101T000000Z-deadbee-abc123 \
       --rollback-id RB-demo \
       --out "$case_out" \
-      --object zig-out/bpf/zigsched_minimal.bpf.o > "$case_out.out" 2>&1
+      --object zig-out/bpf/zigsched_minimal.bpf.o --approval evidence/releases/0.2.0-lab/release-approval.json > "$case_out.out" 2>&1
   local rc=$?
   set -e
   cat "$case_out.out" >> "$transcript"

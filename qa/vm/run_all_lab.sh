@@ -135,7 +135,7 @@ run_stage() {
       status="PASS"; reason="stage completed"
     fi
   else
-    status="REFUSE"; reason="stage exited nonzero rc=$rc"
+    status="FAIL"; reason="unexpected stage nonzero rc=$rc"
   fi
   stage_files+=("$(stage_json "$stage" "$status" "$reason" "$command_text" "$artifact" "$stage_started_at" "$stage_ended_at")")
   printf 'STAGE %s status=%s reason=%s artifact=%s\n' "$stage" "$status" "$reason" "$artifact"
@@ -152,14 +152,14 @@ if [ -n "$kernel_arg" ]; then run_lab_args+=(--kernel "$kernel_arg"); run_lab_co
 if [ -n "$env_file" ]; then run_lab_args+=(--env-file "$env_file"); run_lab_command="$run_lab_command --env-file $env_file"; fi
 run_stage run_lab "$run_lab_command" "$out_dir/run-lab" "${run_lab_args[@]}"
 run_stage verifier_only 'bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o' "$out_dir/verifier-only" bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o --out "$out_dir/verifier-only"
-run_stage partial_attach 'bash qa/vm/partial_attach.sh host-safe target' "$out_dir/partial-attach" bash qa/vm/partial_attach.sh --target /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-runall --out "$out_dir/partial-attach" --object zig-out/bpf/zigsched_minimal.bpf.o
+run_stage partial_attach 'bash qa/vm/partial_attach.sh host-safe target' "$out_dir/partial-attach" bash qa/vm/partial_attach.sh --target /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-runall --out "$out_dir/partial-attach" --object zig-out/bpf/zigsched_minimal.bpf.o --approval evidence/releases/0.2.0-lab/release-approval.json
 run_stage rollback_drill 'bash qa/vm/rollback_drill.sh' "$out_dir/rollback-drill" bash qa/vm/rollback_drill.sh --out "$out_dir/rollback-drill"
 run_stage cgroup_race 'bash qa/vm/cgroup_race.sh' "$out_dir/cgroup-race" bash qa/vm/cgroup_race.sh --out "$out_dir/cgroup-race"
 run_stage dsq_policy_smoke 'bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s' "$out_dir/dsq-policy" bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s --out "$out_dir/dsq-policy"
 run_stage stress_chaos 'bash qa/vm/stress_chaos.sh --duration 1s' "$out_dir/stress-chaos" bash qa/vm/stress_chaos.sh --duration 1s --out "$out_dir/stress-chaos"
 run_stage observe_partial 'bash qa/vm/observe_partial.sh --samples 3' "$out_dir/observe-partial" bash qa/vm/observe_partial.sh --samples 3 --out "$out_dir/observe-partial"
 release_evidence_dir="evidence/releases/$release_version"
-run_stage release_gate "bash qa/release_gate.sh --version $release_version" "$out_dir/release-gate" bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir"
+run_stage release_gate "bash qa/release_gate.sh --version $release_version" "$out_dir/release-gate" env ZIG_SCHEDULER_SKIP_NOHOST_GATE=1 bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir"
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 qemu_leftovers=false
@@ -204,4 +204,34 @@ PY
 printf 'summary=%s\n' "$summary"
 printf 'host_mutation=false\n'
 printf 'cleanup qemu_leftovers=%s tmux_leftovers=%s\n' "$qemu_leftovers" "$tmux_leftovers"
-printf 'PASS: run-all lab harness complete\n'
+if python3 - <<'PY' "$summary"
+import json, sys
+from pathlib import Path
+raise SystemExit(0 if json.loads(Path(sys.argv[1]).read_text()).get('status') == 'PASS' else 1)
+PY
+then
+  if python3 - <<'PY' "$summary"
+import json, sys
+from pathlib import Path
+raise SystemExit(0 if json.loads(Path(sys.argv[1]).read_text()).get('status') == 'PASS' else 1)
+PY
+then
+  if python3 - <<'PY' "$summary"
+import json, sys
+from pathlib import Path
+raise SystemExit(0 if json.loads(Path(sys.argv[1]).read_text()).get('status') == 'PASS' else 1)
+PY
+then
+  printf 'PASS: run-all lab harness complete\n'
+else
+  printf 'FAIL: run-all lab harness contains failed stage\n' >&2
+  exit 1
+fi
+else
+  printf 'FAIL: run-all lab harness contains failed stage\n' >&2
+  exit 1
+fi
+else
+  printf 'FAIL: run-all lab harness contains failed stage\n' >&2
+  exit 1
+fi

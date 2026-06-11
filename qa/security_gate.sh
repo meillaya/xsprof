@@ -47,8 +47,35 @@ PY
   if bash qa/security_gate.sh --profile mutation-capable-lab --review "$tmp/unsigned.json" >/dev/null 2>&1; then
     fail 'self-test expected unsigned review rejection'
   fi
+  cp fixtures/lab/security-review-approved.json "$tmp/stale-unbound.json"
+  python3 - <<'PY' "$tmp/stale-unbound.json"
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data['git_sha'] = '0' * 40
+data.pop('git_sha_policy', None)
+data['historical'] = False
+path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+PY
+  if bash qa/security_gate.sh --profile mutation-capable-lab --review "$tmp/stale-unbound.json" >/dev/null 2>&1; then
+    fail 'self-test expected stale unbound review rejection'
+  fi
+  cp fixtures/lab/security-review-approved.json "$tmp/historical-missing-reason.json"
+  python3 - <<'PY' "$tmp/historical-missing-reason.json"
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data['historical'] = True
+data.pop('historical_reason', None)
+path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+PY
+  if bash qa/security_gate.sh --profile mutation-capable-lab --review "$tmp/historical-missing-reason.json" >/dev/null 2>&1; then
+    fail 'self-test expected historical reason rejection'
+  fi
   bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
-  echo 'PASS security gate self-test: reviewer policy and signed attestation enforced'
+  echo 'PASS security gate self-test: reviewer policy, git SHA policy, and signed attestation enforced'
   exit 0
 fi
 [ -n "$profile" ] || fail '--profile is required'
@@ -76,7 +103,8 @@ case "$profile" in
     case "$review_artifact" in /*|*'/../'*|../*|*/..) fail 'unsafe review path' ;; esac
     [ -f "$review_artifact" ] || fail 'security review artifact missing'
     REVIEW="$review_artifact" python3 - <<'PY'
-import json, os, sys
+import hashlib, json, os, subprocess, sys
+from pathlib import Path
 p=os.environ['REVIEW']
 with open(p) as f: data=json.load(f)
 required=['root_privileges_capabilities','config_injection','cgroup_escape','audit_tampering','bpf_verifier_assumptions','log_privacy','packaging_defaults','package_lifecycle','privacy_review','security_signoff','rollback_fallback','production_claims']
@@ -89,6 +117,24 @@ if str(reviewer).lower() in {'todo','tbd','placeholder','unknown','repository-ow
 policy=data.get('reviewer_policy') or {}
 if policy.get('kind') != 'owner-override': sys.exit('missing reviewer_policy.kind')
 if policy.get('human_approval_fabricated') is not False: sys.exit('reviewer policy must not fabricate human approval')
+current_git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+review_git_sha = data.get('git_sha')
+if not review_git_sha: sys.exit('missing security review git_sha')
+if data.get('historical') is True and not data.get('historical_reason'):
+    sys.exit('historical security review missing reason')
+git_policy = data.get('git_sha_policy') or {}
+if review_git_sha != current_git_sha:
+    if git_policy.get('kind') != 'content-bound-ancestor':
+        sys.exit('stale security review git_sha')
+    ancestor = subprocess.run(
+        ['git', 'merge-base', '--is-ancestor', str(review_git_sha), current_git_sha],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ancestor.returncode != 0: sys.exit('security review git_sha is not an ancestor')
+    for path, expected in (git_policy.get('sha256') or {}).items():
+        actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        if actual != expected: sys.exit('security review content hash mismatch: '+path)
 if data.get('authorized_status') != 'controlled_lab_pilot_candidate': sys.exit('bad authorized status')
 if data.get('scope') != 'controlled-lab-only': sys.exit('bad review scope')
 att=data.get('signed_attestation') or {}

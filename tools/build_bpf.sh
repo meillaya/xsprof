@@ -34,8 +34,8 @@ clang_version() {
 
 write_skip_json() {
   local reason="$1"
-  REASON="$reason" SOURCE_FILE="$source_file" SOURCE_SHA="$(sha256_file "$source_file")" \
-  CLANG_VERSION="$(clang_version)" TARGET_ARCH="bpf" SKIP_FILE="$skip_file" python3 - <<'PY' > "$skip_json"
+  REASON="$reason" SOURCE_FILE="bpf/zigsched_minimal.bpf.c" SOURCE_SHA="$(sha256_file "$source_file")" \
+  CLANG_VERSION="$(clang_version)" TARGET_ARCH="bpf" SKIP_FILE="zig-out/bpf/zigsched_minimal.bpf.skip.txt" python3 - <<'PY' > "$skip_json"
 import json
 import os
 
@@ -58,7 +58,7 @@ PY
 
 write_meta_json() {
   OBJECT_SHA="$(sha256_file "$object_file")" SOURCE_SHA="$(sha256_file "$source_file")" \
-  CLANG_VERSION="$(clang_version)" OBJECT_FILE="$object_file" SOURCE_FILE="$source_file" python3 - <<'PY' > "$meta_file"
+  CLANG_VERSION="$(clang_version)" OBJECT_FILE="zig-out/bpf/zigsched_minimal.bpf.o" SOURCE_FILE="bpf/zigsched_minimal.bpf.c" python3 - <<'PY' > "$meta_file"
 import json
 import os
 

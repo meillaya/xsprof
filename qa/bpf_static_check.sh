@@ -86,8 +86,13 @@ if meta.get("status") != "built":
     raise SystemExit("metadata status is not built")
 if meta.get("object_sha256") != hashlib.sha256(object_path.read_bytes()).hexdigest():
     raise SystemExit("metadata object sha mismatch")
-if meta.get("expected_verifier_object") != str(object_path.resolve()):
+expected_object = meta.get("expected_verifier_object")
+valid_expected = {str(object_path), str(object_path.resolve())}
+if expected_object not in valid_expected:
     raise SystemExit("metadata expected verifier object mismatch")
+object_value = meta.get("object")
+if object_value not in valid_expected:
+    raise SystemExit("metadata object path mismatch")
 if meta.get("verification_claimed") is not False:
     raise SystemExit("metadata must not claim verification")
 PY

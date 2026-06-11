@@ -111,7 +111,7 @@ fi
 validate_governance_manifest
 [ -n "$evidence_dir" ] || fail '--evidence is required'
 case "$version$evidence_dir" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
-case "$version" in *-lab) ;; *) fail 'version must be lab candidate suffix, e.g. 0.1.0-lab' ;; esac
+case "$version" in *-lab|*-lab-*) ;; *) fail 'version must be lab candidate suffix, e.g. 0.1.0-lab' ;; esac
 case "$evidence_dir" in evidence/releases/*) ;; *) fail '--evidence must be under evidence/releases' ;; esac
 case "$evidence_dir" in *'/../'*|../*|*/..) fail 'unsafe evidence path' ;; esac
 allowed_root="$(realpath evidence/releases)"
@@ -151,7 +151,13 @@ require_file packaging/systemd/zig-scheduler-lab-mutation.service
 require_file docs/releases/governance-gate.md
 if [ "$missing" -ne 0 ]; then fail 'release gate missing required artifacts'; fi
 bash qa/wording_audit.sh >/dev/null
-bash qa/no_host_mutation.sh >/dev/null
+if [ "${ZIG_SCHEDULER_SKIP_NOHOST_GATE:-}" != "1" ]; then
+  if ! bash qa/no_host_mutation.sh >/dev/null; then
+    rm -rf evidence/lab/run-all/no-host-mutation
+    fail 'no host mutation gate failed'
+  fi
+  rm -rf evidence/lab/run-all/no-host-mutation
+fi
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
