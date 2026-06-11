@@ -1,6 +1,7 @@
 {
   "arbitrary_host_safe": false,
   "artifact_count": 18,
+  "artifact_hash_manifest": "evidence/releases/0.1.0-lab/artifact-hashes.json",
   "evidence_dir": "evidence/releases/0.1.0-lab",
   "production_ready": false,
   "release_status": "controlled_lab_pilot_candidate",

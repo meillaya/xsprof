@@ -8,7 +8,7 @@
   "nr_rejected_after": "0",
   "policy": "vtime",
   "repeated_fallback_or_reject_counters": false,
-  "rollback_success": false,
+  "rollback_success": true,
   "schema": "zig-scheduler/dsq-policy-smoke-summary/v1",
   "series": "evidence/lab/dsq-vtime/fairness-series.jsonl",
   "simulator_evidence_used": false,

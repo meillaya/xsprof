@@ -1,6 +1,7 @@
 {
   "approval_required_before_mutation_release": true,
   "arbitrary_host_safe": false,
+  "artifact_hash_manifest": "evidence/releases/0.1.0-lab/artifact-hashes.json",
   "audit_id": "AUD-20260611T053131Z-f58efb8-aed074",
   "date": "2026-06-11T00:00:00Z",
   "evidence": [
@@ -21,9 +22,11 @@
     "evidence/releases/0.1.0-lab/security-review-approved.json",
     "evidence/releases/0.1.0-lab/package-default.toml",
     "evidence/releases/0.1.0-lab/package-mutation-service.service",
-    "evidence/releases/0.1.0-lab/governance-gate.md"
+    "evidence/releases/0.1.0-lab/governance-gate.md",
+    "evidence/releases/0.1.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "40559429c7c708fbabe080da5b67e55b4c382027",
+  "git_sha": "78e6d15750eaa654cd55e7b89359a60837be3605",
+  "historical": true,
   "owner": "repository-owner-operator",
   "production_ready": false,
   "reviewer": "repository-owner-operator",

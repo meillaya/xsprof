@@ -1,0 +1,77 @@
+{
+  "artifacts": {
+    "bpf-static-check.txt": {
+      "path": "evidence/releases/0.1.0-lab/bpf-static-check.txt",
+      "sha256": "dfa9811ed8e3f07869461e9b6c16cbb1cf8464eb9ac0f2f14796fe47a767bacd"
+    },
+    "bpf-verifier-host-refusal.json": {
+      "path": "evidence/releases/0.1.0-lab/bpf-verifier-host-refusal.json",
+      "sha256": "256e41d6343655adf22f7226ded340581fcdeb12d8ff04b5e9e03da7c5ad0e51"
+    },
+    "cgroup-allowlist-proof.json": {
+      "path": "evidence/releases/0.1.0-lab/cgroup-allowlist-proof.json",
+      "sha256": "f147482cfa2c16f5d8835b0281c9d562e5e64ede8543426d459a356d39f3c67d"
+    },
+    "dsq-policy-transcript.txt": {
+      "path": "evidence/releases/0.1.0-lab/dsq-policy-transcript.txt",
+      "sha256": "ae8d0dd0d5f5a97f232f557bbe1f5cdf95ee9e87d9a7411360db6ea0aec614a6"
+    },
+    "dsq-summary.json": {
+      "path": "evidence/releases/0.1.0-lab/dsq-summary.json",
+      "sha256": "3b57663c0a76aaeac6520bfbbe7aee68f251e54858cfe62c637db781d30a0c35"
+    },
+    "governance-gate.md": {
+      "path": "evidence/releases/0.1.0-lab/governance-gate.md",
+      "sha256": "bcaa14c2dfd2183fb2e60b0f6e332a4eb37d2d4348d5941d15d8490c72c43afd"
+    },
+    "package-default.toml": {
+      "path": "evidence/releases/0.1.0-lab/package-default.toml",
+      "sha256": "121a5d25cf8aec50d4a25175a8278eea1aaa798d03767092e39c5557996b518e"
+    },
+    "package-mutation-service.service": {
+      "path": "evidence/releases/0.1.0-lab/package-mutation-service.service",
+      "sha256": "e406d966bd60080868412352d2d1005f31f29e92c107de6db172f075f109f102"
+    },
+    "partial-attach-host-refusal.json": {
+      "path": "evidence/releases/0.1.0-lab/partial-attach-host-refusal.json",
+      "sha256": "f85aa6c899130462ed73335e5448ed86491ab215f247cbc95f1ae6cbef14d586"
+    },
+    "partial-attach-manual-transcript.txt": {
+      "path": "evidence/releases/0.1.0-lab/partial-attach-manual-transcript.txt",
+      "sha256": "5e6abb86b088dd09ae6eb87e491e5534c2f14e8390b01715b72464112a652543"
+    },
+    "rollback-snapshot.json": {
+      "path": "evidence/releases/0.1.0-lab/rollback-snapshot.json",
+      "sha256": "e2ebcc36ba2e862b60a34d5a88dcfdbf0ebc3ee0b61affa9242dcd7a3456557e"
+    },
+    "rollback-summary.json": {
+      "path": "evidence/releases/0.1.0-lab/rollback-summary.json",
+      "sha256": "02d7f36c3507a425a47b711201dfc2c9af573ea5190233d47f537c05d450c137"
+    },
+    "rollback-transcript.txt": {
+      "path": "evidence/releases/0.1.0-lab/rollback-transcript.txt",
+      "sha256": "6e72729f377950efdf2ce464b824b2f0124a05eabf05bc087470028d3a41b589"
+    },
+    "security-review-approved.json": {
+      "path": "evidence/releases/0.1.0-lab/security-review-approved.json",
+      "sha256": "aaffde660e4cd45b2af86d3857a6e297c1d999cf96d5cc277a7f0c4181741993"
+    },
+    "security-threat-model.md": {
+      "path": "evidence/releases/0.1.0-lab/security-threat-model.md",
+      "sha256": "a7260335769211911636f7170fa1f7b5ed1e2a4fa1cace1db6c0378280d44560"
+    },
+    "stress-chaos-summary.json": {
+      "path": "evidence/releases/0.1.0-lab/stress-chaos-summary.json",
+      "sha256": "4e2168cd05cff8b4860af75e9b177c94dfb2709415d07f0b7f2407267d5d2b17"
+    },
+    "stress-chaos-transcript.txt": {
+      "path": "evidence/releases/0.1.0-lab/stress-chaos-transcript.txt",
+      "sha256": "a625818bc5d00179a7a003337f0956006646dcf5c7ff5f9a82e361cae160cf3b"
+    },
+    "supported-tuples.json": {
+      "path": "evidence/releases/0.1.0-lab/supported-tuples.json",
+      "sha256": "58d987bb1944b2ae59ce9aaa9dcadcbff91b81ce160c19cbe1a9ebe86b1e5654"
+    }
+  },
+  "schema": "zig-scheduler/release-artifact-hashes/v1"
+}

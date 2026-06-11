@@ -36,7 +36,7 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "df91c6fb1b0c6d9e85b3c875cc4eeb5b36890923d750abaec51c78567504d70f"
+      "sha256": "480a0ed7251f241db4c488f03b60b3ad49e3762fefb617817dcacbe81d377217"
     },
     {
       "path": "qa/security_gate.sh",

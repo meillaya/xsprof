@@ -4,6 +4,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 version=""
 evidence_dir=""
+self_test=false
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
@@ -11,12 +12,56 @@ validate_governance_manifest() {
 }
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --self-test) self_test=true; shift ;;
     --version) [ "$#" -ge 2 ] || fail '--version requires value'; version="$2"; shift 2 ;;
     --evidence) [ "$#" -ge 2 ] || fail '--evidence requires value'; evidence_dir="$2"; shift 2 ;;
-    --help|-h) echo 'usage: qa/release_gate.sh --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab'; exit 0 ;;
+    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab'; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
+if [ "$self_test" = true ]; then
+  validate_governance_manifest
+  python3 - <<'PY'
+from pathlib import Path
+current = 'f' * 40
+
+def reject(label, func):
+    try:
+        func()
+    except SystemExit as exc:
+        print(f'PASS reject {label}: {exc}')
+        return
+    raise SystemExit(f'expected rejection did not occur: {label}')
+
+def check_dsq(dsq):
+    if dsq.get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
+    if dsq.get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
+
+def check_stress(stress):
+    if stress.get('status') != 'PASS': raise SystemExit('stress summary not PASS')
+    if stress.get('release_ready') is True and stress.get('status') != 'PASS': raise SystemExit('skipped stress marked release-ready')
+
+def check_existing_approval(approval):
+    if approval.get('git_sha') and approval.get('git_sha') != current and approval.get('historical') is not True:
+        raise SystemExit('stale current release approval git_sha')
+    manifest = approval.get('artifact_hash_manifest')
+    if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
+        raise SystemExit('missing artifact hash manifest')
+
+def check_summary(summary):
+    if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm':
+        raise SystemExit('summary/status contradiction')
+
+reject('rollback_success=false', lambda: check_dsq({'status': 'PASS', 'rollback_success': False}))
+reject('stale current approval', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': False}))
+reject('missing hash manifest', lambda: check_existing_approval({'git_sha': current, 'artifact_hash_manifest': 'evidence/releases/missing-hashes.json'}))
+reject('skipped stress release-ready', lambda: check_stress({'status': 'SKIP', 'release_ready': True}))
+reject('summary contradiction', lambda: check_summary({'status': 'PASS', 'release_status': 'skipped_no_vm'}))
+check_existing_approval({'git_sha': '0' * 40, 'historical': True})
+print('PASS release gate self-test: stale SHA, rollback, hash manifest, skipped stress, and contradictions rejected')
+PY
+  exit 0
+fi
 [ -n "$version" ] || fail '--version is required'
 validate_governance_manifest
 [ -n "$evidence_dir" ] || fail '--evidence is required'
@@ -64,102 +109,125 @@ bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/se
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
 python3 - <<'PY' "$evidence_dir" "$version"
-import json, shutil, subprocess, sys
+import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
-out=Path(sys.argv[1]); version=sys.argv[2]
-checks={}
-checks['dsq']=json.loads(Path('evidence/lab/dsq-vtime/summary.json').read_text())
-checks['rollback']=json.loads(Path('evidence/lab/rollback-drill/summary.json').read_text())
-checks['stress']=json.loads(Path('evidence/lab/stress-chaos/summary.json').read_text())
-checks['security']=json.loads(Path('fixtures/lab/security-review-approved.json').read_text())
-checks['partial_refusal']=json.loads(Path('evidence/lab/partial-attach/host-refusal.json').read_text())
-checks['verifier_refusal']=json.loads(Path('evidence/lab/dsq-vtime-verifier/host-refusal.json').read_text())
-if checks['dsq'].get('status')!='PASS': raise SystemExit('dsq summary not PASS')
+out = Path(sys.argv[1]); version = sys.argv[2]
+checks = {}
+checks['dsq'] = json.loads(Path('evidence/lab/dsq-vtime/summary.json').read_text())
+checks['rollback'] = json.loads(Path('evidence/lab/rollback-drill/summary.json').read_text())
+checks['stress'] = json.loads(Path('evidence/lab/stress-chaos/summary.json').read_text())
+checks['security'] = json.loads(Path('fixtures/lab/security-review-approved.json').read_text())
+checks['partial_refusal'] = json.loads(Path('evidence/lab/partial-attach/host-refusal.json').read_text())
+checks['verifier_refusal'] = json.loads(Path('evidence/lab/dsq-vtime-verifier/host-refusal.json').read_text())
+if checks['dsq'].get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
+if checks['dsq'].get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
 if checks['dsq'].get('simulator_evidence_used') is not False: raise SystemExit('dsq uses simulator evidence')
 if checks['dsq'].get('vm_kind') != 'disposable-vm-marker-present': raise SystemExit('dsq evidence is not disposable VM marker evidence')
-if checks['rollback'].get('status')!='PASS': raise SystemExit('rollback summary not PASS')
-if checks['stress'].get('status')!='PASS': raise SystemExit('stress summary not PASS')
+if checks['rollback'].get('status') != 'PASS': raise SystemExit('rollback summary not PASS')
+if checks['stress'].get('status') != 'PASS': raise SystemExit('stress summary not PASS')
+if checks['stress'].get('release_ready') is True and checks['stress'].get('status') != 'PASS': raise SystemExit('skipped stress marked release-ready')
 if checks['stress'].get('vm_kind') != 'disposable-vm-marker-present': raise SystemExit('stress evidence is not disposable VM marker evidence')
 if checks['stress'].get('root_cgroup_attach') is not False: raise SystemExit('root cgroup attach present')
-if checks['security'].get('status')!='approved': raise SystemExit('security not approved')
+if checks['security'].get('status') != 'approved': raise SystemExit('security not approved')
 if checks['partial_refusal'].get('host_mutation') is not False: raise SystemExit('partial host refusal missing no-mutation proof')
 if checks['verifier_refusal'].get('host_mutation') is not False: raise SystemExit('verifier host refusal missing no-mutation proof')
-rollback_snapshot=checks['rollback'].get('rollback_snapshot')
-rollback_transcript=checks['rollback'].get('transcript')
+rollback_snapshot = checks['rollback'].get('rollback_snapshot')
+rollback_transcript = checks['rollback'].get('transcript')
 if not rollback_snapshot or not Path(rollback_snapshot).is_file(): raise SystemExit('rollback snapshot missing')
 if not rollback_transcript or not Path(rollback_transcript).is_file(): raise SystemExit('rollback transcript missing')
-required_sources={
- 'supported-tuples.json':'fixtures/lab/supported-tuples.json',
- 'dsq-summary.json':'evidence/lab/dsq-vtime/summary.json',
- 'bpf-static-check.txt':'evidence/lab/dsq-vtime/bpf-static-check.txt',
- 'dsq-policy-transcript.txt':'evidence/lab/dsq-vtime/dsq-policy-transcript.txt',
- 'bpf-verifier-host-refusal.json':'evidence/lab/dsq-vtime-verifier/host-refusal.json',
- 'partial-attach-host-refusal.json':'evidence/lab/partial-attach/host-refusal.json',
- 'partial-attach-manual-transcript.txt':'evidence/lab/partial-attach/partial-attach-manual-transcript.txt',
- 'cgroup-allowlist-proof.json':'evidence/lab/cgroup-race/cgroup-race-summary.json',
- 'rollback-summary.json':'evidence/lab/rollback-drill/summary.json',
- 'rollback-snapshot.json':str(rollback_snapshot),
- 'rollback-transcript.txt':str(rollback_transcript),
- 'stress-chaos-summary.json':'evidence/lab/stress-chaos/summary.json',
- 'stress-chaos-transcript.txt':'evidence/lab/stress-chaos/stress-chaos-transcript.txt',
- 'security-threat-model.md':'docs/security/threat-model.md',
- 'security-review-approved.json':'fixtures/lab/security-review-approved.json',
- 'package-default.toml':'packaging/config/default.toml',
- 'package-mutation-service.service':'packaging/systemd/zig-scheduler-lab-mutation.service',
- 'governance-gate.md':'docs/releases/governance-gate.md',
+required_sources = {
+ 'supported-tuples.json': 'fixtures/lab/supported-tuples.json',
+ 'dsq-summary.json': 'evidence/lab/dsq-vtime/summary.json',
+ 'bpf-static-check.txt': 'evidence/lab/dsq-vtime/bpf-static-check.txt',
+ 'dsq-policy-transcript.txt': 'evidence/lab/dsq-vtime/dsq-policy-transcript.txt',
+ 'bpf-verifier-host-refusal.json': 'evidence/lab/dsq-vtime-verifier/host-refusal.json',
+ 'partial-attach-host-refusal.json': 'evidence/lab/partial-attach/host-refusal.json',
+ 'partial-attach-manual-transcript.txt': 'evidence/lab/partial-attach/partial-attach-manual-transcript.txt',
+ 'cgroup-allowlist-proof.json': 'evidence/lab/cgroup-race/cgroup-race-summary.json',
+ 'rollback-summary.json': 'evidence/lab/rollback-drill/summary.json',
+ 'rollback-snapshot.json': str(rollback_snapshot),
+ 'rollback-transcript.txt': str(rollback_transcript),
+ 'stress-chaos-summary.json': 'evidence/lab/stress-chaos/summary.json',
+ 'stress-chaos-transcript.txt': 'evidence/lab/stress-chaos/stress-chaos-transcript.txt',
+ 'security-threat-model.md': 'docs/security/threat-model.md',
+ 'security-review-approved.json': 'fixtures/lab/security-review-approved.json',
+ 'package-default.toml': 'packaging/config/default.toml',
+ 'package-mutation-service.service': 'packaging/systemd/zig-scheduler-lab-mutation.service',
+ 'governance-gate.md': 'docs/releases/governance-gate.md',
 }
+approval_path = out / 'release-approval.json'
+existing_approval = {}
+if approval_path.exists() and not approval_path.is_symlink(): existing_approval = json.loads(approval_path.read_text())
+current_git_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+existing_git_sha = existing_approval.get('git_sha')
+if existing_git_sha and existing_git_sha != current_git_sha and existing_approval.get('historical') is not True:
+    raise SystemExit('stale current release approval git_sha')
+existing_hash_manifest = existing_approval.get('artifact_hash_manifest')
+if existing_hash_manifest and not Path(str(existing_hash_manifest)).is_file() and existing_approval.get('historical') is not True:
+    raise SystemExit('missing artifact hash manifest')
+existing_summary_path = out / 'summary.json'
+if existing_summary_path.exists() and not existing_summary_path.is_symlink():
+    existing_summary = json.loads(existing_summary_path.read_text())
+    if existing_summary.get('status') == 'PASS' and existing_summary.get('release_status') == 'skipped_no_vm' and existing_summary.get('historical') is not True:
+        raise SystemExit('summary/status contradiction')
 for name, src in required_sources.items():
-    dst=out/name
-    if dst.is_symlink():
-        raise SystemExit(f'release artifact destination is symlink: {dst}')
-    tmp=out/(name+'.tmp')
-    if tmp.exists() or tmp.is_symlink():
-        tmp.unlink()
+    dst = out / name
+    if dst.is_symlink(): raise SystemExit(f'release artifact destination is symlink: {dst}')
+    tmp = out / (name + '.tmp')
+    if tmp.exists() or tmp.is_symlink(): tmp.unlink()
     shutil.copyfile(src, tmp)
     tmp.replace(dst)
-approval_path=out/'release-approval.json'
-existing_approval={}
-if approval_path.exists() and not approval_path.is_symlink():
-    existing_approval=json.loads(approval_path.read_text())
-git_sha=existing_approval.get('git_sha') or subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
-reviewer=checks['security'].get('reviewer') or 'repository-owner-operator'
-date=checks['security'].get('signed_attestation', {}).get('signed_at') or '2026-06-11T00:00:00Z'
-approval={
- 'schema':'zig-scheduler/release-approval/v1',
- 'version':version,
- 'git_sha':git_sha,
- 'audit_id':checks['rollback'].get('audit_id'),
- 'rollback_id':checks['rollback'].get('rollback_id'),
- 'reviewer':reviewer,
- 'date':date,
- 'status':'controlled_lab_pilot_candidate',
- 'owner':'repository-owner-operator',
- 'approval_required_before_mutation_release':True,
- 'production_ready':False,
- 'arbitrary_host_safe':False,
- 'evidence':[str(out/name) for name in required_sources],
+artifact_hashes = {}
+for name in required_sources:
+    digest = hashlib.sha256((out / name).read_bytes()).hexdigest()
+    artifact_hashes[name] = {'path': str(out / name), 'sha256': digest}
+hash_manifest = out / 'artifact-hashes.json'
+hash_tmp = out / 'artifact-hashes.json.tmp'
+hash_tmp.write_text(json.dumps({'schema': 'zig-scheduler/release-artifact-hashes/v1', 'artifacts': artifact_hashes}, indent=2, sort_keys=True) + '\n')
+hash_tmp.replace(hash_manifest)
+reviewer = checks['security'].get('reviewer') or 'repository-owner-operator'
+date = checks['security'].get('signed_attestation', {}).get('signed_at') or '2026-06-11T00:00:00Z'
+approval = {
+ 'schema': 'zig-scheduler/release-approval/v1',
+ 'version': version,
+ 'git_sha': current_git_sha,
+ 'audit_id': checks['rollback'].get('audit_id'),
+ 'rollback_id': checks['rollback'].get('rollback_id'),
+ 'reviewer': reviewer,
+ 'date': date,
+ 'status': 'controlled_lab_pilot_candidate',
+ 'owner': 'repository-owner-operator',
+ 'approval_required_before_mutation_release': True,
+ 'production_ready': False,
+ 'arbitrary_host_safe': False,
+ 'historical': False,
+ 'artifact_hash_manifest': str(hash_manifest),
+ 'evidence': [str(out / name) for name in required_sources] + [str(hash_manifest)],
 }
-required_approval=['version','git_sha','audit_id','rollback_id','reviewer','date','status']
-missing=[key for key in required_approval if not approval.get(key)]
-if missing: raise SystemExit('approval missing fields: '+','.join(missing))
-approval_tmp=out/'release-approval.json.tmp'
-approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True)+'\n')
+required_approval = ['version', 'git_sha', 'audit_id', 'rollback_id', 'reviewer', 'date', 'status', 'artifact_hash_manifest']
+missing = [key for key in required_approval if not approval.get(key)]
+if missing: raise SystemExit('approval missing fields: ' + ','.join(missing))
+approval_tmp = out / 'release-approval.json.tmp'
+approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
 approval_tmp.replace(approval_path)
-summary={
- 'schema':'zig-scheduler/release-gate-summary/v1',
- 'version':version,
- 'status':'PASS',
- 'release_status':'controlled_lab_pilot_candidate',
- 'production_ready':False,
- 'arbitrary_host_safe':False,
- 'required_artifacts_present':True,
- 'artifact_count':len(required_sources),
- 'evidence_dir':str(out),
+summary = {
+ 'schema': 'zig-scheduler/release-gate-summary/v1',
+ 'version': version,
+ 'status': 'PASS',
+ 'release_status': 'controlled_lab_pilot_candidate',
+ 'production_ready': False,
+ 'arbitrary_host_safe': False,
+ 'required_artifacts_present': True,
+ 'artifact_count': len(required_sources),
+ 'artifact_hash_manifest': str(hash_manifest),
+ 'evidence_dir': str(out),
 }
-summary_tmp=out/'summary.json.tmp'
-summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True)+'\n')
-summary_tmp.replace(out/'summary.json')
+if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm': raise SystemExit('summary/status contradiction')
+summary_tmp = out / 'summary.json.tmp'
+summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+summary_tmp.replace(out / 'summary.json')
 PY
 printf 'summary=%s\n' "$evidence_dir/summary.json"
 printf 'approval=%s\n' "$evidence_dir/release-approval.json"
+printf 'hashes=%s\n' "$evidence_dir/artifact-hashes.json"
 printf 'PASS: release gate controlled_lab_pilot_candidate\n'
