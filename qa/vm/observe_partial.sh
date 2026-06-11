@@ -77,16 +77,17 @@ write_fact_set() {
 
 sample_json() {
   local seq="$1"
-  local state ops enable_seq events rejected debug membership alive
+  local state ops enable_seq events events_hash rejected debug membership alive
   state="$(cat "$tmp/sys/kernel/sched_ext/state")"
   ops="$(cat "$tmp/sys/kernel/sched_ext/root/ops")"
   enable_seq="$(cat "$tmp/sys/kernel/sched_ext/enable_seq")"
   events="$(cat "$tmp/sys/kernel/sched_ext/events")"
+  events_hash="$(printf '%s' "$events" | sha256sum | awk '{print $1}')"
   rejected="$(cat "$tmp/sys/kernel/sched_ext/nr_rejected")"
   debug="$tmp/sys/kernel/debug/sched_ext/dump"
   membership="$(sha256sum "$tmp/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs" | awk '{print $1}')"
   if kill -0 "$lab_pid" >/dev/null 2>&1; then alive=true; else alive=false; fi
-  SEQ="$seq" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" REJECTED="$rejected" DEBUG="$debug" MEMBERSHIP="$membership" ALIVE="$alive" python3 - <<'PY' >> "$jsonl"
+  SEQ="$seq" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" EVENTS_HASH="$events_hash" REJECTED="$rejected" DEBUG="$debug" MEMBERSHIP="$membership" ALIVE="$alive" python3 - <<'PY' >> "$jsonl"
 import json, os
 print(json.dumps({
   "schema": "zig-scheduler/runtime-sample/v1",
@@ -95,6 +96,7 @@ print(json.dumps({
   "ops": {"status": "present", "value": os.environ["OPS"]},
   "enable_seq": {"status": "present", "value": os.environ["ENABLE_SEQ"]},
   "events": {"status": "present", "value": os.environ["EVENTS"]},
+  "events_hash": os.environ["EVENTS_HASH"],
   "nr_rejected": {"status": "present", "value": os.environ["REJECTED"]},
   "debug_dump": {"status": "present", "value": os.environ["DEBUG"]},
   "cgroup_membership_digest": os.environ["MEMBERSHIP"],

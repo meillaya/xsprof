@@ -12,6 +12,7 @@ pub const RuntimeSample = struct {
     ops: sched_ext.TextFact,
     enable_seq: sched_ext.TextFact,
     events: sched_ext.TextFact,
+    events_hash: []const u8,
     nr_rejected: sched_ext.TextFact,
     debug_dump: sched_ext.TextFact,
     cgroup_membership_digest: []const u8,
@@ -23,6 +24,7 @@ pub fn deinit(allocator: std.mem.Allocator, sample: *RuntimeSample) void {
     sched_ext.freeFact(allocator, sample.ops);
     sched_ext.freeFact(allocator, sample.enable_seq);
     sched_ext.freeFact(allocator, sample.events);
+    allocator.free(sample.events_hash);
     sched_ext.freeFact(allocator, sample.nr_rejected);
     sched_ext.freeFact(allocator, sample.debug_dump);
     allocator.free(sample.cgroup_membership_digest);
@@ -34,11 +36,16 @@ pub fn collectFromRoot(
     cgroup_path: []const u8,
     workload_pid: ?u32,
 ) !RuntimeSample {
+    const events = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/events");
+    errdefer sched_ext.freeFact(allocator, events);
+    const events_hash = try hashText(allocator, events.value);
+    errdefer allocator.free(events_hash);
     return .{
         .state = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/state"),
         .ops = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/root/ops"),
         .enable_seq = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/enable_seq"),
-        .events = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/events"),
+        .events = events,
+        .events_hash = events_hash,
         .nr_rejected = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/nr_rejected"),
         .debug_dump = try sched_ext.presenceFactFromRoot(allocator, root_path, "/sys/kernel/debug/sched_ext/dump", "/sys/kernel/debug/sched_ext/dump"),
         .cgroup_membership_digest = try membershipDigest(allocator, root_path, cgroup_path),
@@ -61,6 +68,8 @@ pub fn writeJsonLine(writer: anytype, sample: RuntimeSample, sequence: usize) !v
     try writeNamedFact(writer, "ops", sample.ops);
     try writeNamedFact(writer, "enable_seq", sample.enable_seq);
     try writeNamedFact(writer, "events", sample.events);
+    try writer.writeAll(",\"events_hash\":");
+    try writeJsonString(writer, sample.events_hash);
     try writeNamedFact(writer, "nr_rejected", sample.nr_rejected);
     try writeNamedFact(writer, "debug_dump", sample.debug_dump);
     try writer.writeAll(",\"cgroup_membership_digest\":");
@@ -85,6 +94,11 @@ fn membershipDigest(allocator: std.mem.Allocator, root_path: []const u8, cgroup_
     defer sched_ext.freeFact(allocator, fact);
     if (fact.status != .present) return allocator.dupe(u8, @tagName(fact.status));
     const digest = std.hash.Wyhash.hash(0, fact.value);
+    return std.fmt.allocPrint(allocator, "{x:0>16}", .{digest});
+}
+
+fn hashText(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
+    const digest = std.hash.Wyhash.hash(0, value);
     return std.fmt.allocPrint(allocator, "{x:0>16}", .{digest});
 }
 
@@ -170,6 +184,8 @@ test "runtime observer samples disabled state missing ops and workload liveness 
     try writeJsonLine(&writer.writer, sample, 0);
     list = writer.toArrayList();
     try std.testing.expect(std.mem.indexOf(u8, list.items, "private_command_lines_sampled\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, list.items, "\"events_hash\"") != null);
+    try std.testing.expect(sample.events_hash.len > 0);
 }
 
 fn makePath(dir: *std.Io.Dir, sub_path: []const u8) !void {
