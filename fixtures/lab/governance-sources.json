@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T02",
+  "generated_for": "next-linux-scheduler-maturity T03",
   "schema_version": 1,
   "sources": [
     {
@@ -13,6 +13,12 @@
       "purpose": "historical checkpoints and current project posture",
       "required": true,
       "sha256": "da035c5e5d9516baf2ba79f134eb85fcc135d4e1074d1231244a561a085cf7ff"
+    },
+    {
+      "path": "qa/clean_archive_check.sh",
+      "purpose": "clean archive and fresh clone reproducibility gate",
+      "required": true,
+      "sha256": "9a5493e00ff89af13cd8413e6e1d370d9135b6afbff865c361807c41aef4fb72"
     },
     {
       "path": "qa/release_gate.sh",
