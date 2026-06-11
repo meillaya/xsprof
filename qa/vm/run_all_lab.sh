@@ -7,15 +7,21 @@ source qa/path_safety.sh
 
 mode="host-safe"
 out_dir=""
+image_arg=""
+kernel_arg=""
+env_file=""
 release_version="0.1.0-lab-runall"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--release-version 0.1.0-lab-runall]\n' "$0" >&2; }
+usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--image <path>] [--kernel <path>] [--env-file <file>] [--release-version 0.1.0-lab-runall]\n' "$0" >&2; }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --mode) [ "$#" -ge 2 ] || fail '--mode requires value'; mode="$2"; shift 2 ;;
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
+    --image) [ "$#" -ge 2 ] || fail '--image requires value'; image_arg="$2"; shift 2 ;;
+    --kernel) [ "$#" -ge 2 ] || fail '--kernel requires value'; kernel_arg="$2"; shift 2 ;;
+    --env-file) [ "$#" -ge 2 ] || fail '--env-file requires value'; env_file="$2"; shift 2 ;;
     --release-version) [ "$#" -ge 2 ] || fail '--release-version requires value'; release_version="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
@@ -24,7 +30,7 @@ done
 
 case "$mode" in host-safe|vm-required|auto) ;; *) fail '--mode must be host-safe, vm-required, or auto' ;; esac
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$release_version" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$release_version$image_arg$kernel_arg$env_file" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 prepare_evidence_dir evidence/lab "$out_dir"
 
 summary="$out_dir/summary.json"
@@ -139,7 +145,12 @@ if [ "$mode" = host-safe ]; then
   has_vm=false
 fi
 
-run_stage run_lab 'bash qa/vm/run_lab.sh --mode read-only-smoke' "$out_dir/run-lab" bash qa/vm/run_lab.sh --mode read-only-smoke --out "$out_dir/run-lab"
+run_lab_args=(bash qa/vm/run_lab.sh --mode read-only-smoke --out "$out_dir/run-lab")
+run_lab_command='bash qa/vm/run_lab.sh --mode read-only-smoke'
+if [ -n "$image_arg" ]; then run_lab_args+=(--image "$image_arg"); run_lab_command="$run_lab_command --image $image_arg"; fi
+if [ -n "$kernel_arg" ]; then run_lab_args+=(--kernel "$kernel_arg"); run_lab_command="$run_lab_command --kernel $kernel_arg"; fi
+if [ -n "$env_file" ]; then run_lab_args+=(--env-file "$env_file"); run_lab_command="$run_lab_command --env-file $env_file"; fi
+run_stage run_lab "$run_lab_command" "$out_dir/run-lab" "${run_lab_args[@]}"
 run_stage verifier_only 'bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o' "$out_dir/verifier-only" bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o --out "$out_dir/verifier-only"
 run_stage partial_attach 'bash qa/vm/partial_attach.sh host-safe target' "$out_dir/partial-attach" bash qa/vm/partial_attach.sh --target /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-runall --out "$out_dir/partial-attach" --object zig-out/bpf/zigsched_minimal.bpf.o
 run_stage rollback_drill 'bash qa/vm/rollback_drill.sh' "$out_dir/rollback-drill" bash qa/vm/rollback_drill.sh --out "$out_dir/rollback-drill"

@@ -108,7 +108,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "c1a433fba73c7899eb25ed5481a3f6f0c0d28a9ce4c0a94975be4d28a52b5323"
+      "sha256": "0688bf60e3fa3b88a854d029e73232e161d2af04a6a52c8e7e7083fd5d2039c6"
     },
     {
       "path": "docs/security/review-checklist.md",

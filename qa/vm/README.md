@@ -34,3 +34,24 @@ Schema validation:
 - `python3 qa/lab_summary_check.py --summary evidence/lab/run-all/<name>/summary.json` validates the run-all summary and embedded per-stage records.
 - `python3 qa/lab_summary_check.py --self-test` rejects malformed fixtures, including missing `host_mutation`, and refuses `release_use=true` evidence that points at untracked generated paths.
 - Stable evidence fields include artifact paths, VM kind, kernel tuple, git SHA, rollback result, start/end timestamps, and `host_mutation=false`.
+
+## Explicit VM configuration contract
+
+`run_lab.sh` accepts VM boot inputs only through explicit operator-supplied config:
+
+```bash
+bash qa/vm/run_lab.sh --mode read-only-smoke --image /path/to/lab.qcow2 --out evidence/lab/vm-smoke
+bash qa/vm/run_lab.sh --mode read-only-smoke --kernel /path/to/bzImage --out evidence/lab/vm-smoke
+bash qa/vm/run_lab.sh --mode read-only-smoke --env-file qa/vm/lab.env --out evidence/lab/vm-smoke
+```
+
+Supported env-file keys are `ZIG_SCHEDULER_VM_IMAGE` and `ZIG_SCHEDULER_VM_KERNEL`. The file is parsed as data and is not sourced as shell code.
+
+Fail-closed outcomes:
+
+- Missing image/kernel/env-file paths produce `REFUSE: VM_CONFIG_INVALID` and a manifest with `host_mutation=false`.
+- Conflicting CLI and env-file values produce `REFUSE: VM_CONFIG_AMBIGUOUS`.
+- No explicit image/kernel produces `SKIP: qemu boot image unavailable`.
+- Missing QEMU/KVM remains a host-safe `SKIP`, with `qemu_available` and `kvm_available` recorded.
+
+The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence, and it must not boot or mutate anything until later VM-only attach tasks add marker-gated execution.
