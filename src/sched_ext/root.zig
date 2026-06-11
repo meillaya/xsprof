@@ -16,7 +16,11 @@ pub const TextFact = struct {
 
 pub const SchedExtFacts = struct {
     state: TextFact,
+    root_ops: TextFact,
     enable_seq: TextFact,
+    events: TextFact,
+    policy_metadata: TextFact,
+    rollback_state: TextFact,
     switch_all: TextFact,
     nr_rejected: TextFact,
 };
@@ -28,7 +32,11 @@ pub fn collect(allocator: std.mem.Allocator) !SchedExtFacts {
 pub fn collectFromRoot(allocator: std.mem.Allocator, root_path: []const u8) !SchedExtFacts {
     return .{
         .state = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/state"),
+        .root_ops = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/root/ops"),
         .enable_seq = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/enable_seq"),
+        .events = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/events"),
+        .policy_metadata = try readSmallFactFromRoot(allocator, root_path, "/run/zig-scheduler/policy-metadata.json"),
+        .rollback_state = try readSmallFactFromRoot(allocator, root_path, "/run/zig-scheduler/rollback-state.json"),
         .switch_all = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/switch_all"),
         .nr_rejected = try readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/nr_rejected"),
     };
@@ -36,7 +44,11 @@ pub fn collectFromRoot(allocator: std.mem.Allocator, root_path: []const u8) !Sch
 
 pub fn deinit(facts: *SchedExtFacts, allocator: std.mem.Allocator) void {
     freeFact(allocator, facts.state);
+    freeFact(allocator, facts.root_ops);
     freeFact(allocator, facts.enable_seq);
+    freeFact(allocator, facts.events);
+    freeFact(allocator, facts.policy_metadata);
+    freeFact(allocator, facts.rollback_state);
     freeFact(allocator, facts.switch_all);
     freeFact(allocator, facts.nr_rejected);
 }
@@ -136,7 +148,12 @@ test "injected sched_ext root reports missing and over-limit facts" {
     defer tmp.cleanup();
     const io = std.Io.Threaded.global_single_threaded.io();
     try testingMakePath(&tmp.dir, "sys/kernel/sched_ext");
+    try testingMakePath(&tmp.dir, "sys/kernel/sched_ext/root");
+    try testingMakePath(&tmp.dir, "run/zig-scheduler");
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/state", .data = "abcdef" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/root/ops", .data = "zigsched_minimal\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/events", .data = "nr_rejected: 0\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "run/zig-scheduler/policy-metadata.json", .data = "{\"policy\":\"minimal\"}\n" });
     const root_path = try testingTmpPath(std.testing.allocator, tmp, ".");
     defer std.testing.allocator.free(root_path);
 
@@ -147,6 +164,10 @@ test "injected sched_ext root reports missing and over-limit facts" {
     var facts = try collectFromRoot(std.testing.allocator, root_path);
     defer deinit(&facts, std.testing.allocator);
     try std.testing.expectEqual(FactStatus.present, facts.state.status);
+    try std.testing.expectEqualStrings("zigsched_minimal", facts.root_ops.value);
+    try std.testing.expectEqual(FactStatus.present, facts.events.status);
+    try std.testing.expectEqual(FactStatus.present, facts.policy_metadata.status);
+    try std.testing.expectEqual(FactStatus.missing, facts.rollback_state.status);
     try std.testing.expectEqual(FactStatus.missing, facts.enable_seq.status);
 }
 

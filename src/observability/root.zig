@@ -74,7 +74,15 @@ pub fn writeJson(writer: anytype, report: PreflightReport) !void {
     try writer.writeAll(",\"sched_ext\":{");
     try writeNamedFact(writer, "state", report.sched_ext.state);
     try writer.writeAll(",");
+    try writeNamedFact(writer, "root_ops", report.sched_ext.root_ops);
+    try writer.writeAll(",");
     try writeNamedFact(writer, "enable_seq", report.sched_ext.enable_seq);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "events", report.sched_ext.events);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "policy_metadata", report.sched_ext.policy_metadata);
+    try writer.writeAll(",");
+    try writeNamedFact(writer, "rollback_state", report.sched_ext.rollback_state);
     try writer.writeAll(",");
     try writeNamedFact(writer, "switch_all", report.sched_ext.switch_all);
     try writer.writeAll(",");
@@ -207,15 +215,21 @@ test "preflight can collect from injected host root fixtures" {
     try testingMakePath(&tmp.dir, "proc/sys/kernel");
     try testingMakePath(&tmp.dir, "proc/self");
     try testingMakePath(&tmp.dir, "sys/kernel/sched_ext");
+    try testingMakePath(&tmp.dir, "sys/kernel/sched_ext/root");
     try testingMakePath(&tmp.dir, "sys/kernel/btf");
     try testingMakePath(&tmp.dir, "sys/fs/cgroup");
+    try testingMakePath(&tmp.dir, "run/zig-scheduler");
     try tmp.dir.writeFile(io, .{ .sub_path = "proc/sys/kernel/osrelease", .data = "6.12.0-test\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "proc/self/mountinfo", .data = "42 24 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "proc/self/status", .data = "Name:\ttest\nCapEff:\t0000000000001234\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/state", .data = "enabled\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/root/ops", .data = "zigsched_minimal\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/enable_seq", .data = "7\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/events", .data = "nr_rejected: 0\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/switch_all", .data = "0\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/sched_ext/nr_rejected", .data = "2\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "run/zig-scheduler/policy-metadata.json", .data = "{\"policy\":\"minimal\"}\n" });
+    try tmp.dir.writeFile(io, .{ .sub_path = "run/zig-scheduler/rollback-state.json", .data = "{\"rollback\":\"clean\"}\n" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/kernel/btf/vmlinux", .data = "btf" });
     try tmp.dir.writeFile(io, .{ .sub_path = "sys/fs/cgroup/cgroup.controllers", .data = "cpu memory\n" });
     const root_path = try testingTmpPath(std.testing.allocator, tmp, ".");
@@ -225,9 +239,22 @@ test "preflight can collect from injected host root fixtures" {
     defer report.deinit();
     try std.testing.expectEqualStrings("6.12.0-test", report.kernel_release);
     try std.testing.expectEqualStrings("enabled", report.sched_ext.state.value);
+    try std.testing.expectEqualStrings("zigsched_minimal", report.sched_ext.root_ops.value);
+    try std.testing.expectEqualStrings("nr_rejected: 0", report.sched_ext.events.value);
+    try std.testing.expectEqual(FactStatus.present, report.sched_ext.policy_metadata.status);
+    try std.testing.expectEqual(FactStatus.present, report.sched_ext.rollback_state.status);
     try std.testing.expectEqualStrings("cpu memory", report.cgroup_v2.controllers);
     try std.testing.expectEqualStrings("0000000000001234", report.capabilities.effective_hex);
     try std.testing.expectEqual(FactStatus.present, report.btf.status);
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(std.testing.allocator, &buffer);
+    try writeJson(&writer.writer, report);
+    buffer = writer.toArrayList();
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\"root_ops\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\"events\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\"policy_metadata\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\"rollback_state\"") != null);
 }
 
 test "injected preflight fails closed on malformed proc and missing cgroup controllers" {
@@ -237,6 +264,7 @@ test "injected preflight fails closed on malformed proc and missing cgroup contr
     try testingMakePath(&tmp.dir, "proc/sys/kernel");
     try testingMakePath(&tmp.dir, "proc/self");
     try testingMakePath(&tmp.dir, "sys/kernel/sched_ext");
+    try testingMakePath(&tmp.dir, "sys/kernel/sched_ext/root");
     try testingMakePath(&tmp.dir, "sys/kernel/btf");
     try testingMakePath(&tmp.dir, "sys/fs/cgroup");
     try tmp.dir.writeFile(io, .{ .sub_path = "proc/sys/kernel/osrelease", .data = "6.12.0-test\n" });
