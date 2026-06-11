@@ -27,7 +27,8 @@
     "evidence/releases/0.1.0-lab/artifact-hashes.json"
   ],
   "git_sha": "8636f524a4735aa2d97602b2b314cdc4cf094dd4",
-  "historical": false,
+  "historical": true,
+  "historical_reason": "archived 0.1.0-lab approval retained as historical evidence, not current release eligibility",
   "owner": "repository-owner-operator",
   "production_ready": false,
   "reviewer": "owner-override:repository-owner-operator",
