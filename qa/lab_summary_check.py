@@ -21,6 +21,8 @@ import subprocess
 import sys
 from typing import Final, TypeAlias
 
+from lab_summary_observe import ObserveSummaryError, validate_observe
+
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 
@@ -37,6 +39,7 @@ MALFORMED_FIXTURE: Final[Path] = Path("fixtures/lab/run-all-summary-missing-host
 class Args:
     summary: Path | None
     partial: Path | None
+    observe: Path | None
     self_test: bool
 
 
@@ -46,12 +49,14 @@ class LabSummaryError(Exception):
 
 def parse_args(argv: list[str]) -> Args:
     if argv == ["--self-test"]:
-        return Args(summary=None, partial=None, self_test=True)
+        return Args(summary=None, partial=None, observe=None, self_test=True)
     if len(argv) == 2 and argv[0] == "--summary":
-        return Args(summary=Path(argv[1]), partial=None, self_test=False)
+        return Args(summary=Path(argv[1]), partial=None, observe=None, self_test=False)
     if len(argv) == 2 and argv[0] == "--partial":
-        return Args(summary=None, partial=Path(argv[1]), self_test=False)
-    raise LabSummaryError("usage: lab_summary_check.py --summary <summary.json> | --partial <partial-refusal.json> | --self-test")
+        return Args(summary=None, partial=Path(argv[1]), observe=None, self_test=False)
+    if len(argv) == 2 and argv[0] == "--observe":
+        return Args(summary=None, partial=None, observe=Path(argv[1]), self_test=False)
+    raise LabSummaryError("usage: lab_summary_check.py --summary <summary.json> | --partial <partial-refusal.json> | --observe <summary.json> | --self-test")
 
 
 def load_object(path: Path) -> JsonObject:
@@ -201,6 +206,7 @@ def validate_partial(path: Path) -> None:
         require_string(refusal, field, "partial")
 
 
+
 def self_test() -> None:
     root = Path("evidence/lab/run-all/self-test-lab-summary-check")
     shutil.rmtree(root, ignore_errors=True)
@@ -260,18 +266,14 @@ def self_test() -> None:
 def reject(path: Path, label: str) -> None:
     try:
         validate_summary(path)
-    except LabSummaryError as exc:
-        print(f"PASS reject {label}: {exc}")
-        return
+    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
     raise LabSummaryError(f"expected rejection did not occur: {label}")
 
 
 def reject_partial(path: Path, label: str) -> None:
     try:
         validate_partial(path)
-    except LabSummaryError as exc:
-        print(f"PASS reject {label}: {exc}")
-        return
+    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
     raise LabSummaryError(f"expected rejection did not occur: {label}")
 
 
@@ -281,10 +283,17 @@ def run(argv: list[str]) -> int:
         self_test()
         return 0
     if args.summary is None:
-        if args.partial is None:
+        if args.partial is None and args.observe is None:
             raise LabSummaryError("internal argument parser error")
-        validate_partial(args.partial)
-        print(f"PASS partial attach refusal schema: {args.partial}")
+        if args.partial is not None:
+            validate_partial(args.partial)
+            print(f"PASS partial attach refusal schema: {args.partial}")
+        else:
+            if args.observe is None:
+                raise LabSummaryError("internal argument parser error")
+            try: validate_observe(args.observe)
+            except ObserveSummaryError as exc: raise LabSummaryError(str(exc)) from exc
+            print(f"PASS observe partial summary: {args.observe}")
         return 0
     validate_summary(args.summary)
     print(f"PASS lab summary schema: {args.summary}")

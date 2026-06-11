@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-[ -n "$samples" ] || fail '--samples is required'
+[ -n "$samples" ] || samples=3
 [ -n "$out_dir" ] || fail '--out is required'
 case "$samples" in *[!0-9]*|'') fail '--samples must be a positive integer' ;; esac
 [ "$samples" -ge 3 ] || fail '--samples must be at least 3 for before/during/after observation'
@@ -126,19 +126,35 @@ for seq in $(seq 0 $((samples - 1))); do
   printf 'sample=%s state=%s\n' "$seq" "$(cat "$tmp/sys/kernel/sched_ext/state")" >> "$transcript"
 done
 
+python3 qa/runtime_sample_check.py --input "$jsonl" >/dev/null
+python3 qa/audit_ledger_check.py --ledger evidence/lab/rollback-drill/audit-ledger.jsonl >/dev/null
+
 JSONL="$jsonl" SUMMARY="$summary" TRANSCRIPT="$transcript" SAMPLES="$samples" python3 - <<'PY' > "$summary"
 import json, os
 rows=[json.loads(line) for line in open(os.environ['JSONL'])]
+last=rows[-1]
 print(json.dumps({
   "schema": "zig-scheduler/observe-partial-summary/v1",
   "status": "PASS",
+  "evidence_mode": "fixture",
+  "release_eligible_live_proof": False,
+  "release_ineligible_reason": "fixture-observation-not-vm-live-attach-proof",
   "sample_count": len(rows),
   "samples_requested": int(os.environ["SAMPLES"]),
   "jsonl": os.environ["JSONL"],
+  "runtime_samples": os.environ["JSONL"],
+  "audit_ledger": "evidence/lab/rollback-drill/audit-ledger.jsonl",
+  "scheduler_snapshot": {
+    "state": last["state"],
+    "root_ops": last["ops"],
+    "enable_seq": last["enable_seq"],
+    "events": last["events"],
+    "events_hash": last["events_hash"]
+  },
   "transcript": os.environ["TRANSCRIPT"],
-  "final_state": rows[-1]["state"]["value"],
-  "final_ops": rows[-1]["ops"]["value"],
-  "final_state_disabled_or_rolled_back": rows[-1]["state"]["value"] == "disabled" or rows[-1]["ops"]["value"] == "none",
+  "final_state": last["state"]["value"],
+  "final_ops": last["ops"]["value"],
+  "final_state_disabled_or_rolled_back": last["state"]["value"] == "disabled" or last["ops"]["value"] == "none",
   "private_command_lines_sampled": any(row["private_command_lines_sampled"] for row in rows),
   "workload_alive_all_samples": all(row["workload_alive"] for row in rows)
 }, indent=2, sort_keys=True))
