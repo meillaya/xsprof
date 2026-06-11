@@ -215,3 +215,19 @@ test "run-all fixture renders lab lifecycle evidence rows" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "completion_order") == null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "production") == null);
 }
+
+test "CJK lifecycle fixture stays within requested terminal widths" {
+    for ([_]u16{ 80, 100, 120 }) |width| {
+        const frame = try renderSnapshot(std.testing.allocator, .{
+            .snapshot = true,
+            .screen = .sched_ext,
+            .width = width,
+            .height = 30,
+            .fixture_path = "fixtures/lab/run-all-summary-cjk.json",
+        });
+        defer std.testing.allocator.free(frame);
+        try std.testing.expectEqual(@as(usize, 30), countRows(frame));
+        try std.testing.expect(layout.maxLineCells(frame) <= width);
+        try std.testing.expect(std.unicode.utf8ValidateSlice(frame));
+    }
+}

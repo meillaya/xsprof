@@ -1,0 +1,71 @@
+{
+  "artifact_paths": [
+    "evidence/lab/run-all/fixture/verifier-only/transcript.txt",
+    "evidence/lab/run-all/fixture/partial-attach/host-refusal.json",
+    "evidence/lab/run-all/fixture/rollback-drill/audit-ledger.jsonl"
+  ],
+  "audit_id": "AUD-20990101T000000Z-deadbee-abc123",
+  "cleanup": {
+    "qemu_leftovers": false,
+    "tmux_leftovers": false
+  },
+  "ended_at": "2099-01-01T00:00:08Z",
+  "evidence_mode": "증거모드-라이브검증-매우긴상태값-안전하게잘림",
+  "git_sha": "fixture-run-all",
+  "host_mutation": false,
+  "kernel": {
+    "arch": "x86_64",
+    "release": "fixture-lab-긴커널튜플-6.99.0-cjk-wide"
+  },
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "unavailable-host-safe",
+    "release": "fixture-lab"
+  },
+  "mode": "host-safe",
+  "release_status": "skipped_no_vm_매우긴_RELEASE_GATE_REASON_CODE_WITH_SAFE_CLIPPING",
+  "release_use": false,
+  "rollback_id": "RB-runall-fixture",
+  "rollback_result": "PASS",
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "stages": [
+    {
+      "reason": "host-safe verifier refusal captured",
+      "stage": "verifier_only",
+      "status": "REFUSE"
+    },
+    {
+      "reason": "partial attach requires disposable VM marker",
+      "stage": "partial_attach",
+      "status": "REFUSE_대상검증실패_매우긴사유"
+    },
+    {
+      "reason": "rollback drill fixture validated",
+      "stage": "rollback_drill",
+      "status": "PASS"
+    },
+    {
+      "reason": "DSQ smoke has rollback success fixture",
+      "stage": "dsq_policy_smoke",
+      "status": "PASS"
+    },
+    {
+      "reason": "bounded stress surrogate completed",
+      "stage": "stress_chaos",
+      "status": "PASS"
+    },
+    {
+      "reason": "observe partial summary links audit ledger",
+      "stage": "observe_partial",
+      "status": "PASS"
+    },
+    {
+      "reason": "host-safe fixture is not release eligible",
+      "stage": "release_gate",
+      "status": "SKIP_릴리스게이트_증거부족"
+    }
+  ],
+  "started_at": "2099-01-01T00:00:00Z",
+  "status": "PASS",
+  "vm_kind": "host-safe-surrogate"
+}
