@@ -1,0 +1,13 @@
+{
+  "final_ops": "none",
+  "final_state": "disabled",
+  "final_state_disabled_or_rolled_back": true,
+  "jsonl": "evidence/lab/observe-partial/runtime-samples.jsonl",
+  "private_command_lines_sampled": false,
+  "sample_count": 3,
+  "samples_requested": 3,
+  "schema": "zig-scheduler/observe-partial-summary/v1",
+  "status": "PASS",
+  "transcript": "evidence/lab/observe-partial/observe-transcript.txt",
+  "workload_alive_all_samples": true
+}

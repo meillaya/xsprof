@@ -3,12 +3,19 @@ const std = @import("std");
 pub const controller = @import("controller/root.zig");
 pub const sched_ext = @import("sched_ext/root.zig");
 pub const observability = @import("observability/root.zig");
+pub const lab = @import("lab/root.zig");
+pub const config = @import("config/root.zig");
+pub const audit = @import("audit/root.zig");
 
 pub const PreflightReport = observability.PreflightReport;
 pub const OutputFormat = enum { text, json };
 
 pub fn collectPreflight(allocator: std.mem.Allocator) !PreflightReport {
     return observability.collectPreflight(allocator);
+}
+
+pub fn collectPreflightFromRoot(allocator: std.mem.Allocator, root_path: []const u8) !PreflightReport {
+    return observability.collectPreflightFromRoot(allocator, root_path);
 }
 
 pub fn writePreflightJson(writer: anytype, report: PreflightReport) !void {
@@ -68,20 +75,40 @@ test "unsafe root commands are refused by name" {
 }
 
 test "dry-run controller plan fails closed without gates" {
-    try std.testing.expectError(error.LabGateRequired, controller.buildDryRunPlan(.{
-        .dry_run = true,
-        .lab_gate = false,
-        .target_allowlisted = true,
-        .rollback_snapshot_id = "rollback-001",
-        .audit_id = "audit-001",
-        .operator_confirmed = true,
-    }));
-    try std.testing.expectError(error.DryRunRequired, controller.buildDryRunPlan(.{
+    const safe_config = config.RootConfig{
+        .scheduler_name = "scx_safe",
+        .mutation_profile = true,
+        .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
+    };
+    try std.testing.expectError(error.DryRunRequired, controller.buildScopedDryRunPlan(.{
+        .config = safe_config,
         .dry_run = false,
-        .lab_gate = true,
-        .target_allowlisted = true,
-        .rollback_snapshot_id = "rollback-001",
-        .audit_id = "audit-001",
-        .operator_confirmed = true,
+        .target_cgroup = "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+        .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
+        .rollback_id = "RB-test",
     }));
+    try std.testing.expectError(error.TargetAllowlistRequired, controller.buildScopedDryRunPlan(.{
+        .config = safe_config,
+        .dry_run = true,
+        .target_cgroup = "/sys/fs/cgroup",
+        .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
+        .rollback_id = "RB-test",
+    }));
+    try std.testing.expectError(error.RollbackSnapshotRequired, controller.buildScopedDryRunPlan(.{
+        .config = safe_config,
+        .dry_run = true,
+        .target_cgroup = "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+        .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
+        .rollback_id = "",
+    }));
+}
+
+test "root module pulls imported module tests" {
+    std.testing.refAllDecls(controller);
+    std.testing.refAllDecls(sched_ext);
+    std.testing.refAllDecls(sched_ext.loader);
+    std.testing.refAllDecls(observability);
+    std.testing.refAllDecls(lab);
+    std.testing.refAllDecls(config);
+    std.testing.refAllDecls(audit);
 }

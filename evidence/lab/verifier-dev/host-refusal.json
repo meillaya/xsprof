@@ -1,0 +1,8 @@
+{
+  "host_mutation": false,
+  "object": "zig-out/bpf/zigsched_minimal.bpf.o",
+  "out": "evidence/lab/verifier-dev",
+  "reason": "verifier-only flow requires /run/zig-scheduler-vm-lab.marker inside a disposable VM",
+  "schema": "zig-scheduler/verifier-only-refusal/v1",
+  "status": "refused-host"
+}

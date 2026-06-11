@@ -1,0 +1,18 @@
+{
+  "checklist": {
+    "audit_tampering": true,
+    "bpf_verifier_assumptions": true,
+    "cgroup_escape": true,
+    "config_injection": true,
+    "log_privacy": true,
+    "packaging_defaults": true,
+    "production_claims": true,
+    "rollback_fallback": true,
+    "root_privileges_capabilities": true
+  },
+  "profile": "mutation-capable-lab",
+  "reviewer": "repository-owner-operator",
+  "schema": "zig-scheduler/security-review/v1",
+  "status": "approved",
+  "threat_model_version": "2026-06-11"
+}

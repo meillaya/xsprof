@@ -1,0 +1,23 @@
+{
+  "custom_dsq": "vtime",
+  "duration": "30s",
+  "events_after": "fallback=0 reject=0 watchdog=0",
+  "fifo_phase_present": true,
+  "fifo_phase_source": "bpf_enqueue_branch",
+  "max_wait_ns": 1260027,
+  "nr_rejected_after": "0",
+  "policy": "vtime",
+  "repeated_fallback_or_reject_counters": false,
+  "rollback_success": false,
+  "schema": "zig-scheduler/dsq-policy-smoke-summary/v1",
+  "series": "evidence/lab/dsq-vtime/fairness-series.jsonl",
+  "simulator_evidence_used": false,
+  "starvation_breach": false,
+  "starvation_threshold_ns": 50000000,
+  "status": "PASS",
+  "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/dsq-vtime.scope",
+  "transcript": "evidence/lab/dsq-vtime/dsq-policy-transcript.txt",
+  "vm_kind": "disposable-vm-marker-present",
+  "vtime_phase_present": true,
+  "vtime_phase_source": "bpf_enqueue_branch"
+}

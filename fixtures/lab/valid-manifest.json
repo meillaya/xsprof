@@ -1,0 +1,46 @@
+{
+  "audit_id": "AUD-2026-0001",
+  "audit_record": {
+    "decision": "approved-for-lab",
+    "id": "AUD-2026-0001",
+    "operator": "lab-operator"
+  },
+  "git_sha": "f58efb8a10a8d18eaf05967b15513095ef3f2b79",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "release": "6.12.0-lab"
+  },
+  "lab_tuple": {
+    "image": "sched-ext-lab",
+    "kernel": "6.12.0-lab",
+    "kind": "qemu-vm"
+  },
+  "mutation_evidence_kind": "vm-only",
+  "release_approval": {
+    "approver": "release-guardian",
+    "id": "REL-2026-0001",
+    "status": "lab-only"
+  },
+  "rollback_snapshot": {
+    "created_at": "2026-06-11T00:00:00Z",
+    "enable_seq_after": "42",
+    "enable_seq_before": "42",
+    "id": "RB-2026-0001",
+    "ops_after": "none",
+    "ops_before": "zigsched_minimal",
+    "scope": "allowlisted-cgroup",
+    "state_after": "disabled",
+    "state_before": "enabled"
+  },
+  "rollback_snapshot_id": "RB-2026-0001",
+  "verifier_log_index": {
+    "entries": [
+      {
+        "id": "LOG-2026-0001",
+        "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "summary": "verifier-only sched_ext load rejected before attach"
+      }
+    ]
+  }
+}

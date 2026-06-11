@@ -1,0 +1,14 @@
+{
+  "schema": "zig-scheduler/verifier-only-evidence/v1",
+  "status": "verifier-attempted",
+  "vm_marker": "/run/zig-scheduler-vm-lab.marker",
+  "object_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "verifier_log_path": "evidence/lab/verifier-dev/bpf-verifier.log",
+  "sched_ext_state_before": "enabled",
+  "sched_ext_state_after": "enabled",
+  "enable_seq_before": "42",
+  "enable_seq_after": "42",
+  "cgroup_membership_before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "cgroup_membership_after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "host_mutation": false
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=zig-scheduler read-only preflight reporter
+Documentation=README.md docs/ci.md docs/runbooks/vm-lab.md
+ConditionPathExists=!/etc/zig-scheduler/enable-lab-mutation
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/zig-scheduler preflight --json
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/zig-scheduler/preflight
+
+[Install]
+WantedBy=multi-user.target

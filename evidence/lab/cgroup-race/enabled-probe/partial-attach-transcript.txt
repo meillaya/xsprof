@@ -1,0 +1,17 @@
+schema=zig-scheduler/partial-attach-transcript/v1
+result=REFUSED_STALE_SCOPE
+reason=target cgroup disappeared between dry-run and attach
+target_cgroup=/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope
+rollback_id=RB-demo
+state_before=enabled
+ops_before=zigsched
+enable_seq_before=1
+events_before=none
+membership_before=1b1a58ac103cbb35130cef416f1230ad25d75424cbe4db3691d2a8d0b6d6073d
+state_after_refusal=enabled
+ops_after_refusal=zigsched
+enable_seq_after_refusal=1
+events_after_refusal=none
+membership_after_refusal=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+mutation_attempted=false
+post-state=enabled/unmutated

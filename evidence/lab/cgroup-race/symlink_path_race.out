@@ -1,0 +1,2 @@
+REFUSED_STALE_SCOPE: systemd unit resolved outside allowlisted cgroup subtree
+transcript=evidence/lab/cgroup-race/symlink_path_race/partial-attach-transcript.txt

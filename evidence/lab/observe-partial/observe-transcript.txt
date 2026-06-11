@@ -1,0 +1,8 @@
+schema=zig-scheduler/observe-partial/v1
+samples_requested=3
+target_cgroup=/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope
+workload_pid=1731241
+COMMAND: observe sched_ext state/ops/enable_seq/events/nr_rejected/debug_dump without command-line sampling
+sample=0 state=enabled
+sample=1 state=enabled
+sample=2 state=disabled

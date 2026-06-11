@@ -1,0 +1,14 @@
+[Unit]
+Description=zig-scheduler lab-only sched_ext mutation service (disabled by default)
+Documentation=docs/runbooks/vm-lab.md docs/security/threat-model.md
+ConditionPathExists=/run/zig-scheduler-vm-lab.marker
+ConditionPathExists=/etc/zig-scheduler/enable-lab-mutation
+ConditionPathExists=/var/lib/zig-scheduler/evidence/current/approval.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/zig-scheduler sched-ext attach --lab --partial --target-cgroup /sys/fs/cgroup/zig-scheduler-lab.slice/package.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-package
+NoNewPrivileges=no
+
+[Install]
+# Intentionally no WantedBy: package must not auto-start or auto-enable mutation.

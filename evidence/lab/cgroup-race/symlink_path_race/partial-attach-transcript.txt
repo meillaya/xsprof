@@ -1,0 +1,17 @@
+schema=zig-scheduler/partial-attach-transcript/v1
+result=REFUSED_STALE_SCOPE
+reason=systemd unit resolved outside allowlisted cgroup subtree
+target_cgroup=/sys/fs/cgroup/system.slice/escaped.service
+rollback_id=RB-demo
+state_before=disabled
+ops_before=none
+enable_seq_before=42
+events_before=none
+membership_before=876785731e181603e23e538a06a9ad64cf27ee0b40fde15d3358acc50591a425
+state_after_refusal=disabled
+ops_after_refusal=none
+enable_seq_after_refusal=42
+events_after_refusal=none
+membership_after_refusal=876785731e181603e23e538a06a9ad64cf27ee0b40fde15d3358acc50591a425
+mutation_attempted=false
+post-state=disabled/unmutated

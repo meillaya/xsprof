@@ -1,0 +1,12 @@
+{
+  "audit_id": "AUD-20260611T053131Z-f58efb8-aed074",
+  "audit_ledger": "evidence/lab/rollback-drill/audit-ledger.jsonl",
+  "post_rollback_health": "PASS",
+  "rollback_id": "RB-20260611T053131Z-lab",
+  "rollback_snapshot": "evidence/lab/rollback-drill/AUD-20260611T053131Z-f58efb8-aed074.rollback-snapshot.json",
+  "schema": "zig-scheduler/rollback-drill-summary/v1",
+  "state_restored": "disabled-or-previous",
+  "status": "PASS",
+  "transcript": "evidence/lab/rollback-drill/AUD-20260611T053131Z-f58efb8-aed074.rollback-transcript.txt",
+  "workload_alive": true
+}

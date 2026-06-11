@@ -1,0 +1,14 @@
+{
+  "schema": "zig-scheduler/cgroup-race/v1",
+  "status": "REFUSED_STALE_SCOPE",
+  "post_state": "disabled/unmutated",
+  "host_mutation": false,
+  "cases": [
+    "target_disappeared",
+    "process_membership_changed",
+    "symlink_path_race",
+    "parent_scope_changed",
+    "stale_rollback_id",
+    "systemd_unit_escape"
+  ]
+}

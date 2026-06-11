@@ -1,0 +1,14 @@
+{
+  "schema": "zig-scheduler/lab-smoke/v1",
+  "status": "skip",
+  "reason": "qemu unavailable",
+  "vm_marker": "not-started",
+  "mode": "read-only-smoke",
+  "git_sha": "f58efb8a10a8d18eaf05967b15513095ef3f2b79",
+  "zig_version": "0.16.0",
+  "kernel_release": "unavailable",
+  "arch": "unavailable",
+  "btf_status": "unavailable",
+  "mutation_evidence_kind": "none",
+  "host_mutation": false
+}

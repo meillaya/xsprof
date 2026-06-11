@@ -41,6 +41,23 @@ if zig build run -- controller plan --dry-run >/tmp/zig-scheduler-controller.out
 fi
 grep -Ei 'refus|dry-run|lab gate|audit|no mutation|mutation' /tmp/zig-scheduler-controller.out >/dev/null || fail "controller dry-run refusal missing gate explanation"
 
+
+# root_import_boundary: root Linux operator must not import simulator package or use simulator evidence as Linux proof.
+if grep -RInE '@import\("simulator(/|")|@import\("[^"]*\.\./simulator|\.\./simulator|simulator/src|simulator/build\.zig' src build.zig 2>/dev/null; then
+  fail "root import boundary violated: root source/build imports or builds simulator"
+fi
+if grep -RInE 'kernel-equivalent|kernel equivalent|Linux fidelity|production proof' src README.md docs 2>/dev/null; then
+  fail "root fidelity-proof wording leaked into root"
+fi
+if zig build tui -- --snapshot --screen preflight --width 100 --height 30 | grep -E 'completion_order|Gantt|Task Metrics|simulator metrics' >/dev/null; then
+  fail "root rendered TUI leaked simulator labels"
+fi
+bash qa/wording_audit.sh --self-test >/dev/null
+bash qa/wording_audit.sh --scan-simulator simulator/README.md README.md docs >/dev/null
+if ! grep -RInE 'offline|teaching|deterministic' simulator/README.md 2>/dev/null | grep -Eiq 'offline|teaching|deterministic'; then
+  fail "simulator educational/offline boundary wording missing"
+fi
+
 preflight_screen="$(zig build tui -- --snapshot --screen preflight --width 100 --height 30)"
 printf '%s' "$preflight_screen" | grep -F '╭' >/dev/null || fail "root preflight TUI missing rounded box language"
 printf '%s' "$preflight_screen" | grep -F 'Linux Scheduler Operator' >/dev/null || fail "root preflight TUI missing Linux operator header"

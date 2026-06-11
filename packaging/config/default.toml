@@ -1,0 +1,7 @@
+# zig-scheduler default package config
+mode = "read-only"
+scheduler = "none"
+auto_start_scheduler = false
+mutation_service_enabled = false
+lab_profile_required = true
+evidence_path_required = true

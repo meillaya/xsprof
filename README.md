@@ -1,6 +1,6 @@
 # zig-scheduler
 
-`zig-scheduler` is being re-chartered as a fail-closed Linux scheduler operator project. The root package now focuses on read-only host preflight, dry-run control planning, and lab-gated `sched_ext` readiness work.
+`zig-scheduler` is being re-chartered as a fail-closed Linux scheduler operator project. The root package now focuses on read-only host preflight, dry-run control planning, and lab-gated `sched_ext` readiness work. It is a path-to-production project, not a production-ready scheduler; production claims are blocked until the governance gate in `docs/releases/governance-gate.md` passes with evidence.
 
 The former deterministic simulator is archived as an independently runnable package in [`simulator/`](simulator/):
 

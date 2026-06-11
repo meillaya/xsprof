@@ -1,0 +1,15 @@
+{
+  "kernel": {
+    "release": "6.12.0-lab-ready",
+    "arch": "x86_64"
+  },
+  "sched_ext": {
+    "state": { "status": "present", "value": "enabled" },
+    "enable_seq": { "status": "present", "value": "42" },
+    "switch_all": { "status": "present", "value": "0" },
+    "nr_rejected": { "status": "present", "value": "0" }
+  },
+  "btf": { "status": "present", "value": "/sys/kernel/btf/vmlinux" },
+  "cgroup_v2": { "status": "present", "controllers": "cpu cpuset memory io" },
+  "capabilities": { "status": "present", "effective": "000000ffffffffff" }
+}

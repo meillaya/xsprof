@@ -1,0 +1,8 @@
+{"detail": "unavailable or host-safe surrogate; not run on host", "name": "stress-ng", "status": "skip"}
+{"detail": "unavailable or host-safe surrogate; not run on host", "name": "hackbench", "status": "skip"}
+{"detail": "unavailable or host-safe surrogate; not run on host", "name": "schbench", "status": "skip"}
+{"detail": "4 worker built-in churn completed", "name": "built_in_cpu_process_churn", "status": "pass"}
+{"detail": "simulated controller crash; rollback path retained state facts", "name": "forced_controller_crash", "status": "pass"}
+{"detail": "simulated session loss; cleanup trap and rollback summary persisted", "name": "lost_ssh_session", "status": "pass"}
+{"detail": "simulated verifier rejection before attach; no root cgroup mutation", "name": "forced_verifier_rejection", "status": "pass"}
+{"detail": "SysRq-S unavailable or not VM-opted-in", "name": "sysrq_s", "status": "skip"}

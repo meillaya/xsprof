@@ -1,0 +1,19 @@
+{
+  "audit_id": "AUD-20990101T000000Z-deadbee-ab1234",
+  "created_at": "2026-06-11T05:29:19Z",
+  "enable_seq_after": "42",
+  "enable_seq_before": "42",
+  "events_after": "fallback complete",
+  "events_before": "attached",
+  "id": "RB-20260611T052919Z-lab",
+  "ops_after": "zigsched_minimal",
+  "ops_before": "zigsched_minimal",
+  "rollback_id": "RB-20260611T052919Z-lab",
+  "schema": "zig-scheduler/rollback-snapshot/v1",
+  "scope": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+  "secret_redaction": "no-env-dump-no-command-lines",
+  "state_after": "enabled",
+  "state_before": "enabled",
+  "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+  "workload_alive": true
+}

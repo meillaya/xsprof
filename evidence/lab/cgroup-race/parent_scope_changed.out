@@ -1,0 +1,2 @@
+REFUSED_STALE_SCOPE: parent scope changed after dry-run
+transcript=evidence/lab/cgroup-race/parent_scope_changed/partial-attach-transcript.txt

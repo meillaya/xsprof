@@ -1,0 +1,133 @@
+const std = @import("std");
+
+pub const SnapshotModel = struct {
+    kernel_release: []const u8,
+    arch: []const u8,
+    cgroup_status: []const u8,
+    cgroup_controllers: []const u8,
+    capabilities: []const u8,
+    sched_state: []const u8,
+    sched_enable_seq: []const u8,
+    sched_switch_all: []const u8,
+    sched_nr_rejected: []const u8,
+    btf_status: []const u8,
+    lab_status: []const u8 = "read-only",
+    partial_status: []const u8 = "partial switch required",
+    rollback_requirement: []const u8 = "rollback-required before attach",
+    post_rollback_health: []const u8 = "required",
+    state_restored: []const u8 = "read-only",
+    workload_liveness: []const u8 = "not-started",
+    audit_id: []const u8 = "required",
+    rollback_id: []const u8 = "required",
+    lab_gate: []const u8 = "missing",
+    fixture_warning: []const u8 = "",
+};
+
+const TextFactJson = struct {
+    status: []const u8,
+    value: []const u8 = "",
+};
+
+const KernelJson = struct {
+    release: []const u8 = "fixture-lab",
+    arch: []const u8 = "x86_64",
+};
+
+const SchedExtJson = struct {
+    state: TextFactJson = .{ .status = "disabled" },
+    enable_seq: TextFactJson = .{ .status = "unavailable" },
+    switch_all: TextFactJson = .{ .status = "partial" },
+    nr_rejected: TextFactJson = .{ .status = "0" },
+};
+
+const BtfJson = struct {
+    status: []const u8 = "fixture",
+};
+
+const CgroupJson = struct {
+    status: []const u8 = "fixture",
+    controllers: []const u8 = "",
+};
+
+const CapabilityJson = struct {
+    effective: []const u8 = "",
+};
+
+pub const PreflightFixture = struct {
+    kernel: KernelJson = .{},
+    sched_ext: SchedExtJson = .{},
+    btf: BtfJson = .{},
+    cgroup_v2: CgroupJson = .{},
+    capabilities: CapabilityJson = .{},
+    schema: []const u8 = "",
+    status: []const u8 = "",
+    audit_id: []const u8 = "required",
+    rollback_id: []const u8 = "required",
+    post_rollback_health: []const u8 = "required",
+    state_restored: []const u8 = "read-only",
+    workload_alive: bool = false,
+    rollback_snapshot: []const u8 = "",
+    transcript: []const u8 = "",
+};
+
+pub fn load(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(PreflightFixture) {
+    const source = try std.Io.Dir.cwd().readFileAlloc(std.Io.Threaded.global_single_threaded.io(), path, allocator, .unlimited);
+    defer allocator.free(source);
+    return std.json.parseFromSlice(PreflightFixture, allocator, source, .{
+        .allocate = .alloc_always,
+        .ignore_unknown_fields = true,
+    });
+}
+
+pub fn model(value: PreflightFixture) SnapshotModel {
+    return .{
+        .kernel_release = value.kernel.release,
+        .arch = value.kernel.arch,
+        .cgroup_status = value.cgroup_v2.status,
+        .cgroup_controllers = value.cgroup_v2.controllers,
+        .capabilities = value.capabilities.effective,
+        .sched_state = factText(value.sched_ext.state),
+        .sched_enable_seq = factText(value.sched_ext.enable_seq),
+        .sched_switch_all = factText(value.sched_ext.switch_all),
+        .sched_nr_rejected = factText(value.sched_ext.nr_rejected),
+        .btf_status = value.btf.status,
+        .lab_status = labStatus(value),
+        .partial_status = partialStatus(value),
+        .rollback_requirement = rollbackRequirement(value),
+        .post_rollback_health = value.post_rollback_health,
+        .state_restored = value.state_restored,
+        .workload_liveness = if (value.workload_alive) "alive" else "not-started",
+        .audit_id = value.audit_id,
+        .rollback_id = value.rollback_id,
+        .lab_gate = if (isRollbackSummary(value)) "rollback evidence present" else "missing",
+        .fixture_warning = "FIXTURE deterministic host facts; do not infer live support",
+    };
+}
+
+fn factText(fact: TextFactJson) []const u8 {
+    if (fact.value.len == 0) return fact.status;
+    return fact.value;
+}
+
+fn isRollbackSummary(value: PreflightFixture) bool {
+    return std.mem.eql(u8, value.schema, "zig-scheduler/rollback-drill-summary/v1");
+}
+
+fn labStatus(value: PreflightFixture) []const u8 {
+    if (!isRollbackSummary(value)) return "read-only";
+    if (std.mem.eql(u8, value.status, "PASS")) return "fallback-fired";
+    if (std.mem.eql(u8, value.status, "REJECTED")) return "rejected";
+    return value.status;
+}
+
+fn partialStatus(value: PreflightFixture) []const u8 {
+    if (isRollbackSummary(value)) return "attached-partial observed";
+    return "verifier-ready pending";
+}
+
+fn rollbackRequirement(value: PreflightFixture) []const u8 {
+    if (isRollbackSummary(value) and std.mem.eql(u8, value.post_rollback_health, "PASS")) {
+        return "rollback-required cleared";
+    }
+    return "rollback-required";
+}

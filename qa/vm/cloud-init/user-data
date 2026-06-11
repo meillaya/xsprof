@@ -1,0 +1,5 @@
+#cloud-config
+package_update: false
+package_upgrade: false
+runcmd:
+  - [ sh, -lc, 'printf "zig-scheduler VM-only read-only smoke\n" > /var/tmp/zig-scheduler-lab-marker' ]

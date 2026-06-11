@@ -1,0 +1,12 @@
+{
+  "audit_id": "AUD-20990101T000000Z-deadbee-ab1234",
+  "audit_ledger": "evidence/lab/adversarial-t22-20260611T053049/previous/audit-ledger.jsonl",
+  "post_rollback_health": "PASS",
+  "rollback_id": "RB-20260611T053050Z-lab",
+  "rollback_snapshot": "evidence/lab/adversarial-t22-20260611T053049/previous/AUD-20990101T000000Z-deadbee-ab1234.rollback-snapshot.json",
+  "schema": "zig-scheduler/rollback-drill-summary/v1",
+  "state_restored": "disabled-or-previous",
+  "status": "PASS",
+  "transcript": "evidence/lab/adversarial-t22-20260611T053049/previous/AUD-20990101T000000Z-deadbee-ab1234.rollback-transcript.txt",
+  "workload_alive": true
+}
