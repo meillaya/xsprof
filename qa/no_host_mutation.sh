@@ -15,9 +15,14 @@ have_strace() {
 
 trace_contains_denied_mutation() {
   local trace_file="$1"
-  grep -En 'bpf\(BPF_(PROG_LOAD|LINK_CREATE)|sched_set(affinity|scheduler)\(' "$trace_file" || true
-  grep -En '"[^"]*(/proc/sys|/sys|/sys/fs/cgroup|cpuset|cgroup\.(procs|threads|subtree_control))[^"]*"[^\n]*(O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND|flags=[^,}]*(O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND))' "$trace_file" || true
-  grep -En '(creat|mkdir|mkdirat|unlink|unlinkat|rename|renameat|renameat2|chmod|fchmodat)\([^\n]*"[^"]*(/proc/sys|/sys|/sys/fs/cgroup|cpuset|cgroup\.(procs|threads|subtree_control))[^"]*"' "$trace_file" || true
+  {
+    grep -En 'bpf\(BPF_(PROG_LOAD|LINK_CREATE)|sched_set(affinity|scheduler)\(|(setpriority|ioprio_set)\(' "$trace_file" || true
+    grep -En '"[^"]*((/proc/sys|/sys)(/|")|cpuset|cgroup\.(procs|threads|subtree_control))[^"]*"[^\n]*(O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND|flags=[^,}]*(O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND))' "$trace_file" || true
+    grep -En '(creat|mkdir|mkdirat|unlink|unlinkat|rename|renameat|renameat2|chmod|fchmodat)\([^\n]*"[^"]*((/proc/sys|/sys)(/|")|cpuset|cgroup\.(procs|threads|subtree_control))[^"]*"' "$trace_file" || true
+  } | awk '
+    /\/tmp\/zigsched-/ && $0 !~ /"\/(sys|proc\/sys)(\/|")/ && $0 !~ /<\/(sys|proc\/sys)(\/|>)/ { next }
+    { print }
+  ' || true
 }
 
 assert_trace_clean() {
@@ -38,8 +43,8 @@ run_command() {
   if have_strace; then
     local trace_file
     trace_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.XXXXXX")"
-    if ! strace -f -qq -s 256 \
-      -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler \
+    if ! strace -f -qq -yy -s 256 \
+      -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler,setpriority,ioprio_set \
       -o "$trace_file" -- "$@" >/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out 2>&1; then
       cat "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out" >&2 || true
       rm -f "$trace_file" "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
@@ -74,8 +79,8 @@ run_refusal_command() {
   if have_strace; then
     local trace_file
     trace_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.trace.XXXXXX")"
-    strace -f -qq -s 256 \
-      -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler \
+    strace -f -qq -yy -s 256 \
+      -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler,setpriority,ioprio_set \
       -o "$trace_file" -- "$@" >"$out" 2>&1
     rc=$?
     set -e
@@ -137,6 +142,44 @@ sched_setscheduler(1234, SCHED_FIFO, [1]) = 0
 TRACE
   assert_trace_rejected self-test-denied-scheduler "$tmp/denied-scheduler.trace"
 
+  cat >"$tmp/denied-priority.trace" <<'TRACE'
+setpriority(PRIO_PROCESS, 1234, -10) = 0
+ioprio_set(IOPRIO_WHO_PROCESS, 1234, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0)) = 0
+TRACE
+  assert_trace_rejected self-test-denied-priority "$tmp/denied-priority.trace"
+
+  cat >"$tmp/denied-host-cgroup.trace" <<'TRACE'
+openat(AT_FDCWD, "/sys/fs/cgroup/cgroup.procs", O_WRONLY|O_CLOEXEC) = 3
+TRACE
+  assert_trace_rejected self-test-denied-host-cgroup "$tmp/denied-host-cgroup.trace"
+
+  cat >"$tmp/surrogate-cgroup.trace" <<'TRACE'
+openat(AT_FDCWD, "/tmp/zigsched-rollback.abc/sys/fs/cgroup/cgroup.procs", O_WRONLY|O_CLOEXEC) = 3
+unlinkat(9</tmp/zigsched-cgroup-race.abc/sys/fs/cgroup>, "cgroup.procs", 0) = 0
+TRACE
+  assert_trace_clean self-test-surrogate-cgroup "$tmp/surrogate-cgroup.trace"
+
+  cat >"$tmp/mixed-evidence-host-sys.trace" <<'TRACE'
+renameat2(AT_FDCWD, "/sys/fs/cgroup/cgroup.procs", AT_FDCWD, "evidence/lab/run-all/no-host-mutation/leak", 0) = -1 EXDEV (Invalid cross-device link)
+TRACE
+  assert_trace_rejected self-test-mixed-evidence-host-sys "$tmp/mixed-evidence-host-sys.trace"
+
+  cat >"$tmp/mixed-zigsched-host-sys.trace" <<'TRACE'
+renameat2(AT_FDCWD, "/sys/fs/cgroup/cgroup.procs", AT_FDCWD, "/tmp/zigsched-mixed/leak", 0) = -1 EXDEV (Invalid cross-device link)
+TRACE
+  assert_trace_rejected self-test-mixed-zigsched-host-sys "$tmp/mixed-zigsched-host-sys.trace"
+
+  cat >"$tmp/mixed-zigsched-host-fd.trace" <<'TRACE'
+unlinkat(9</sys/fs/cgroup>, "/tmp/zigsched-mixed/cgroup.procs", 0) = -1 EPERM (Operation not permitted)
+TRACE
+  assert_trace_rejected self-test-mixed-zigsched-host-fd "$tmp/mixed-zigsched-host-fd.trace"
+
+  cat >"$tmp/evidence-systemd-path.trace" <<'TRACE'
+openat(AT_FDCWD, "evidence/lab/run-all/no-host-mutation/cgroup-race/systemd_unit_escape.out", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
+unlinkat(AT_FDCWD, "evidence/lab/run-all/no-host-mutation/cgroup-race/systemd_unit_escape", 0) = -1 ENOENT (No such file or directory)
+TRACE
+  assert_trace_clean self-test-evidence-systemd-path "$tmp/evidence-systemd-path.trace"
+
   if have_strace; then
     mkdir -p "$tmp/sys/fs/cgroup"
     set +e
@@ -170,6 +213,12 @@ main() {
   run_command linux-preflight-json zig build linux-preflight -- --json
   run_command root-preflight-json zig build run -- preflight --json
   run_command sched-ext-preflight-json zig build run -- sched-ext preflight --json
+  rm -rf evidence/lab/run-all/no-host-mutation
+  run_command lab-run-all-host-safe bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/no-host-mutation --release-version 0.1.0-lab-runall
+  if [ ! -f evidence/lab/run-all/no-host-mutation/summary.json ]; then
+    fail 'lab run-all host-safe summary missing from no-host audit'
+  fi
+  python3 -c 'import json; from pathlib import Path; summary=json.loads(Path("evidence/lab/run-all/no-host-mutation/summary.json").read_text()); assert summary.get("host_mutation") is False; print("run_all_host_safe_summary=evidence/lab/run-all/no-host-mutation/summary.json")'
 
   for verb in load attach enable mutate apply; do
     run_refusal_command "refuse-$verb" zig build run -- "$verb"
