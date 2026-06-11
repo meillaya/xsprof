@@ -26,7 +26,7 @@
     "evidence/releases/0.1.0-lab/governance-gate.md",
     "evidence/releases/0.1.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "8636f524a4735aa2d97602b2b314cdc4cf094dd4",
+  "git_sha": "a790b33dc209ff9c0e267c49dbf4521d36e66c2f",
   "historical": true,
   "historical_reason": "archived 0.1.0-lab approval retained as historical evidence, not current release eligibility",
   "owner": "repository-owner-operator",
