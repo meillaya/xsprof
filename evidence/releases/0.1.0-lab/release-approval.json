@@ -23,7 +23,7 @@
     "evidence/releases/0.1.0-lab/package-mutation-service.service",
     "evidence/releases/0.1.0-lab/governance-gate.md"
   ],
-  "git_sha": "f58efb8a10a8d18eaf05967b15513095ef3f2b79",
+  "git_sha": "40559429c7c708fbabe080da5b67e55b4c382027",
   "owner": "repository-owner-operator",
   "production_ready": false,
   "reviewer": "repository-owner-operator",

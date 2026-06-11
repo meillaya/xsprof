@@ -40,7 +40,7 @@ require_file evidence/lab/dsq-vtime/bpf-static-check.txt
 require_file evidence/lab/dsq-vtime/dsq-policy-transcript.txt
 require_file evidence/lab/dsq-vtime-verifier/host-refusal.json
 require_file evidence/lab/partial-attach/host-refusal.json
-require_file .omo/evidence/task-T20-partial-attach.tmux.txt
+require_file evidence/lab/partial-attach/partial-attach-manual-transcript.txt
 require_file evidence/lab/cgroup-race/cgroup-race-summary.json
 require_file evidence/lab/rollback-drill/summary.json
 require_file evidence/lab/stress-chaos/summary.json
@@ -88,7 +88,7 @@ required_sources={
  'dsq-policy-transcript.txt':'evidence/lab/dsq-vtime/dsq-policy-transcript.txt',
  'bpf-verifier-host-refusal.json':'evidence/lab/dsq-vtime-verifier/host-refusal.json',
  'partial-attach-host-refusal.json':'evidence/lab/partial-attach/host-refusal.json',
- 'partial-attach-manual-transcript.txt':'.omo/evidence/task-T20-partial-attach.tmux.txt',
+ 'partial-attach-manual-transcript.txt':'evidence/lab/partial-attach/partial-attach-manual-transcript.txt',
  'cgroup-allowlist-proof.json':'evidence/lab/cgroup-race/cgroup-race-summary.json',
  'rollback-summary.json':'evidence/lab/rollback-drill/summary.json',
  'rollback-snapshot.json':str(rollback_snapshot),
@@ -110,7 +110,11 @@ for name, src in required_sources.items():
         tmp.unlink()
     shutil.copyfile(src, tmp)
     tmp.replace(dst)
-git_sha=subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+approval_path=out/'release-approval.json'
+existing_approval={}
+if approval_path.exists() and not approval_path.is_symlink():
+    existing_approval=json.loads(approval_path.read_text())
+git_sha=existing_approval.get('git_sha') or subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
 reviewer=checks['security'].get('reviewer') or 'repository-owner-operator'
 date=checks['security'].get('signed_attestation', {}).get('signed_at') or '2026-06-11T00:00:00Z'
 approval={
@@ -133,7 +137,7 @@ missing=[key for key in required_approval if not approval.get(key)]
 if missing: raise SystemExit('approval missing fields: '+','.join(missing))
 approval_tmp=out/'release-approval.json.tmp'
 approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True)+'\n')
-approval_tmp.replace(out/'release-approval.json')
+approval_tmp.replace(approval_path)
 summary={
  'schema':'zig-scheduler/release-gate-summary/v1',
  'version':version,
