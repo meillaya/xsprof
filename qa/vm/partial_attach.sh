@@ -176,8 +176,6 @@ if [ ! -f "$(host_path "$vm_marker")" ]; then
   exit 0
 fi
 
-[ -f "$object_file" ] || fail "BPF object not found: $object_file"
-
 target_path="$(host_path "$target")"
 procs_path="$target_path/cgroup.procs"
 parent_cgroup="${target%/*}"
@@ -289,6 +287,8 @@ current_membership="$(membership_digest_file "$procs_path")"
 [ "$parent_cgroup" = "$initial_parent" ] || refuse_stale_scope 'parent scope changed after dry-run'
 [ "$current_membership" = "$initial_membership" ] || refuse_stale_scope 'process membership changed unexpectedly'
 [ "$rollback_id" = "$initial_rollback" ] || refuse_stale_scope 'rollback id no longer matches current plan'
+
+[ -f "$object_file" ] || fail "BPF object not found: $object_file"
 
 if [ -z "$approval_file" ]; then
   json_refusal APPROVAL_MISSING 'partial attach requires signed release approval before any cgroup, bpftool, or sched_ext mutation'
