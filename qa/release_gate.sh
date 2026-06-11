@@ -86,9 +86,11 @@ link_hit="$(find "$evidence_dir" -type l -print -quit 2>/dev/null || true)"
 [ -z "$link_hit" ] || fail "release output contains symlink: $link_hit"
 missing=0
 require_file() { if [ ! -f "$1" ]; then printf 'MISSING: %s\n' "$1"; missing=1; fi; }
+zig build bpf --summary all >/dev/null
 require_file fixtures/lab/supported-tuples.json
 require_file evidence/lab/dsq-vtime/summary.json
 require_file evidence/lab/dsq-vtime/bpf-static-check.txt
+require_file zig-out/bpf/zigsched_minimal.bpf.meta.json
 require_file evidence/lab/dsq-vtime/dsq-policy-transcript.txt
 require_file evidence/lab/dsq-vtime-verifier/host-refusal.json
 require_file evidence/lab/partial-attach/host-refusal.json
@@ -119,6 +121,7 @@ checks['stress'] = json.loads(Path('evidence/lab/stress-chaos/summary.json').rea
 checks['security'] = json.loads(Path('fixtures/lab/security-review-approved.json').read_text())
 checks['partial_refusal'] = json.loads(Path('evidence/lab/partial-attach/host-refusal.json').read_text())
 checks['verifier_refusal'] = json.loads(Path('evidence/lab/dsq-vtime-verifier/host-refusal.json').read_text())
+checks['bpf_metadata'] = json.loads(Path('zig-out/bpf/zigsched_minimal.bpf.meta.json').read_text())
 if checks['dsq'].get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
 if checks['dsq'].get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
 if checks['dsq'].get('simulator_evidence_used') is not False: raise SystemExit('dsq uses simulator evidence')
@@ -131,6 +134,9 @@ if checks['stress'].get('root_cgroup_attach') is not False: raise SystemExit('ro
 if checks['security'].get('status') != 'approved': raise SystemExit('security not approved')
 if checks['partial_refusal'].get('host_mutation') is not False: raise SystemExit('partial host refusal missing no-mutation proof')
 if checks['verifier_refusal'].get('host_mutation') is not False: raise SystemExit('verifier host refusal missing no-mutation proof')
+if checks['bpf_metadata'].get('status') != 'built': raise SystemExit('BPF metadata is not a built object')
+if checks['bpf_metadata'].get('object_sha256') in (None, ''): raise SystemExit('BPF metadata missing object sha')
+if checks['bpf_metadata'].get('verification_claimed') is not False: raise SystemExit('BPF metadata must not claim verifier success')
 rollback_snapshot = checks['rollback'].get('rollback_snapshot')
 rollback_transcript = checks['rollback'].get('transcript')
 if not rollback_snapshot or not Path(rollback_snapshot).is_file(): raise SystemExit('rollback snapshot missing')
@@ -139,6 +145,7 @@ required_sources = {
  'supported-tuples.json': 'fixtures/lab/supported-tuples.json',
  'dsq-summary.json': 'evidence/lab/dsq-vtime/summary.json',
  'bpf-static-check.txt': 'evidence/lab/dsq-vtime/bpf-static-check.txt',
+ 'bpf-object-metadata.json': 'zig-out/bpf/zigsched_minimal.bpf.meta.json',
  'dsq-policy-transcript.txt': 'evidence/lab/dsq-vtime/dsq-policy-transcript.txt',
  'bpf-verifier-host-refusal.json': 'evidence/lab/dsq-vtime-verifier/host-refusal.json',
  'partial-attach-host-refusal.json': 'evidence/lab/partial-attach/host-refusal.json',

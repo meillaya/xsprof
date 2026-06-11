@@ -7,6 +7,8 @@ cd "$repo_root"
 source_file="bpf/zigsched_minimal.bpf.c"
 header_file="bpf/include/zigsched_common.h"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
+meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
+skip_json="zig-out/bpf/zigsched_minimal.bpf.skip.json"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -69,6 +71,26 @@ fi
 zig build bpf --summary all
 if [ -f "$object_file" ]; then
   file "$object_file" | grep -q 'eBPF' || fail 'object is not an eBPF ELF'
+  [ -f "$meta_file" ] || fail 'BPF metadata JSON missing for built object'
+  python3 - "$meta_file" "$object_file" <<'PY' || fail 'BPF metadata JSON invalid'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+meta = json.loads(Path(sys.argv[1]).read_text())
+object_path = Path(sys.argv[2])
+if meta.get("schema") != "zig-scheduler/bpf-object-metadata/v1":
+    raise SystemExit("bad metadata schema")
+if meta.get("status") != "built":
+    raise SystemExit("metadata status is not built")
+if meta.get("object_sha256") != hashlib.sha256(object_path.read_bytes()).hexdigest():
+    raise SystemExit("metadata object sha mismatch")
+if meta.get("expected_verifier_object") != str(object_path.resolve()):
+    raise SystemExit("metadata expected verifier object mismatch")
+if meta.get("verification_claimed") is not False:
+    raise SystemExit("metadata must not claim verification")
+PY
   if command -v llvm-objdump >/dev/null 2>&1; then
     llvm-objdump -h "$object_file" | grep -q 'struct_ops' || fail 'object missing struct_ops section'
   elif command -v readelf >/dev/null 2>&1; then
@@ -76,6 +98,24 @@ if [ -f "$object_file" ]; then
   fi
 elif [ -f zig-out/bpf/zigsched_minimal.bpf.skip.txt ]; then
   grep -q '^SKIP:' zig-out/bpf/zigsched_minimal.bpf.skip.txt || fail 'invalid skip artifact'
+  [ -f "$skip_json" ] || fail 'BPF skip JSON missing'
+  python3 - "$skip_json" <<'PY' || fail 'BPF skip JSON invalid'
+import json
+import sys
+from pathlib import Path
+
+skip = json.loads(Path(sys.argv[1]).read_text())
+if skip.get("schema") != "zig-scheduler/bpf-build-skip/v1":
+    raise SystemExit("bad skip schema")
+if skip.get("status") != "SKIP":
+    raise SystemExit("bad skip status")
+if not skip.get("reason"):
+    raise SystemExit("skip reason missing")
+if skip.get("expected_verifier_object") is not None:
+    raise SystemExit("skip must not provide verifier object")
+if skip.get("verification_claimed") is not False:
+    raise SystemExit("skip must not claim verification")
+PY
 else
   fail 'neither BPF object nor skip artifact exists'
 fi

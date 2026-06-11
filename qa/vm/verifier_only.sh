@@ -51,6 +51,8 @@ refusal_json="$out_dir/host-refusal.json"
 verifier_log="$out_dir/bpf-verifier.log"
 evidence_json="$out_dir/verifier-evidence.json"
 parsed_json="$out_dir/verifier-parsed.json"
+metadata_file="${object_file%.o}.meta.json"
+skip_json="${object_file%.o}.skip.json"
 
 json_write_refusal() {
   local reason="$1"
@@ -74,7 +76,13 @@ if [ ! -f /run/zig-scheduler-vm-lab.marker ]; then
   exit 0
 fi
 
-[ -f "$object_file" ] || fail "BPF object not found: $object_file"
+if [ ! -f "$object_file" ]; then
+  if [ -f "$skip_json" ]; then
+    fail "BPF object build was skipped; verifier-only flow cannot claim verification: $skip_json"
+  fi
+  fail "BPF object not found: $object_file"
+fi
+[ -f "$metadata_file" ] || fail "BPF object metadata not found: $metadata_file"
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -114,6 +122,14 @@ state_before="$(read_fact /sys/kernel/sched_ext/state)"
 enable_seq_before="$(read_fact /sys/kernel/sched_ext/enable_seq)"
 cgroup_before="$(cgroup_membership_digest)"
 object_sha="$(sha256_file "$object_file")"
+metadata_sha="$(python3 - "$metadata_file" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get("object_sha256", ""))
+PY
+)"
+[ -n "$metadata_sha" ] || fail "BPF metadata missing object_sha256: $metadata_file"
+[ "$metadata_sha" = "$object_sha" ] || fail "BPF object sha does not match metadata"
 status="skip"
 load_rc=0
 pin_path="/sys/fs/bpf/zigsched_verifier_probe_$$"
@@ -123,6 +139,8 @@ pin_path="/sys/fs/bpf/zigsched_verifier_probe_$$"
   printf 'vm_marker=/run/zig-scheduler-vm-lab.marker\n'
   printf 'object=%s\n' "$object_file"
   printf 'object_sha256=%s\n' "$object_sha"
+  printf 'bpf_metadata_path=%s\n' "$metadata_file"
+  printf 'bpf_metadata_object_sha256=%s\n' "$metadata_sha"
   printf 'sched_ext_state_before=%s\n' "$state_before"
   printf 'sched_ext_enable_seq_before=%s\n' "$enable_seq_before"
   if ! command -v bpftool >/dev/null 2>&1; then
@@ -171,7 +189,7 @@ if [ "$parser_rc" -ne 0 ]; then
   exit "$parser_rc"
 fi
 
-STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
+STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
 STATE_BEFORE="$state_before" STATE_AFTER="$state_after" ENABLE_BEFORE="$enable_seq_before" ENABLE_AFTER="$enable_seq_after" \
 CGROUP_BEFORE="$cgroup_before" CGROUP_AFTER="$cgroup_after" python3 - <<'PY' > "$evidence_json"
 import json, os
@@ -181,6 +199,8 @@ print(json.dumps({
     "vm_marker": "/run/zig-scheduler-vm-lab.marker",
     "object": os.environ["OBJECT_FILE"],
     "object_sha256": os.environ["OBJECT_SHA"],
+    "bpf_metadata_path": os.environ["METADATA_FILE"],
+    "bpf_metadata_object_sha256": os.environ["METADATA_SHA"],
     "verifier_log_path": os.environ["VERIFIER_LOG"],
     "verifier_parse_path": os.environ["PARSED_JSON"],
     "sched_ext_state_before": os.environ["STATE_BEFORE"],
