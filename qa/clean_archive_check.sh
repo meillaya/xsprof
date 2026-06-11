@@ -53,7 +53,7 @@ require_file 'wording_audit' "$archive_dir/qa/wording_audit.sh"
 
 (
   cd "$archive_dir"
-  bash qa/wording_audit.sh >/tmp/zig-scheduler-clean-archive-wording.$$.out
+  ZIG_SCHEDULER_GOVERNANCE_ARCHIVE_OK=1 bash qa/wording_audit.sh >/tmp/zig-scheduler-clean-archive-wording.$$.out
 )
 pass 'wording_audit passes in git archive extraction'
 rm -f /tmp/zig-scheduler-clean-archive-wording.$$.out

@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T03",
+  "generated_for": "next-linux-scheduler-maturity T04",
   "schema_version": 1,
   "sources": [
     {
@@ -18,25 +18,31 @@
       "path": "qa/clean_archive_check.sh",
       "purpose": "clean archive and fresh clone reproducibility gate",
       "required": true,
-      "sha256": "9a5493e00ff89af13cd8413e6e1d370d9135b6afbff865c361807c41aef4fb72"
+      "sha256": "d8f0e0b374953d2879ee92bb0dec7bcd013edf2dd34568ff99d815cbcbdb298b"
+    },
+    {
+      "path": "qa/governance_manifest_check.py",
+      "purpose": "governance manifest schema and tracked-source validator",
+      "required": true,
+      "sha256": "1ea12feeda581088a5e31d57bffba4ced629d380c3104eb2f2fff24bc787ac1e"
     },
     {
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "42a357f8318d2dd080f6da8426a16c98436732bcac9693bd3953ecb0d98ec571"
+      "sha256": "df91c6fb1b0c6d9e85b3c875cc4eeb5b36890923d750abaec51c78567504d70f"
     },
     {
       "path": "qa/security_gate.sh",
       "purpose": "security profile gate consumed by governance checks",
       "required": true,
-      "sha256": "e9d27cd60e7bc9b1902bf9ca80197da51ba918cbb1fcb53e435cc0bbb726bdd8"
+      "sha256": "9d2df10092712c0a8f1a2db4a42228df14ca1da611de5aa80b5e1f33c502c4c6"
     },
     {
       "path": "qa/wording_audit.sh",
       "purpose": "wording and production-claim audit gate",
       "required": true,
-      "sha256": "af28e985f3a86cb8cfe1f07c6a25182de58e51eb50b5e3ca501fece93e73c142"
+      "sha256": "9a6201a37938e416be68013871c99b160f1f22c41dd528a4a67705d31dae66a8"
     },
     {
       "path": "packaging/systemd/zig-scheduler-lab-mutation.service",

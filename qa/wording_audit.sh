@@ -8,6 +8,10 @@ fail() {
   exit 1
 }
 
+validate_governance_manifest() {
+  (cd "$root" && python3 "$root/qa/governance_manifest_check.py" --manifest "$root/fixtures/lab/governance-sources.json") || fail 'missing tracked governance source: governance manifest validation failed'
+}
+
 require_paths() {
   local path
   for path in "$@"; do
@@ -128,6 +132,8 @@ print_context() {
   sed 's/^/status: /' "$status_file"
   rm -f "$status_file"
 }
+
+validate_governance_manifest
 
 if [ "${1:-}" = "--scan-production" ]; then
   shift

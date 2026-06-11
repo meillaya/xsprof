@@ -11,12 +11,24 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 from typing import Final, NotRequired, TypedDict
 
 
 SCHEMA_VERSION: Final[int] = 1
+REQUIRED_SOURCE_PATHS: Final[tuple[str, ...]] = (
+    "AGENTS.md",
+    "WORKLOG.md",
+    "docs/security/threat-model.md",
+    "docs/releases/governance-gate.md",
+    "qa/clean_archive_check.sh",
+    "qa/governance_manifest_check.py",
+    "qa/release_gate.sh",
+    "qa/security_gate.sh",
+    "qa/wording_audit.sh",
+)
 
 
 class SourceJson(TypedDict):
@@ -91,6 +103,10 @@ def parse_manifest(path: Path) -> list[Source]:
         if not isinstance(digest, str) or len(digest) != 64:
             raise ManifestError(f"source[{path_value}] has invalid sha256")
         parsed.append(Source(Path(path_value), purpose, required, digest))
+    paths = {source.path.as_posix() for source in parsed}
+    for required_path in REQUIRED_SOURCE_PATHS:
+        if required_path not in paths:
+            raise ManifestError(f"missing tracked governance source manifest entry: {required_path}")
     return parsed
 
 
@@ -118,18 +134,22 @@ def git_check_ignore(path: Path) -> bool:
     return result.returncode == 0
 
 
+def archive_mode_allowed() -> bool:
+    return os.environ.get("ZIG_SCHEDULER_GOVERNANCE_ARCHIVE_OK") == "1"
+
+
 def validate_sources(sources: list[Source]) -> None:
-    tracked = git_tracked_files()
+    tracked: set[str] = set() if archive_mode_allowed() else git_tracked_files()
     for source in sources:
         path_text = source.path.as_posix()
-        if source.required and path_text not in tracked:
+        if source.required and not archive_mode_allowed() and path_text not in tracked:
             raise ManifestError(f"missing tracked governance source: {path_text}")
-        if source.required and git_check_ignore(source.path):
-            raise ManifestError(f"required governance source is ignored: {path_text}")
+        if source.required and not archive_mode_allowed() and git_check_ignore(source.path):
+            raise ManifestError(f"missing tracked governance source (ignored): {path_text}")
         try:
             content = source.path.read_bytes()
         except FileNotFoundError as exc:
-            raise ManifestError(f"missing governance source file: {path_text}") from exc
+            raise ManifestError(f"missing tracked governance source: {path_text}") from exc
         actual = sha256(content).hexdigest()
         if actual != source.digest:
             raise ManifestError(f"governance source hash mismatch: {path_text}")

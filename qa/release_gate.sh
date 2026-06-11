@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
 version=""
 evidence_dir=""
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+validate_governance_manifest() {
+  python3 "$repo_root/qa/governance_manifest_check.py" --manifest "$repo_root/fixtures/lab/governance-sources.json" || fail 'missing tracked governance source: governance manifest validation failed'
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --version) [ "$#" -ge 2 ] || fail '--version requires value'; version="$2"; shift 2 ;;
@@ -12,6 +18,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$version" ] || fail '--version is required'
+validate_governance_manifest
 [ -n "$evidence_dir" ] || fail '--evidence is required'
 case "$version$evidence_dir" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$version" in *-lab) ;; *) fail 'version must be lab candidate suffix, e.g. 0.1.0-lab' ;; esac

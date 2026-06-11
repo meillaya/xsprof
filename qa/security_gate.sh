@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
 profile=""
 review_artifact=""
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+validate_governance_manifest() {
+  python3 "$repo_root/qa/governance_manifest_check.py" --manifest "$repo_root/fixtures/lab/governance-sources.json" || fail 'missing tracked governance source: governance manifest validation failed'
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --profile) [ "$#" -ge 2 ] || fail '--profile requires value'; profile="$2"; shift 2 ;;
@@ -12,6 +18,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$profile" ] || fail '--profile is required'
+validate_governance_manifest
 case "$profile$review_artifact" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 [ -f docs/security/threat-model.md ] || fail 'threat model missing'
 [ -f docs/security/review-checklist.md ] || fail 'review checklist missing'
