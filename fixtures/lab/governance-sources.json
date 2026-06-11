@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T25",
+  "generated_for": "next-linux-scheduler-maturity T26",
   "schema_version": 1,
   "sources": [
     {
@@ -36,13 +36,13 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "354a162131c1e63830aaaa85d1d48f07f89168d63e986c8df786063e36a63e13"
+      "sha256": "299f559e2168e911f471a8be8e61955843987313b3505092b0c9d3e5cc45a247"
     },
     {
       "path": "qa/security_gate.sh",
       "purpose": "security profile gate consumed by governance checks",
       "required": true,
-      "sha256": "9d2df10092712c0a8f1a2db4a42228df14ca1da611de5aa80b5e1f33c502c4c6"
+      "sha256": "e6bc5982bb7e2702a910ebb0ca1175dc729b032ccf15510864d8fd192c910e95"
     },
     {
       "path": "qa/wording_audit.sh",
@@ -114,7 +114,7 @@
       "path": "docs/security/review-checklist.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "9f5b7db1be78bf8aa9cc5cdfe1a55260b50ffef1f0bbee6bd6d9b0b31eab0f06"
+      "sha256": "5267cbc2b7d382892561a2869c19f71dbc1a26fa286099e229c8d86efb8225c5"
     },
     {
       "path": "docs/security/threat-model.md",

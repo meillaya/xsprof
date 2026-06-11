@@ -16,3 +16,21 @@ Required topics for mutation-capable lab release:
 - [ ] Production-claim wording reviewed.
 
 Unsigned or incomplete mutation-capable review artifacts must fail `qa/security_gate.sh --profile mutation-capable-lab`.
+
+## Reviewer and signoff policy
+
+Current local lab candidate approvals may use an explicit owner override with
+`reviewer=owner-override:<owner-id>`. This is a repository-local control, not a
+fabricated human approval and not a production approval.
+
+Every mutation-capable security review and release approval must include:
+
+- Reviewer identity.
+- Signed attestation kind, signer, signing date, authorized status, scope, and statement.
+- Git SHA policy: current approvals must match the current git SHA; stale approvals
+  are accepted only when marked historical with a historical reason.
+- Authorized status of `controlled_lab_pilot_candidate`.
+- Scope of `controlled-lab-only`.
+
+Placeholder identities such as `TODO`, `TBD`, `unknown`, or the unqualified
+`repository-owner-operator` must fail the security and release gates.

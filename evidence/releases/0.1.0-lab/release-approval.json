@@ -28,11 +28,20 @@
   ],
   "git_sha": "acca29299d9de21bc789255da667a42f2ea0812f",
   "historical": true,
+  "historical_reason": "archived 0.1.0-lab approval retained as historical evidence, not current release eligibility",
   "owner": "repository-owner-operator",
   "production_ready": false,
-  "reviewer": "repository-owner-operator",
+  "reviewer": "owner-override:repository-owner-operator",
   "rollback_id": "RB-20260611T053131Z-lab",
   "schema": "zig-scheduler/release-approval/v1",
+  "signed_attestation": {
+    "authorized_status": "controlled_lab_pilot_candidate",
+    "kind": "owner-override-release-attestation",
+    "scope": "controlled-lab-only",
+    "signed_at": "2026-06-11T00:00:00Z",
+    "signed_by": "owner-override:repository-owner-operator",
+    "statement": "Historical controlled lab candidate approval only; no production or arbitrary-host approval is granted."
+  },
   "status": "controlled_lab_pilot_candidate",
   "version": "0.1.0-lab"
 }

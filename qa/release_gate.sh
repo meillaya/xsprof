@@ -51,6 +51,19 @@ def check_stress(stress):
 def check_existing_approval(approval):
     if approval.get('git_sha') and approval.get('git_sha') != current and approval.get('historical') is not True:
         raise SystemExit('stale current release approval git_sha')
+    reviewer = str(approval.get('reviewer') or '')
+    if reviewer.lower() in {'todo', 'tbd', 'placeholder', 'unknown', 'repository-owner-operator'}:
+        raise SystemExit('placeholder release reviewer')
+    att = approval.get('signed_attestation') or {}
+    for key in ['kind', 'signed_by', 'signed_at', 'statement', 'authorized_status', 'scope']:
+        if approval and not att.get(key):
+            raise SystemExit('missing signed release attestation')
+    if approval and att.get('signed_by') != reviewer:
+        raise SystemExit('release attestation signer mismatch')
+    if approval and att.get('authorized_status') != approval.get('status'):
+        raise SystemExit('release attestation status mismatch')
+    if approval.get('historical') is True and not approval.get('historical_reason'):
+        raise SystemExit('historical approval missing reason')
     manifest = approval.get('artifact_hash_manifest')
     if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
         raise SystemExit('missing artifact hash manifest')
@@ -81,13 +94,16 @@ reject('fallback reject counters', lambda: check_dsq({'status': 'PASS', 'rollbac
 reject('host-safe dsq release eligible', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'host-safe-disposable-sysroot', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'}))
 reject('missing verifier metadata', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc'}))
 reject('stale current approval', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': False}))
-reject('missing hash manifest', lambda: check_existing_approval({'git_sha': current, 'artifact_hash_manifest': 'evidence/releases/missing-hashes.json'}))
+reject('missing hash manifest', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'artifact_hash_manifest': 'evidence/releases/missing-hashes.json', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'current'}}))
+reject('placeholder release reviewer', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'TODO', 'status': 'controlled_lab_pilot_candidate'}))
+reject('unsigned release approval', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate'}))
+reject('historical missing reason', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': True, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'historical'}}))
 reject('skipped stress release-ready', lambda: check_stress({'status': 'SKIP', 'release_ready': True}))
 reject('summary contradiction', lambda: check_summary({'status': 'PASS', 'release_status': 'skipped_no_vm'}))
-check_existing_approval({'git_sha': '0' * 40, 'historical': True})
+check_existing_approval({'git_sha': '0' * 40, 'historical': True, 'historical_reason': 'archived approval only', 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'historical'}})
 check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'})
 check_skip_cleanup()
-print('PASS release gate self-test: stale SHA, rollback, DSQ policy, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
+print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
 PY
   exit 0
 fi
@@ -265,8 +281,9 @@ hash_manifest = out / 'artifact-hashes.json'
 hash_tmp = out / 'artifact-hashes.json.tmp'
 hash_tmp.write_text(json.dumps({'schema': 'zig-scheduler/release-artifact-hashes/v1', 'artifacts': artifact_hashes}, indent=2, sort_keys=True) + '\n')
 hash_tmp.replace(hash_manifest)
-reviewer = checks['security'].get('reviewer') or 'repository-owner-operator'
+reviewer = checks['security'].get('reviewer')
 date = checks['security'].get('signed_attestation', {}).get('signed_at') or '2026-06-11T00:00:00Z'
+security_attestation = checks['security'].get('signed_attestation', {})
 approval = {
  'schema': 'zig-scheduler/release-approval/v1',
  'version': version,
@@ -280,13 +297,22 @@ approval = {
  'approval_required_before_mutation_release': True,
  'production_ready': False,
  'arbitrary_host_safe': False,
- 'historical': existing_approval.get('historical') is True,
+ 'historical': False,
  'artifact_hash_manifest': str(hash_manifest),
+ 'signed_attestation': {
+   'kind': 'owner-override-release-attestation',
+   'signed_by': reviewer,
+   'signed_at': date,
+   'authorized_status': 'controlled_lab_pilot_candidate',
+   'scope': checks['security'].get('scope') or security_attestation.get('scope') or 'controlled-lab-only',
+   'statement': 'Controlled lab candidate approval only; no production or arbitrary-host approval is granted.',
+ },
  'evidence': [str(out / name) for name in required_sources] + [str(hash_manifest)],
 }
 required_approval = ['version', 'git_sha', 'audit_id', 'rollback_id', 'reviewer', 'date', 'status', 'artifact_hash_manifest']
 missing = [key for key in required_approval if not approval.get(key)]
 if missing: raise SystemExit('approval missing fields: ' + ','.join(missing))
+check_existing_approval(approval)
 approval_tmp = out / 'release-approval.json.tmp'
 approval_tmp.write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
 approval_tmp.replace(approval_path)
