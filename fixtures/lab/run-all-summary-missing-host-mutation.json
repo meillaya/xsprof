@@ -1,0 +1,15 @@
+{
+  "artifact_paths": ["evidence/lab/run-all/bad/stage"],
+  "ended_at": "2026-06-11T00:00:01Z",
+  "git_sha": "fixture-sha",
+  "kernel_tuple": {"arch": "x86_64", "config_sha256": "fixture", "release": "6.12.0-lab"},
+  "mode": "host-safe",
+  "release_status": "skipped_no_vm",
+  "release_use": false,
+  "rollback_result": "N/A",
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "stages": [],
+  "started_at": "2026-06-11T00:00:00Z",
+  "status": "PASS",
+  "vm_kind": "host-safe-surrogate"
+}

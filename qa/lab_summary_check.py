@@ -1,0 +1,265 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+# ─── How to run ───
+# 1. Install uv (if not installed):
+#      curl -LsSf https://astral.sh/uv/install.sh | sh
+# 2. Run directly (no venv, no pip install needed):
+#      uv run qa/lab_summary_check.py --summary evidence/lab/run-all/<name>/summary.json
+# 3. Or with system Python (no dependencies):
+#      python3 qa/lab_summary_check.py --self-test
+# ──────────────────
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import json
+import shutil
+import subprocess
+import sys
+from typing import Final, TypeAlias
+
+JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject: TypeAlias = dict[str, JsonValue]
+
+SUMMARY_SCHEMA: Final[str] = "zig-scheduler/run-all-lab/v1"
+STAGE_SCHEMA: Final[str] = "zig-scheduler/run-all-stage/v1"
+STATUSES: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE"})
+ROLLBACK_RESULTS: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE", "N/A"})
+RUN_ALL_PREFIX: Final[Path] = Path("evidence/lab/run-all")
+MALFORMED_FIXTURE: Final[Path] = Path("fixtures/lab/run-all-summary-missing-host-mutation.json")
+
+
+@dataclass(frozen=True, slots=True)
+class Args:
+    summary: Path | None
+    self_test: bool
+
+
+class LabSummaryError(Exception):
+    """Raised when run-all lab evidence is malformed or unsafe."""
+
+
+def parse_args(argv: list[str]) -> Args:
+    if argv == ["--self-test"]:
+        return Args(summary=None, self_test=True)
+    if len(argv) == 2 and argv[0] == "--summary":
+        return Args(summary=Path(argv[1]), self_test=False)
+    raise LabSummaryError("usage: lab_summary_check.py --summary <summary.json> | --self-test")
+
+
+def load_object(path: Path) -> JsonObject:
+    try:
+        raw: JsonValue = json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise LabSummaryError(f"missing JSON file: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise LabSummaryError(f"invalid JSON in {path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise LabSummaryError(f"{path} must contain a JSON object")
+    return raw
+
+
+def require_string(data: JsonObject, field: str, context: str) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or value == "":
+        raise LabSummaryError(f"{context} missing non-empty string field: {field}")
+    return value
+
+
+def require_bool(data: JsonObject, field: str, context: str) -> bool:
+    value = data.get(field)
+    if not isinstance(value, bool):
+        raise LabSummaryError(f"{context} missing bool field: {field}")
+    return value
+
+
+def require_list(data: JsonObject, field: str, context: str) -> list[JsonValue]:
+    value = data.get(field)
+    if not isinstance(value, list):
+        raise LabSummaryError(f"{context} missing list field: {field}")
+    return value
+
+
+def require_object(data: JsonObject, field: str, context: str) -> JsonObject:
+    value = data.get(field)
+    if not isinstance(value, dict):
+        raise LabSummaryError(f"{context} missing object field: {field}")
+    return value
+
+
+def assert_timestamp(value: str, context: str, field: str) -> None:
+    if "T" not in value or not value.endswith("Z"):
+        raise LabSummaryError(f"{context} field {field} must be UTC ISO-8601 text ending in Z")
+
+
+def assert_kernel_tuple(data: JsonObject, context: str) -> None:
+    kernel = require_object(data, "kernel_tuple", context)
+    for field in ("release", "arch", "config_sha256"):
+        require_string(kernel, field, f"{context}.kernel_tuple")
+
+
+def assert_artifact_paths(data: JsonObject, context: str) -> list[Path]:
+    values = require_list(data, "artifact_paths", context)
+    paths: list[Path] = []
+    for index, value in enumerate(values):
+        if not isinstance(value, str) or value == "":
+            raise LabSummaryError(f"{context}.artifact_paths[{index}] must be non-empty relative path text")
+        path = Path(value)
+        if path.is_absolute() or ".." in path.parts:
+            raise LabSummaryError(f"{context}.artifact_paths[{index}] escapes repository: {value}")
+        if path != RUN_ALL_PREFIX and RUN_ALL_PREFIX not in path.parents:
+            raise LabSummaryError(f"{context}.artifact_paths[{index}] must stay under {RUN_ALL_PREFIX}: {value}")
+        if not path.exists():
+            raise LabSummaryError(f"{context}.artifact_paths[{index}] does not exist: {value}")
+        paths.append(path)
+    if len(paths) == 0:
+        raise LabSummaryError(f"{context} must include at least one artifact path")
+    return paths
+
+
+def assert_common(data: JsonObject, context: str) -> list[Path]:
+    if require_bool(data, "host_mutation", context):
+        raise LabSummaryError(f"{context} host_mutation must be false")
+    require_string(data, "git_sha", context)
+    assert_kernel_tuple(data, context)
+    require_string(data, "vm_kind", context)
+    rollback_result = require_string(data, "rollback_result", context)
+    if rollback_result not in ROLLBACK_RESULTS:
+        raise LabSummaryError(f"{context} rollback_result has invalid status: {rollback_result}")
+    for field in ("started_at", "ended_at"):
+        assert_timestamp(require_string(data, field, context), context, field)
+    return assert_artifact_paths(data, context)
+
+
+def validate_stage(stage: JsonObject, index: int) -> list[Path]:
+    context = f"stage[{index}]"
+    if require_string(stage, "schema", context) != STAGE_SCHEMA:
+        raise LabSummaryError(f"{context} has unsupported schema")
+    status = require_string(stage, "status", context)
+    if status not in STATUSES:
+        raise LabSummaryError(f"{context} has invalid status: {status}")
+    for field in ("stage", "reason", "command"):
+        require_string(stage, field, context)
+    return assert_common(stage, context)
+
+
+def git_tracked(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", path.as_posix()],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def validate_summary(path: Path) -> None:
+    summary = load_object(path)
+    if require_string(summary, "schema", "summary") != SUMMARY_SCHEMA:
+        raise LabSummaryError("summary has unsupported schema")
+    status = require_string(summary, "status", "summary")
+    if status not in STATUSES:
+        raise LabSummaryError(f"summary has invalid status: {status}")
+    require_string(summary, "mode", "summary")
+    require_string(summary, "release_status", "summary")
+    summary_paths = assert_common(summary, "summary")
+    release_use = require_bool(summary, "release_use", "summary")
+    stages = require_list(summary, "stages", "summary")
+    if len(stages) == 0 and status != "REFUSE":
+        raise LabSummaryError("summary must include stage records unless it is a refusal")
+    stage_paths: list[Path] = []
+    for index, item in enumerate(stages):
+        if not isinstance(item, dict):
+            raise LabSummaryError(f"stage[{index}] must be an object")
+        stage_paths.extend(validate_stage(item, index))
+    if release_use:
+        for artifact_path in [*summary_paths, *stage_paths]:
+            if not git_tracked(artifact_path):
+                raise LabSummaryError(f"release_use evidence path is not tracked: {artifact_path}")
+
+
+def self_test() -> None:
+    root = Path("evidence/lab/run-all/self-test-lab-summary-check")
+    shutil.rmtree(root, ignore_errors=True)
+    (root / "stage").mkdir(parents=True)
+    (root / "stage" / "transcript.txt").write_text("self-test\n")
+    stage: JsonObject = {
+        "artifact_paths": [str(root / "stage"), str(root / "stage" / "transcript.txt")],
+        "command": "self-test",
+        "ended_at": "2026-06-11T00:00:01Z",
+        "git_sha": "self-test-sha",
+        "host_mutation": False,
+        "kernel_tuple": {"arch": "x86_64", "config_sha256": "self-test", "release": "6.12.0-lab"},
+        "mode": "host-safe",
+        "reason": "self-test stage",
+        "rollback_result": "N/A",
+        "schema": STAGE_SCHEMA,
+        "stage": "self_test",
+        "started_at": "2026-06-11T00:00:00Z",
+        "status": "PASS",
+        "vm_kind": "host-safe-surrogate",
+    }
+    summary: JsonObject = {
+        "artifact_paths": [str(root / "stage")],
+        "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False},
+        "ended_at": "2026-06-11T00:00:01Z",
+        "git_sha": "self-test-sha",
+        "host_mutation": False,
+        "kernel_tuple": {"arch": "x86_64", "config_sha256": "self-test", "release": "6.12.0-lab"},
+        "mode": "host-safe",
+        "release_status": "skipped_no_vm",
+        "release_use": False,
+        "rollback_result": "N/A",
+        "schema": SUMMARY_SCHEMA,
+        "stages": [stage],
+        "started_at": "2026-06-11T00:00:00Z",
+        "status": "PASS",
+        "vm_kind": "host-safe-surrogate",
+    }
+    good = root / "summary.json"
+    good.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    validate_summary(good)
+    reject(MALFORMED_FIXTURE, "fixture missing host_mutation")
+    bad_release = root / "release-use-untracked.json"
+    summary["release_use"] = True
+    bad_release.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    reject(bad_release, "release_use untracked generated path")
+    shutil.rmtree(root, ignore_errors=True)
+    print("PASS lab summary self-test: accepted valid summary and rejected malformed/release-use fixtures")
+
+
+def reject(path: Path, label: str) -> None:
+    try:
+        validate_summary(path)
+    except LabSummaryError as exc:
+        print(f"PASS reject {label}: {exc}")
+        return
+    raise LabSummaryError(f"expected rejection did not occur: {label}")
+
+
+def run(argv: list[str]) -> int:
+    args = parse_args(argv)
+    if args.self_test:
+        self_test()
+        return 0
+    if args.summary is None:
+        raise LabSummaryError("internal argument parser error")
+    validate_summary(args.summary)
+    print(f"PASS lab summary schema: {args.summary}")
+    return 0
+
+
+def main() -> int:
+    try:
+        return run(sys.argv[1:])
+    except LabSummaryError as exc:
+        print(f"FAIL lab summary schema: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

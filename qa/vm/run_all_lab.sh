@@ -31,48 +31,78 @@ summary="$out_dir/summary.json"
 stages_dir="$out_dir/stages"
 mkdir -p "$stages_dir"
 git_sha="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
+kernel_release="$(uname -r 2>/dev/null || printf unknown)"
+kernel_arch="$(uname -m 2>/dev/null || printf unknown)"
+kernel_config_sha256="unavailable-host-safe"
+if [ -r "/boot/config-$kernel_release" ]; then
+  kernel_config_sha256="$(sha256sum "/boot/config-$kernel_release" | awk '{print $1}')"
+fi
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
 has_vm=false
 if [ -f "$vm_marker" ]; then has_vm=true; fi
 if [ "$mode" = vm-required ] && [ "$has_vm" != true ]; then
-  cat > "$summary" <<JSON
-{
-  "schema": "zig-scheduler/run-all-lab/v1",
-  "status": "REFUSE",
-  "reason": "VM_CONFIG_REQUIRED",
-  "mode": "$mode",
-  "git_sha": "$git_sha",
-  "host_mutation": false,
-  "release_status": "skipped_no_vm",
-  "stages": [],
-  "started_at": "$started_at",
-  "ended_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "cleanup": {"qemu_leftovers": false, "tmux_leftovers": false}
+  ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" SUMMARY="$summary" MODE="$mode" GIT_SHA="$git_sha" KERNEL_RELEASE="$kernel_release" KERNEL_ARCH="$kernel_arch" KERNEL_CONFIG_SHA256="$kernel_config_sha256" STARTED_AT="$started_at" python3 - <<'JSONPY'
+import json, os
+from pathlib import Path
+summary = {
+    "schema": "zig-scheduler/run-all-lab/v1",
+    "status": "REFUSE",
+    "reason": "VM_CONFIG_REQUIRED",
+    "mode": os.environ["MODE"],
+    "git_sha": os.environ["GIT_SHA"],
+    "host_mutation": False,
+    "release_status": "skipped_no_vm",
+    "release_use": False,
+    "vm_kind": "host-safe-refusal",
+    "kernel_tuple": {
+        "release": os.environ["KERNEL_RELEASE"],
+        "arch": os.environ["KERNEL_ARCH"],
+        "config_sha256": os.environ["KERNEL_CONFIG_SHA256"],
+    },
+    "rollback_result": "REFUSE",
+    "artifact_paths": [os.environ["SUMMARY"]],
+    "stages": [],
+    "started_at": os.environ["STARTED_AT"],
+    "ended_at": os.environ["ENDED_AT"],
+    "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False},
 }
-JSON
+Path(os.environ["SUMMARY"]).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+JSONPY
   printf 'REFUSE: VM_CONFIG_REQUIRED\nsummary=%s\n' "$summary"
   exit 1
 fi
 
 stage_json() {
-  local stage="$1" status="$2" reason="$3" command="$4" artifact="$5"
+  local stage="$1" status="$2" reason="$3" command="$4" artifact="$5" stage_started_at="$6" stage_ended_at="$7"
   local file="$stages_dir/$stage.json"
-  STAGE="$stage" STATUS="$status" REASON="$reason" COMMAND_TEXT="$command" ARTIFACT="$artifact" GIT_SHA="$git_sha" VM_MODE="$mode" python3 - <<'PY' > "$file"
+  local rollback_result="N/A"
+  if [ "$stage" = rollback_drill ]; then rollback_result="$status"; fi
+  STAGE="$stage" STATUS="$status" REASON="$reason" COMMAND_TEXT="$command" ARTIFACT="$artifact" GIT_SHA="$git_sha" VM_MODE="$mode" KERNEL_RELEASE="$kernel_release" KERNEL_ARCH="$kernel_arch" KERNEL_CONFIG_SHA256="$kernel_config_sha256" STAGE_STARTED_AT="$stage_started_at" STAGE_ENDED_AT="$stage_ended_at" ROLLBACK_RESULT="$rollback_result" python3 - <<'JSONPY' > "$file"
 import json, os
+artifact = os.environ["ARTIFACT"]
 print(json.dumps({
     "schema": "zig-scheduler/run-all-stage/v1",
     "stage": os.environ["STAGE"],
     "status": os.environ["STATUS"],
     "reason": os.environ["REASON"],
     "command": os.environ["COMMAND_TEXT"],
-    "artifact": os.environ["ARTIFACT"],
+    "artifact": artifact,
+    "artifact_paths": [artifact, f"{artifact}/transcript.txt"],
     "vm_kind": "host-safe-refusal" if os.environ["STATUS"] == "REFUSE" else "host-safe-surrogate",
+    "kernel_tuple": {
+        "release": os.environ["KERNEL_RELEASE"],
+        "arch": os.environ["KERNEL_ARCH"],
+        "config_sha256": os.environ["KERNEL_CONFIG_SHA256"],
+    },
     "git_sha": os.environ["GIT_SHA"],
     "host_mutation": False,
+    "rollback_result": os.environ["ROLLBACK_RESULT"],
+    "started_at": os.environ["STAGE_STARTED_AT"],
+    "ended_at": os.environ["STAGE_ENDED_AT"],
     "mode": os.environ["VM_MODE"],
 }, indent=2, sort_keys=True))
-PY
+JSONPY
   printf '%s\n' "$file"
 }
 
@@ -81,10 +111,13 @@ run_stage() {
   local stage="$1" command_text="$2" artifact="$3"
   shift 3
   mkdir -p "$artifact"
+  local stage_started_at stage_ended_at
+  stage_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'STAGE %s: %s\n' "$stage" "$command_text"
   set +e
   "$@" > "$artifact/transcript.txt" 2>&1
   local rc=$?
+  stage_ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   set -e
   local status reason
   if [ "$rc" -eq 0 ]; then
@@ -98,7 +131,7 @@ run_stage() {
   else
     status="REFUSE"; reason="stage exited nonzero rc=$rc"
   fi
-  stage_files+=("$(stage_json "$stage" "$status" "$reason" "$command_text" "$artifact")")
+  stage_files+=("$(stage_json "$stage" "$status" "$reason" "$command_text" "$artifact" "$stage_started_at" "$stage_ended_at")")
   printf 'STAGE %s status=%s reason=%s artifact=%s\n' "$stage" "$status" "$reason" "$artifact"
 }
 
@@ -129,6 +162,10 @@ stage_files = [Path(p) for p in os.environ["STAGE_FILES"].split() if p]
 stages = [json.loads(path.read_text()) for path in stage_files]
 statuses = {stage["status"] for stage in stages}
 release_status = "controlled_lab_pilot_candidate" if any(stage["stage"] == "release_gate" and stage["status"] == "PASS" for stage in stages) else "skipped_no_vm"
+rollback_result = next((stage["rollback_result"] for stage in stages if stage["stage"] == "rollback_drill"), "N/A")
+artifact_paths = []
+for stage in stages:
+    artifact_paths.extend(stage["artifact_paths"])
 summary = {
     "schema": "zig-scheduler/run-all-lab/v1",
     "status": "PASS" if statuses <= {"PASS", "SKIP", "REFUSE"} else "FAIL",
@@ -136,6 +173,11 @@ summary = {
     "git_sha": os.environ["GIT_SHA"],
     "host_mutation": False,
     "release_status": release_status,
+    "release_use": False,
+    "vm_kind": "host-safe-surrogate",
+    "kernel_tuple": stages[0]["kernel_tuple"] if stages else {"release": "unknown", "arch": "unknown", "config_sha256": "unknown"},
+    "rollback_result": rollback_result,
+    "artifact_paths": artifact_paths,
     "started_at": os.environ["STARTED_AT"],
     "ended_at": os.environ["ENDED_AT"],
     "stages": stages,

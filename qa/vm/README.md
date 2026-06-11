@@ -28,3 +28,9 @@ Mode contract:
 - `auto`: runs with available explicit VM marker/config and otherwise behaves like host-safe fallback.
 
 The run-all harness composes the existing lab scripts rather than bypassing them: `run_lab.sh`, `verifier_only.sh`, `partial_attach.sh`, `rollback_drill.sh`, `cgroup_race.sh`, `dsq_policy_smoke.sh`, `stress_chaos.sh`, `observe_partial.sh`, and `release_gate.sh`.
+
+Schema validation:
+
+- `python3 qa/lab_summary_check.py --summary evidence/lab/run-all/<name>/summary.json` validates the run-all summary and embedded per-stage records.
+- `python3 qa/lab_summary_check.py --self-test` rejects malformed fixtures, including missing `host_mutation`, and refuses `release_use=true` evidence that points at untracked generated paths.
+- Stable evidence fields include artifact paths, VM kind, kernel tuple, git SHA, rollback result, start/end timestamps, and `host_mutation=false`.
