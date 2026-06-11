@@ -20,7 +20,7 @@ import shutil
 import sys
 from typing import Final, Literal, TypeAlias
 
-JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = None | bool | int | float | str | list[str] | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 Status: TypeAlias = Literal["PASS", "SKIP", "FAIL", "REFUSE"]
 
@@ -158,8 +158,8 @@ def parse_log(path: Path) -> JsonObject:
     status = status_from(reason)
     if status == "PASS" and (state_changed(parsed.values) or cgroup_changed(parsed.values)):
         raise VerifierLogError("clean verifier logs must preserve sched_ext and cgroup state")
-    if status == "PASS" and len(parsed.values.get("object_sha256", "")) != 64:
-        raise VerifierLogError("clean verifier logs require object_sha256")
+    if status == "PASS" and (len(parsed.values.get("object_sha256", "")) != 64 or len(parsed.values.get("bpf_metadata_object_sha256", "")) != 64):
+        raise VerifierLogError("clean verifier logs require object and metadata sha")
     return {
         "schema": SCHEMA,
         "status": status,
@@ -167,6 +167,8 @@ def parse_log(path: Path) -> JsonObject:
         "input": path.as_posix(),
         "object": parsed.values.get("object", ""),
         "object_sha256": parsed.values.get("object_sha256", ""),
+        "bpf_metadata_path": parsed.values.get("bpf_metadata_path", ""),
+        "bpf_metadata_object_sha256": parsed.values.get("bpf_metadata_object_sha256", ""),
         "bpftool_rc": parsed.bpftool_rc,
         "verifier_errors": parsed.errors,
         "sched_ext_state_before": parsed.values.get("sched_ext_state_before", ""),
@@ -193,7 +195,9 @@ def parse_refusal(path: Path, allow_refusal: bool) -> JsonObject:
         "reason": str(raw.get("reason", "UNKNOWN_REFUSAL")),
         "input": path.as_posix(),
         "object": str(raw.get("object", "")),
-        "object_sha256": "",
+        "object_sha256": str(raw.get("object_sha256", "")),
+        "bpf_metadata_path": str(raw.get("bpf_metadata_path", "")),
+        "bpf_metadata_object_sha256": str(raw.get("bpf_metadata_object_sha256", "")),
         "bpftool_rc": None,
         "verifier_errors": [],
         "host_mutation": False,
@@ -227,7 +231,7 @@ def self_test() -> None:
     state_delta.write_text("\n".join((
         "schema=zig-scheduler/bpf-verifier-log/v1",
         "object=zig-out/bpf/zigsched_minimal.bpf.o",
-        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbpf_metadata_path=zig-out/bpf/zigsched_minimal.bpf.meta.json\nbpf_metadata_object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "sched_ext_state_before=enabled",
         "sched_ext_enable_seq_before=1",
         "bpftool_rc=0",
@@ -259,7 +263,7 @@ def write_log(name: str, tail: str) -> Path:
     body = "\n".join((
         "schema=zig-scheduler/bpf-verifier-log/v1",
         "object=zig-out/bpf/zigsched_minimal.bpf.o",
-        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbpf_metadata_path=zig-out/bpf/zigsched_minimal.bpf.meta.json\nbpf_metadata_object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "sched_ext_state_before=enabled",
         "sched_ext_enable_seq_before=1",
         tail,

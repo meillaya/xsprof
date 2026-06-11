@@ -54,15 +54,49 @@ parsed_json="$out_dir/verifier-parsed.json"
 metadata_file="${object_file%.o}.meta.json"
 skip_json="${object_file%.o}.skip.json"
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    fail 'sha256sum or shasum is required'
+  fi
+}
+
+metadata_object_sha() {
+  if [ -f "$metadata_file" ]; then
+    python3 - "$metadata_file" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get("object_sha256", ""))
+PY
+  fi
+}
+
+object_sha_for_refusal=""
+metadata_sha_for_refusal=""
+if [ -f "$object_file" ]; then
+  object_sha_for_refusal="$(sha256_file "$object_file")"
+  metadata_sha_for_refusal="$(metadata_object_sha)"
+  if [ -n "$metadata_sha_for_refusal" ] && [ "$metadata_sha_for_refusal" != "$object_sha_for_refusal" ]; then
+    fail "BPF object sha does not match metadata"
+  fi
+fi
+
 json_write_refusal() {
   local reason="$1"
-  REASON="$reason" OBJECT_FILE="$object_file" OUT_DIR="$out_dir" python3 - <<'PY' > "$refusal_json"
+  REASON="$reason" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha_for_refusal" OUT_DIR="$out_dir" \
+  METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha_for_refusal" python3 - <<'PY' > "$refusal_json"
 import json, os
 print(json.dumps({
     "schema": "zig-scheduler/verifier-only-refusal/v1",
     "status": "refused-host",
     "reason": os.environ["REASON"],
     "object": os.environ["OBJECT_FILE"],
+    "object_sha256": os.environ["OBJECT_SHA"],
+    "bpf_metadata_path": os.environ["METADATA_FILE"],
+    "bpf_metadata_object_sha256": os.environ["METADATA_SHA"],
     "out": os.environ["OUT_DIR"],
     "host_mutation": False,
 }, indent=2, sort_keys=True))
@@ -83,16 +117,6 @@ if [ ! -f "$object_file" ]; then
   fail "BPF object not found: $object_file"
 fi
 [ -f "$metadata_file" ] || fail "BPF object metadata not found: $metadata_file"
-
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$1" | awk '{print $1}'
-  else
-    fail 'sha256sum or shasum is required'
-  fi
-}
 
 read_fact() {
   local path="$1"
@@ -122,12 +146,7 @@ state_before="$(read_fact /sys/kernel/sched_ext/state)"
 enable_seq_before="$(read_fact /sys/kernel/sched_ext/enable_seq)"
 cgroup_before="$(cgroup_membership_digest)"
 object_sha="$(sha256_file "$object_file")"
-metadata_sha="$(python3 - "$metadata_file" <<'PY'
-import json, sys
-from pathlib import Path
-print(json.loads(Path(sys.argv[1]).read_text()).get("object_sha256", ""))
-PY
-)"
+metadata_sha="$(metadata_object_sha)"
 [ -n "$metadata_sha" ] || fail "BPF metadata missing object_sha256: $metadata_file"
 [ "$metadata_sha" = "$object_sha" ] || fail "BPF object sha does not match metadata"
 status="skip"
@@ -188,8 +207,20 @@ if [ "$parser_rc" -ne 0 ]; then
 ' >&2
   exit "$parser_rc"
 fi
+parsed_status="$(python3 - "$parsed_json" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get("status", ""))
+PY
+)"
+parsed_reason="$(python3 - "$parsed_json" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get("reason", ""))
+PY
+)"
 
-STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
+STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha" PARSED_STATUS="$parsed_status" PARSED_REASON="$parsed_reason" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
 STATE_BEFORE="$state_before" STATE_AFTER="$state_after" ENABLE_BEFORE="$enable_seq_before" ENABLE_AFTER="$enable_seq_after" \
 CGROUP_BEFORE="$cgroup_before" CGROUP_AFTER="$cgroup_after" python3 - <<'PY' > "$evidence_json"
 import json, os
@@ -201,6 +232,8 @@ print(json.dumps({
     "object_sha256": os.environ["OBJECT_SHA"],
     "bpf_metadata_path": os.environ["METADATA_FILE"],
     "bpf_metadata_object_sha256": os.environ["METADATA_SHA"],
+    "parsed_verifier_status": os.environ["PARSED_STATUS"],
+    "parsed_verifier_reason": os.environ["PARSED_REASON"],
     "verifier_log_path": os.environ["VERIFIER_LOG"],
     "verifier_parse_path": os.environ["PARSED_JSON"],
     "sched_ext_state_before": os.environ["STATE_BEFORE"],
