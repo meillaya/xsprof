@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T05",
+  "generated_for": "next-linux-scheduler-maturity T06-fix",
   "schema_version": 1,
   "sources": [
     {
@@ -46,9 +46,9 @@
     },
     {
       "path": "qa/wording_audit.sh",
-      "purpose": "wording and production-claim audit gate",
+      "purpose": "wording, contradiction, and prompt-injection audit gate",
       "required": true,
-      "sha256": "9a6201a37938e416be68013871c99b160f1f22c41dd528a4a67705d31dae66a8"
+      "sha256": "43c64b0d2c4ac551ce7cb6adcc194c2082933b3c4927f0039e97f7c18589bea3"
     },
     {
       "path": "packaging/systemd/zig-scheduler-lab-mutation.service",
@@ -66,7 +66,7 @@
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "41d0735ad976cf6e9fcd65caf0f2a2e3ad0a8d9299030b87be720428276b5a64"
+      "sha256": "81fb9f83d2e1cdf1720f3f7180823986fbaf8e0de8a2ea9b99a2f36fb18c7133"
     },
     {
       "path": "docs/adr/0002-loader-architecture.md",

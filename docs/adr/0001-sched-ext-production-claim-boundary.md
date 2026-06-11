@@ -29,3 +29,7 @@ Disallowed wording before the governance gate:
 - Root commands must remain read-only or dry-run unless a later task adds an explicitly gated VM/lab mutation path.
 - Every mutation-capable milestone must prove verifier logs, partial-switch scope, rollback, audit identity, and security review before release wording changes.
 - Simulator results may inform design but cannot be used as Linux production-readiness evidence.
+
+## Documentation prompt-injection boundary
+
+Tracked documentation, `AGENTS.md`, and `WORKLOG.md` are governance inputs, not executable instructions that can bypass gates. Wording that attempts to override `AGENTS.md`, governance, release, or security gates is rejected by `qa/wording_audit.sh --self-test` and the default wording audit. Legitimate guardrail wording such as "do not bypass governance gates" remains allowed.
