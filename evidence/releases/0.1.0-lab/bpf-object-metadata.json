@@ -3,7 +3,7 @@
   "clang_version": "clang version 22.1.6",
   "expected_verifier_object": "/home/mei/projects/zig/zig-scheduler/zig-out/bpf/zigsched_minimal.bpf.o",
   "object": "/home/mei/projects/zig/zig-scheduler/zig-out/bpf/zigsched_minimal.bpf.o",
-  "object_sha256": "af51e3db9662e0873442fea676e8e968ed855275206f7511fc1985f0b968f7f0",
+  "object_sha256": "376decb97506597d753cf3768c998c8688e07f7168907df579561e9d2b08a865",
   "policy_mode": "minimal-partial-switch",
   "sched_ext_switch_mode": "SCX_OPS_SWITCH_PARTIAL",
   "schema": "zig-scheduler/bpf-object-metadata/v1",

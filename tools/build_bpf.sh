@@ -107,6 +107,7 @@ fi
 
 rm -f "$skip_file" "$skip_json" "$meta_file"
 "$cc" -target bpf -O2 -g -Wall -Wextra \
+  -ffile-prefix-map="$repo_root=." \
   -I "$repo_root/bpf/include" \
   -c "$source_file" \
   -o "$object_file" >"$log_file" 2>&1

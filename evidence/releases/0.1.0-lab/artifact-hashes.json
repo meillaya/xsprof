@@ -2,7 +2,7 @@
   "artifacts": {
     "bpf-object-metadata.json": {
       "path": "evidence/releases/0.1.0-lab/bpf-object-metadata.json",
-      "sha256": "344ff01a7e59b82dc6b39214289fc9eb0be6e3cca6444b27899632bdc47ef2d3"
+      "sha256": "f2bfca49c627bdd6d77d614286f0f4558d5e75b7429c663211bcb199f09b20b7"
     },
     "bpf-static-check.txt": {
       "path": "evidence/releases/0.1.0-lab/bpf-static-check.txt",
@@ -10,7 +10,7 @@
     },
     "bpf-verifier-host-refusal.json": {
       "path": "evidence/releases/0.1.0-lab/bpf-verifier-host-refusal.json",
-      "sha256": "28101007989c6df3254927c1647698cff1ffd0d01f8c553d4d9cd7a86b723e2f"
+      "sha256": "051fc276c0116d492613c4e8a44ed5ceba95da4b48fc523f25506180672b1970"
     },
     "cgroup-allowlist-proof.json": {
       "path": "evidence/releases/0.1.0-lab/cgroup-allowlist-proof.json",
@@ -22,11 +22,11 @@
     },
     "dsq-summary.json": {
       "path": "evidence/releases/0.1.0-lab/dsq-summary.json",
-      "sha256": "19ffb9ffa9dde7803f23961b5e9318e7c9df0c637cf88fd850b4000b1b0cc315"
+      "sha256": "310481663a0c777b897704b2135b1ff4105b54b8eca8dd57b51c6b4688b63b88"
     },
     "governance-gate.md": {
       "path": "evidence/releases/0.1.0-lab/governance-gate.md",
-      "sha256": "bcaa14c2dfd2183fb2e60b0f6e332a4eb37d2d4348d5941d15d8490c72c43afd"
+      "sha256": "71182644e71eae59ef455e36ab85e3b3e2268109a286b67ac95eab9a431fcf76"
     },
     "package-default.toml": {
       "path": "evidence/releases/0.1.0-lab/package-default.toml",
@@ -46,19 +46,19 @@
     },
     "rollback-snapshot.json": {
       "path": "evidence/releases/0.1.0-lab/rollback-snapshot.json",
-      "sha256": "e2ebcc36ba2e862b60a34d5a88dcfdbf0ebc3ee0b61affa9242dcd7a3456557e"
+      "sha256": "933c4f32be7cbb32f8306b80ed8f4451f45f4e48152650984ffa093021ac83b0"
     },
     "rollback-summary.json": {
       "path": "evidence/releases/0.1.0-lab/rollback-summary.json",
-      "sha256": "02d7f36c3507a425a47b711201dfc2c9af573ea5190233d47f537c05d450c137"
+      "sha256": "3d8a30cd9d50fdd8c75ed6c2e915102dab4baf752dfc311dde0262a2c34dc46f"
     },
     "rollback-transcript.txt": {
       "path": "evidence/releases/0.1.0-lab/rollback-transcript.txt",
-      "sha256": "6e72729f377950efdf2ce464b824b2f0124a05eabf05bc087470028d3a41b589"
+      "sha256": "40e8e647ce0b7b3f3668aa4632cc8bae5c94b7ad64758d87e4992be3bd07ec22"
     },
     "security-review-approved.json": {
       "path": "evidence/releases/0.1.0-lab/security-review-approved.json",
-      "sha256": "aaffde660e4cd45b2af86d3857a6e297c1d999cf96d5cc277a7f0c4181741993"
+      "sha256": "a27010abcef909bdf7ef7d0ca9a7fc52a2841bf6c83a95c4011de1e40eec1dc8"
     },
     "security-threat-model.md": {
       "path": "evidence/releases/0.1.0-lab/security-threat-model.md",

@@ -2,7 +2,7 @@
   "approval_required_before_mutation_release": true,
   "arbitrary_host_safe": false,
   "artifact_hash_manifest": "evidence/releases/0.1.0-lab/artifact-hashes.json",
-  "audit_id": "AUD-20260611T053131Z-f58efb8-aed074",
+  "audit_id": "AUD-20260611T201546Z-ff04aa1-6f03d1",
   "date": "2026-06-11T00:00:00Z",
   "evidence": [
     "evidence/releases/0.1.0-lab/supported-tuples.json",
@@ -26,13 +26,12 @@
     "evidence/releases/0.1.0-lab/governance-gate.md",
     "evidence/releases/0.1.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "acca29299d9de21bc789255da667a42f2ea0812f",
-  "historical": true,
-  "historical_reason": "archived 0.1.0-lab approval retained as historical evidence, not current release eligibility",
+  "git_sha": "8636f524a4735aa2d97602b2b314cdc4cf094dd4",
+  "historical": false,
   "owner": "repository-owner-operator",
   "production_ready": false,
   "reviewer": "owner-override:repository-owner-operator",
-  "rollback_id": "RB-20260611T053131Z-lab",
+  "rollback_id": "RB-20260611T201546Z-lab",
   "schema": "zig-scheduler/release-approval/v1",
   "signed_attestation": {
     "authorized_status": "controlled_lab_pilot_candidate",
@@ -40,8 +39,8 @@
     "scope": "controlled-lab-only",
     "signed_at": "2026-06-11T00:00:00Z",
     "signed_by": "owner-override:repository-owner-operator",
-    "statement": "Historical controlled lab candidate approval only; no production or arbitrary-host approval is granted."
+    "statement": "Controlled lab candidate approval only; no production or arbitrary-host approval is granted."
   },
   "status": "controlled_lab_pilot_candidate",
-  "version": "0.1.0-lab"
+  "version": "0.2.0-lab"
 }

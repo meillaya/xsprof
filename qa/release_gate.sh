@@ -266,6 +266,28 @@ if existing_summary_path.exists() and not existing_summary_path.is_symlink():
     existing_summary = json.loads(existing_summary_path.read_text())
     if existing_summary.get('status') == 'PASS' and existing_summary.get('release_status') == 'skipped_no_vm' and existing_summary.get('historical') is not True:
         raise SystemExit('summary/status contradiction')
+
+def check_existing_approval(approval):
+    if approval.get('git_sha') and approval.get('git_sha') != current_git_sha and approval.get('historical') is not True:
+        raise SystemExit('stale current release approval git_sha')
+    reviewer_value = approval.get('reviewer')
+    reviewer = str(reviewer_value or '')
+    if reviewer.lower() in {'todo', 'tbd', 'placeholder', 'unknown', 'repository-owner-operator'}:
+        raise SystemExit('placeholder release reviewer')
+    att = approval.get('signed_attestation') or {}
+    for key in ['kind', 'signed_by', 'signed_at', 'statement', 'authorized_status', 'scope']:
+        if approval and not att.get(key):
+            raise SystemExit('missing signed release attestation')
+    if approval and att.get('signed_by') != reviewer:
+        raise SystemExit('release attestation signer mismatch')
+    if approval and att.get('authorized_status') != approval.get('status'):
+        raise SystemExit('release attestation status mismatch')
+    if approval.get('historical') is True and not approval.get('historical_reason'):
+        raise SystemExit('historical approval missing reason')
+    manifest = approval.get('artifact_hash_manifest')
+    if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
+        raise SystemExit('missing artifact hash manifest')
+
 for name, src in required_sources.items():
     dst = out / name
     if dst.is_symlink(): raise SystemExit(f'release artifact destination is symlink: {dst}')

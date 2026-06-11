@@ -19,6 +19,27 @@ A candidate release must provide:
 9. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
 10. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
 
+## Production evidence matrix
+The current release summary must keep `release_status=controlled_lab_pilot_candidate`,
+`production_ready=false`, and `arbitrary_host_safe=false`. Any future status change beyond the controlled lab pilot requires every row below
+to be complete, current for the release git SHA, reproducible, and reviewed.
+
+| Evidence category | Required proof before any future production-ready status |
+| --- | --- |
+| Kernel tuple matrix | Supported kernel tuple matrix with architecture, kernel release, config hash, BTF state, sched_ext state, and repeat count. |
+| Verifier logs | BPF object hash, source hash, verifier log, parsed verifier status, and structured failure reasons for every tuple. |
+| VM attach evidence | VM-only partial-switch attach transcript proving the root host path did not load or attach. |
+| Rollback drills | Reproducible rollback drill transcript, before/after scheduler state, rollback ID, and fallback success. |
+| Stress/chaos | Stress/chaos evidence for workload liveness, fallback behavior, no starvation threshold breach, and no repeated reject counters. |
+| Audit ledger | Append-only audit ledger validation with unique audit IDs, immutable artifact hashes, and duplicate-replay rejection. |
+| Security signoff | Signed security signoff against the tracked threat model and security review checklist. |
+| Package install safety | Package install safety drill in a staging root or disposable VM proving no host mutation and no service enablement. |
+| Package upgrade safety | Package upgrade safety drill proving config preservation, evidence archive preservation, and rollback of staged files. |
+| Package uninstall safety | Package uninstall safety drill proving non-config files are removed while audit/evidence archives are retained. |
+| Incident runbook | Incident runbook drill for verifier failure, fallback, rollback, and operator escalation. |
+| Privacy review | Privacy review proving runtime samples exclude raw command lines, environments, secrets, and PII. |
+| systemd no auto-start | systemd no auto-start proof for installed units; mutation service remains gated by config, marker, and evidence. |
+
 ## Pass/fail rule
 The gate fails if any required evidence is missing, stale, unverifiable, or collected outside a disposable VM/lab environment. The gate also fails if the root host path can load, attach, enable, mutate, apply, write cgroups, change affinities, change priorities, or call scheduler/BPF mutation APIs without the lab evidence bundle.
 

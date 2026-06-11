@@ -8,5 +8,5 @@
   "required_artifacts_present": true,
   "schema": "zig-scheduler/release-gate-summary/v1",
   "status": "PASS",
-  "version": "0.1.0-lab"
+  "version": "0.2.0-lab"
 }

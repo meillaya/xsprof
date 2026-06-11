@@ -1,5 +1,5 @@
 {
-  "bpf_metadata_object_sha256": "af51e3db9662e0873442fea676e8e968ed855275206f7511fc1985f0b968f7f0",
+  "bpf_metadata_object_sha256": "376decb97506597d753cf3768c998c8688e07f7168907df579561e9d2b08a865",
   "bpf_metadata_path": "zig-out/bpf/zigsched_minimal.bpf.meta.json",
   "custom_dsq": "vtime",
   "duration": "30s",
@@ -22,7 +22,7 @@
   "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/dsq-vtime.scope",
   "transcript": "evidence/lab/dsq-vtime/dsq-policy-transcript.txt",
   "verifier_evidence_path": "evidence/lab/dsq-vtime-verifier/host-refusal.json",
-  "verifier_metadata_object_sha256": "af51e3db9662e0873442fea676e8e968ed855275206f7511fc1985f0b968f7f0",
+  "verifier_metadata_object_sha256": "376decb97506597d753cf3768c998c8688e07f7168907df579561e9d2b08a865",
   "vm_kind": "disposable-vm-marker-present",
   "vtime_phase_present": true,
   "vtime_phase_source": "bpf_enqueue_branch"
