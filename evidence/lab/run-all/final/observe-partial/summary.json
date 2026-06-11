@@ -1,0 +1,37 @@
+{
+  "audit_ledger": "evidence/lab/rollback-drill/audit-ledger.jsonl",
+  "evidence_mode": "fixture",
+  "final_ops": "none",
+  "final_state": "disabled",
+  "final_state_disabled_or_rolled_back": true,
+  "jsonl": "evidence/lab/run-all/final/observe-partial/runtime-samples.jsonl",
+  "private_command_lines_sampled": false,
+  "release_eligible_live_proof": false,
+  "release_ineligible_reason": "fixture-observation-not-vm-live-attach-proof",
+  "runtime_samples": "evidence/lab/run-all/final/observe-partial/runtime-samples.jsonl",
+  "sample_count": 3,
+  "samples_requested": 3,
+  "scheduler_snapshot": {
+    "enable_seq": {
+      "status": "present",
+      "value": "42"
+    },
+    "events": {
+      "status": "present",
+      "value": "nr_rejected: 0 dispatch_failed: 0 phase: rolled-back"
+    },
+    "events_hash": "3c846b5c2690c9947508a43dd730036555a5e7650c541b8367ec463b3f4caf62",
+    "root_ops": {
+      "status": "present",
+      "value": "none"
+    },
+    "state": {
+      "status": "present",
+      "value": "disabled"
+    }
+  },
+  "schema": "zig-scheduler/observe-partial-summary/v1",
+  "status": "PASS",
+  "transcript": "evidence/lab/run-all/final/observe-partial/observe-transcript.txt",
+  "workload_alive_all_samples": true
+}

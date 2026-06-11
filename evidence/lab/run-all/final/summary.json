@@ -1,0 +1,260 @@
+{
+  "artifact_paths": [
+    "evidence/lab/run-all/final/run-lab",
+    "evidence/lab/run-all/final/run-lab/transcript.txt",
+    "evidence/lab/run-all/final/verifier-only",
+    "evidence/lab/run-all/final/verifier-only/transcript.txt",
+    "evidence/lab/run-all/final/partial-attach",
+    "evidence/lab/run-all/final/partial-attach/transcript.txt",
+    "evidence/lab/run-all/final/rollback-drill",
+    "evidence/lab/run-all/final/rollback-drill/transcript.txt",
+    "evidence/lab/run-all/final/cgroup-race",
+    "evidence/lab/run-all/final/cgroup-race/transcript.txt",
+    "evidence/lab/run-all/final/dsq-policy",
+    "evidence/lab/run-all/final/dsq-policy/transcript.txt",
+    "evidence/lab/run-all/final/stress-chaos",
+    "evidence/lab/run-all/final/stress-chaos/transcript.txt",
+    "evidence/lab/run-all/final/observe-partial",
+    "evidence/lab/run-all/final/observe-partial/transcript.txt",
+    "evidence/lab/run-all/final/release-gate",
+    "evidence/lab/run-all/final/release-gate/transcript.txt"
+  ],
+  "cleanup": {
+    "qemu_leftovers": false,
+    "tmux_leftovers": false
+  },
+  "ended_at": "2026-06-11T23:20:34Z",
+  "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+  "host_mutation": false,
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "unavailable-host-safe",
+    "release": "7.0.11-1-cachyos"
+  },
+  "mode": "host-safe",
+  "release_status": "controlled_lab_pilot_candidate",
+  "release_use": false,
+  "rollback_result": "PASS",
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "stages": [
+    {
+      "artifact": "evidence/lab/run-all/final/run-lab",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/run-lab",
+        "evidence/lab/run-all/final/run-lab/transcript.txt"
+      ],
+      "command": "bash qa/vm/run_lab.sh --mode read-only-smoke",
+      "ended_at": "2026-06-11T23:20:16Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "host-safe skip captured",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "run_lab",
+      "started_at": "2026-06-11T23:20:16Z",
+      "status": "SKIP",
+      "vm_kind": "host-safe-surrogate"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/verifier-only",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/verifier-only",
+        "evidence/lab/run-all/final/verifier-only/transcript.txt"
+      ],
+      "command": "bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o",
+      "ended_at": "2026-06-11T23:20:16Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "host-safe refusal captured",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "verifier_only",
+      "started_at": "2026-06-11T23:20:16Z",
+      "status": "REFUSE",
+      "vm_kind": "host-safe-refusal"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/partial-attach",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/partial-attach",
+        "evidence/lab/run-all/final/partial-attach/transcript.txt"
+      ],
+      "command": "bash qa/vm/partial_attach.sh host-safe target",
+      "ended_at": "2026-06-11T23:20:16Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "host-safe refusal captured",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "partial_attach",
+      "started_at": "2026-06-11T23:20:16Z",
+      "status": "REFUSE",
+      "vm_kind": "host-safe-refusal"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/rollback-drill",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/rollback-drill",
+        "evidence/lab/run-all/final/rollback-drill/transcript.txt"
+      ],
+      "command": "bash qa/vm/rollback_drill.sh",
+      "ended_at": "2026-06-11T23:20:17Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "stage completed",
+      "rollback_result": "PASS",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "rollback_drill",
+      "started_at": "2026-06-11T23:20:16Z",
+      "status": "PASS",
+      "vm_kind": "host-safe-surrogate"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/cgroup-race",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/cgroup-race",
+        "evidence/lab/run-all/final/cgroup-race/transcript.txt"
+      ],
+      "command": "bash qa/vm/cgroup_race.sh",
+      "ended_at": "2026-06-11T23:20:17Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "host-safe refusal captured",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "cgroup_race",
+      "started_at": "2026-06-11T23:20:17Z",
+      "status": "REFUSE",
+      "vm_kind": "host-safe-refusal"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/dsq-policy",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/dsq-policy",
+        "evidence/lab/run-all/final/dsq-policy/transcript.txt"
+      ],
+      "command": "bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s",
+      "ended_at": "2026-06-11T23:20:21Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "stage completed",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "dsq_policy_smoke",
+      "started_at": "2026-06-11T23:20:17Z",
+      "status": "PASS",
+      "vm_kind": "host-safe-surrogate"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/stress-chaos",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/stress-chaos",
+        "evidence/lab/run-all/final/stress-chaos/transcript.txt"
+      ],
+      "command": "bash qa/vm/stress_chaos.sh --duration 1s",
+      "ended_at": "2026-06-11T23:20:22Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "host-safe skip captured",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "stress_chaos",
+      "started_at": "2026-06-11T23:20:21Z",
+      "status": "SKIP",
+      "vm_kind": "host-safe-surrogate"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/observe-partial",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/observe-partial",
+        "evidence/lab/run-all/final/observe-partial/transcript.txt"
+      ],
+      "command": "bash qa/vm/observe_partial.sh --samples 3",
+      "ended_at": "2026-06-11T23:20:22Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "stage completed",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "observe_partial",
+      "started_at": "2026-06-11T23:20:22Z",
+      "status": "PASS",
+      "vm_kind": "host-safe-surrogate"
+    },
+    {
+      "artifact": "evidence/lab/run-all/final/release-gate",
+      "artifact_paths": [
+        "evidence/lab/run-all/final/release-gate",
+        "evidence/lab/run-all/final/release-gate/transcript.txt"
+      ],
+      "command": "bash qa/release_gate.sh --version 0.2.0-lab",
+      "ended_at": "2026-06-11T23:20:34Z",
+      "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+      "host_mutation": false,
+      "kernel_tuple": {
+        "arch": "x86_64",
+        "config_sha256": "unavailable-host-safe",
+        "release": "7.0.11-1-cachyos"
+      },
+      "mode": "host-safe",
+      "reason": "stage completed",
+      "rollback_result": "N/A",
+      "schema": "zig-scheduler/run-all-stage/v1",
+      "stage": "release_gate",
+      "started_at": "2026-06-11T23:20:22Z",
+      "status": "PASS",
+      "vm_kind": "host-safe-surrogate"
+    }
+  ],
+  "started_at": "2026-06-11T23:20:16Z",
+  "status": "PASS",
+  "vm_kind": "host-safe-surrogate"
+}

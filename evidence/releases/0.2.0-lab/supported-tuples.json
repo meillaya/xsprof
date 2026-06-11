@@ -1,0 +1,22 @@
+{
+  "schema": "zig-scheduler/supported-kernel-tuples/v1",
+  "status": "lab-only",
+  "default": {
+    "kernel": ">=6.12",
+    "arch": "x86_64",
+    "requires": [
+      "CONFIG_SCHED_CLASS_EXT=y",
+      "CONFIG_BPF=y",
+      "CONFIG_BPF_SYSCALL=y",
+      "CONFIG_BPF_JIT=y",
+      "CONFIG_DEBUG_INFO_BTF=y",
+      "BTF present",
+      "BPF JIT sysctl readable"
+    ]
+  },
+  "unsupported_policy": "unsafe_to_assume",
+  "notes": [
+    "This matrix is lab-only evidence, not a distro support claim.",
+    "Missing BTF, BPF JIT, CONFIG_SCHED_CLASS_EXT, or kernel <6.12 is unsupported/unsafe_to_assume."
+  ]
+}

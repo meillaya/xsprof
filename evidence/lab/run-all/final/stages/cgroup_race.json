@@ -1,0 +1,24 @@
+{
+  "artifact": "evidence/lab/run-all/final/cgroup-race",
+  "artifact_paths": [
+    "evidence/lab/run-all/final/cgroup-race",
+    "evidence/lab/run-all/final/cgroup-race/transcript.txt"
+  ],
+  "command": "bash qa/vm/cgroup_race.sh",
+  "ended_at": "2026-06-11T23:20:17Z",
+  "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+  "host_mutation": false,
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "unavailable-host-safe",
+    "release": "7.0.11-1-cachyos"
+  },
+  "mode": "host-safe",
+  "reason": "host-safe refusal captured",
+  "rollback_result": "N/A",
+  "schema": "zig-scheduler/run-all-stage/v1",
+  "stage": "cgroup_race",
+  "started_at": "2026-06-11T23:20:17Z",
+  "status": "REFUSE",
+  "vm_kind": "host-safe-refusal"
+}

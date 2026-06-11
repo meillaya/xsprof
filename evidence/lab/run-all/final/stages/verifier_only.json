@@ -1,0 +1,24 @@
+{
+  "artifact": "evidence/lab/run-all/final/verifier-only",
+  "artifact_paths": [
+    "evidence/lab/run-all/final/verifier-only",
+    "evidence/lab/run-all/final/verifier-only/transcript.txt"
+  ],
+  "command": "bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o",
+  "ended_at": "2026-06-11T23:20:16Z",
+  "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+  "host_mutation": false,
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "unavailable-host-safe",
+    "release": "7.0.11-1-cachyos"
+  },
+  "mode": "host-safe",
+  "reason": "host-safe refusal captured",
+  "rollback_result": "N/A",
+  "schema": "zig-scheduler/run-all-stage/v1",
+  "stage": "verifier_only",
+  "started_at": "2026-06-11T23:20:16Z",
+  "status": "REFUSE",
+  "vm_kind": "host-safe-refusal"
+}

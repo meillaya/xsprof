@@ -1,0 +1,4 @@
+BPF object: /home/mei/projects/zig/zig-scheduler/zig-out/bpf/zigsched_minimal.bpf.o
+BPF metadata: /home/mei/projects/zig/zig-scheduler/zig-out/bpf/zigsched_minimal.bpf.meta.json
+/home/mei/projects/zig/zig-scheduler/zig-out/bpf/zigsched_minimal.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped
+PASS: BPF static partial-switch checks

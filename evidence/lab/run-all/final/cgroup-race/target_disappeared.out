@@ -1,0 +1,2 @@
+REFUSED_STALE_SCOPE: target cgroup disappeared between dry-run and attach
+transcript=evidence/lab/run-all/final/cgroup-race/target_disappeared/partial-attach-transcript.txt

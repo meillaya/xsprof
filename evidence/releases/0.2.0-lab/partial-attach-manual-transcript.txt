@@ -1,0 +1,4 @@
+REFUSE: partial attach requires disposable VM marker; host attach refused
+refusal=evidence/lab/partial-attach/host-refusal.json
+PASS partial attach refusal schema: evidence/lab/partial-attach/host-refusal.json
+  "reason_code": "VM_MARKER_MISSING",

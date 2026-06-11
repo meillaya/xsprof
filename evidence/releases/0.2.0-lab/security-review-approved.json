@@ -1,0 +1,38 @@
+{
+  "authorized_status": "controlled_lab_pilot_candidate",
+  "checklist": {
+    "audit_tampering": true,
+    "bpf_verifier_assumptions": true,
+    "cgroup_escape": true,
+    "config_injection": true,
+    "log_privacy": true,
+    "package_lifecycle": true,
+    "packaging_defaults": true,
+    "privacy_review": true,
+    "production_claims": true,
+    "rollback_fallback": true,
+    "root_privileges_capabilities": true,
+    "security_signoff": true
+  },
+  "historical": true,
+  "profile": "mutation-capable-lab",
+  "reviewer": "owner-override:repository-owner-operator",
+  "reviewer_policy": {
+    "human_approval_fabricated": false,
+    "kind": "owner-override",
+    "owner": "repository-owner-operator",
+    "reason": "local repository owner permits controlled lab candidate evidence only"
+  },
+  "schema": "zig-scheduler/security-review/v1",
+  "scope": "controlled-lab-only",
+  "signed_attestation": {
+    "authorized_status": "controlled_lab_pilot_candidate",
+    "kind": "repository-owner-attestation",
+    "scope": "controlled-lab-only",
+    "signed_at": "2026-06-11T00:00:00Z",
+    "signed_by": "owner-override:repository-owner-operator",
+    "statement": "Owner override approves controlled lab candidate evidence only; no production or arbitrary-host approval is granted."
+  },
+  "status": "approved",
+  "threat_model_version": "2026-06-11"
+}

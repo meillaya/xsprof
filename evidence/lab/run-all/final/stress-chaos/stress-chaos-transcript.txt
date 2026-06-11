@@ -1,0 +1,21 @@
+schema=zig-scheduler/stress-chaos-transcript/v1
+vm_kind=host-safe-disposable-sysroot
+duration_requested=1s
+kernel_release=7.0.11-1-cachyos
+arch=x86_64
+git_sha=b7590d1
+state_before=enabled
+ops_before=zigsched_minimal
+enable_seq_before=77
+events_before=fallback=0 reject=0 watchdog=0
+worker=1 iterations=259792
+worker=3 iterations=259809
+worker=2 iterations=257948
+worker=4 iterations=260154
+PASS: built-in CPU/process churn completed
+state_after=disabled
+ops_after=none
+events_after=fallback=0 reject=0 watchdog=0
+workload_liveness=PASS
+rollback_result=PASS
+root_cgroup_attach=false

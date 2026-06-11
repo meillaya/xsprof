@@ -1,0 +1,8 @@
+Build Summary: 2/2 steps succeeded
+bpf success
++- run bash success 88ms
+
+transcript=evidence/lab/run-all/final/dsq-policy/dsq-policy-transcript.txt
+summary=evidence/lab/run-all/final/dsq-policy/summary.json
+series=evidence/lab/run-all/final/dsq-policy/fairness-series.jsonl
+PASS: DSQ FIFO/vtime policy smoke bounded observed workload and rollback success

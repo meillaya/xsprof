@@ -1,0 +1,11 @@
+{
+  "bpf_metadata_object_sha256": "376decb97506597d753cf3768c998c8688e07f7168907df579561e9d2b08a865",
+  "bpf_metadata_path": "zig-out/bpf/zigsched_minimal.bpf.meta.json",
+  "host_mutation": false,
+  "object": "zig-out/bpf/zigsched_minimal.bpf.o",
+  "object_sha256": "376decb97506597d753cf3768c998c8688e07f7168907df579561e9d2b08a865",
+  "out": "evidence/lab/run-all/final/verifier-only",
+  "reason": "verifier-only flow requires /run/zig-scheduler-vm-lab.marker inside a disposable VM",
+  "schema": "zig-scheduler/verifier-only-refusal/v1",
+  "status": "refused-host"
+}

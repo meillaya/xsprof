@@ -1,0 +1,9 @@
+PASS governance manifest: /home/mei/projects/zig/zig-scheduler/fixtures/lab/governance-sources.json required_sources=20 total_sources=20
+Build Summary: 2/2 steps succeeded
+bpf success
++- run bash success 93ms
+
+summary=evidence/releases/0.2.0-lab/summary.json
+approval=evidence/releases/0.2.0-lab/release-approval.json
+hashes=evidence/releases/0.2.0-lab/artifact-hashes.json
+PASS: release gate controlled_lab_pilot_candidate

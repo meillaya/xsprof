@@ -1,0 +1,2 @@
+REFUSE: verifier-only flow requires disposable VM marker; no BPF verifier load attempted
+refusal=evidence/lab/run-all/final/verifier-only/host-refusal.json

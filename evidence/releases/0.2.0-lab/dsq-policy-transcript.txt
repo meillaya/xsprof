@@ -1,0 +1,27 @@
+schema=zig-scheduler/dsq-policy-smoke/v1
+policy=vtime
+duration=30s
+vm_kind=disposable-vm-marker-present
+target_cgroup=/sys/fs/cgroup/zig-scheduler-lab.slice/dsq-vtime.scope
+custom_dsq_fifo=ZIGSCHED_DSQ_FIFO
+custom_dsq_vtime=ZIGSCHED_DSQ_VTIME
+fifo_phase_source=bpf_enqueue_branch
+vtime_phase_source=bpf_enqueue_branch
+starvation_threshold_ns=50000000
+max_wait_ns=1260027
+state_before=enabled
+ops_before=zigsched_minimal
+enable_seq_before=42
+events_before=fallback=0 reject=0 watchdog=0
+nr_rejected_before=0
+state_after=enabled
+ops_after=zigsched_minimal
+enable_seq_after=42
+events_after=fallback=0 reject=0 watchdog=0
+nr_rejected_after=0
+events_fallback_reject_repeats=0
+rollback=PASS
+verifier_static=PASS
+bpf_metadata=zig-out/bpf/zigsched_minimal.bpf.meta.json
+verifier_evidence=evidence/lab/dsq-vtime-verifier/host-refusal.json
+release_eligible=true

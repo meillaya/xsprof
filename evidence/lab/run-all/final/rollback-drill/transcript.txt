@@ -1,0 +1,5 @@
+transcript=evidence/lab/run-all/final/rollback-drill/AUD-20260611T232016Z-b7590d1-81efe9.rollback-transcript.txt
+snapshot=evidence/lab/run-all/final/rollback-drill/AUD-20260611T232016Z-b7590d1-81efe9.rollback-snapshot.json
+ledger=evidence/lab/run-all/final/rollback-drill/audit-ledger.jsonl
+summary=evidence/lab/run-all/final/rollback-drill/summary.json
+PASS: rollback drill before/after state, unload/fallback, health check PASS

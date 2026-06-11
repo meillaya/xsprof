@@ -1,0 +1,23 @@
+{
+  "arch": "unavailable-until-vm-boot",
+  "btf_status": "unavailable-until-vm-boot",
+  "git_sha": "b7590d1c36dbaa60c0219fd9bbf3a2a06bdf83ae",
+  "host_mutation": false,
+  "kernel_release": "unavailable-until-vm-boot",
+  "kvm_available": true,
+  "mode": "read-only-smoke",
+  "mutation_evidence_kind": "none",
+  "qemu_available": false,
+  "qemu_bin": "",
+  "reason": "qemu boot image unavailable",
+  "schema": "zig-scheduler/lab-smoke/v2",
+  "status": "skip",
+  "vm_config": {
+    "env_file": "",
+    "image": "",
+    "kernel": "",
+    "source": "absent"
+  },
+  "vm_marker": "not-started",
+  "zig_version": "0.16.0"
+}

@@ -1,0 +1,4 @@
+jsonl=evidence/lab/run-all/final/observe-partial/runtime-samples.jsonl
+summary=evidence/lab/run-all/final/observe-partial/summary.json
+transcript=evidence/lab/run-all/final/observe-partial/observe-transcript.txt
+PASS: observed 3 sched_ext runtime samples and final state disabled/rolled back

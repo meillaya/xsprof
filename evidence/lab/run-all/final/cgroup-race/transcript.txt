@@ -1,0 +1,24 @@
+schema=zig-scheduler/cgroup-race/v1
+mode=partial-attach-revalidation-path
+vm_marker=/run/zig-scheduler-vm-lab.marker
+before_membership_digest=2927992b6c9220cf759e9afea9278712f61e53eeab3f71d2d82fbb941ebf8810
+REFUSED_STALE_SCOPE: target cgroup disappeared between dry-run and attach
+transcript=evidence/lab/run-all/final/cgroup-race/target_disappeared/partial-attach-transcript.txt
+case=target_disappeared result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+REFUSED_STALE_SCOPE: process membership changed unexpectedly
+transcript=evidence/lab/run-all/final/cgroup-race/process_membership_changed/partial-attach-transcript.txt
+case=process_membership_changed result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+REFUSED_STALE_SCOPE: systemd unit resolved outside allowlisted cgroup subtree
+transcript=evidence/lab/run-all/final/cgroup-race/symlink_path_race/partial-attach-transcript.txt
+case=symlink_path_race result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+REFUSED_STALE_SCOPE: parent scope changed after dry-run
+transcript=evidence/lab/run-all/final/cgroup-race/parent_scope_changed/partial-attach-transcript.txt
+case=parent_scope_changed result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+REFUSED_STALE_SCOPE: rollback id no longer matches current plan
+transcript=evidence/lab/run-all/final/cgroup-race/stale_rollback_id/partial-attach-transcript.txt
+case=stale_rollback_id result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+REFUSED_STALE_SCOPE: systemd unit resolved outside allowlisted cgroup subtree
+transcript=evidence/lab/run-all/final/cgroup-race/systemd_unit_escape/partial-attach-transcript.txt
+case=systemd_unit_escape result=REFUSED_STALE_SCOPE post-state=disabled/unmutated
+summary=evidence/lab/run-all/final/cgroup-race/cgroup-race-summary.json
+PASS: cgroup race harness refused stale scopes through partial_attach path

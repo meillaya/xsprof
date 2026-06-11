@@ -1,0 +1,61 @@
+{
+  "duration_requested": "1s",
+  "final_sched_ext_ops": "none",
+  "final_sched_ext_state": "disabled",
+  "host_mutation": false,
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "git_sha": "b7590d1",
+    "release": "7.0.11-1-cachyos"
+  },
+  "required_churn_passed": true,
+  "rollback_result": "PASS",
+  "root_cgroup_attach": false,
+  "scenarios": [
+    {
+      "detail": "unavailable or host-safe surrogate; not run on host",
+      "name": "stress-ng",
+      "status": "skip"
+    },
+    {
+      "detail": "unavailable or host-safe surrogate; not run on host",
+      "name": "hackbench",
+      "status": "skip"
+    },
+    {
+      "detail": "unavailable or host-safe surrogate; not run on host",
+      "name": "schbench",
+      "status": "skip"
+    },
+    {
+      "detail": "4 worker built-in churn completed",
+      "name": "built_in_cpu_process_churn",
+      "status": "pass"
+    },
+    {
+      "detail": "simulated controller crash; rollback path retained state facts",
+      "name": "forced_controller_crash",
+      "status": "pass"
+    },
+    {
+      "detail": "simulated session loss; cleanup trap and rollback summary persisted",
+      "name": "lost_ssh_session",
+      "status": "pass"
+    },
+    {
+      "detail": "simulated verifier rejection before attach; no root cgroup mutation",
+      "name": "forced_verifier_rejection",
+      "status": "pass"
+    },
+    {
+      "detail": "SysRq-S unavailable or not VM-opted-in",
+      "name": "sysrq_s",
+      "status": "skip"
+    }
+  ],
+  "schema": "zig-scheduler/stress-chaos-summary/v1",
+  "status": "PASS",
+  "transcript": "evidence/lab/run-all/final/stress-chaos/stress-chaos-transcript.txt",
+  "vm_kind": "host-safe-disposable-sysroot",
+  "workload_liveness": "PASS"
+}

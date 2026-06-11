@@ -1,0 +1,18 @@
+{
+  "cases": [
+    "target_disappeared",
+    "process_membership_changed",
+    "symlink_path_race",
+    "parent_scope_changed",
+    "stale_rollback_id",
+    "systemd_unit_escape"
+  ],
+  "cgroup_membership_changed": false,
+  "host_mutation": false,
+  "membership_after": "2927992b6c9220cf759e9afea9278712f61e53eeab3f71d2d82fbb941ebf8810",
+  "membership_before": "2927992b6c9220cf759e9afea9278712f61e53eeab3f71d2d82fbb941ebf8810",
+  "post_state": "disabled/unmutated",
+  "schema": "zig-scheduler/cgroup-race/v1",
+  "status": "REFUSED_STALE_SCOPE",
+  "symlink_status": "not-run"
+}

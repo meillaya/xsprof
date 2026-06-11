@@ -1,0 +1,18 @@
+schema=zig-scheduler/rollback-drill/v1
+audit_id=AUD-20260611T201546Z-ff04aa1-6f03d1
+rollback_id=RB-20260611T201546Z-lab
+target_cgroup=/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope
+state_before=enabled
+ops_before=zigsched_minimal
+enable_seq_before=42
+events_before=attached
+membership_before=292a3e23590d2244f5baf55e65bb2fe58bd7f48c2eb050aa6af90c539d2db938
+workload_pid=127229
+COMMAND: unload/fallback -> restore sched_ext disabled in disposable VM root
+state_after=disabled
+ops_after=none
+enable_seq_after=42
+events_after=fallback complete
+membership_after=292a3e23590d2244f5baf55e65bb2fe58bd7f48c2eb050aa6af90c539d2db938
+COMMAND: post-rollback health check workload kill -0 127229
+health_check=PASS

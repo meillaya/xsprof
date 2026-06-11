@@ -1,0 +1,2 @@
+REFUSED_STALE_SCOPE: process membership changed unexpectedly
+transcript=evidence/lab/run-all/final/cgroup-race/process_membership_changed/partial-attach-transcript.txt

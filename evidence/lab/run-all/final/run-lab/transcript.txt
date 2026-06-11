@@ -1,0 +1,2 @@
+SKIP: qemu boot image unavailable
+manifest=evidence/lab/run-all/final/run-lab/manifest.json

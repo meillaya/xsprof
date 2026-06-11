@@ -1,0 +1,10 @@
+{
+  "audit_id": "AUD-20990101T000000Z-deadbee-abc123",
+  "host_mutation": false,
+  "reason": "partial attach requires disposable VM marker; host attach refused before cgroup, bpftool, or sched_ext mutation",
+  "reason_code": "VM_MARKER_MISSING",
+  "rollback_id": "RB-demo",
+  "schema": "zig-scheduler/partial-attach-refusal/v1",
+  "status": "refused-host",
+  "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope"
+}
