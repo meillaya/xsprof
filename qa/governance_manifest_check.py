@@ -20,6 +20,7 @@ from typing import Final, NotRequired, TypedDict
 SCHEMA_VERSION: Final[int] = 1
 REQUIRED_SOURCE_PATHS: Final[tuple[str, ...]] = (
     "AGENTS.md",
+    "README.md",
     "WORKLOG.md",
     "docs/security/threat-model.md",
     "docs/releases/governance-gate.md",

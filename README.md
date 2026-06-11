@@ -33,3 +33,13 @@ zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 ```
 
 Unsafe verbs such as `load`, `attach`, `enable`, `mutate`, and `apply` are refused by design.
+
+## Tracked governance and worklog
+
+The operator guidance is intentionally tracked so a clean clone has the same safety context as a local working tree:
+
+- [`AGENTS.md`](AGENTS.md) is the future-agent source of truth for fail-closed root behavior.
+- [`WORKLOG.md`](WORKLOG.md) records historical checkpoints and current `controlled_lab_pilot_candidate` posture.
+- [`docs/`](docs/) contains the security, release, and runbook sources consumed by governance gates.
+
+Ignored `.omo/` and `.omx/` files are workflow state only; future agents must not depend on them for project behavior.

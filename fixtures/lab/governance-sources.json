@@ -1,12 +1,18 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T04",
+  "generated_for": "next-linux-scheduler-maturity T05",
   "schema_version": 1,
   "sources": [
     {
       "path": "AGENTS.md",
       "purpose": "future-agent operator guidance and fail-closed invariants",
       "required": true,
-      "sha256": "7a39cbe52dc1476b30707770815759e4c42b20790087dee138bc41de49bd7323"
+      "sha256": "aed6e229950d4afd0d5c69c3defd8c8044f25dc729f96e85b9a5fc8ddcd158f6"
+    },
+    {
+      "path": "README.md",
+      "purpose": "tracked project overview and governance entrypoint",
+      "required": true,
+      "sha256": "675f85b4e87e2481483ee8770522d5fb9a090266a505122aef8aa2257b1eec28"
     },
     {
       "path": "WORKLOG.md",
@@ -24,7 +30,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and tracked-source validator",
       "required": true,
-      "sha256": "1ea12feeda581088a5e31d57bffba4ced629d380c3104eb2f2fff24bc787ac1e"
+      "sha256": "f504baf020d1e9a11282b7bbea2663f4196e6294b026763d3c40a677bf06713c"
     },
     {
       "path": "qa/release_gate.sh",

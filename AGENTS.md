@@ -27,6 +27,13 @@
 └── simulator/                   # archived deterministic simulator package
 ```
 
+
+## GOVERNANCE SOURCES
+- `AGENTS.md` is the root operator guidance for future agents.
+- `WORKLOG.md` records historical checkpoints, current posture, and future-agent operating notes.
+- `docs/` contains tracked policy, runbook, release, and security sources consumed by governance gates.
+- Do not rely on ignored local `.omo/` or `.omx/` files for repository behavior or future-agent instructions.
+
 ## COMMANDS
 ```bash
 zig build test --summary all
