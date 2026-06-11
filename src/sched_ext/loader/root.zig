@@ -4,6 +4,42 @@ const controller = @import("../../controller/root.zig");
 
 pub const vm_marker_path = "/run/zig-scheduler-vm-lab.marker";
 
+pub const PartialAttachReasonCode = enum {
+    host_refused,
+    vm_marker_missing,
+    target_not_allowlisted,
+    target_symlink_rejected,
+    verifier_failed,
+    rollback_missing,
+    attach_skipped,
+    attach_attempted,
+    rollback_restored,
+    refused_stale_scope,
+
+    pub fn wire(self: PartialAttachReasonCode) []const u8 {
+        return switch (self) {
+            .host_refused => "HOST_REFUSED",
+            .vm_marker_missing => "VM_MARKER_MISSING",
+            .target_not_allowlisted => "TARGET_NOT_ALLOWLISTED",
+            .target_symlink_rejected => "TARGET_SYMLINK_REJECTED",
+            .verifier_failed => "VERIFIER_FAILED",
+            .rollback_missing => "ROLLBACK_MISSING",
+            .attach_skipped => "ATTACH_SKIPPED",
+            .attach_attempted => "ATTACH_ATTEMPTED",
+            .rollback_restored => "ROLLBACK_RESTORED",
+            .refused_stale_scope => "REFUSED_STALE_SCOPE",
+        };
+    }
+};
+
+pub fn isPartialAttachReasonCode(value: []const u8) bool {
+    inline for (std.meta.fields(PartialAttachReasonCode)) |field| {
+        const code: PartialAttachReasonCode = @enumFromInt(field.value);
+        if (std.mem.eql(u8, code.wire(), value)) return true;
+    }
+    return false;
+}
+
 pub const AttachRequest = struct {
     lab: bool,
     partial: bool,
@@ -152,6 +188,20 @@ test "partial attach plan requires lab partial allowlist audit and rollback" {
         .audit_id = base.audit_id,
         .rollback_id = "",
     }));
+}
+
+test "partial attach reason codes are stable wire strings" {
+    try std.testing.expectEqualStrings("HOST_REFUSED", PartialAttachReasonCode.host_refused.wire());
+    try std.testing.expectEqualStrings("VM_MARKER_MISSING", PartialAttachReasonCode.vm_marker_missing.wire());
+    try std.testing.expectEqualStrings("TARGET_NOT_ALLOWLISTED", PartialAttachReasonCode.target_not_allowlisted.wire());
+    try std.testing.expectEqualStrings("TARGET_SYMLINK_REJECTED", PartialAttachReasonCode.target_symlink_rejected.wire());
+    try std.testing.expectEqualStrings("VERIFIER_FAILED", PartialAttachReasonCode.verifier_failed.wire());
+    try std.testing.expectEqualStrings("ROLLBACK_MISSING", PartialAttachReasonCode.rollback_missing.wire());
+    try std.testing.expectEqualStrings("ATTACH_SKIPPED", PartialAttachReasonCode.attach_skipped.wire());
+    try std.testing.expectEqualStrings("ATTACH_ATTEMPTED", PartialAttachReasonCode.attach_attempted.wire());
+    try std.testing.expectEqualStrings("ROLLBACK_RESTORED", PartialAttachReasonCode.rollback_restored.wire());
+    try std.testing.expect(isPartialAttachReasonCode("REFUSED_STALE_SCOPE"));
+    try std.testing.expect(!isPartialAttachReasonCode("UNKNOWN"));
 }
 
 test "partial attach plan JSON names VM marker and mutation mode" {

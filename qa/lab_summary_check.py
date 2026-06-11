@@ -28,6 +28,7 @@ SUMMARY_SCHEMA: Final[str] = "zig-scheduler/run-all-lab/v1"
 STAGE_SCHEMA: Final[str] = "zig-scheduler/run-all-stage/v1"
 STATUSES: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE"})
 ROLLBACK_RESULTS: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE", "N/A"})
+PARTIAL_REASON_CODES: Final[frozenset[str]] = frozenset({"HOST_REFUSED", "VM_MARKER_MISSING", "TARGET_NOT_ALLOWLISTED", "TARGET_SYMLINK_REJECTED", "VERIFIER_FAILED", "ROLLBACK_MISSING", "ATTACH_SKIPPED", "ATTACH_ATTEMPTED", "ROLLBACK_RESTORED", "REFUSED_STALE_SCOPE"})
 RUN_ALL_PREFIX: Final[Path] = Path("evidence/lab/run-all")
 MALFORMED_FIXTURE: Final[Path] = Path("fixtures/lab/run-all-summary-missing-host-mutation.json")
 
@@ -35,6 +36,7 @@ MALFORMED_FIXTURE: Final[Path] = Path("fixtures/lab/run-all-summary-missing-host
 @dataclass(frozen=True, slots=True)
 class Args:
     summary: Path | None
+    partial: Path | None
     self_test: bool
 
 
@@ -44,10 +46,12 @@ class LabSummaryError(Exception):
 
 def parse_args(argv: list[str]) -> Args:
     if argv == ["--self-test"]:
-        return Args(summary=None, self_test=True)
+        return Args(summary=None, partial=None, self_test=True)
     if len(argv) == 2 and argv[0] == "--summary":
-        return Args(summary=Path(argv[1]), self_test=False)
-    raise LabSummaryError("usage: lab_summary_check.py --summary <summary.json> | --self-test")
+        return Args(summary=Path(argv[1]), partial=None, self_test=False)
+    if len(argv) == 2 and argv[0] == "--partial":
+        return Args(summary=None, partial=Path(argv[1]), self_test=False)
+    raise LabSummaryError("usage: lab_summary_check.py --summary <summary.json> | --partial <partial-refusal.json> | --self-test")
 
 
 def load_object(path: Path) -> JsonObject:
@@ -182,6 +186,21 @@ def validate_summary(path: Path) -> None:
                 raise LabSummaryError(f"release_use evidence path is not tracked: {artifact_path}")
 
 
+def validate_partial(path: Path) -> None:
+    refusal = load_object(path)
+    if require_string(refusal, "schema", "partial") != "zig-scheduler/partial-attach-refusal/v1":
+        raise LabSummaryError("partial refusal has unsupported schema")
+    if require_string(refusal, "status", "partial") != "refused-host":
+        raise LabSummaryError("partial refusal status must be refused-host")
+    if require_bool(refusal, "host_mutation", "partial"):
+        raise LabSummaryError("partial refusal host_mutation must be false")
+    code = require_string(refusal, "reason_code", "partial")
+    if code not in PARTIAL_REASON_CODES:
+        raise LabSummaryError(f"partial refusal reason_code is unknown: {code}")
+    for field in ("reason", "target_cgroup", "audit_id", "rollback_id"):
+        require_string(refusal, field, "partial")
+
+
 def self_test() -> None:
     root = Path("evidence/lab/run-all/self-test-lab-summary-check")
     shutil.rmtree(root, ignore_errors=True)
@@ -224,6 +243,12 @@ def self_test() -> None:
     good.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     validate_summary(good)
     reject(MALFORMED_FIXTURE, "fixture missing host_mutation")
+    partial = root / "partial-refusal.json"
+    partial.write_text(json.dumps({"schema": "zig-scheduler/partial-attach-refusal/v1", "status": "refused-host", "reason_code": "HOST_REFUSED", "reason": "marker missing", "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope", "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "host_mutation": False}, sort_keys=True) + "\n")
+    validate_partial(partial)
+    bad_partial = root / "bad-partial-refusal.json"
+    bad_partial.write_text(json.dumps({"schema": "zig-scheduler/partial-attach-refusal/v1", "status": "refused-host", "reason_code": "UNKNOWN", "reason": "marker missing", "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope", "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "host_mutation": False}, sort_keys=True) + "\n")
+    reject_partial(bad_partial, "unknown partial reason_code")
     bad_release = root / "release-use-untracked.json"
     summary["release_use"] = True
     bad_release.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
@@ -241,13 +266,26 @@ def reject(path: Path, label: str) -> None:
     raise LabSummaryError(f"expected rejection did not occur: {label}")
 
 
+def reject_partial(path: Path, label: str) -> None:
+    try:
+        validate_partial(path)
+    except LabSummaryError as exc:
+        print(f"PASS reject {label}: {exc}")
+        return
+    raise LabSummaryError(f"expected rejection did not occur: {label}")
+
+
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.self_test:
         self_test()
         return 0
     if args.summary is None:
-        raise LabSummaryError("internal argument parser error")
+        if args.partial is None:
+            raise LabSummaryError("internal argument parser error")
+        validate_partial(args.partial)
+        print(f"PASS partial attach refusal schema: {args.partial}")
+        return 0
     validate_summary(args.summary)
     print(f"PASS lab summary schema: {args.summary}")
     return 0

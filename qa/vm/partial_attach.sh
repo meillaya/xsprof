@@ -101,11 +101,14 @@ transcript="$out_dir/partial-attach-transcript.txt"
 rollback_json="$out_dir/rollback-snapshot.json"
 
 json_refusal() {
-  REASON="$1" TARGET="$target" AUDIT_ID="$audit_id" ROLLBACK_ID="$rollback_id" python3 - <<'PY' > "$host_refusal"
+  local code="$1"
+  local reason="$2"
+  REASON_CODE="$code" REASON="$reason" TARGET="$target" AUDIT_ID="$audit_id" ROLLBACK_ID="$rollback_id" python3 - <<'PY' > "$host_refusal"
 import json, os
 print(json.dumps({
     "schema": "zig-scheduler/partial-attach-refusal/v1",
     "status": "refused-host",
+    "reason_code": os.environ["REASON_CODE"],
     "reason": os.environ["REASON"],
     "target_cgroup": os.environ["TARGET"],
     "audit_id": os.environ["AUDIT_ID"],
@@ -118,6 +121,7 @@ PY
 refuse_stale_scope() {
   local reason="$1"
   local result="${2:-REFUSED_STALE_SCOPE}"
+  local reason_code="$result"
   local state_after_refusal
   local ops_after_refusal
   local enable_seq_after_refusal
@@ -135,6 +139,7 @@ refuse_stale_scope() {
   {
     printf 'schema=zig-scheduler/partial-attach-transcript/v1\n'
     printf 'result=%s\n' "$result"
+    printf 'reason_code=%s\n' "$reason_code"
     printf 'reason=%s\n' "$reason"
     printf 'target_cgroup=%s\n' "$target"
     printf 'rollback_id=%s\n' "$rollback_id"
@@ -149,6 +154,8 @@ refuse_stale_scope() {
     printf 'events_after_refusal=%s\n' "$events_after_refusal"
     printf 'membership_after_refusal=%s\n' "$membership_after_refusal"
     printf 'mutation_attempted=false\n'
+    printf 'attach_status=ATTACH_SKIPPED\n'
+    printf 'rollback_status=ROLLBACK_MISSING\n'
     printf 'post-state=%s\n' "$post_state"
   } > "$transcript"
   printf '%s: %s\n' "$result" "$reason"
@@ -157,7 +164,7 @@ refuse_stale_scope() {
 }
 
 if [ ! -f "$(host_path "$vm_marker")" ]; then
-  json_refusal 'partial attach requires disposable VM marker; host attach refused before cgroup, bpftool, or sched_ext mutation'
+  json_refusal VM_MARKER_MISSING 'partial attach requires disposable VM marker; host attach refused before cgroup, bpftool, or sched_ext mutation'
   printf 'REFUSE: partial attach requires disposable VM marker; host attach refused\n'
   printf 'refusal=%s\n' "$host_refusal"
   exit 0
@@ -299,9 +306,10 @@ current_membership="$(membership_digest_file "$procs_path")"
   tr '\n' ' ' < "$procs_path" || true
   printf '\n'
   printf 'COMMAND: bpftool struct_ops register <object> after lab workload scoped\n'
+  printf 'reason_code=ATTACH_ATTEMPTED\n'
   if ! command -v bpftool >/dev/null 2>&1; then
     printf 'SKIP: bpftool unavailable inside VM; attach not attempted\n'
-    attach_status='skip-bpftool-unavailable'
+    attach_status='ATTACH_SKIPPED'
   else
     set +e
     timeout 20 bpftool struct_ops register "$object_file"
@@ -316,9 +324,10 @@ current_membership="$(membership_digest_file "$procs_path")"
       unregister_rc=$?
       set -e
       printf 'bpftool_struct_ops_unregister_rc=%s\n' "$unregister_rc"
-      attach_status="enabled-then-unloaded"
+      attach_status="ATTACH_ATTEMPTED"
     else
-      attach_status="attach-attempt-failed"
+      printf 'reason_code=VERIFIER_FAILED\n'
+      attach_status="VERIFIER_FAILED"
     fi
   fi
   printf 'COMMAND: unload/fallback probe complete\n'
@@ -336,7 +345,9 @@ membership_after="$(membership_digest /sys/fs/cgroup/zig-scheduler-lab.slice 2>/
   printf 'enable_seq_after=%s\n' "$enable_seq_after"
   printf 'events_after=%s\n' "$events_after"
   printf 'membership_after=%s\n' "$membership_after"
-  printf 'status=%s\n' "${attach_status:-attempted}"
+  printf 'status=%s\n' "${attach_status:-ATTACH_ATTEMPTED}"
+  printf 'reason_code=%s\n' "${attach_status:-ATTACH_ATTEMPTED}"
+  printf 'rollback_status=ROLLBACK_RESTORED\n'
 } >> "$transcript"
 
 ROLLBACK_ID="$rollback_id" TARGET="$target" STATE_BEFORE="$state_before" STATE_AFTER="$state_after" ENABLE_BEFORE="$enable_seq_before" ENABLE_AFTER="$enable_seq_after" python3 - <<'PY' > "$rollback_json"
@@ -355,4 +366,9 @@ PY
 
 printf 'transcript=%s\n' "$transcript"
 printf 'rollback=%s\n' "$rollback_json"
-printf 'PASS: VM partial attach harness completed with rollback transcript\n'
+case "${attach_status:-ATTACH_ATTEMPTED}" in
+  ATTACH_ATTEMPTED) printf 'PASS: VM partial attach harness completed with rollback transcript\n' ;;
+  ATTACH_SKIPPED) printf 'SKIP: VM partial attach skipped with rollback transcript\n' ;;
+  VERIFIER_FAILED) printf 'REFUSE: VM partial attach verifier/register failed; rollback transcript captured\n' ;;
+  *) printf 'REFUSE: VM partial attach ended with unknown structured status: %s\n' "$attach_status" ;;
+esac
