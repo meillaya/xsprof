@@ -50,6 +50,7 @@ prepare_evidence_dir evidence/lab "$out_dir"
 refusal_json="$out_dir/host-refusal.json"
 verifier_log="$out_dir/bpf-verifier.log"
 evidence_json="$out_dir/verifier-evidence.json"
+parsed_json="$out_dir/verifier-parsed.json"
 
 json_write_refusal() {
   local reason="$1"
@@ -158,7 +159,19 @@ if [ "$cgroup_before" != "$cgroup_after" ]; then
   fail 'cgroup membership changed during verifier-only flow'
 fi
 
-STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" VERIFIER_LOG="$verifier_log" \
+set +e
+python3 qa/verifier_log_check.py --input "$verifier_log" --out "$parsed_json"
+parser_rc=$?
+set -e
+if [ "$parser_rc" -ne 0 ]; then
+  printf 'verifier_parse=%s
+' "$parsed_json"
+  printf 'FAIL: verifier parser classified BPF verifier log as failure
+' >&2
+  exit "$parser_rc"
+fi
+
+STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
 STATE_BEFORE="$state_before" STATE_AFTER="$state_after" ENABLE_BEFORE="$enable_seq_before" ENABLE_AFTER="$enable_seq_after" \
 CGROUP_BEFORE="$cgroup_before" CGROUP_AFTER="$cgroup_after" python3 - <<'PY' > "$evidence_json"
 import json, os
@@ -169,6 +182,7 @@ print(json.dumps({
     "object": os.environ["OBJECT_FILE"],
     "object_sha256": os.environ["OBJECT_SHA"],
     "verifier_log_path": os.environ["VERIFIER_LOG"],
+    "verifier_parse_path": os.environ["PARSED_JSON"],
     "sched_ext_state_before": os.environ["STATE_BEFORE"],
     "sched_ext_state_after": os.environ["STATE_AFTER"],
     "enable_seq_before": os.environ["ENABLE_BEFORE"],
@@ -180,5 +194,6 @@ print(json.dumps({
 PY
 
 printf 'verifier_log=%s\n' "$verifier_log"
+printf 'verifier_parse=%s\n' "$parsed_json"
 printf 'evidence=%s\n' "$evidence_json"
 printf 'PASS: verifier-only VM flow preserved sched_ext state and cgroup membership\n'

@@ -6,6 +6,7 @@ pub const VerifierOnlyEvidence = struct {
     vm_marker: []const u8 = "",
     object_sha256: []const u8 = "",
     verifier_log_path: []const u8 = "",
+    verifier_parse_path: []const u8 = "",
     sched_ext_state_before: []const u8 = "",
     sched_ext_state_after: []const u8 = "",
     enable_seq_before: []const u8 = "",
@@ -20,6 +21,7 @@ pub const ValidationError = error{
     NotVmEvidence,
     MissingObjectHash,
     MissingVerifierLog,
+    MissingVerifierParse,
     SchedExtStateChanged,
     CgroupMembershipChanged,
     HostMutationEvidence,
@@ -40,6 +42,7 @@ pub fn validateVerifierOnlyEvidence(evidence: VerifierOnlyEvidence) ValidationEr
     if (!std.mem.eql(u8, evidence.vm_marker, "/run/zig-scheduler-vm-lab.marker")) return error.NotVmEvidence;
     if (evidence.object_sha256.len != 64) return error.MissingObjectHash;
     if (!std.mem.endsWith(u8, evidence.verifier_log_path, "bpf-verifier.log")) return error.MissingVerifierLog;
+    if (!std.mem.endsWith(u8, evidence.verifier_parse_path, "verifier-parsed.json")) return error.MissingVerifierParse;
     if (!std.mem.eql(u8, evidence.sched_ext_state_before, evidence.sched_ext_state_after)) return error.SchedExtStateChanged;
     if (!std.mem.eql(u8, evidence.enable_seq_before, evidence.enable_seq_after)) return error.SchedExtStateChanged;
     if (!std.mem.eql(u8, evidence.cgroup_membership_before, evidence.cgroup_membership_after)) return error.CgroupMembershipChanged;
@@ -54,13 +57,13 @@ test "verifier-only evidence fixture validates no state or cgroup delta" {
 
 test "verifier-only evidence rejects host and mutation deltas" {
     try std.testing.expectError(error.NotVmEvidence, parseAndValidateVerifierOnlyEvidence(std.testing.allocator,
-        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"host","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","sched_ext_state_before":"enabled","sched_ext_state_after":"enabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"aaa","host_mutation":false}
+        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"host","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","verifier_parse_path":"evidence/lab/verifier-dev/verifier-parsed.json","sched_ext_state_before":"enabled","sched_ext_state_after":"enabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"aaa","host_mutation":false}
     ));
     try std.testing.expectError(error.SchedExtStateChanged, parseAndValidateVerifierOnlyEvidence(std.testing.allocator,
-        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"/run/zig-scheduler-vm-lab.marker","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","sched_ext_state_before":"enabled","sched_ext_state_after":"disabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"aaa","host_mutation":false}
+        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"/run/zig-scheduler-vm-lab.marker","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","verifier_parse_path":"evidence/lab/verifier-dev/verifier-parsed.json","sched_ext_state_before":"enabled","sched_ext_state_after":"disabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"aaa","host_mutation":false}
     ));
     try std.testing.expectError(error.CgroupMembershipChanged, parseAndValidateVerifierOnlyEvidence(std.testing.allocator,
-        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"/run/zig-scheduler-vm-lab.marker","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","sched_ext_state_before":"enabled","sched_ext_state_after":"enabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"bbb","host_mutation":false}
+        \\{"schema":"zig-scheduler/verifier-only-evidence/v1","vm_marker":"/run/zig-scheduler-vm-lab.marker","object_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","verifier_log_path":"evidence/lab/verifier-dev/bpf-verifier.log","verifier_parse_path":"evidence/lab/verifier-dev/verifier-parsed.json","sched_ext_state_before":"enabled","sched_ext_state_after":"enabled","enable_seq_before":"1","enable_seq_after":"1","cgroup_membership_before":"aaa","cgroup_membership_after":"bbb","host_mutation":false}
     ));
 }
 
