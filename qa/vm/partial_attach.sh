@@ -117,6 +117,7 @@ PY
 
 refuse_stale_scope() {
   local reason="$1"
+  local result="${2:-REFUSED_STALE_SCOPE}"
   local state_after_refusal
   local ops_after_refusal
   local enable_seq_after_refusal
@@ -133,7 +134,7 @@ refuse_stale_scope() {
   fi
   {
     printf 'schema=zig-scheduler/partial-attach-transcript/v1\n'
-    printf 'result=REFUSED_STALE_SCOPE\n'
+    printf 'result=%s\n' "$result"
     printf 'reason=%s\n' "$reason"
     printf 'target_cgroup=%s\n' "$target"
     printf 'rollback_id=%s\n' "$rollback_id"
@@ -150,7 +151,7 @@ refuse_stale_scope() {
     printf 'mutation_attempted=false\n'
     printf 'post-state=%s\n' "$post_state"
   } > "$transcript"
-  printf 'REFUSED_STALE_SCOPE: %s\n' "$reason"
+  printf '%s: %s\n' "$result" "$reason"
   printf 'transcript=%s\n' "$transcript"
   exit 0
 }
@@ -221,6 +222,32 @@ enable_seq_before="$(read_fact /sys/kernel/sched_ext/enable_seq)"
 events_before="$(read_fact /sys/kernel/sched_ext/events)"
 membership_before="$(membership_digest /sys/fs/cgroup/zig-scheduler-lab.slice 2>/dev/null || printf unavailable)"
 
+validate_target_realpath() {
+  local allowed_root allowed_real current component target_real
+  allowed_root="$(host_path /sys/fs/cgroup/zig-scheduler-lab.slice)"
+  if [ ! -d "$allowed_root" ]; then
+    refuse_stale_scope 'allowlisted lab cgroup root is missing'
+  fi
+  current="$allowed_root"
+  IFS='/' read -r -a target_components <<< "$relative_target"
+  for component in "${target_components[@]}"; do
+    [ -n "$component" ] || continue
+    current="$current/$component"
+    if [ -L "$current" ]; then
+      refuse_stale_scope "target cgroup contains symlink component: $component" TARGET_SYMLINK_REJECTED
+    fi
+  done
+  if [ ! -e "$target_path" ]; then
+    refuse_stale_scope 'target cgroup disappeared between dry-run and attach'
+  fi
+  allowed_real="$(realpath -e "$allowed_root")" || refuse_stale_scope 'allowlisted lab cgroup root realpath unavailable'
+  target_real="$(realpath -e "$target_path")" || refuse_stale_scope 'target cgroup realpath unavailable'
+  case "$target_real" in
+    "$allowed_real"|"$allowed_real"/*) ;;
+    *) refuse_stale_scope 'target realpath resolved outside allowlisted cgroup subtree' ;;
+  esac
+}
+
 case "${ZIG_SCHEDULER_RACE:-}" in
   target_disappeared)
     rm -rf "$target_path"
@@ -244,9 +271,8 @@ case "${ZIG_SCHEDULER_RACE:-}" in
   *) fail "unknown race simulation: $ZIG_SCHEDULER_RACE" ;;
 esac
 
+case "$target" in "$allow_prefix"*) validate_target_realpath ;; *) refuse_stale_scope 'systemd unit resolved outside allowlisted cgroup subtree' ;; esac
 current_membership="$(membership_digest_file "$procs_path")"
-case "$target" in "$allow_prefix"*) ;; *) refuse_stale_scope 'systemd unit resolved outside allowlisted cgroup subtree' ;; esac
-[ -d "$target_path" ] || refuse_stale_scope 'target cgroup disappeared between dry-run and attach'
 [ "$parent_cgroup" = "$initial_parent" ] || refuse_stale_scope 'parent scope changed after dry-run'
 [ "$current_membership" = "$initial_membership" ] || refuse_stale_scope 'process membership changed unexpectedly'
 [ "$rollback_id" = "$initial_rollback" ] || refuse_stale_scope 'rollback id no longer matches current plan'
