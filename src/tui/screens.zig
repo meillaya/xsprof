@@ -38,20 +38,19 @@ pub fn renderSchedExt(writer: anytype, width: usize, model: fixture.SnapshotMode
     try row(writer, width, "BTF", model.btf_status, "no load before approval");
     try row(writer, width, "gate", "closed", "fallback: refuse live mutation");
     try section(writer, width, "sched_ext Lab Lifecycle", "Fixture Parity");
+    try row(writer, width, "evidence mode", model.evidence_mode, "fixture/live separated");
     try row(writer, width, "lab state", model.lab_status, "read-only verifier-ready");
+    try row(writer, width, "verifier", model.verifier_status, "verifier-only check");
     try row(writer, width, "partial attach", model.partial_status, "attached-partial scope");
-    try row(writer, width, "rollback required", model.rollback_requirement, "rejected if missing");
-    try row(writer, width, "fallback-fired", model.post_rollback_health, model.state_restored);
-    try row(writer, width, "workload", model.workload_liveness, "health check required");
-    try row(writer, width, "audit id", model.audit_id, "append-only ledger");
-    try row(writer, width, "rollback id", model.rollback_id, "immutable snapshot");
+    try row(writer, width, "rollback", model.rollback_requirement, "required before release");
+    try row(writer, width, "DSQ", model.dsq_status, "rollback success required");
+    try row(writer, width, "stress", model.stress_status, "bounded lab workload");
+    try row(writer, width, "audit", model.audit_status, "append-only ledger");
+    try row(writer, width, "release", model.release_gate_status, "candidate gate only");
     try section(writer, width, "Gate Ledger", "No-load Contract");
     try row(writer, width, "approved lab", model.lab_gate, "load command absent");
     try row(writer, width, "kernel tuple", model.kernel_release, "attach command absent");
-    try row(writer, width, "CONFIG_SCHED_CLASS_EXT", "not assumed", "enable command absent");
-    try row(writer, width, "BPF support", "not assumed", "mutate command absent");
     try section(writer, width, "Dispatch Queue Plan", "Verifier Plan");
-    try row(writer, width, "DSQ mapping", "design gate pending", "capture verifier log");
     try row(writer, width, "partial switch", "required", "reject on verifier fail");
     try row(writer, width, "fallback", "drill required", "auto-unload documented");
 }

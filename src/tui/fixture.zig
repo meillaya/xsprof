@@ -20,6 +20,12 @@ pub const SnapshotModel = struct {
     audit_id: []const u8 = "required",
     rollback_id: []const u8 = "required",
     lab_gate: []const u8 = "missing",
+    evidence_mode: []const u8 = "live-read-only",
+    verifier_status: []const u8 = "pending",
+    dsq_status: []const u8 = "pending",
+    stress_status: []const u8 = "pending",
+    audit_status: []const u8 = "pending",
+    release_gate_status: []const u8 = "closed",
     fixture_warning: []const u8 = "",
 };
 
@@ -53,6 +59,12 @@ const CapabilityJson = struct {
     effective: []const u8 = "",
 };
 
+const StageJson = struct {
+    stage: []const u8 = "",
+    status: []const u8 = "",
+    reason: []const u8 = "",
+};
+
 pub const PreflightFixture = struct {
     kernel: KernelJson = .{},
     sched_ext: SchedExtJson = .{},
@@ -68,6 +80,11 @@ pub const PreflightFixture = struct {
     workload_alive: bool = false,
     rollback_snapshot: []const u8 = "",
     transcript: []const u8 = "",
+    mode: []const u8 = "",
+    vm_kind: []const u8 = "",
+    evidence_mode: []const u8 = "",
+    release_status: []const u8 = "",
+    stages: []StageJson = &.{},
 };
 
 pub fn load(allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(PreflightFixture) {
@@ -99,7 +116,13 @@ pub fn model(value: PreflightFixture) SnapshotModel {
         .workload_liveness = if (value.workload_alive) "alive" else "not-started",
         .audit_id = value.audit_id,
         .rollback_id = value.rollback_id,
-        .lab_gate = if (isRollbackSummary(value)) "rollback evidence present" else "missing",
+        .lab_gate = labGate(value),
+        .evidence_mode = evidenceMode(value),
+        .verifier_status = stageStatus(value, "verifier_only", "pending"),
+        .dsq_status = stageStatus(value, "dsq_policy_smoke", "pending"),
+        .stress_status = stageStatus(value, "stress_chaos", "pending"),
+        .audit_status = auditStatus(value),
+        .release_gate_status = releaseGateStatus(value),
         .fixture_warning = "FIXTURE deterministic host facts; do not infer live support",
     };
 }
@@ -113,7 +136,12 @@ fn isRollbackSummary(value: PreflightFixture) bool {
     return std.mem.eql(u8, value.schema, "zig-scheduler/rollback-drill-summary/v1");
 }
 
+fn isRunAllSummary(value: PreflightFixture) bool {
+    return std.mem.eql(u8, value.schema, "zig-scheduler/run-all-lab/v1");
+}
+
 fn labStatus(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value)) return value.status;
     if (!isRollbackSummary(value)) return "read-only";
     if (std.mem.eql(u8, value.status, "PASS")) return "fallback-fired";
     if (std.mem.eql(u8, value.status, "REJECTED")) return "rejected";
@@ -121,13 +149,54 @@ fn labStatus(value: PreflightFixture) []const u8 {
 }
 
 fn partialStatus(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value)) return stageStatus(value, "partial_attach", "pending");
     if (isRollbackSummary(value)) return "attached-partial observed";
     return "verifier-ready pending";
 }
 
 fn rollbackRequirement(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value)) return stageStatus(value, "rollback_drill", "required");
     if (isRollbackSummary(value) and std.mem.eql(u8, value.post_rollback_health, "PASS")) {
         return "rollback-required cleared";
     }
     return "rollback-required";
+}
+
+fn labGate(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value) and value.release_status.len != 0) return value.release_status;
+    if (isRollbackSummary(value)) return "rollback evidence present";
+    return "missing";
+}
+
+fn evidenceMode(value: PreflightFixture) []const u8 {
+    if (value.evidence_mode.len != 0) return value.evidence_mode;
+    if (value.vm_kind.len != 0) return value.vm_kind;
+    if (value.mode.len != 0) return value.mode;
+    return "live-read-only";
+}
+
+fn auditStatus(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value)) return stageStatus(value, "observe_partial", "pending");
+    if (isRollbackSummary(value) and value.audit_id.len != 0) return "ledger-linked";
+    return "pending";
+}
+
+fn releaseGateStatus(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value)) {
+        const status = stageStatus(value, "release_gate", "");
+        if (status.len != 0) return status;
+        if (value.release_status.len != 0) return value.release_status;
+    }
+    return "closed";
+}
+
+fn stageStatus(value: PreflightFixture, name: []const u8, fallback: []const u8) []const u8 {
+    for (value.stages) |stage| {
+        if (std.mem.eql(u8, stage.stage, name)) {
+            if (stage.reason.len == 0) return stage.status;
+            if (stage.status.len == 0) return stage.reason;
+            return stage.status;
+        }
+    }
+    return fallback;
 }

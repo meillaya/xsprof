@@ -190,3 +190,28 @@ test "rollback summary fixture renders lab lifecycle states at fixed size" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "Task Metrics") == null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "completion_order") == null);
 }
+
+test "run-all fixture renders lab lifecycle evidence rows" {
+    const options = try parseArgs(&.{ "--snapshot", "--fixture", "fixtures/lab/run-all-summary.json", "--screen", "sched-ext", "--width", "100", "--height", "30" });
+    const frame = try renderSnapshot(std.testing.allocator, options);
+    defer std.testing.allocator.free(frame);
+    try std.testing.expectEqual(@as(usize, 30), countRows(frame));
+    try std.testing.expect(layout.maxLineCells(frame) <= 100);
+    for ([_][]const u8{
+        "evidence mode",
+        "verifier",
+        "partial attach",
+        "rollback",
+        "DSQ",
+        "stress",
+        "audit",
+        "release",
+        "fixture",
+        "skipped_no_vm",
+    }) |label| {
+        try std.testing.expect(std.mem.indexOf(u8, frame, label) != null);
+    }
+    try std.testing.expect(std.mem.indexOf(u8, frame, "Task Metrics") == null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "completion_order") == null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "production") == null);
+}
