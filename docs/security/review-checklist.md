@@ -9,6 +9,9 @@ Required topics for mutation-capable lab release:
 - [ ] BPF verifier assumptions and kernel/API drift reviewed.
 - [ ] Log privacy and private command-line sampling reviewed.
 - [ ] Packaging defaults and service enablement reviewed.
+- [ ] Package install, package upgrade, and package uninstall safety drills reviewed.
+- [ ] Privacy review confirms runtime samples omit raw command lines, environments, secrets, and PII.
+- [ ] Security signoff includes reviewer identity, date, git SHA, authorized status, and scope.
 - [ ] Rollback/fallback and SysRq runbook reviewed.
 - [ ] Production-claim wording reviewed.
 

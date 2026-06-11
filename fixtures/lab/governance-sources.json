@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T06-fix",
+  "generated_for": "next-linux-scheduler-maturity T25",
   "schema_version": 1,
   "sources": [
     {
@@ -30,7 +30,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and tracked-source validator",
       "required": true,
-      "sha256": "f504baf020d1e9a11282b7bbea2663f4196e6294b026763d3c40a677bf06713c"
+      "sha256": "a464762d146b40afbd5da90ae386658656bcbc9ce09c1753136453f157fc7b54"
     },
     {
       "path": "qa/release_gate.sh",
@@ -84,7 +84,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "bcaa14c2dfd2183fb2e60b0f6e332a4eb37d2d4348d5941d15d8490c72c43afd"
+      "sha256": "71182644e71eae59ef455e36ab85e3b3e2268109a286b67ac95eab9a431fcf76"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -114,7 +114,7 @@
       "path": "docs/security/review-checklist.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "7302bfe206ec2fae36cee1f4ed677804ded8fd5c226da5b4fd7887e0c62ff616"
+      "sha256": "9f5b7db1be78bf8aa9cc5cdfe1a55260b50ffef1f0bbee6bd6d9b0b31eab0f06"
     },
     {
       "path": "docs/security/threat-model.md",

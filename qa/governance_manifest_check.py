@@ -48,6 +48,7 @@ class ManifestJson(TypedDict):
 @dataclass(frozen=True, slots=True)
 class Args:
     manifest: Path
+    require_production_matrix: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,9 +64,24 @@ class ManifestError(Exception):
 
 
 def parse_args(argv: list[str]) -> Args:
-    if len(argv) != 2 or argv[0] != "--manifest":
+    if not argv:
         raise ManifestError("usage: governance_manifest_check.py --manifest <path>")
-    return Args(manifest=Path(argv[1]))
+    manifest = Path("fixtures/lab/governance-sources.json")
+    require_production_matrix = False
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--manifest":
+            index += 1
+            if index >= len(argv):
+                raise ManifestError("--manifest requires a path")
+            manifest = Path(argv[index])
+        elif arg == "--require-production-matrix":
+            require_production_matrix = True
+        else:
+            raise ManifestError("usage: governance_manifest_check.py [--manifest <path>] [--require-production-matrix]")
+        index += 1
+    return Args(manifest=manifest, require_production_matrix=require_production_matrix)
 
 
 def parse_manifest(path: Path) -> list[Source]:
@@ -156,10 +172,58 @@ def validate_sources(sources: list[Source]) -> None:
             raise ManifestError(f"governance source hash mismatch: {path_text}")
 
 
+PRODUCTION_MATRIX_TERMS: Final[tuple[tuple[str, str], ...]] = (
+    ("kernel tuple matrix", "kernel tuple matrix"),
+    ("verifier logs", "verifier log"),
+    ("VM attach evidence", "vm-only partial-switch attach"),
+    ("rollback drills", "rollback drill"),
+    ("stress and chaos", "stress/chaos"),
+    ("audit ledger", "audit ledger"),
+    ("security signoff", "security signoff"),
+    ("package install safety", "package install"),
+    ("package upgrade safety", "package upgrade"),
+    ("package uninstall safety", "package uninstall"),
+    ("incident runbook", "incident runbook"),
+    ("privacy review", "privacy review"),
+    ("systemd no auto-start", "no auto-start"),
+)
+
+
+def require_text(path: Path, needle: str, label: str) -> None:
+    try:
+        haystack = path.read_text().lower()
+    except FileNotFoundError as exc:
+        raise ManifestError(f"missing production matrix source: {path}") from exc
+    if needle.lower() not in haystack:
+        raise ManifestError(f"production evidence matrix missing {label}: {path}")
+
+
+def validate_production_matrix() -> None:
+    gate = Path("docs/releases/governance-gate.md")
+    checklist = Path("docs/security/review-checklist.md")
+    release_summary = Path("evidence/releases/0.1.0-lab/summary.json")
+    for label, needle in PRODUCTION_MATRIX_TERMS:
+        require_text(gate, needle, label)
+    require_text(checklist, "security signoff", "security signoff checklist")
+    require_text(checklist, "privacy review", "privacy review checklist")
+    try:
+        summary = json.loads(release_summary.read_text())
+    except FileNotFoundError as exc:
+        raise ManifestError(f"missing release summary: {release_summary}") from exc
+    if summary.get("production_ready") is not False:
+        raise ManifestError("current release summary must keep production_ready=false")
+    if summary.get("arbitrary_host_safe") is not False:
+        raise ManifestError("current release summary must keep arbitrary_host_safe=false")
+    if summary.get("release_status") != "controlled_lab_pilot_candidate":
+        raise ManifestError("current release summary must remain controlled_lab_pilot_candidate")
+
+
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
     sources = parse_manifest(args.manifest)
     validate_sources(sources)
+    if args.require_production_matrix:
+        validate_production_matrix()
     required = sum(1 for source in sources if source.required)
     print(f"PASS governance manifest: {args.manifest} required_sources={required} total_sources={len(sources)}")
     return 0
