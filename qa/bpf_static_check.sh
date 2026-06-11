@@ -13,6 +13,26 @@ fail() {
   exit 1
 }
 
+require_dispatch_consume=1
+require_stats_events=1
+for arg in "$@"; do
+  case "$arg" in
+    --require-dispatch-consume)
+      require_dispatch_consume=1
+      ;;
+    --require-stats-events)
+      require_stats_events=1
+      ;;
+    --help|-h)
+      printf 'usage: %s [--require-dispatch-consume] [--require-stats-events]\n' "$0"
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $arg"
+      ;;
+  esac
+done
+
 grep -q 'SCX_OPS_SWITCH_PARTIAL' "$header_file" "$source_file" || fail 'partial switch flag missing'
 grep -q 'struct sched_ext_ops' "$header_file" "$source_file" || fail 'sched_ext ops declaration missing'
 grep -q 'zigsched_minimal_ops' "$source_file" || fail 'minimal ops instance missing'
@@ -27,7 +47,22 @@ grep -q 'ZIGSCHED_POLICY_MODE_VTIME' "$header_file" || fail 'vtime policy mode m
 grep -q 'zigsched_policy_config' "$source_file" "$header_file" || fail 'policy config map missing'
 grep -q 'SEC("struct_ops/' "$source_file" || fail 'struct_ops sections missing'
 
-if grep -R -n -E 'SCX_OPS_SWITCH_ALL|SWITCH_ALL|struct_ops[[:space:]].*(register|attach)|bpftool[[:space:]].*(struct_ops|prog load)|/sys/fs/cgroup/.*/(cgroup.procs|cgroup.threads).*>' bpf; then
+if [ "$require_dispatch_consume" -eq 1 ]; then
+  grep -q 'scx_bpf_create_dsq(ZIGSCHED_DSQ_FIFO' "$source_file" || fail 'FIFO DSQ creation missing'
+  grep -q 'scx_bpf_create_dsq(ZIGSCHED_DSQ_VTIME' "$source_file" || fail 'vtime DSQ creation missing'
+  grep -q 'scx_bpf_dsq_move_to_local(ZIGSCHED_DSQ_FIFO)' "$source_file" || fail 'FIFO DSQ dispatch consumption missing'
+  grep -q 'scx_bpf_dsq_move_to_local(ZIGSCHED_DSQ_VTIME)' "$source_file" || fail 'vtime DSQ dispatch consumption missing'
+fi
+
+if [ "$require_stats_events" -eq 1 ]; then
+  grep -q 'zigsched_events' "$source_file" "$header_file" || fail 'event counter map missing'
+  grep -q 'zigsched_stats_increment' "$source_file" || fail 'stats update helper missing'
+  grep -q 'zigsched_event_increment' "$source_file" || fail 'event update helper missing'
+  grep -q 'ZIGSCHED_EVENT_SELECT_CPU_FALLBACK' "$source_file" "$header_file" || fail 'select-cpu fallback event missing'
+  grep -q 'ZIGSCHED_STAT_DISPATCH_CALLS' "$source_file" "$header_file" || fail 'dispatch stats counter missing'
+fi
+
+if grep -R -n -E 'SCX_OPS_SWITCH_ALL|SWITCH_ALL|struct_ops[[:space:]].*(register|attach)|bpftool[[:space:]].*(struct_ops|prog load)|bpf_probe_write_user|bpf_trace_printk|bpf_override_return|/sys/fs/cgroup/.*/(cgroup.procs|cgroup.threads).*>' bpf; then
   fail 'forbidden full-switch or mutation pattern found'
 fi
 
