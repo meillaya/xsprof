@@ -147,7 +147,10 @@ print(json.dumps({
 }, indent=2, sort_keys=True))
 PY
 
-AUDIT_ID="$audit_id" ROLLBACK_ID="$rollback_id" SNAPSHOT="$snapshot" TRANSCRIPT="$transcript" python3 - <<'PY' >> "$ledger"
+snapshot_sha256="$(sha256sum "$snapshot" | awk '{print $1}')"
+transcript_sha256="$(sha256sum "$transcript" | awk '{print $1}')"
+
+AUDIT_ID="$audit_id" ROLLBACK_ID="$rollback_id" SNAPSHOT="$snapshot" TRANSCRIPT="$transcript" SNAPSHOT_SHA256="$snapshot_sha256" TRANSCRIPT_SHA256="$transcript_sha256" python3 - <<'PY' >> "$ledger"
 import json, os
 print(json.dumps({
   "schema": "zig-scheduler/audit-ledger/v1",
@@ -155,7 +158,9 @@ print(json.dumps({
   "rollback_id": os.environ["ROLLBACK_ID"],
   "action": "rollback-drill",
   "rollback_snapshot": os.environ["SNAPSHOT"],
+  "rollback_snapshot_sha256": os.environ["SNAPSHOT_SHA256"],
   "transcript": os.environ["TRANSCRIPT"],
+  "transcript_sha256": os.environ["TRANSCRIPT_SHA256"],
   "secret_redaction": "no-secrets-recorded"
 }, sort_keys=True))
 PY
