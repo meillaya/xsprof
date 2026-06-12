@@ -25,10 +25,75 @@ manifest = Path(sys.argv[2])
 data = json.loads(manifest.read_text())
 install_root = Path(str(data['install_root']))
 files = [str(item['path']) for item in data['files']]
+required = {
+    'usr/bin/zig-scheduler',
+    'usr/bin/zig-scheduler-daemon',
+    'usr/bin/zig-scheduler-linux-preflight',
+    'usr/bin/zig-scheduler-tui',
+    'etc/zig-scheduler/default.toml',
+    'usr/lib/systemd/system/zig-scheduler-daemon.service',
+    'usr/lib/systemd/system/zig-scheduler-preflight.service',
+    'usr/lib/systemd/system/zig-scheduler-lab-mutation.service',
+}
 if not str(root).startswith('/tmp/'):
     raise SystemExit('staging root must be under /tmp')
 if data.get('no_auto_start') is not True or data.get('services_not_enabled') is not True:
     raise SystemExit('manifest is not no-auto-start')
+missing = sorted(required - set(files))
+if missing:
+    raise SystemExit('manifest missing package lifecycle files: ' + ','.join(missing))
+
+def unit_text(rel: str) -> str:
+    return (root / rel).read_text()
+
+def require_no_wants() -> None:
+    wants = root / 'etc/systemd/system/multi-user.target.wants'
+    if wants.exists() and any(wants.iterdir()):
+        raise SystemExit('service was enabled')
+
+def require_daemon_safe() -> None:
+    daemon_bin = root / 'usr/bin/zig-scheduler-daemon'
+    daemon_unit = root / 'usr/lib/systemd/system/zig-scheduler-daemon.service'
+    if not daemon_bin.is_file():
+        raise SystemExit('daemon binary missing from package lifecycle install')
+    text = unit_text('usr/lib/systemd/system/zig-scheduler-daemon.service')
+    if 'ExecStart=/usr/bin/zig-scheduler-daemon --foreground --state-dir daemon' not in text:
+        raise SystemExit('daemon unit command is unsupported')
+    if 'WantedBy=' in text:
+        raise SystemExit('daemon unit install-enables by default')
+    if 'NoNewPrivileges=yes' not in text or 'CapabilityBoundingSet=' not in text:
+        raise SystemExit('daemon unit lacks hard no-privilege defaults')
+    if any(token in text for token in (' sched-ext attach', ' controller apply', ' load ', ' enable ', ' mutate ')):
+        raise SystemExit('daemon unit contains scheduler mutation verb')
+    require_no_wants()
+
+def require_mutation_gated() -> None:
+    text = unit_text('usr/lib/systemd/system/zig-scheduler-lab-mutation.service')
+    for gate in (
+        'ConditionPathExists=/run/zig-scheduler-vm-lab.marker',
+        'ConditionPathExists=/etc/zig-scheduler/enable-lab-mutation',
+        'ConditionPathExists=/var/lib/zig-scheduler/evidence/current/approval.json',
+    ):
+        if gate not in text:
+            raise SystemExit('mutation unit missing gate: ' + gate)
+    if 'WantedBy=' in text:
+        raise SystemExit('mutation unit install-enables by default')
+    if '--target-cgroup /sys/fs/cgroup/zig-scheduler-lab.slice/' not in text:
+        raise SystemExit('mutation unit target cgroup is not lab allowlisted')
+    if '--audit-id AUD-' not in text or '--rollback-id RB-' not in text:
+        raise SystemExit('mutation unit missing audit/rollback id')
+    require_no_wants()
+
+def require_config_safe() -> None:
+    text = (root / 'etc/zig-scheduler/default.toml').read_text()
+    for line in (
+        'scheduler = "none"',
+        'auto_start_scheduler = false',
+        'mutation_service_enabled = false',
+        'control_daemon_enabled = false',
+    ):
+        if line not in text:
+            raise SystemExit('package default config is unsafe: ' + line)
 
 def copy_file(rel: str, preserve_config: bool) -> None:
     src = install_root / rel
@@ -41,12 +106,9 @@ def copy_file(rel: str, preserve_config: bool) -> None:
 def install(preserve_config: bool) -> None:
     for rel in files:
         copy_file(rel, preserve_config)
-    wants = root / 'etc/systemd/system/multi-user.target.wants'
-    if wants.exists() and any(wants.iterdir()):
-        raise SystemExit('service was enabled')
-    mutation = root / 'usr/lib/systemd/system/zig-scheduler-lab-mutation.service'
-    if 'WantedBy=' in mutation.read_text():
-        raise SystemExit('mutation unit install-enables')
+    require_daemon_safe()
+    require_mutation_gated()
+    require_config_safe()
 
 install(preserve_config=False)
 config = root / 'etc/zig-scheduler/default.toml'
@@ -81,9 +143,15 @@ summary = {
     'status': 'PASS',
     'root': str(root),
     'installed_files': len(files),
+    'daemon_binary_installed': True,
+    'daemon_unit_installed': True,
+    'daemon_service_enabled': False,
+    'mutation_service_enabled': False,
+    'mutation_service_gated': True,
     'upgrade_preserved_config': True,
     'uninstall_preserved_config': True,
     'evidence_archive_preserved': True,
+    'cleanup_receipt': 'caller may remove temp root after summary capture; package drill left no enabled services',
     'host_mutation': False,
     'service_enabled': False,
 }
@@ -91,4 +159,5 @@ summary_path = root / 'var/lib/zig-scheduler/package-lifecycle-summary.json'
 summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
 print('PASS package lifecycle drill: install upgrade uninstall staged only')
 print('summary=' + str(summary_path))
+print('cleanup_receipt=' + summary['cleanup_receipt'])
 PY
