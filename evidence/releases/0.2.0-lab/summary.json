@@ -3,6 +3,7 @@
   "artifact_count": 19,
   "artifact_hash_manifest": "evidence/releases/0.2.0-lab/artifact-hashes.json",
   "evidence_dir": "evidence/releases/0.2.0-lab",
+  "no_host_gate": "executed",
   "production_ready": false,
   "release_status": "controlled_lab_pilot_candidate",
   "required_artifacts_present": true,
