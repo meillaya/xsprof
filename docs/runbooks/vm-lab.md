@@ -65,4 +65,13 @@ The contract requires future VM execution to be disposable and evidence-first:
 7. **Teardown:** teardown is mandatory and must record whether QEMU/temp roots remain; orphan QEMU is a failed run.
 8. **Artifact manifest:** every VM-live bundle must preserve `host_mutation=false`, git SHA, VM marker, kernel tuple, command-allowlist hash, copy-in/out hashes, transcript path, and cleanup receipt.
 
-At T15 and later, `bash qa/vm/run_lab.sh --mode execute --out <dir>` must fail closed unless explicit VM config is supplied. The tracked `qa/vm/lab.env` fixture exercises copy-in, marker probing, transcript creation, copy-out, and teardown receipts with `vm_kind=vm-configured-fixture`; that fixture is not VM-live and is not release-eligible proof. Real QEMU/KVM execution remains explicit-config-only and must never fall back to host `/sys` evidence.
+At T15 and later, `bash qa/vm/run_lab.sh --mode execute --out <dir>` must fail closed unless explicit VM config is supplied. The tracked `qa/vm/lab.env` fixture exercises copy-in, marker probing, attestation, transcript creation, copy-out, and teardown receipts with `vm_kind=vm-configured-fixture`; that fixture is not VM-live and is not release-eligible proof. Real QEMU/KVM execution remains explicit-config-only and must never fall back to host `/sys` evidence.
+
+At T16 and later, attestation evidence is validated by:
+
+```bash
+python3 qa/vm/attestation_check.py --input evidence/lab/task-T15-vm/attestation.json
+python3 qa/vm/attestation_check.py --self-test
+```
+
+The attestation must be copied out from the guest/fixture transcript, include `/run/zig-scheduler-vm-lab.marker`, match the current git SHA, satisfy the supported kernel tuple gates, and avoid host `/sys` source paths.

@@ -196,13 +196,15 @@ fi
 [ -n "$effective_kernel" ] || effective_kernel="$env_kernel"
 
 write_execute_fixture() {
-  local tmp guest_root transcript cleanup copy_in_index command_hash
+  local tmp guest_root transcript cleanup copy_in_index command_hash attestation object_hash
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-vm-fixture.XXXXXX")"
   guest_root="$tmp/guest"
   transcript="$out_dir/transcript.jsonl"
   cleanup="$out_dir/cleanup-receipt.json"
   copy_in_index="$out_dir/copy-in.json"
+  attestation="$out_dir/attestation.json"
   command_hash="$(sha256sum "$contract_file" | awk '{print $1}')"
+  object_hash="$(sha256sum fixtures/vm/test-image.raw | awk '{print $1}')"
   mkdir -p "$guest_root/run" "$guest_root/work/repo" "$out_dir/copy-out"
   : > "$guest_root/run/zig-scheduler-vm-lab.marker"
   cp "$contract_file" "$guest_root/work/repo/execution_contract.json"
@@ -215,6 +217,29 @@ write_execute_fixture() {
   find "$guest_root/work/repo" -type f -maxdepth 1 -print | sort | while read -r copied; do
     sha256sum "$copied"
   done > "$copy_in_index"
+  ATTESTATION="$attestation" TRANSCRIPT="$transcript" GIT_SHA="$git_sha" OBJECT_HASH="$object_hash" python3 - <<'PY'
+import json, os
+from pathlib import Path
+attestation = {
+    "schema": "zig-scheduler/vm-attestation/v1",
+    "status": "PASS",
+    "vm_kind": "vm-configured-fixture",
+    "vm_marker_present": True,
+    "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+    "copied_from_guest": True,
+    "source_path": "/guest/copy-out/attestation.json",
+    "transcript_path": os.environ["TRANSCRIPT"],
+    "git_sha": os.environ["GIT_SHA"],
+    "object_sha256": os.environ["OBJECT_HASH"],
+    "kernel_tuple": {"release": "6.12.0-lab", "arch": "x86_64", "config_sha256": "fixture"},
+    "btf_present": True,
+    "bpf_jit_enabled": True,
+    "sched_class_ext_enabled": True,
+    "host_mutation": False,
+    "release_eligible_live_proof": False,
+}
+Path(os.environ["ATTESTATION"]).write_text(json.dumps(attestation, indent=2, sort_keys=True) + "\n")
+PY
   rm -rf "$tmp"
   QEMU_BEFORE="$(pgrep -ax 'qemu-system-x86_64|qemu-kvm|qemu-system-aarch64' 2>/dev/null || true)" \
   QEMU_AFTER="$(pgrep -ax 'qemu-system-x86_64|qemu-kvm|qemu-system-aarch64' 2>/dev/null || true)" \
@@ -231,7 +256,7 @@ receipt = {
 }
 Path(os.environ["CLEANUP"]).write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 PY
-  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" MANIFEST="$manifest" MODE="$mode" \
+  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" MANIFEST="$manifest" MODE="$mode" \
   GIT_SHA="$git_sha" ZIG_VERSION="$zig_version" QEMU_BIN="$qemu_bin" QEMU_AVAILABLE="$qemu_available" \
   KVM_AVAILABLE="$kvm_available" CONFIG_SOURCE="$config_source" IMAGE_PATH="$effective_image" \
   KERNEL_PATH="$effective_kernel" ENV_FILE="$env_file" COMMAND_HASH="$command_hash" python3 - <<'PY'
@@ -265,7 +290,11 @@ manifest = {
     "kernel_tuple": {"release": "fixture-kernel", "arch": "x86_64", "config_sha256": "fixture"},
     "command_allowlist_hash": os.environ["COMMAND_HASH"],
     "copy_in_hashes": copy_in.as_posix(),
-    "copy_out_hashes": {"transcript": hashlib.sha256(transcript.read_bytes()).hexdigest()},
+    "attestation": os.environ["ATTESTATION"],
+    "copy_out_hashes": {
+        "attestation": hashlib.sha256(Path(os.environ["ATTESTATION"]).read_bytes()).hexdigest(),
+        "transcript": hashlib.sha256(transcript.read_bytes()).hexdigest(),
+    },
     "transcript_path": transcript.as_posix(),
     "cleanup_receipt": cleanup.as_posix(),
 }

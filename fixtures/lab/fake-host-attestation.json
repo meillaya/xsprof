@@ -1,0 +1,22 @@
+{
+  "schema": "zig-scheduler/vm-attestation/v1",
+  "status": "PASS",
+  "vm_kind": "host-safe-surrogate",
+  "vm_marker_present": false,
+  "vm_marker_path": "",
+  "copied_from_guest": false,
+  "source_path": "/sys/kernel/sched_ext/state",
+  "transcript_path": "fixtures/lab/fake-host-attestation.json",
+  "git_sha": "stale-host-sha",
+  "object_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "kernel_tuple": {
+    "release": "6.11.0-host",
+    "arch": "x86_64",
+    "config_sha256": "host"
+  },
+  "btf_present": false,
+  "bpf_jit_enabled": false,
+  "sched_class_ext_enabled": false,
+  "host_mutation": false,
+  "release_eligible_live_proof": false
+}

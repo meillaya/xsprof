@@ -18,7 +18,7 @@
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "67e3ed27cc4227aac6bb5344ac421eca468475031758744b3c094612cf7e9de1"
+      "sha256": "22894588971a31129aea082ab8865eb56bae628b9a9b5e4987cf9cbb99d4a3dd"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -108,7 +108,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "752525badc189b3cb1296eda60208bae9d76ccda97e4758a2f1ca06614b4caa1"
+      "sha256": "80105827ccc7c95fcb847f870ac65e1285f3799d34e5461801ff401cbef4ff11"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -126,13 +126,13 @@
       "path": "qa/vm/execution_contract.json",
       "purpose": "disposable VM execution contract source",
       "required": true,
-      "sha256": "1993fd11d7881e19118617c6bdc04595c73f69ae8a9fe1f06b92a489e8d7e1b1"
+      "sha256": "28b8bd9b51f632ea1550ea333d275a79437ab1d9b54c6c1011f93bc659b35273"
     },
     {
       "path": "qa/vm/contract_check.sh",
       "purpose": "disposable VM execution contract validator",
       "required": true,
-      "sha256": "78415fb06fca9a4a5e3a03cae9c7f71fddc699179fc1a4d0a9c6165a7dbccf5a"
+      "sha256": "aad4a8f960ceb8e9e978e6dcb1aca96cfaa39e3d75ad41471adf9ec5342935e0"
     }
   ]
 }

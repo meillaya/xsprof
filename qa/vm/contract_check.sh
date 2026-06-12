@@ -109,7 +109,7 @@ if manifest.get("host_mutation") is not False:
     raise SystemExit("FAIL contract: fixture manifest host_mutation must be false")
 if manifest.get("release_eligible_live_proof") is not False:
     raise SystemExit("FAIL contract: fixture must not be release eligible")
-for field in ("transcript_path", "cleanup_receipt", "copy_in_hashes"):
+for field in ("attestation", "transcript_path", "cleanup_receipt", "copy_in_hashes"):
     if not Path(manifest[field]).exists():
         raise SystemExit(f"FAIL contract: fixture missing {field}")
 transcript = Path(manifest["transcript_path"]).read_text()
@@ -117,5 +117,6 @@ if "/run/zig-scheduler-vm-lab.marker" not in transcript:
     raise SystemExit("FAIL contract: transcript missing VM marker probe")
 print("PASS execute fixture: marker transcript and copy-out manifest recorded")
 PY
+python3 qa/vm/attestation_check.py --input "$out_dir/execute-fixture/attestation.json"
 
 printf 'PASS disposable VM execution contract check\n'

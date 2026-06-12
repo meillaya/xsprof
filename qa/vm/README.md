@@ -74,4 +74,13 @@ Contract validation:
 bash qa/vm/contract_check.sh
 ```
 
-`run_lab.sh --mode execute` now requires explicit VM config. Without config it refuses with `VM_CONFIG_REQUIRED`; with missing image/kernel paths it refuses with `VM_CONFIG_INVALID`; with missing QEMU/KVM it skips safely. The tracked `qa/vm/lab.env` fixture uses `ZIG_SCHEDULER_VM_DRIVER=fixture` and `ZIG_SCHEDULER_VM_TEST_FIXTURE=1` to exercise copy-in, marker probing, transcript creation, copy-out, and teardown receipts without claiming VM-live or release-eligible evidence.
+`run_lab.sh --mode execute` now requires explicit VM config. Without config it refuses with `VM_CONFIG_REQUIRED`; with missing image/kernel paths it refuses with `VM_CONFIG_INVALID`; with missing QEMU/KVM it skips safely. The tracked `qa/vm/lab.env` fixture uses `ZIG_SCHEDULER_VM_DRIVER=fixture` and `ZIG_SCHEDULER_VM_TEST_FIXTURE=1` to exercise copy-in, marker probing, attestation, transcript creation, copy-out, and teardown receipts without claiming VM-live or release-eligible evidence.
+
+VM attestation is validated with:
+
+```bash
+python3 qa/vm/attestation_check.py --input evidence/lab/task-T15-vm/attestation.json
+python3 qa/vm/attestation_check.py --self-test
+```
+
+The validator rejects missing markers, stale git SHA values, host `/sys` paths, and unsupported kernel tuples.
