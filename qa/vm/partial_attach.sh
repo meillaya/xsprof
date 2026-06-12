@@ -307,22 +307,33 @@ from pathlib import Path
 path = Path(os.environ['APPROVAL'])
 data = json.loads(path.read_text())
 if data.get('schema') != 'zig-scheduler/release-approval/v1': sys.exit('bad release approval schema')
+if data.get('historical') is True: sys.exit('historical approval cannot authorize mutation')
 if data.get('status') != 'controlled_lab_pilot_candidate': sys.exit('approval is not controlled lab candidate')
 if data.get('production_ready') is not False: sys.exit('approval must not be production-ready')
 if data.get('arbitrary_host_safe') is not False: sys.exit('approval must not be arbitrary-host-safe')
 if data.get('approval_required_before_mutation_release') is not True: sys.exit('approval missing mutation-release requirement')
+reviewer = data.get('reviewer')
+if not reviewer: sys.exit('approval missing reviewer')
 att = data.get('signed_attestation') or {}
 for key in ['kind', 'signed_by', 'signed_at', 'statement', 'authorized_status', 'scope']:
     if not att.get(key): sys.exit('approval missing signed_attestation.' + key)
+if att.get('signed_by') != reviewer: sys.exit('approval attestation signer mismatch')
 if att.get('authorized_status') != data.get('status'): sys.exit('approval attestation status mismatch')
+if att.get('scope') != 'controlled-lab-only': sys.exit('approval attestation scope mismatch')
 current = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 sha = data.get('git_sha')
 if not sha: sys.exit('approval missing git_sha')
-if sha != current:
-    ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', str(sha), current], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if ancestor.returncode != 0: sys.exit('approval git_sha is not current or ancestor')
+if sha != current: sys.exit('approval git_sha is not current')
 manifest = data.get('artifact_hash_manifest')
 if not manifest or not Path(str(manifest)).is_file(): sys.exit('approval missing artifact hash manifest')
+manifest_data = json.loads(Path(str(manifest)).read_text())
+if manifest_data.get('schema') != 'zig-scheduler/release-artifact-hashes/v1': sys.exit('bad artifact hash manifest schema')
+for name, item in (manifest_data.get('artifacts') or {}).items():
+    artifact_path = Path(str(item.get('path', '')))
+    if not artifact_path.is_file(): sys.exit('approval artifact missing: ' + name)
+    import hashlib
+    if hashlib.sha256(artifact_path.read_bytes()).hexdigest() != item.get('sha256'):
+        sys.exit('approval artifact hash mismatch: ' + name)
 APPROVALPY
 
 {

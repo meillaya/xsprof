@@ -268,6 +268,16 @@ if existing_summary_path.exists() and not existing_summary_path.is_symlink():
         raise SystemExit('summary/status contradiction')
 
 def check_existing_approval(approval):
+    if approval.get('schema') != 'zig-scheduler/release-approval/v1':
+        raise SystemExit('bad release approval schema')
+    if approval.get('status') != 'controlled_lab_pilot_candidate':
+        raise SystemExit('release approval status mismatch')
+    if approval.get('production_ready') is not False:
+        raise SystemExit('release approval must keep production_ready=false')
+    if approval.get('arbitrary_host_safe') is not False:
+        raise SystemExit('release approval must keep arbitrary_host_safe=false')
+    if approval.get('approval_required_before_mutation_release') is not True:
+        raise SystemExit('release approval missing mutation-release gate')
     if approval.get('git_sha') and approval.get('git_sha') != current_git_sha and approval.get('historical') is not True:
         raise SystemExit('stale current release approval git_sha')
     reviewer_value = approval.get('reviewer')
@@ -282,6 +292,8 @@ def check_existing_approval(approval):
         raise SystemExit('release attestation signer mismatch')
     if approval and att.get('authorized_status') != approval.get('status'):
         raise SystemExit('release attestation status mismatch')
+    if approval and att.get('scope') != 'controlled-lab-only':
+        raise SystemExit('release attestation scope mismatch')
     if approval.get('historical') is True and not approval.get('historical_reason'):
         raise SystemExit('historical approval missing reason')
     manifest = approval.get('artifact_hash_manifest')
