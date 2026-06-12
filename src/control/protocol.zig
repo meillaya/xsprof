@@ -33,6 +33,7 @@ pub const EventKind = enum {
 
 pub const OperatorAction = struct {
     kind: ActionKind,
+    action_id: []const u8 = "",
     run_id: []const u8 = "",
     target_cgroup: []const u8 = "",
     audit_id: []const u8 = "",
@@ -47,6 +48,7 @@ pub const OperatorAction = struct {
             "{{\"schema\":\"{s}\",\"action\":\"{s}\"",
             .{ schema, @tagName(self.kind) },
         );
+        try appendOptionalJsonField(&writer.writer, "action_id", self.action_id);
         try appendOptionalJsonField(&writer.writer, "run_id", self.run_id);
         try appendOptionalJsonField(&writer.writer, "target_cgroup", self.target_cgroup);
         try appendOptionalJsonField(&writer.writer, "audit_id", self.audit_id);
@@ -96,6 +98,7 @@ fn writeJsonString(writer: anytype, value: []const u8) !void {
 const RawAction = struct {
     schema: ?[]const u8 = null,
     action: []const u8,
+    action_id: ?[]const u8 = null,
     run_id: ?[]const u8 = null,
     target_cgroup: ?[]const u8 = null,
     audit_id: ?[]const u8 = null,
@@ -129,6 +132,7 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
     if (raw.command != null or raw.shell != null or raw.argv != null) return error.InvalidField;
 
     const kind = parseActionKind(raw.action) orelse return error.UnknownAction;
+    try validateOptional(raw.action_id);
     try validateOptional(raw.run_id);
     try validateOptionalTargetCgroup(raw.target_cgroup);
     try validateOptional(raw.audit_id);
@@ -136,6 +140,7 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
 
     return .{ .arena = parsed, .value = .{
         .kind = kind,
+        .action_id = raw.action_id orelse "",
         .run_id = raw.run_id orelse "",
         .target_cgroup = raw.target_cgroup orelse "",
         .audit_id = raw.audit_id orelse "",

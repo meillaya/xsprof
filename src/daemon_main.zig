@@ -17,40 +17,79 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, state_dir: []const u8
 
     var output: std.ArrayList(u8) = .empty;
     defer output.deinit(allocator);
-    try appendReady(allocator, &output);
+    var tracker = linux.control.journal.Tracker{};
+    defer tracker.deinit(allocator);
+    const existing = dir.readFileAlloc(io, "events.jsonl", allocator, .limited(linux.control.daemon.max_journal_bytes)) catch |err| switch (err) {
+        error.FileNotFound => null,
+        else => |e| return e,
+    };
+    var seq: usize = 1;
+    if (existing) |raw| {
+        defer allocator.free(raw);
+        try output.appendSlice(allocator, raw);
+        seq = (try tracker.loadExisting(allocator, raw)).next_seq;
+    }
+    const git_sha = try readGitSha(allocator, io);
+    defer allocator.free(git_sha);
+    try appendReady(allocator, &output, seq);
+    seq += 1;
 
     var stdin_buffer: [4096]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(io, &stdin_buffer);
-    var seq: usize = 2;
     while (try stdin_reader.interface.takeDelimiter('\n')) |line| {
         if (std.mem.trim(u8, line, " \t\r\n").len == 0) continue;
         if (seq > linux.control.daemon.max_events_per_run) {
             try appendOverflow(allocator, &output, seq);
             break;
         }
-        try appendAction(allocator, io, &output, line, &seq);
+        try appendAction(allocator, io, &output, &tracker, git_sha, line, &seq);
     }
 
     try writeStdout(output.items);
     try dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
 }
 
-fn appendReady(allocator: std.mem.Allocator, output: *std.ArrayList(u8)) !void {
+fn appendReady(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
     var event: std.ArrayList(u8) = .empty;
     defer event.deinit(allocator);
     var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.daemon.writeReady(&writer.writer);
+    try writer.writer.print("{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"state_changed\",\"state\":\"read_only\",\"status\":\"ready\",\"host_mutation\":false}}\n", .{seq});
     event = writer.toArrayList();
     try appendEvent(allocator, output, event.items);
 }
 
-fn appendAction(allocator: std.mem.Allocator, io: std.Io, output: *std.ArrayList(u8), line: []const u8, seq: *usize) !void {
+fn appendAction(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    output: *std.ArrayList(u8),
+    tracker: *linux.control.journal.Tracker,
+    git_sha: []const u8,
+    line: []const u8,
+    seq: *usize,
+) !void {
     var parsed = linux.control.protocol.parseActionJson(allocator, std.mem.trim(u8, line, " \t\r\n")) catch {
         try appendMalformed(allocator, output, seq.*);
         seq.* += 1;
         return;
     };
     defer parsed.deinit();
+    tracker.remember(allocator, parsed.value.action_id) catch |err| switch (err) {
+        error.DuplicateActionId => {
+            try appendDuplicate(allocator, output, parsed.value, seq.*);
+            seq.* += 1;
+            return;
+        },
+        error.InvalidActionId => {
+            try appendInvalidActionId(allocator, output, parsed.value, seq.*);
+            seq.* += 1;
+            return;
+        },
+        else => |e| return e,
+    };
+    if (parsed.value.action_id.len != 0) {
+        try appendJournalRecord(allocator, output, parsed.value, git_sha, seq.*);
+        seq.* += 1;
+    }
     if (parsed.value.kind == .run_lab_host_safe) {
         try linux.control.lab_runner.runHostSafe(allocator, io, output, parsed.value, seq);
         return;
@@ -63,6 +102,33 @@ fn appendAction(allocator: std.mem.Allocator, io: std.Io, output: *std.ArrayList
     event = writer.toArrayList();
     try appendEvent(allocator, output, event.items);
     seq.* += 1;
+}
+
+fn appendJournalRecord(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, git_sha: []const u8, seq: usize) !void {
+    var event: std.ArrayList(u8) = .empty;
+    defer event.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
+    try linux.control.journal.writeRecord(&writer.writer, seq, action, git_sha);
+    event = writer.toArrayList();
+    try appendEvent(allocator, output, event.items);
+}
+
+fn appendDuplicate(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
+    var event: std.ArrayList(u8) = .empty;
+    defer event.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
+    try linux.control.journal.writeDuplicateRefusal(&writer.writer, seq, action);
+    event = writer.toArrayList();
+    try appendEvent(allocator, output, event.items);
+}
+
+fn appendInvalidActionId(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
+    var event: std.ArrayList(u8) = .empty;
+    defer event.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
+    try linux.control.journal.writeInvalidActionIdRefusal(&writer.writer, seq, action);
+    event = writer.toArrayList();
+    try appendEvent(allocator, output, event.items);
 }
 
 fn appendMalformed(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
@@ -89,6 +155,24 @@ fn appendOverflow(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq:
 fn appendEvent(allocator: std.mem.Allocator, output: *std.ArrayList(u8), event: []const u8) !void {
     try linux.control.daemon.ensureCanWriteEvent(output.items.len, event);
     try output.appendSlice(allocator, event);
+}
+
+fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    const head = std.Io.Dir.cwd().readFileAlloc(io, ".git/HEAD", allocator, .limited(1024)) catch {
+        return allocator.dupe(u8, "unknown");
+    };
+    defer allocator.free(head);
+    const trimmed = std.mem.trim(u8, head, " \t\r\n");
+    if (std.mem.startsWith(u8, trimmed, "ref: ")) {
+        const ref_path = try std.fmt.allocPrint(allocator, ".git/{s}", .{std.mem.trim(u8, trimmed[5..], " \t\r\n")});
+        defer allocator.free(ref_path);
+        const ref_value = std.Io.Dir.cwd().readFileAlloc(io, ref_path, allocator, .limited(128)) catch {
+            return allocator.dupe(u8, "unknown");
+        };
+        defer allocator.free(ref_value);
+        return allocator.dupe(u8, std.mem.trim(u8, ref_value, " \t\r\n"));
+    }
+    return allocator.dupe(u8, trimmed);
 }
 
 fn writeStdout(bytes: []const u8) !void {
