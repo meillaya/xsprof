@@ -18,7 +18,7 @@
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "9e17b4f7b7dbb7b9bfa8680f5daa460f543050d3a8618f51d8326d579f70df0c"
+      "sha256": "de26c1c02caca83c0fa8d5187c02ba3791dd45b9e0c57ee992a86f8d42d0ca5a"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -133,6 +133,12 @@
       "purpose": "disposable VM execution contract validator",
       "required": true,
       "sha256": "aad4a8f960ceb8e9e978e6dcb1aca96cfaa39e3d75ad41471adf9ec5342935e0"
+    },
+    {
+      "path": "docs/adr/0003-non-vm-operation-gate.md",
+      "purpose": "tracked non-VM operation governance design gate",
+      "required": true,
+      "sha256": "c430243f0d6743f1e0b04fb5349eefa033bc1a4216393de9f0f316b2ef11462e"
     }
   ]
 }
