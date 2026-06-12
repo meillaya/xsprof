@@ -18,7 +18,7 @@
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "4ff645aee2d673bb166488239fdafad712a72e011f526621715b65074742c530"
+      "sha256": "d2bcbc2c58dacf768368dfa548ea0c9b64d0554e2fa54329b5495318dcc9059a"
     },
     {
       "path": "qa/clean_archive_check.sh",
