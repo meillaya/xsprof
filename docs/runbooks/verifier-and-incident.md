@@ -50,3 +50,29 @@ SysRq-S is the emergency sched_ext fallback action referenced by the kernel docu
 ## Operator decision
 
 Close the incident with one of these decisions: verifier rejected, fallback completed, rollback completed, evidence incomplete, or unsafe_to_assume. Any missing audit id, rollback id, VM-only marker, or pre/post sched_ext state checks blocks release progression.
+
+## TUI-driven incident drill
+
+The incident drill is exposed through the TUI key `i` and daemon action `incident_drill`. It simulates verifier rejection, scheduler process exit, lost runtime stream, rollback completion, and fallback completion in a controlled fixture or VM lab profile.
+
+Manual QA command:
+
+```bash
+printf 'iq' | ./zig-out/bin/zig-scheduler-tui \
+  --interactive --test-mode \
+  --fixture fixtures/lab/preflight-ready.json \
+  --screen sched-ext --width 120 --height 30 \
+  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
+  --daemon-state-dir .omo/evidence/tui-incident-daemon-state \
+  > .omo/evidence/tui-incident-transcript.txt
+```
+
+Required evidence:
+
+- TUI transcript contains `INCIDENT rollback/fallback drill`;
+- daemon journal contains an `incident` event for `incident_drill` with `status=INCIDENT` and `host_mutation=false`;
+- incident summary exists at `evidence/lab/incident-drill/tui-incident/summary.json`;
+- incident journal exists at `evidence/lab/incident-drill/tui-incident/incident-events.jsonl`;
+- rollback ledger validates with `python3 qa/audit_ledger_check.py --ledger evidence/lab/incident-drill/tui-incident/rollback-drill/audit-ledger.jsonl`.
+
+A successful incident drill means the operator surface represented failure and rollback/fallback evidence. It does not authorize non-VM operation.

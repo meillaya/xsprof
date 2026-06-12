@@ -43,3 +43,39 @@ The operator guidance is intentionally tracked so a clean clone has the same saf
 - [`docs/`](docs/) contains the security, release, and runbook sources consumed by governance gates.
 
 Ignored `.omo/` and `.omx/` files are workflow state only; future agents must not depend on them for project behavior.
+
+## TUI-driven controlled lab workflow
+
+The intended operator path is now TUI-driven through the local disabled-safe daemon. The TUI keeps the simulator-era dense terminal look, but the actions are Linux lab concepts only.
+
+Build the binaries first:
+
+```bash
+zig build install
+```
+
+Host-safe interactive smoke, with no scheduler mutation:
+
+```bash
+printf 'rviq' | ./zig-out/bin/zig-scheduler-tui \
+  --interactive --test-mode \
+  --fixture fixtures/lab/preflight-ready.json \
+  --screen sched-ext --width 120 --height 30 \
+  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
+  --daemon-state-dir .omo/evidence/tui-daemon-state \
+  > .omo/evidence/tui-driven-transcript.txt
+```
+
+Key map for current lab actions:
+
+- `r`: host-safe run-all harness;
+- `v`: verifier-only path, refused outside the VM marker or recorded as VM lab evidence;
+- `p`: partial attach path, VM/lab gated;
+- `o`: runtime observe path;
+- `i`: incident drill showing `INCIDENT` plus rollback/fallback evidence;
+- `m`: arm the VM lab action id for stop/rollback controls;
+- `s` then `s`: confirm safe stop in test mode;
+- `b` then `b`: confirm rollback in test mode;
+- `q`: quit.
+
+The daemon event journal for these scenarios is written under the selected `--daemon-state-dir`; lab summaries are written under `evidence/lab/<stage>/<run-id>/summary.json`. These are verification artifacts, not host deployment evidence. Ordinary host commands must still refuse load, attach, enable, mutate, apply, cgroup writes, affinity/priority changes, and scheduler-state writes.

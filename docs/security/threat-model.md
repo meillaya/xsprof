@@ -34,3 +34,15 @@ A mutation-capable release profile must include a signed JSON review artifact wi
 - `signed_attestation`: object with `kind`, `signed_by`, `signed_at`, and `statement` fields
 
 Read-only profiles pass if this threat model and checklist exist and wording/no-host gates pass.
+
+## TUI-driven control-plane threat notes
+
+The TUI-driven workflow introduces an operator action queue and daemon stdin boundary. The safety model is:
+
+- the TUI emits typed `operator-action/v1` JSON only;
+- the daemon maps actions to fixed argv entries, not shell-concatenated commands;
+- hazardous actions on ordinary hosts refuse with `host_mutation=false`;
+- incident and rollback paths preserve audit ids, rollback ids, event journals, and cleanup receipts;
+- transcripts are verification artifacts and must not contain secrets, credentials, private command lines, or unbounded host data.
+
+Security review for any future mutation-capable profile must include the TUI key map, daemon action parser, command registry, runtime stream privacy filters, rollback ledger validation, and packaging no-auto-start behavior.

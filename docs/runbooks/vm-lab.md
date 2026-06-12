@@ -75,3 +75,35 @@ python3 qa/vm/attestation_check.py --self-test
 ```
 
 The attestation must be copied out from the guest/fixture transcript, include `/run/zig-scheduler-vm-lab.marker`, match the current git SHA, satisfy the supported kernel tuple gates, and avoid host `/sys` source paths.
+
+## TUI-driven lab lifecycle
+
+The current user-facing lab path starts in the TUI and dispatches typed actions to `zig-scheduler-daemon`. Use it for operator-flow evidence before direct script shortcuts.
+
+Build and run a host-safe TUI transcript:
+
+```bash
+zig build install
+printf 'rviq' | ./zig-out/bin/zig-scheduler-tui \
+  --interactive --test-mode \
+  --fixture fixtures/lab/preflight-ready.json \
+  --screen sched-ext --width 120 --height 30 \
+  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
+  --daemon-state-dir .omo/evidence/tui-daemon-state \
+  > .omo/evidence/tui-driven-transcript.txt
+```
+
+For a full disposable VM lab sequence, the intended key order is preflight/readiness, host-safe run, verifier, partial attach, observe, stress through the VM run-all harness, incident/rollback, then quit. In current test-mode notation that means using the action keys `r`, `v`, `p`, `o`, `i`, `m`, `b`, `b`, `q` as the flow matures.
+
+Evidence paths to preserve for review:
+
+- daemon journal: `.omo/evidence/tui-daemon-state/events.jsonl`;
+- host-safe run summary: `evidence/lab/run-all/<run-id>/summary.json`;
+- verifier evidence: `evidence/lab/verifier-only/<run-id>/summary.json`;
+- partial attach evidence: `evidence/lab/partial-attach/<run-id>/summary.json`;
+- runtime observe evidence: `evidence/lab/observe-partial/<run-id>/summary.json`;
+- stress/chaos evidence: `evidence/lab/stress-chaos/<run-id>/summary.json`;
+- incident drill evidence: `evidence/lab/incident-drill/<run-id>/summary.json`;
+- rollback audit ledger: `evidence/lab/rollback-drill/<run-id>/audit-ledger.jsonl` or the nested incident rollback ledger.
+
+If explicit VM config is missing, the run must SKIP or REFUSE with `host_mutation=false`. A SKIP is valid host-safe CI evidence only; it is not VM-live behavior proof.

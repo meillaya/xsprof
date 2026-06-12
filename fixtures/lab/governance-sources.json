@@ -12,13 +12,13 @@
       "path": "README.md",
       "purpose": "tracked project overview and governance entrypoint",
       "required": true,
-      "sha256": "675f85b4e87e2481483ee8770522d5fb9a090266a505122aef8aa2257b1eec28"
+      "sha256": "04d1667d8640b1a9a9ce3128377966b6608ecee713a1c34fa61e62fa1a9d0a40"
     },
     {
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "de26c1c02caca83c0fa8d5187c02ba3791dd45b9e0c57ee992a86f8d42d0ca5a"
+      "sha256": "c49d79696f72c43d139ffa963cf6cf07ae64ae16986b41136f0ca6b169317300"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -96,19 +96,19 @@
       "path": "docs/runbooks/sched-ext-fallback.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "9cac80013d3f9d52b4a01c960a083a0034f20fcd8e12fb2049c2105a569479e2"
+      "sha256": "2e1079fbe7be0d33b2693be9031de3f4d9d43993474eccebaf8c94907acec2cb"
     },
     {
       "path": "docs/runbooks/verifier-and-incident.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "1eb821868975b38a8a548055f1a44a65a69c8ce870b856365a5eceb6b1acef45"
+      "sha256": "9d3ddf4574ccb7e2f9674e5f56b0253f9e332b926c50fad63e9209a8cc115f37"
     },
     {
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "80105827ccc7c95fcb847f870ac65e1285f3799d34e5461801ff401cbef4ff11"
+      "sha256": "a6bffcc2b6c3230f5e1aa9c8b85e292597d0fcd34f9e3b660492eccb5026c418"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -120,7 +120,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "a7260335769211911636f7170fa1f7b5ed1e2a4fa1cace1db6c0378280d44560"
+      "sha256": "3e933f64e610f417fd78909173e0e4c064a5b446218c91a237ad5746364622e6"
     },
     {
       "path": "qa/vm/execution_contract.json",

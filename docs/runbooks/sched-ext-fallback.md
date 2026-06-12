@@ -51,3 +51,23 @@ Use the fallback procedure if any of these occur in the VM-only lab:
 ## Completion criteria
 
 The fallback drill is complete only when the evidence bundle contains audit id, rollback id, VM-only marker, verifier/debug log if applicable, pre/post sched_ext state checks, cgroup-scope snapshot, and operator decision. Missing evidence means unsafe_to_assume.
+
+## TUI-driven rollback and fallback controls
+
+Rollback and fallback drills must be visible from the TUI/daemon path, not only from direct scripts. In test mode, `m` arms the lab action id and rollback id, `b` asks for rollback confirmation, and a second `b` dispatches the typed `rollback_lab_run` action. Stop uses the same pattern with `s` then `s`.
+
+Manual QA command for the rollback control surface:
+
+```bash
+printf 'mbbq' | ./zig-out/bin/zig-scheduler-tui \
+  --interactive --test-mode \
+  --fixture fixtures/lab/preflight-ready.json \
+  --screen sched-ext --width 120 --height 30 \
+  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
+  --daemon-state-dir .omo/evidence/tui-rollback-daemon-state \
+  > .omo/evidence/tui-rollback-transcript.txt
+```
+
+Review `.omo/evidence/tui-rollback-daemon-state/events.jsonl` for `rollback_completed`, `status=PASS` or `already_rolled_back`, and `host_mutation=false`. Missing target action id, missing rollback id, or stale rollback id must show a refusal instead of attempting host scheduler changes.
+
+SysRq-S remains VM-only. If a future lab profile permits SysRq-S fallback, the transcript must prove the VM marker, audit id, rollback id, pre/post sched_ext state, and console command. The host TUI path must not fire SysRq-S.
