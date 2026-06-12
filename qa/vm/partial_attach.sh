@@ -177,6 +177,13 @@ if [ "${ZIG_SCHEDULER_HOST_SAFE:-}" = "1" ]; then
   exit 0
 fi
 
+if [ -n "$sys_root" ]; then
+  sys_root_real="$(realpath -e "$sys_root")" || fail 'sysroot realpath unavailable'
+  case "$sys_root_real" in
+    /|/sys|/sys/*) fail 'unsafe sysroot surrogate path' ;;
+  esac
+fi
+
 if [ "$vm_marker" != "$default_vm_marker" ]; then
   if [ -z "$sys_root" ]; then
     json_refusal VM_MARKER_OVERRIDE_REJECTED 'partial attach ignores VM marker overrides outside sysroot surrogate tests and host-safe refusal mode'
@@ -323,6 +330,10 @@ current_membership="$(membership_digest_file "$procs_path")"
 [ "$parent_cgroup" = "$initial_parent" ] || refuse_stale_scope 'parent scope changed after dry-run'
 [ "$current_membership" = "$initial_membership" ] || refuse_stale_scope 'process membership changed unexpectedly'
 [ "$rollback_id" = "$initial_rollback" ] || refuse_stale_scope 'rollback id no longer matches current plan'
+
+if [ -n "$sys_root" ]; then
+  refuse_stale_scope 'sysroot surrogate is non-mutating and cannot authorize attach or bpftool execution' SYSROOT_SURROGATE_REFUSED
+fi
 
 [ -f "$object_file" ] || fail "BPF object not found: $object_file"
 

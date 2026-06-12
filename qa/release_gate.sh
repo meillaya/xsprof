@@ -309,8 +309,15 @@ def check_existing_approval(approval):
     if approval.get('historical') is True and not approval.get('historical_reason'):
         raise SystemExit('historical approval missing reason')
     manifest = approval.get('artifact_hash_manifest')
-    if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
-        raise SystemExit('missing artifact hash manifest')
+    if manifest and approval.get('historical') is not True:
+        manifest_path = Path(str(manifest))
+        expected_manifest = out / 'artifact-hashes.json'
+        if manifest_path.is_symlink():
+            raise SystemExit('artifact hash manifest must not be a symlink')
+        if not manifest_path.is_file():
+            raise SystemExit('missing artifact hash manifest')
+        if manifest_path.resolve() != expected_manifest.resolve():
+            raise SystemExit('artifact hash manifest must stay in release evidence dir')
 
 def sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -326,10 +333,16 @@ expected_hash_manifest = {
 
 def existing_hashes_match_expected(approval):
     manifest = approval.get('artifact_hash_manifest')
-    if not manifest or not Path(str(manifest)).is_file():
+    if not manifest:
+        return False
+    manifest_path = Path(str(manifest))
+    expected_manifest_path = out / 'artifact-hashes.json'
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        return False
+    if manifest_path.resolve() != expected_manifest_path.resolve():
         return False
     try:
-        observed = json.loads(Path(str(manifest)).read_text())
+        observed = json.loads(manifest_path.read_text())
     except json.JSONDecodeError:
         return False
     return observed == expected_hash_manifest
