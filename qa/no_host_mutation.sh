@@ -42,32 +42,34 @@ run_command() {
   local label="$1"
   shift
   printf 'CHECK: %s\n' "$label"
+  local out_file
+  out_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.out.XXXXXX")"
   if have_strace; then
     local trace_file
     trace_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.XXXXXX")"
     if ! strace -f -qq -yy -s 256 \
       -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler,setpriority,ioprio_set \
-      -o "$trace_file" -- "$@" >/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out 2>&1; then
-      cat "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out" >&2 || true
-      rm -f "$trace_file" "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
+      -o "$trace_file" -- "$@" >"$out_file" 2>&1; then
+      cat "$out_file" >&2 || true
+      rm -f "$trace_file" "$out_file"
       fail "$label command failed before mutation audit completed"
     fi
     if ! assert_trace_clean "$label" "$trace_file"; then
-      rm -f "$trace_file" "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
+      rm -f "$trace_file" "$out_file"
       return 1
     fi
-    rm -f "$trace_file" "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
+    rm -f "$trace_file" "$out_file"
   else
     if [ "$allow_no_strace_dev" != true ]; then
       fail "strace is required for no-host mutation audit: $label"
     fi
     printf 'WARN: explicit developer no-strace mode for %s; not valid for release/security gates\n' "$label" >&2
-    "$@" >/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out 2>&1 || {
-      cat "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out" >&2 || true
-      rm -f "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
+    "$@" >"$out_file" 2>&1 || {
+      cat "$out_file" >&2 || true
+      rm -f "$out_file"
       fail "$label command failed"
     }
-    rm -f "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
+    rm -f "$out_file"
   fi
 }
 
@@ -222,13 +224,25 @@ main() {
   run_command linux-preflight-json zig build linux-preflight -- --json
   run_command root-preflight-json zig build run -- preflight --json
   run_command sched-ext-preflight-json zig build run -- sched-ext preflight --json
-  rm -rf evidence/lab/run-all/no-host-mutation evidence/releases/0.2.0-lab-runall
-  run_command lab-run-all-host-safe bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/no-host-mutation --release-version 0.2.0-lab-runall
-  if [ ! -f evidence/lab/run-all/no-host-mutation/summary.json ]; then
+  local scratch_id run_all_out run_all_release
+  scratch_id="no-host-mutation-$$-${RANDOM:-0}"
+  run_all_out="evidence/lab/run-all/$scratch_id"
+  run_all_release="0.2.0-lab-runall-$scratch_id"
+  rm -rf "$run_all_out" "evidence/releases/$run_all_release"
+  run_command lab-run-all-host-safe bash qa/vm/run_all_lab.sh --mode host-safe --out "$run_all_out" --release-version "$run_all_release"
+  if [ ! -f "$run_all_out/summary.json" ]; then
     fail 'lab run-all host-safe summary missing from no-host audit'
   fi
-  python3 -c 'import json; from pathlib import Path; summary=json.loads(Path("evidence/lab/run-all/no-host-mutation/summary.json").read_text()); assert summary.get("host_mutation") is False; print("run_all_host_safe_summary=evidence/lab/run-all/no-host-mutation/summary.json")'
-  rm -rf evidence/releases/0.2.0-lab-runall
+  RUN_ALL_SUMMARY="$run_all_out/summary.json" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+summary_path = Path(os.environ["RUN_ALL_SUMMARY"])
+summary = json.loads(summary_path.read_text())
+assert summary.get("host_mutation") is False
+print(f"run_all_host_safe_summary={summary_path}")
+PY
+  rm -rf "$run_all_out" "evidence/releases/$run_all_release"
 
   for verb in load attach enable mutate apply; do
     run_refusal_command "refuse-$verb" zig build run -- "$verb"

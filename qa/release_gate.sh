@@ -141,6 +141,20 @@ target_real="$(realpath "$evidence_dir")"
 case "$target_real" in "$allowed_root"|"$allowed_root"/*) ;; *) fail 'unsafe evidence realpath' ;; esac
 link_hit="$(find "$evidence_dir" -type l -print -quit 2>/dev/null || true)"
 [ -z "$link_hit" ] || fail "release output contains symlink: $link_hit"
+release_lock="$evidence_dir/.release-gate.lock"
+release_lock_acquired=false
+for _ in $(seq 1 600); do
+  if mkdir "$release_lock" 2>/dev/null; then
+    release_lock_acquired=true
+    break
+  fi
+  sleep 0.1
+done
+[ "$release_lock_acquired" = true ] || fail 'release evidence lock acquisition timed out'
+cleanup_release_lock() {
+  rmdir "$release_lock" 2>/dev/null || true
+}
+trap cleanup_release_lock EXIT
 missing=0
 require_file() { if [ ! -f "$1" ]; then printf 'MISSING: %s\n' "$1"; missing=1; fi; }
 zig build bpf --summary all >/dev/null
