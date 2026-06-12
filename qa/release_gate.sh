@@ -8,6 +8,7 @@ version=""
 evidence_dir=""
 self_test=false
 no_approval=false
+live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/run-all/vm-live-behavior/summary.json}"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
@@ -30,6 +31,8 @@ if [ "$self_test" = true ]; then
   validate_governance_manifest
   python3 - <<'PY'
 from pathlib import Path
+import shutil
+from qa.live_behavior_check import LiveBehaviorError, validate_bundle, write_bundle
 current = 'f' * 40
 
 def reject(label, func):
@@ -79,6 +82,20 @@ def check_summary(summary):
     if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm':
         raise SystemExit('summary/status contradiction')
 
+def check_live_behavior_gate():
+    root = Path('evidence/lab/run-all/release-gate-live-behavior-self-test')
+    shutil.rmtree(root, ignore_errors=True)
+    good = write_bundle(root / 'good')
+    validate_bundle(good)
+    bad = write_bundle(root / 'attach-only', include_observe=False)
+    try:
+        validate_bundle(bad)
+    except LiveBehaviorError as exc:
+        print(f'PASS reject surrogate attach-only live behavior: {exc}')
+    else:
+        raise SystemExit('expected rejection did not occur: surrogate attach-only live behavior')
+    shutil.rmtree(root, ignore_errors=True)
+
 def check_skip_cleanup():
     out = Path('evidence/releases/self-test-skip-cleanup')
     out.mkdir(parents=True, exist_ok=True)
@@ -109,8 +126,9 @@ reject('skipped stress release-ready', lambda: check_stress({'status': 'SKIP', '
 reject('summary contradiction', lambda: check_summary({'status': 'PASS', 'release_status': 'skipped_no_vm'}))
 check_existing_approval({'git_sha': '0' * 40, 'historical': True, 'historical_reason': 'archived approval only', 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'historical'}})
 check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'})
+check_live_behavior_gate()
 check_skip_cleanup()
-print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
+print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, live behavior proof, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
 PY
   if ZIG_SCHEDULER_ALLOW_NO_STRACE=1 bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab >/dev/null 2>&1; then
     fail 'self-test expected ambient no-strace release bypass rejection'
@@ -217,10 +235,12 @@ rm -rf evidence/lab/run-all/no-host-mutation
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
-python3 - <<'PY' "$evidence_dir" "$version"
+python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle"
 import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
-out = Path(sys.argv[1]); version = sys.argv[2]
+sys.path.insert(0, str(Path.cwd()))
+from qa.live_behavior_check import LiveBehaviorError, validate_bundle
+out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3])
 checks = {}
 checks['dsq'] = json.loads(Path('evidence/lab/dsq-vtime/summary.json').read_text())
 checks['rollback'] = json.loads(Path('evidence/lab/rollback-drill/summary.json').read_text())
@@ -254,6 +274,15 @@ def write_skip_summary(reason):
     print('SKIP: release gate did not create approval: ' + reason)
     raise SystemExit(0)
 
+def require_live_behavior_bundle():
+    if not live_behavior_bundle.is_file():
+        write_skip_summary('VM-live behavior bundle missing; controlled-lab mutation candidate not approved')
+    try:
+        validate_bundle(live_behavior_bundle)
+    except (LiveBehaviorError, OSError, json.JSONDecodeError) as exc:
+        raise SystemExit('VM-live behavior bundle invalid: ' + str(exc)) from exc
+
+require_live_behavior_bundle()
 if checks['dsq'].get('release_eligible') is False:
     host_safe_skip = (
         checks['dsq'].get('status') == 'PASS'
@@ -312,6 +341,7 @@ required_sources = {
  'package-default.toml': 'packaging/config/default.toml',
  'package-mutation-service.service': 'packaging/systemd/zig-scheduler-lab-mutation.service',
  'governance-gate.md': 'docs/releases/governance-gate.md',
+ 'live-behavior-summary.json': str(live_behavior_bundle),
 }
 approval_path = out / 'release-approval.json'
 existing_approval = {}

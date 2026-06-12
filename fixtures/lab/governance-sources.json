@@ -18,7 +18,7 @@
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "d2bcbc2c58dacf768368dfa548ea0c9b64d0554e2fa54329b5495318dcc9059a"
+      "sha256": "ae8554f43ede232fc36f177d83a6168b4e736ebc12b29d0584b3e6d9d28b9e8e"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -36,7 +36,7 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "2c3e7fa1b86a2c6de345245aa7dca6364edc0c42d18caf1cef547b1f51333df3"
+      "sha256": "946fc8c37fa273383d07e7ebbd51139005b9399440eaea7897ae6f5ee5af6261"
     },
     {
       "path": "qa/security_gate.sh",
@@ -84,7 +84,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "71182644e71eae59ef455e36ab85e3b3e2268109a286b67ac95eab9a431fcf76"
+      "sha256": "d7042876296373eda3061d8041427ee39335e555d297bdde57ca98cf4f55e621"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",

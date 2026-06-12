@@ -15,9 +15,10 @@ A candidate release must provide:
 5. Rollback snapshot and rollback drill transcript.
 6. Audit ID, operator identity, git SHA, and rollback ID for every mutation-capable run.
 7. Stress/chaos evidence for workload liveness and fallback behavior.
-8. Security threat model and completed security review checklist.
-9. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
-10. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
+8. VM-live scheduler behavior bundle validated by `qa/live_behavior_check.py`, proving the result is not attach-only success.
+9. Security threat model and completed security review checklist.
+10. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
+11. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
 
 ## Production evidence matrix
 The current release summary must keep `release_status=controlled_lab_pilot_candidate`,
@@ -41,7 +42,9 @@ to be complete, current for the release git SHA, reproducible, and reviewed.
 | systemd no auto-start | systemd no auto-start proof for installed units; mutation service remains gated by config, marker, and evidence. |
 
 ## Pass/fail rule
-The gate fails if any required evidence is missing, stale, unverifiable, or collected outside a disposable VM/lab environment. The gate also fails if the root host path can load, attach, enable, mutate, apply, write cgroups, change affinities, change priorities, or call scheduler/BPF mutation APIs without the lab evidence bundle.
+The gate fails if any required evidence is stale, unverifiable, contradictory, or collected outside a disposable VM/lab environment. If VM-live behavior proof is missing, the gate must write a `SKIP` summary and must not create a controlled-lab approval. The gate also fails if the root host path can load, attach, enable, mutate, apply, write cgroups, change affinities, change priorities, or call scheduler/BPF mutation APIs without the lab evidence bundle.
+
+A controlled-lab candidate requires a VM-live behavior bundle accepted by `qa/live_behavior_check.py`. The bundle must include marker-attested VM evidence, partial-switch `zigsched_minimal` metadata, runtime samples before/during/after attach, stable fatal/reject/fallback counters, daemon runtime events with `host_mutation=false`, live workload evidence, rollback-restored state, and audit ledger validation. Host-safe or surrogate CI evidence may keep the gate green only as `SKIP`; it must not be relabeled as live proof.
 
 ## Approval record
 The owner/operator records approval in `.omo/evidence/release-approval-<version>.json` or the release evidence bundle. Approval must include the release version, git SHA, audit ID, reviewer, date, and exact authorized status.
