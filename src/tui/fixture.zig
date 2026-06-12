@@ -26,6 +26,14 @@ pub const SnapshotModel = struct {
     stress_status: []const u8 = "pending",
     audit_status: []const u8 = "pending",
     release_gate_status: []const u8 = "closed",
+    current_stage: []const u8 = "preflight",
+    vm_marker: []const u8 = "none",
+    runtime_samples: []const u8 = "not-started",
+    runtime_ops: []const u8 = "not-attached",
+    runtime_counters: []const u8 = "nr_rejected=unknown",
+    rollback_status: []const u8 = "rollback required",
+    incident_status: []const u8 = "none",
+    release_eligibility: []const u8 = "not release eligible",
     fixture_warning: []const u8 = "",
 };
 
@@ -84,6 +92,15 @@ pub const PreflightFixture = struct {
     vm_kind: []const u8 = "",
     evidence_mode: []const u8 = "",
     release_status: []const u8 = "",
+    release_use: bool = false,
+    release_eligible_live_proof: bool = false,
+    rollback_result: []const u8 = "",
+    current_stage: []const u8 = "",
+    vm_marker: []const u8 = "",
+    runtime_samples: []const u8 = "",
+    runtime_ops: []const u8 = "",
+    runtime_counters: []const u8 = "",
+    incident_status: []const u8 = "",
     stages: []StageJson = &.{},
 };
 
@@ -123,6 +140,14 @@ pub fn model(value: PreflightFixture) SnapshotModel {
         .stress_status = stageStatus(value, "stress_chaos", "pending"),
         .audit_status = auditStatus(value),
         .release_gate_status = releaseGateStatus(value),
+        .current_stage = currentStage(value),
+        .vm_marker = vmMarker(value),
+        .runtime_samples = runtimeSamples(value),
+        .runtime_ops = runtimeOps(value),
+        .runtime_counters = runtimeCounters(value),
+        .rollback_status = rollbackStatus(value),
+        .incident_status = incidentStatus(value),
+        .release_eligibility = releaseEligibility(value),
         .fixture_warning = "FIXTURE deterministic host facts; do not infer live support",
     };
 }
@@ -188,6 +213,56 @@ fn releaseGateStatus(value: PreflightFixture) []const u8 {
         if (value.release_status.len != 0) return value.release_status;
     }
     return "closed";
+}
+
+fn currentStage(value: PreflightFixture) []const u8 {
+    if (value.current_stage.len != 0) return value.current_stage;
+    if (!isRunAllSummary(value)) return "preflight";
+    if (!std.mem.eql(u8, stageStatus(value, "observe_partial", ""), "")) return "observe_partial";
+    if (!std.mem.eql(u8, stageStatus(value, "partial_attach", ""), "")) return "partial_attach";
+    if (!std.mem.eql(u8, stageStatus(value, "verifier_only", ""), "")) return "verifier_only";
+    return "run_all_pending";
+}
+
+fn vmMarker(value: PreflightFixture) []const u8 {
+    if (value.vm_marker.len != 0) return value.vm_marker;
+    if (value.vm_kind.len != 0 and !std.mem.eql(u8, value.vm_kind, "host-safe-surrogate")) return "marker required";
+    return "host-safe none";
+}
+
+fn runtimeSamples(value: PreflightFixture) []const u8 {
+    if (value.runtime_samples.len != 0) return value.runtime_samples;
+    if (std.mem.eql(u8, stageStatus(value, "observe_partial", ""), "PASS")) return "observe_partial PASS";
+    return "not-started";
+}
+
+fn runtimeOps(value: PreflightFixture) []const u8 {
+    if (value.runtime_ops.len != 0) return value.runtime_ops;
+    if (std.mem.eql(u8, stageStatus(value, "partial_attach", ""), "PASS")) return "ops recorded";
+    return "not-attached";
+}
+
+fn runtimeCounters(value: PreflightFixture) []const u8 {
+    if (value.runtime_counters.len != 0) return value.runtime_counters;
+    return factText(value.sched_ext.nr_rejected);
+}
+
+fn rollbackStatus(value: PreflightFixture) []const u8 {
+    if (value.rollback_result.len != 0) return "rollback ready/completed";
+    if (std.mem.eql(u8, stageStatus(value, "rollback_drill", ""), "PASS")) return "rollback ready/completed";
+    return rollbackRequirement(value);
+}
+
+fn incidentStatus(value: PreflightFixture) []const u8 {
+    if (value.incident_status.len != 0) return value.incident_status;
+    if (std.mem.eql(u8, stageStatus(value, "observe_partial", ""), "PASS")) return "none";
+    return "unsafe_to_assume";
+}
+
+fn releaseEligibility(value: PreflightFixture) []const u8 {
+    if (value.release_eligible_live_proof) return "eligible with live proof";
+    if (value.release_use) return "pending signed proof";
+    return "not release eligible";
 }
 
 fn stageStatus(value: PreflightFixture, name: []const u8, fallback: []const u8) []const u8 {

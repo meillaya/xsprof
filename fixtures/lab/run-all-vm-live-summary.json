@@ -1,0 +1,79 @@
+{
+  "artifact_paths": [
+    "evidence/lab/vm-live-ui/verifier-only/verifier-log.txt",
+    "evidence/lab/vm-live-ui/partial-attach/partial-attach-summary.json",
+    "evidence/lab/vm-live-ui/observe-partial/runtime-samples.jsonl",
+    "evidence/lab/vm-live-ui/rollback-drill/audit-ledger.jsonl"
+  ],
+  "audit_id": "AUD-vmlive-ui-20990101T000000Z",
+  "cleanup": {
+    "qemu_leftovers": false,
+    "tmux_leftovers": false
+  },
+  "current_stage": "observer_stream_replay",
+  "ended_at": "2099-01-01T00:00:24Z",
+  "evidence_mode": "vm-live",
+  "git_sha": "fixture-vm-live-ui",
+  "host_mutation": false,
+  "incident_status": "none",
+  "kernel": {
+    "arch": "x86_64",
+    "release": "6.12.0-sched-ext-lab"
+  },
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "fixture-vm-live-ui-config",
+    "release": "6.12.0-sched-ext-lab"
+  },
+  "mode": "vm-required",
+  "release_eligible_live_proof": false,
+  "release_status": "withheld_signed_live_proof_required",
+  "release_use": false,
+  "rollback_id": "RB-vmlive-ui",
+  "rollback_result": "PASS",
+  "runtime_counters": "nr_rejected=0 samples=3",
+  "runtime_ops": "zigsched_minimal",
+  "runtime_samples": "runtime samples x3",
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "started_at": "2099-01-01T00:00:00Z",
+  "status": "PASS",
+  "stages": [
+    {
+      "reason": "VM-live replay verifier log accepted by UI fixture",
+      "stage": "verifier_only",
+      "status": "PASS"
+    },
+    {
+      "reason": "partial attach observed ops=zigsched_minimal",
+      "stage": "partial_attach",
+      "status": "PASS"
+    },
+    {
+      "reason": "rollback drill completed and state restored",
+      "stage": "rollback_drill",
+      "status": "PASS"
+    },
+    {
+      "reason": "DSQ smoke observed no rejected tasks",
+      "stage": "dsq_policy_smoke",
+      "status": "PASS"
+    },
+    {
+      "reason": "bounded stress replay completed",
+      "stage": "stress_chaos",
+      "status": "PASS"
+    },
+    {
+      "reason": "runtime samples linked to audit ledger",
+      "stage": "observe_partial",
+      "status": "PASS"
+    },
+    {
+      "reason": "signed live proof gate intentionally withheld",
+      "stage": "release_gate",
+      "status": "SKIP"
+    }
+  ],
+  "vm_kind": "vm-live",
+  "vm_marker": "/run/zig-scheduler-vm-lab.marker"
+}

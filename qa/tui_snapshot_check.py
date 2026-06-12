@@ -1,8 +1,18 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
+# dependencies = []
 # ///
+
 # ─── How to run ───
-# python3 qa/tui_snapshot_check.py <snapshot.txt> [<snapshot.txt> ...]
+# 1. Install uv (if not installed):
+#      curl -LsSf https://astral.sh/uv/install.sh | sh
+# 2. Run directly (no venv, no pip install needed):
+#      uv run qa/tui_snapshot_check.py <snapshot.txt> [<snapshot.txt> ...]
+# 3. Or make executable and run:
+#      chmod +x qa/tui_snapshot_check.py && ./qa/tui_snapshot_check.py <snapshot.txt>
+# ──────────────────
+
 
 from __future__ import annotations
 
@@ -19,6 +29,13 @@ FORBIDDEN: Final[tuple[str, ...]] = (
     "completion_order",
     "Gantt",
     "production-ready",
+)
+VM_LIVE_REQUIRED: Final[tuple[str, ...]] = (
+    "vm-live",
+    "zigsched_minimal",
+    "runtime samples",
+    "rollback ready/completed",
+    "release eligible",
 )
 
 
@@ -73,8 +90,13 @@ def inspect_snapshot(path: Path) -> list[SnapshotIssue]:
         for forbidden in FORBIDDEN:
             if forbidden.lower() in stripped.lower():
                 issues.append(SnapshotIssue(path, index, f"forbidden text: {forbidden}"))
-    if not any("sched_ext Lab Lifecycle" in line for line in lines):
+    sched_ext_snapshot = "sched-ext" in path.name or any("sched_ext Readiness" in line for line in lines)
+    if sched_ext_snapshot and not any("sched_ext Lab Lifecycle" in line for line in lines):
         issues.append(SnapshotIssue(path, 0, "missing lifecycle section"))
+    if sched_ext_snapshot and "vm-live" in text:
+        for required in VM_LIVE_REQUIRED:
+            if required not in text:
+                issues.append(SnapshotIssue(path, 0, f"missing vm-live lifecycle field: {required}"))
     return issues
 
 

@@ -5,15 +5,25 @@ pub fn section(writer: anytype, width: usize, left: []const u8, right: []const u
 }
 
 pub fn row(writer: anytype, width: usize, left: []const u8, middle: []const u8, right: []const u8) !void {
+    const columns = columnWidths(width);
     try writer.writeAll("│ ");
-    try writeCell(writer, left, 34);
+    try writeCell(writer, left, columns.left);
     try writer.writeAll(" │ ");
-    try writeCell(writer, middle, 24);
+    try writeCell(writer, middle, columns.middle);
     try writer.writeAll(" │ ");
-    const used: usize = 2 + 34 + 3 + 24 + 3;
-    const right_width = if (width > used + 2) width - used - 2 else 12;
-    try writeCell(writer, right, right_width);
+    try writeCell(writer, right, columns.right);
     try writer.writeAll(" │\n");
+}
+
+const RowColumns = struct {
+    left: usize,
+    middle: usize,
+    right: usize,
+};
+
+fn columnWidths(width: usize) RowColumns {
+    if (width < 90) return .{ .left = 30, .middle = 24, .right = width - 64 };
+    return .{ .left = 34, .middle = 24, .right = width - 68 };
 }
 
 pub fn line(writer: anytype, width: usize, left: []const u8, fill: []const u8, right: []const u8) !void {

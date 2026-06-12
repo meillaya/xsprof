@@ -91,8 +91,8 @@ fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, 
     switch (options.screen) {
         .preflight => try screens.renderPreflight(writer, width, model),
         .sched_ext => try screens.renderSchedExt(writer, width, model),
-        .controller => try screens.renderController(writer, width),
-        .observer => try screens.renderObserver(writer, width),
+        .controller => try screens.renderController(writer, width, model),
+        .observer => try screens.renderObserver(writer, width, model),
         .help => try screens.renderHelp(writer, width),
     }
     while (countRows(writer.buffered()) + @as(usize, if (action_status.len == 0) 3 else 4) < options.height) {
@@ -168,11 +168,10 @@ test "run-all fixture renders lab lifecycle evidence rows" {
         "evidence mode",
         "verifier",
         "partial attach",
-        "rollback",
-        "DSQ",
-        "stress",
-        "audit",
-        "release",
+        "rollback status",
+        "runtime samples",
+        "release eligible",
+        "audit id",
         "fixture",
         "skipped_no_vm",
     }) |label| {
@@ -181,6 +180,50 @@ test "run-all fixture renders lab lifecycle evidence rows" {
     try std.testing.expect(std.mem.indexOf(u8, frame, "Task Metrics") == null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "completion_order") == null);
     try std.testing.expect(std.mem.indexOf(u8, frame, "production") == null);
+}
+
+test "vm-live fixture renders live lifecycle stream fields" {
+    const options = try parseArgs(&.{ "--snapshot", "--fixture", "fixtures/lab/run-all-vm-live-summary.json", "--screen", "sched-ext", "--width", "100", "--height", "30" });
+    const frame = try renderSnapshot(std.testing.allocator, options);
+    defer std.testing.allocator.free(frame);
+    try std.testing.expectEqual(@as(usize, 30), countRows(frame));
+    try std.testing.expect(layout.maxLineCells(frame) <= 100);
+    for ([_][]const u8{
+        "vm-live",
+        "zigsched_minimal",
+        "runtime samples",
+        "rollback ready/completed",
+        "release eligible",
+        "not release eligible",
+        "AUD-vmlive-ui",
+    }) |label| {
+        try std.testing.expect(std.mem.indexOf(u8, frame, label) != null);
+    }
+    try std.testing.expect(std.mem.indexOf(u8, frame, "Task Metrics") == null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "completion_order") == null);
+    try std.testing.expect(std.mem.indexOf(u8, frame, "production") == null);
+}
+
+test "vm-live lifecycle fields survive narrow supported width" {
+    const frame = try renderSnapshot(std.testing.allocator, .{
+        .snapshot = true,
+        .screen = .sched_ext,
+        .width = 80,
+        .height = 30,
+        .fixture_path = "fixtures/lab/run-all-vm-live-summary.json",
+    });
+    defer std.testing.allocator.free(frame);
+    try std.testing.expectEqual(@as(usize, 30), countRows(frame));
+    try std.testing.expect(layout.maxLineCells(frame) <= 80);
+    for ([_][]const u8{
+        "vm-live",
+        "zigsched_minimal",
+        "runtime samples",
+        "rollback ready/completed",
+        "release eligible",
+    }) |label| {
+        try std.testing.expect(std.mem.indexOf(u8, frame, label) != null);
+    }
 }
 
 test "CJK lifecycle fixture stays within requested terminal widths" {
