@@ -280,11 +280,51 @@ Path(os.environ["VERIFIER_EVIDENCE"]).write_text(json.dumps(evidence, indent=2, 
 PY
     python3 qa/verifier_log_check.py --evidence "$verifier_evidence" >/dev/null
     printf 'PASS fixture verifier-only: verifier log parsed, no attach/state delta, host_mutation=false\n' > "$out_dir/copy-out/stages/verifier_only.txt"
-    printf 'PASS fixture partial-attach: attach simulated inside VM harness, rollback id captured, host_mutation=false\n' > "$out_dir/copy-out/stages/partial_attach.txt"
+    partial_dir="$out_dir/copy-out/partial-attach"
+    mkdir -p "$partial_dir"
+    partial_transcript="$partial_dir/partial-attach-transcript.txt"
+    partial_evidence="$partial_dir/partial-attach-evidence.json"
+    partial_rollback_id="RB-fixture-partial"
+    {
+      printf 'schema=zig-scheduler/partial-attach-transcript/v1\n'
+      printf 'COMMAND: bpftool struct_ops register zig-out/bpf/zigsched_minimal.bpf.o /sys/fs/bpf/zigsched_minimal_ops\n'
+      printf 'bpftool struct_ops register\n'
+      printf 'ops=zigsched_minimal\n'
+      printf 'switch_mode=SCX_OPS_SWITCH_PARTIAL\n'
+      printf 'target_cgroup=/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope\n'
+      printf 'rollback_id=%s\n' "$partial_rollback_id"
+      printf 'attach_status=PASS\n'
+      printf 'rollback_status=PASS\n'
+      printf 'post_state=disabled\n'
+      printf 'host_mutation=false\n'
+      printf 'release_eligible_live_proof=false\n'
+    } > "$partial_transcript"
+    PARTIAL_EVIDENCE="$partial_evidence" PARTIAL_TRANSCRIPT="$partial_transcript" PARTIAL_ROLLBACK_ID="$partial_rollback_id" PARTIAL_OBJECT_SHA="$verifier_object_sha" python3 - <<'PY'
+import json, os
+from pathlib import Path
+evidence = {
+    "schema": "zig-scheduler/partial-attach-evidence/v1",
+    "attach_command": "bpftool struct_ops register",
+    "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+    "rollback_id": os.environ["PARTIAL_ROLLBACK_ID"],
+    "rollback_status": "PASS",
+    "ops_during_attach": "zigsched_minimal",
+    "switch_mode": "SCX_OPS_SWITCH_PARTIAL",
+    "post_state": "disabled",
+    "object": "zig-out/bpf/zigsched_minimal.bpf.o",
+    "object_sha256": os.environ["PARTIAL_OBJECT_SHA"],
+    "transcript_path": os.environ["PARTIAL_TRANSCRIPT"],
+    "host_mutation": False,
+    "release_eligible_live_proof": False,
+}
+Path(os.environ["PARTIAL_EVIDENCE"]).write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+PY
+    python3 qa/partial_attach_check.py --evidence "$partial_evidence" >/dev/null
+    printf 'PASS fixture partial-attach: bpftool struct_ops register transcript, zigsched_minimal partial-switch, rollback id captured, host_mutation=false\n' > "$out_dir/copy-out/stages/partial_attach.txt"
     printf 'PASS fixture rollback-drill: rollback restored pre-attach state, host_mutation=false\n' > "$out_dir/copy-out/stages/rollback_drill.txt"
     printf 'PASS fixture observe-partial: runtime counters copied from VM harness, host_mutation=false\n' > "$out_dir/copy-out/stages/observe_partial.txt"
     printf '{"event":"command","name":"verifier_only","argv":["bash","qa/vm/verifier_only.sh","--object","zig-out/bpf/zigsched_minimal.bpf.o"],"status":"PASS","copy_out":"copy-out/verifier-only/verifier-evidence.json","host_mutation":false}\n' >> "$transcript"
-    printf '{"event":"command","name":"partial_attach","argv":["bash","qa/vm/partial_attach.sh","--target","/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope"],"status":"PASS","copy_out":"copy-out/stages/partial_attach.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"partial_attach","attach_command":"bpftool struct_ops register","argv":["bpftool","struct_ops","register","zig-out/bpf/zigsched_minimal.bpf.o","/sys/fs/bpf/zigsched_minimal_ops"],"status":"PASS","ops":"zigsched_minimal","switch_mode":"SCX_OPS_SWITCH_PARTIAL","rollback_id":"RB-fixture-partial","copy_out":"copy-out/partial-attach/partial-attach-evidence.json","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"rollback_drill","argv":["bash","qa/vm/rollback_drill.sh"],"status":"PASS","copy_out":"copy-out/stages/rollback_drill.txt","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"observe_partial","argv":["bash","qa/vm/observe_partial.sh","--samples","3"],"status":"PASS","copy_out":"copy-out/stages/observe_partial.txt","host_mutation":false}\n' >> "$transcript"
   fi
@@ -334,7 +374,9 @@ Path(os.environ["CLEANUP"]).write_text(json.dumps(receipt, indent=2, sort_keys=T
 PY
   verifier_evidence_manifest=""
   if [ -f "$out_dir/copy-out/verifier-only/verifier-evidence.json" ]; then verifier_evidence_manifest="$out_dir/copy-out/verifier-only/verifier-evidence.json"; fi
-  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" VERIFIER_EVIDENCE="$verifier_evidence_manifest" MANIFEST="$manifest" MODE="$mode" \
+  partial_attach_evidence_manifest=""
+  if [ -f "$out_dir/copy-out/partial-attach/partial-attach-evidence.json" ]; then partial_attach_evidence_manifest="$out_dir/copy-out/partial-attach/partial-attach-evidence.json"; fi
+  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" VERIFIER_EVIDENCE="$verifier_evidence_manifest" PARTIAL_ATTACH_EVIDENCE="$partial_attach_evidence_manifest" MANIFEST="$manifest" MODE="$mode" \
   GIT_SHA="$git_sha" ZIG_VERSION="$zig_version" QEMU_BIN="$qemu_bin" QEMU_AVAILABLE="$qemu_available" \
   KVM_AVAILABLE="$kvm_available" CONFIG_SOURCE="$config_source" IMAGE_PATH="$effective_image" \
   KERNEL_PATH="$effective_kernel" ENV_FILE="$env_file" COMMAND_HASH="$command_hash" python3 - <<'PY'
@@ -370,6 +412,7 @@ manifest = {
     "copy_in_hashes": copy_in.as_posix(),
     "attestation": os.environ["ATTESTATION"],
     "verifier_only_evidence": os.environ["VERIFIER_EVIDENCE"],
+    "partial_attach_evidence": os.environ["PARTIAL_ATTACH_EVIDENCE"],
     "copy_out_hashes": {
         "attestation": hashlib.sha256(Path(os.environ["ATTESTATION"]).read_bytes()).hexdigest(),
         "transcript": hashlib.sha256(transcript.read_bytes()).hexdigest(),

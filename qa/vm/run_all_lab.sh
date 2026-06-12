@@ -75,6 +75,8 @@ vm_transcript_value = manifest.get("transcript_path", "")
 vm_transcript = Path(vm_transcript_value) if isinstance(vm_transcript_value, str) and vm_transcript_value else None
 verifier_evidence_value = manifest.get("verifier_only_evidence", "")
 verifier_evidence = Path(verifier_evidence_value) if isinstance(verifier_evidence_value, str) and verifier_evidence_value else None
+partial_attach_evidence_value = manifest.get("partial_attach_evidence", "")
+partial_attach_evidence = Path(partial_attach_evidence_value) if isinstance(partial_attach_evidence_value, str) and partial_attach_evidence_value else None
 command_status = {}
 command_events = {}
 if vm_transcript is not None and vm_transcript.is_file():
@@ -133,6 +135,8 @@ for name, status, command, artifact, reason in stages:
         paths.append(vm_transcript.as_posix())
     if name == "verifier_only" and verifier_evidence is not None and verifier_evidence.is_file():
         paths.append(verifier_evidence.as_posix())
+    if name == "partial_attach" and partial_attach_evidence is not None and partial_attach_evidence.is_file():
+        paths.append(partial_attach_evidence.as_posix())
     record = {
         "schema": "zig-scheduler/run-all-stage/v1",
         "stage": name,
