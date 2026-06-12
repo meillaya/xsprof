@@ -121,7 +121,7 @@ run_stage() {
   stage_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'STAGE %s: %s\n' "$stage" "$command_text"
   set +e
-  "$@" > "$artifact/transcript.txt" 2>&1
+  env -u ZIG_SCHEDULER_VM_MARKER -u ZIG_SCHEDULER_SYS_ROOT "$@" > "$artifact/transcript.txt" 2>&1
   local rc=$?
   stage_ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   set -e
