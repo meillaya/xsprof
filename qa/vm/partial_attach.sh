@@ -6,8 +6,12 @@ cd "$repo_root"
 source qa/path_safety.sh
 
 trusted_system_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
-timeout_tool="$(PATH="$trusted_system_path" command -v timeout || true)"
-[ -n "$timeout_tool" ] || timeout_tool="timeout"
+export PATH="$trusted_system_path"
+timeout_tool="$(command -v timeout || true)"
+if [ -z "$timeout_tool" ]; then
+  printf 'FAIL: trusted timeout unavailable\n' >&2
+  exit 1
+fi
 
 target=""
 audit_id=""
