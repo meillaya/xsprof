@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+trusted_system_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+export PATH="$trusted_system_path"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 source qa/path_safety.sh
 
-trusted_system_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
-export PATH="$trusted_system_path"
 timeout_tool="$(command -v timeout || true)"
 if [ -z "$timeout_tool" ]; then
   printf 'FAIL: trusted timeout unavailable\n' >&2
