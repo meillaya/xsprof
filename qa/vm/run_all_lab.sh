@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trusted_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="$trusted_path"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
@@ -11,7 +13,6 @@ image_arg=""
 kernel_arg=""
 env_file=""
 release_version="0.2.0-lab-runall"
-trusted_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--image <path>] [--kernel <path>] [--env-file <file>] [--release-version 0.2.0-lab-runall]\n' "$0" >&2; }
