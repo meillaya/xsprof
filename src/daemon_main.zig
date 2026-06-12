@@ -5,14 +5,14 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const argv = try init.minimal.args.toSlice(init.arena.allocator());
     const options = linux.control.daemon.parseArgs(argv[1..]) catch {
-        try writeStderr("usage: zig-scheduler-daemon --foreground --state-dir <relative-dir>\n");
+        try writeStderr("usage: zig-scheduler-daemon --foreground --state-dir <relative-dir> [--stream-runtime <relative-jsonl>] [--stream-from <sequence>]\n");
         std.process.exit(2);
     };
-    try runForeground(allocator, init.io, options.state_dir);
+    try runForeground(allocator, init.io, options);
 }
 
-fn runForeground(allocator: std.mem.Allocator, io: std.Io, state_dir: []const u8) !void {
-    var dir = try std.Io.Dir.cwd().createDirPathOpen(io, state_dir, .{});
+fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.control.daemon.Options) !void {
+    var dir = try std.Io.Dir.cwd().createDirPathOpen(io, options.state_dir, .{});
     defer dir.close(io);
 
     var output: std.ArrayList(u8) = .empty;
@@ -33,6 +33,15 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, state_dir: []const u8
     defer allocator.free(git_sha);
     try appendReady(allocator, &output, seq);
     seq += 1;
+
+    if (options.runtime_stream_path) |path| {
+        const raw = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(linux.control.daemon.max_journal_bytes));
+        defer allocator.free(raw);
+        try linux.control.stream.appendRuntimeFile(allocator, &output, raw, &seq, options.stream_from, git_sha);
+        try writeStdout(output.items);
+        try dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
+        return;
+    }
 
     var stdin_buffer: [4096]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(io, &stdin_buffer);

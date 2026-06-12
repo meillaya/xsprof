@@ -9,11 +9,15 @@ pub const max_journal_bytes: usize = 64 * 1024;
 pub const Options = struct {
     foreground: bool,
     state_dir: []const u8,
+    runtime_stream_path: ?[]const u8 = null,
+    stream_from: usize = 0,
 };
 
 pub fn parseArgs(args: []const []const u8) DaemonError!Options {
     var foreground = false;
     var state_dir: []const u8 = "";
+    var runtime_stream_path: ?[]const u8 = null;
+    var stream_from: usize = 0;
     var index: usize = 0;
     while (index < args.len) : (index += 1) {
         const arg = args[index];
@@ -23,13 +27,27 @@ pub fn parseArgs(args: []const []const u8) DaemonError!Options {
             index += 1;
             if (index >= args.len) return error.InvalidArgs;
             state_dir = args[index];
+        } else if (std.mem.eql(u8, arg, "--stream-runtime")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            try validateStateDir(args[index]);
+            runtime_stream_path = args[index];
+        } else if (std.mem.eql(u8, arg, "--stream-from")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            stream_from = std.fmt.parseUnsigned(usize, args[index], 10) catch return error.InvalidArgs;
         } else {
             return error.InvalidArgs;
         }
     }
     if (!foreground or state_dir.len == 0) return error.InvalidArgs;
     try validateStateDir(state_dir);
-    return .{ .foreground = foreground, .state_dir = state_dir };
+    return .{
+        .foreground = foreground,
+        .state_dir = state_dir,
+        .runtime_stream_path = runtime_stream_path,
+        .stream_from = stream_from,
+    };
 }
 
 pub fn validateStateDir(path: []const u8) DaemonError!void {
