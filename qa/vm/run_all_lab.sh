@@ -11,6 +11,7 @@ image_arg=""
 kernel_arg=""
 env_file=""
 release_version="0.2.0-lab-runall"
+trusted_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--image <path>] [--kernel <path>] [--env-file <file>] [--release-version 0.2.0-lab-runall]\n' "$0" >&2; }
@@ -121,11 +122,11 @@ run_stage() {
   stage_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'STAGE %s: %s\n' "$stage" "$command_text"
   set +e
-  env -i \
+  /usr/bin/env -i \
     HOME="${HOME:-}" \
     LANG="${LANG:-C.UTF-8}" \
     LOGNAME="${LOGNAME:-}" \
-    PATH="${PATH:-/usr/bin:/bin}" \
+    PATH="$trusted_path" \
     TERM="${TERM:-dumb}" \
     TMPDIR="${TMPDIR:-/tmp}" \
     USER="${USER:-}" \
@@ -185,7 +186,7 @@ run_stage dsq_policy_smoke 'bash qa/vm/dsq_policy_smoke.sh --policy vtime --dura
 run_stage stress_chaos 'bash qa/vm/stress_chaos.sh --duration 1s' "$out_dir/stress-chaos" bash qa/vm/stress_chaos.sh --duration 1s --out "$out_dir/stress-chaos"
 run_stage observe_partial 'bash qa/vm/observe_partial.sh --samples 3' "$out_dir/observe-partial" bash qa/vm/observe_partial.sh --samples 3 --out "$out_dir/observe-partial"
 release_evidence_dir="evidence/releases/$release_version"
-run_stage release_gate "bash qa/release_gate.sh --version $release_version" "$out_dir/release-gate" env ZIG_SCHEDULER_SKIP_NOHOST_GATE=1 bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir"
+run_stage release_gate "bash qa/release_gate.sh --version $release_version --no-approval" "$out_dir/release-gate" bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir" --no-approval
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 qemu_leftovers=false

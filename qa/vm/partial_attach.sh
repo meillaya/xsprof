@@ -348,7 +348,7 @@ fi
 case "$approval_file" in evidence/releases/*/release-approval.json) ;; *) fail 'approval must be evidence/releases/<version>/release-approval.json' ;; esac
 case "$approval_file" in *'/../'*|../*|*/..) fail 'unsafe approval path' ;; esac
 [ -f "$approval_file" ] || fail "approval artifact missing: $approval_file"
-APPROVAL="$approval_file" OBJECT_FILE="$object_file" python3 - <<'APPROVALPY'
+object_file="$(APPROVAL="$approval_file" OBJECT_FILE="$object_file" python3 - <<'APPROVALPY'
 import hashlib, json, os, subprocess, sys
 from pathlib import Path
 
@@ -463,7 +463,10 @@ if object_path.resolve() != approved_object_path:
     sys.exit('BPF object path is not covered by release approval')
 if hashlib.sha256(object_path.read_bytes()).hexdigest() != approved_object_sha:
     sys.exit('BPF object sha does not match release approval')
+print(str(approved_object_path))
 APPROVALPY
+)"
+[ -n "$object_file" ] || fail 'approved BPF object path missing after validation'
 
 {
   printf 'schema=zig-scheduler/partial-attach-transcript/v1\n'

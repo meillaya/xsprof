@@ -5,6 +5,7 @@ cd "$repo_root"
 version=""
 evidence_dir=""
 self_test=false
+no_approval=false
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
@@ -15,7 +16,8 @@ while [ "$#" -gt 0 ]; do
     --self-test) self_test=true; shift ;;
     --version) [ "$#" -ge 2 ] || fail '--version requires value'; version="$2"; shift 2 ;;
     --evidence) [ "$#" -ge 2 ] || fail '--evidence requires value'; evidence_dir="$2"; shift 2 ;;
-    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab'; exit 0 ;;
+    --no-approval) no_approval=true; shift ;;
+    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab [--no-approval]'; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
@@ -151,13 +153,43 @@ require_file packaging/systemd/zig-scheduler-lab-mutation.service
 require_file docs/releases/governance-gate.md
 if [ "$missing" -ne 0 ]; then fail 'release gate missing required artifacts'; fi
 bash qa/wording_audit.sh >/dev/null
-if [ "${ZIG_SCHEDULER_SKIP_NOHOST_GATE:-}" != "1" ]; then
-  if ! bash qa/no_host_mutation.sh >/dev/null; then
-    rm -rf evidence/lab/run-all/no-host-mutation
-    fail 'no host mutation gate failed'
-  fi
-  rm -rf evidence/lab/run-all/no-host-mutation
+if [ "$no_approval" = true ]; then
+  python3 - <<'DRYRUNPY' "$evidence_dir" "$version"
+import json, sys
+from pathlib import Path
+out = Path(sys.argv[1])
+version = sys.argv[2]
+for stale_name in ('release-approval.json', 'artifact-hashes.json'):
+    stale_path = out / stale_name
+    if stale_path.exists() or stale_path.is_symlink():
+        stale_path.unlink()
+summary = {
+    'schema': 'zig-scheduler/release-gate-summary/v1',
+    'version': version,
+    'status': 'SKIP',
+    'release_status': 'non_approval_dry_run',
+    'reason': 'non-approval release gate path used by run-all harness recursion guard',
+    'production_ready': False,
+    'arbitrary_host_safe': False,
+    'required_artifacts_present': True,
+    'artifact_count': 0,
+    'artifact_hash_manifest': '',
+    'evidence_dir': str(out),
+    'no_host_gate': 'not_required_non_approval_dry_run',
+}
+summary_tmp = out / 'summary.json.tmp'
+summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+summary_tmp.replace(out / 'summary.json')
+DRYRUNPY
+  printf 'summary=%s\n' "$evidence_dir/summary.json"
+  printf 'SKIP: release gate did not create approval in non-approval mode\n'
+  exit 0
 fi
+if ! bash qa/no_host_mutation.sh >/dev/null; then
+  rm -rf evidence/lab/run-all/no-host-mutation
+  fail 'no host mutation gate failed'
+fi
+rm -rf evidence/lab/run-all/no-host-mutation
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
@@ -449,6 +481,7 @@ summary = {
  'artifact_count': len(required_sources),
  'artifact_hash_manifest': str(hash_manifest),
  'evidence_dir': str(out),
+ 'no_host_gate': 'executed',
 }
 if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm': raise SystemExit('summary/status contradiction')
 summary_tmp = out / 'summary.json.tmp'
