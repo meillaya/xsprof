@@ -241,6 +241,24 @@ test "CJK lifecycle fixture stays within requested terminal widths" {
         try std.testing.expect(std.unicode.utf8ValidateSlice(frame));
     }
 }
+test "interactive TUI control state maps rollback key with confirmation" {
+    var control_state = interaction.ControlState{};
+    const missing = interaction.controlForKey('b', &control_state, true).?;
+    try std.testing.expectEqualStrings("rollback refused missing audit/rollback id", missing.status);
+    const arm = interaction.controlForKey('m', &control_state, true).?;
+    try std.testing.expectEqual(OperatorAction{
+        .kind = .run_lab_vm,
+        .action_id = "tui-vm-lab",
+        .run_id = "tui-vm-lab",
+        .audit_id = "AUD-tui-vm-lab",
+        .rollback_id = "RB-tui-vm-lab",
+    }, arm.action);
+    const confirm = interaction.controlForKey('b', &control_state, true).?;
+    try std.testing.expectEqualStrings("CONFIRM rollback press b again", confirm.status);
+    const rollback = interaction.controlForKey('b', &control_state, true).?;
+    try std.testing.expectEqualStrings("tui-vm-lab", rollback.action.target_action_id);
+    try std.testing.expectEqualStrings("RB-tui-vm-lab", rollback.action.rollback_id);
+}
 
 test "interactive TUI action module tests are linked" {
     std.testing.refAllDecls(interaction);

@@ -72,6 +72,7 @@ pub fn renderObserver(writer: anytype, width: usize, model: fixture.SnapshotMode
 
 pub fn renderHelp(writer: anytype, width: usize) !void {
     try section(writer, width, "Help", "Keys");
-    try row(writer, width, "model", "fail-closed", "q/ctrl-c quit");
+    try row(writer, width, "model", "fail-closed", "q quit  m vm lab");
+    try row(writer, width, "rollback", "b confirm/send", "s stop uses rollback id");
     try row(writer, width, "scope", "lab gated", "? help, h home, w theme");
 }

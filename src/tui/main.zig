@@ -26,6 +26,7 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
     defer allocator.free(initial);
     try writeStdout(initial);
 
+    var control_state = tui.interaction.ControlState{};
     var stdin_buffer: [64]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(std.Io.Threaded.global_single_threaded.io(), &stdin_buffer);
     while (true) {
@@ -34,8 +35,8 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
             else => return err,
         };
         if (key == 'q' or key == 3) break;
-        const action = tui.interactiveActionForKey(key) orelse continue;
-        const status = try dispatchStatus(allocator, io, options, action);
+        const result = tui.interaction.controlForKey(key, &control_state, options.test_mode) orelse continue;
+        const status = try controlStatus(allocator, io, options, result);
         defer status.deinit(allocator);
         const frame = try tui.renderInteractiveStatus(allocator, options, status.text);
         defer allocator.free(frame);
@@ -52,6 +53,18 @@ const ActionStatus = struct {
         if (self.owned) |owned| owned.deinit(allocator);
     }
 };
+
+fn controlStatus(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    options: tui.Options,
+    result: tui.interaction.ControlResult,
+) !ActionStatus {
+    return switch (result) {
+        .status => |text| .{ .text = text },
+        .action => |action| dispatchStatus(allocator, io, options, action),
+    };
+}
 
 fn dispatchStatus(
     allocator: std.mem.Allocator,
