@@ -348,7 +348,7 @@ fi
 case "$approval_file" in evidence/releases/*/release-approval.json) ;; *) fail 'approval must be evidence/releases/<version>/release-approval.json' ;; esac
 case "$approval_file" in *'/../'*|../*|*/..) fail 'unsafe approval path' ;; esac
 [ -f "$approval_file" ] || fail "approval artifact missing: $approval_file"
-APPROVAL="$approval_file" python3 - <<'APPROVALPY'
+APPROVAL="$approval_file" OBJECT_FILE="$object_file" python3 - <<'APPROVALPY'
 import hashlib, json, os, subprocess, sys
 from pathlib import Path
 
@@ -443,6 +443,26 @@ for name, item in artifacts.items():
     if approval_dir not in artifact_path.parents: sys.exit('approval artifact path escapes release dir: ' + name)
     if hashlib.sha256(item_path.read_bytes()).hexdigest() != item.get('sha256'):
         sys.exit('approval artifact hash mismatch: ' + name)
+metadata_path = approval_dir / 'bpf-object-metadata.json'
+metadata = load_json_no_symlink(metadata_path, 'BPF object metadata')
+if metadata.get('schema') != 'zig-scheduler/bpf-object-metadata/v1':
+    sys.exit('bad BPF object metadata schema')
+approved_object_sha = metadata.get('object_sha256')
+if not approved_object_sha:
+    sys.exit('BPF object metadata missing object_sha256')
+object_path = Path(os.environ['OBJECT_FILE'])
+if object_path.is_symlink():
+    sys.exit('BPF object must not be a symlink')
+if not object_path.is_file():
+    sys.exit('BPF object missing')
+approved_object_text = metadata.get('object')
+if not approved_object_text:
+    sys.exit('BPF object metadata missing object path')
+approved_object_path = (repo_root / str(approved_object_text)).resolve()
+if object_path.resolve() != approved_object_path:
+    sys.exit('BPF object path is not covered by release approval')
+if hashlib.sha256(object_path.read_bytes()).hexdigest() != approved_object_sha:
+    sys.exit('BPF object sha does not match release approval')
 APPROVALPY
 
 {
