@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+allow_no_strace_dev=false
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -56,7 +58,7 @@ run_command() {
     fi
     rm -f "$trace_file" "/tmp/zig-scheduler-nohost-${label//[^A-Za-z0-9_.-]/_}.out"
   else
-    if [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" != "1" ]; then
+    if [ "$allow_no_strace_dev" != true ]; then
       fail "strace is required for no-host mutation audit: $label"
     fi
     printf 'WARN: explicit developer no-strace mode for %s; not valid for release/security gates\n' "$label" >&2
@@ -201,6 +203,13 @@ main() {
   if [[ "${1:-}" == "--self-test" ]]; then
     self_test
     return
+  fi
+  if [[ "${1:-}" == "--allow-no-strace-dev" ]]; then
+    allow_no_strace_dev=true
+    shift
+  fi
+  if [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" = "1" ]; then
+    fail 'ambient ZIG_SCHEDULER_ALLOW_NO_STRACE is not accepted; use --allow-no-strace-dev only for non-release developer diagnostics'
   fi
 
   printf 'audit_mode=%s\n' "$(have_strace && printf strace || printf no_strace)"

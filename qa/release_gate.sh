@@ -13,6 +13,9 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 validate_governance_manifest() {
   python3 "$repo_root/qa/governance_manifest_check.py" --manifest "$repo_root/fixtures/lab/governance-sources.json" || fail 'missing tracked governance source: governance manifest validation failed'
 }
+reject_nohost_bypass_env() {
+  [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" != "1" ] || fail 'release gate rejects ambient ZIG_SCHEDULER_ALLOW_NO_STRACE'
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --self-test) self_test=true; shift ;;
@@ -109,9 +112,14 @@ check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': Fals
 check_skip_cleanup()
 print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
 PY
+  if ZIG_SCHEDULER_ALLOW_NO_STRACE=1 bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab >/dev/null 2>&1; then
+    fail 'self-test expected ambient no-strace release bypass rejection'
+  fi
+  printf 'PASS reject ambient no-strace release bypass\n'
   exit 0
 fi
 [ -n "$version" ] || fail '--version is required'
+reject_nohost_bypass_env
 validate_governance_manifest
 [ -n "$evidence_dir" ] || fail '--evidence is required'
 case "$version$evidence_dir" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac

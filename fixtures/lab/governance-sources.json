@@ -36,13 +36,13 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "9f7250ccc10fb887c47f6ca4f3bc77bc1fb97a0a097488ec07472244737f2730"
+      "sha256": "d340cd0bf7b4753d9860bcdc02629c1b35a843dca465657b8253f484cfe6ae98"
     },
     {
       "path": "qa/security_gate.sh",
       "purpose": "security profile gate consumed by governance checks",
       "required": true,
-      "sha256": "916215fada520801967d9bdc5755796d6d7dfe793bdf3fc9e46df300b44b00b3"
+      "sha256": "6d2fb4243366264e0cc6c50e713edb1e73fff2e9dadc2030037991311297d449"
     },
     {
       "path": "qa/wording_audit.sh",

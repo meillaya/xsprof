@@ -10,6 +10,9 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 validate_governance_manifest() {
   python3 "$repo_root/qa/governance_manifest_check.py" --manifest "$repo_root/fixtures/lab/governance-sources.json" || fail 'missing tracked governance source: governance manifest validation failed'
 }
+reject_nohost_bypass_env() {
+  [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" != "1" ] || fail 'security gate rejects ambient ZIG_SCHEDULER_ALLOW_NO_STRACE'
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --self-test) self_test=true; shift ;;
@@ -74,11 +77,15 @@ PY
   if bash qa/security_gate.sh --profile mutation-capable-lab --review "$tmp/historical-missing-reason.json" >/dev/null 2>&1; then
     fail 'self-test expected historical reason rejection'
   fi
+  if ZIG_SCHEDULER_ALLOW_NO_STRACE=1 bash qa/security_gate.sh --profile read-only >/dev/null 2>&1; then
+    fail 'self-test expected ambient no-strace security bypass rejection'
+  fi
   bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
-  echo 'PASS security gate self-test: reviewer policy, git SHA policy, and signed attestation enforced'
+  echo 'PASS security gate self-test: reviewer policy, git SHA policy, signed attestation, and ambient no-strace bypass rejection enforced'
   exit 0
 fi
 [ -n "$profile" ] || fail '--profile is required'
+reject_nohost_bypass_env
 validate_governance_manifest
 case "$profile$review_artifact" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 [ -f docs/security/threat-model.md ] || fail 'threat model missing'
