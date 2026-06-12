@@ -5,6 +5,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 source qa/path_safety.sh
 
+trusted_system_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+timeout_tool="$(PATH="$trusted_system_path" command -v timeout || true)"
+[ -n "$timeout_tool" ] || timeout_tool="timeout"
+
 target=""
 audit_id=""
 rollback_id=""
@@ -491,12 +495,13 @@ APPROVALPY
   printf '\n'
   printf 'COMMAND: bpftool struct_ops register <object> after lab workload scoped\n'
   printf 'reason_code=ATTACH_ATTEMPTED\n'
-  if ! command -v bpftool >/dev/null 2>&1; then
+  bpftool_tool="$(PATH="$trusted_system_path" command -v bpftool || true)"
+  if [ -z "$bpftool_tool" ]; then
     printf 'SKIP: bpftool unavailable inside VM; attach not attempted\n'
     attach_status='ATTACH_SKIPPED'
   else
     set +e
-    timeout 20 bpftool struct_ops register "$object_file"
+    "$timeout_tool" 20 "$bpftool_tool" struct_ops register "$object_file"
     attach_rc=$?
     set -e
     printf 'bpftool_struct_ops_register_rc=%s\n' "$attach_rc"
@@ -504,7 +509,7 @@ APPROVALPY
       printf 'status_after_register=enabled-or-running\n'
       printf 'COMMAND: bpftool struct_ops unregister name zigsched_minimal_ops\n'
       set +e
-      timeout 20 bpftool struct_ops unregister name zigsched_minimal_ops
+      "$timeout_tool" 20 "$bpftool_tool" struct_ops unregister name zigsched_minimal_ops
       unregister_rc=$?
       set -e
       printf 'bpftool_struct_ops_unregister_rc=%s\n' "$unregister_rc"
