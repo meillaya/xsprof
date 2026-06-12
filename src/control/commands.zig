@@ -26,6 +26,9 @@ pub const CommandPlan = struct {
 const clean_env = [_]EnvVar{
     .{ .name = "PATH", .value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" },
     .{ .name = "ZIG_SCHEDULER_HOST_SAFE", .value = "1" },
+    .{ .name = "HOME", .value = "/tmp" },
+    .{ .name = "XDG_CACHE_HOME", .value = "/tmp/zig-scheduler-daemon-cache" },
+    .{ .name = "TMPDIR", .value = "/tmp" },
 };
 
 const object_path = "zig-out/bpf/zigsched_minimal.bpf.o";
