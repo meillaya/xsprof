@@ -278,8 +278,20 @@ def check_existing_approval(approval):
         raise SystemExit('release approval must keep arbitrary_host_safe=false')
     if approval.get('approval_required_before_mutation_release') is not True:
         raise SystemExit('release approval missing mutation-release gate')
-    if approval.get('git_sha') and approval.get('git_sha') != current_git_sha and approval.get('historical') is not True:
-        raise SystemExit('stale current release approval git_sha')
+    approval_sha = approval.get('git_sha')
+    if approval_sha and approval_sha != current_git_sha and approval.get('historical') is not True:
+        git_policy = approval.get('git_sha_policy') or {}
+        if git_policy.get('kind') != 'content-bound-ancestor':
+            raise SystemExit('stale current release approval git_sha')
+        if git_policy.get('approved_git_sha') != approval_sha:
+            raise SystemExit('release approval git_sha_policy approved sha mismatch')
+        ancestor = subprocess.run(
+            ['git', 'merge-base', '--is-ancestor', str(approval_sha), current_git_sha],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if ancestor.returncode != 0:
+            raise SystemExit('release approval git_sha is not an ancestor')
     reviewer_value = approval.get('reviewer')
     reviewer = str(reviewer_value or '')
     if reviewer.lower() in {'todo', 'tbd', 'placeholder', 'unknown', 'repository-owner-operator'}:
@@ -335,16 +347,22 @@ def is_ancestor_of_head(revision):
 preserve_existing_approval = False
 if existing_approval:
     existing_git_sha = existing_approval.get('git_sha')
+    existing_policy = existing_approval.get('git_sha_policy') or {}
+    existing_has_content_policy = (
+        existing_policy.get('kind') == 'content-bound-ancestor'
+        and existing_policy.get('approved_git_sha') == existing_git_sha
+    )
     if existing_approval.get('historical') is True:
         check_existing_approval(existing_approval)
     elif existing_git_sha == current_git_sha:
         check_existing_approval(existing_approval)
-        preserve_existing_approval = existing_hashes_match_expected(existing_approval)
+        preserve_existing_approval = existing_has_content_policy and existing_hashes_match_expected(existing_approval)
     elif is_ancestor_of_head(existing_git_sha) and existing_hashes_match_expected(existing_approval):
-        policy_approval = dict(existing_approval)
-        policy_approval['git_sha'] = current_git_sha
-        check_existing_approval(policy_approval)
-        preserve_existing_approval = True
+        if existing_has_content_policy:
+            check_existing_approval(existing_approval)
+            preserve_existing_approval = True
+        else:
+            preserve_existing_approval = False
     else:
         raise SystemExit('stale current release approval git_sha')
 
@@ -372,6 +390,12 @@ approval = {
  'schema': 'zig-scheduler/release-approval/v1',
  'version': version,
  'git_sha': current_git_sha,
+ 'git_sha_policy': {
+   'kind': 'content-bound-ancestor',
+   'approved_git_sha': current_git_sha,
+   'artifact_hash_manifest': str(hash_manifest),
+   'statement': 'Approval remains usable on descendant commits only when the git SHA is an ancestor and this release artifact hash manifest still matches exactly.',
+ },
  'audit_id': checks['rollback'].get('audit_id'),
  'rollback_id': checks['rollback'].get('rollback_id'),
  'reviewer': reviewer,

@@ -26,7 +26,13 @@
     "evidence/releases/0.2.0-lab/governance-gate.md",
     "evidence/releases/0.2.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "7b7a23c72efa362c65e487b800b54698092d447d",
+  "git_sha": "3545f8dac4d500a560782bd5c27320b545858077",
+  "git_sha_policy": {
+    "approved_git_sha": "3545f8dac4d500a560782bd5c27320b545858077",
+    "artifact_hash_manifest": "evidence/releases/0.2.0-lab/artifact-hashes.json",
+    "kind": "content-bound-ancestor",
+    "statement": "Approval remains usable on descendant commits only when the git SHA is an ancestor and this release artifact hash manifest still matches exactly."
+  },
   "historical": false,
   "owner": "repository-owner-operator",
   "production_ready": false,

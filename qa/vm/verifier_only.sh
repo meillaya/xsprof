@@ -7,6 +7,7 @@ source qa/path_safety.sh
 
 object_file=""
 out_dir=""
+vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -103,8 +104,15 @@ print(json.dumps({
 PY
 }
 
-if [ ! -f /run/zig-scheduler-vm-lab.marker ]; then
-  json_write_refusal 'verifier-only flow requires /run/zig-scheduler-vm-lab.marker inside a disposable VM'
+if [ "${ZIG_SCHEDULER_HOST_SAFE:-}" = "1" ]; then
+  json_write_refusal 'host-safe run_all mode disables verifier-only BPF load before marker or bpftool handling'
+  printf 'REFUSE: host-safe run_all mode disables verifier-only BPF load before mutation-capable logic\n'
+  printf 'refusal=%s\n' "$refusal_json"
+  exit 0
+fi
+
+if [ ! -f "$vm_marker" ]; then
+  json_write_refusal "verifier-only flow requires $vm_marker inside a disposable VM"
   printf 'REFUSE: verifier-only flow requires disposable VM marker; no BPF verifier load attempted\n'
   printf 'refusal=%s\n' "$refusal_json"
   exit 0
@@ -155,7 +163,7 @@ pin_path="/sys/fs/bpf/zigsched_verifier_probe_$$"
 
 {
   printf 'schema=zig-scheduler/bpf-verifier-log/v1\n'
-  printf 'vm_marker=/run/zig-scheduler-vm-lab.marker\n'
+  printf 'vm_marker=%s\n' "$vm_marker"
   printf 'object=%s\n' "$object_file"
   printf 'object_sha256=%s\n' "$object_sha"
   printf 'bpf_metadata_path=%s\n' "$metadata_file"
@@ -220,14 +228,14 @@ print(json.loads(Path(sys.argv[1]).read_text()).get("reason", ""))
 PY
 )"
 
-STATUS="$status" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha" PARSED_STATUS="$parsed_status" PARSED_REASON="$parsed_reason" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
+STATUS="$status" VM_MARKER="$vm_marker" OBJECT_FILE="$object_file" OBJECT_SHA="$object_sha" METADATA_FILE="$metadata_file" METADATA_SHA="$metadata_sha" PARSED_STATUS="$parsed_status" PARSED_REASON="$parsed_reason" VERIFIER_LOG="$verifier_log" PARSED_JSON="$parsed_json" \
 STATE_BEFORE="$state_before" STATE_AFTER="$state_after" ENABLE_BEFORE="$enable_seq_before" ENABLE_AFTER="$enable_seq_after" \
 CGROUP_BEFORE="$cgroup_before" CGROUP_AFTER="$cgroup_after" python3 - <<'PY' > "$evidence_json"
 import json, os
 print(json.dumps({
     "schema": "zig-scheduler/verifier-only-evidence/v1",
     "status": os.environ["STATUS"],
-    "vm_marker": "/run/zig-scheduler-vm-lab.marker",
+    "vm_marker": os.environ["VM_MARKER"],
     "object": os.environ["OBJECT_FILE"],
     "object_sha256": os.environ["OBJECT_SHA"],
     "bpf_metadata_path": os.environ["METADATA_FILE"],

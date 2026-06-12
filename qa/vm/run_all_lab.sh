@@ -10,10 +10,10 @@ out_dir=""
 image_arg=""
 kernel_arg=""
 env_file=""
-release_version="0.1.0-lab-runall"
+release_version="0.2.0-lab-runall"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--image <path>] [--kernel <path>] [--env-file <file>] [--release-version 0.1.0-lab-runall]\n' "$0" >&2; }
+usage() { printf 'usage: %s [--mode host-safe|vm-required|auto] --out evidence/lab/run-all/<name> [--image <path>] [--kernel <path>] [--env-file <file>] [--release-version 0.2.0-lab-runall]\n' "$0" >&2; }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -154,8 +154,23 @@ if [ -n "$image_arg" ]; then run_lab_args+=(--image "$image_arg"); run_lab_comma
 if [ -n "$kernel_arg" ]; then run_lab_args+=(--kernel "$kernel_arg"); run_lab_command="$run_lab_command --kernel $kernel_arg"; fi
 if [ -n "$env_file" ]; then run_lab_args+=(--env-file "$env_file"); run_lab_command="$run_lab_command --env-file $env_file"; fi
 run_stage run_lab "$run_lab_command" "$out_dir/run-lab" "${run_lab_args[@]}"
-run_stage verifier_only 'bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o' "$out_dir/verifier-only" env ZIG_SCHEDULER_VM_MARKER="$child_vm_marker" bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o --out "$out_dir/verifier-only"
-run_stage partial_attach 'bash qa/vm/partial_attach.sh host-safe target' "$out_dir/partial-attach" env ZIG_SCHEDULER_VM_MARKER="$child_vm_marker" bash qa/vm/partial_attach.sh --target /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-runall --out "$out_dir/partial-attach" --object zig-out/bpf/zigsched_minimal.bpf.o --approval evidence/releases/0.2.0-lab/release-approval.json
+verifier_env=(env ZIG_SCHEDULER_VM_MARKER="$child_vm_marker")
+verifier_command='bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o'
+if [ "$mode" = host-safe ]; then
+  verifier_env+=(ZIG_SCHEDULER_HOST_SAFE=1)
+  verifier_command='ZIG_SCHEDULER_HOST_SAFE=1 bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o'
+fi
+run_stage verifier_only "$verifier_command" "$out_dir/verifier-only" "${verifier_env[@]}" bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o --out "$out_dir/verifier-only"
+partial_attach_env=(env ZIG_SCHEDULER_VM_MARKER="$child_vm_marker")
+partial_attach_args=(bash qa/vm/partial_attach.sh --target /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-runall --out "$out_dir/partial-attach" --object zig-out/bpf/zigsched_minimal.bpf.o)
+partial_attach_command='bash qa/vm/partial_attach.sh host-safe target'
+if [ "$mode" = host-safe ]; then
+  partial_attach_env+=(ZIG_SCHEDULER_HOST_SAFE=1)
+  partial_attach_command='ZIG_SCHEDULER_HOST_SAFE=1 bash qa/vm/partial_attach.sh host-safe target'
+else
+  partial_attach_args+=(--approval evidence/releases/0.2.0-lab/release-approval.json)
+fi
+run_stage partial_attach "$partial_attach_command" "$out_dir/partial-attach" "${partial_attach_env[@]}" "${partial_attach_args[@]}"
 run_stage rollback_drill 'bash qa/vm/rollback_drill.sh' "$out_dir/rollback-drill" bash qa/vm/rollback_drill.sh --out "$out_dir/rollback-drill"
 run_stage cgroup_race 'bash qa/vm/cgroup_race.sh' "$out_dir/cgroup-race" bash qa/vm/cgroup_race.sh --out "$out_dir/cgroup-race"
 run_stage dsq_policy_smoke 'bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s' "$out_dir/dsq-policy" bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s --out "$out_dir/dsq-policy"

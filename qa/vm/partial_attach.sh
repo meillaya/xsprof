@@ -169,6 +169,13 @@ refuse_stale_scope() {
   exit 0
 }
 
+if [ "${ZIG_SCHEDULER_HOST_SAFE:-}" = "1" ]; then
+  json_refusal HOST_SAFE_MODE 'host-safe run_all mode disables partial attach before marker, approval, cgroup, bpftool, or sched_ext handling'
+  printf 'REFUSE: host-safe run_all mode disables partial attach before mutation-capable logic\n'
+  printf 'refusal=%s\n' "$host_refusal"
+  exit 0
+fi
+
 if [ ! -f "$(host_path "$vm_marker")" ]; then
   json_refusal VM_MARKER_MISSING 'partial attach requires disposable VM marker; host attach refused before cgroup, bpftool, or sched_ext mutation'
   printf 'REFUSE: partial attach requires disposable VM marker; host attach refused\n'
@@ -302,10 +309,45 @@ case "$approval_file" in evidence/releases/*/release-approval.json) ;; *) fail '
 case "$approval_file" in *'/../'*|../*|*/..) fail 'unsafe approval path' ;; esac
 [ -f "$approval_file" ] || fail "approval artifact missing: $approval_file"
 APPROVAL="$approval_file" python3 - <<'APPROVALPY'
-import json, os, subprocess, sys
+import hashlib, json, os, subprocess, sys
 from pathlib import Path
+
+required_artifacts = {
+    'supported-tuples.json',
+    'dsq-summary.json',
+    'bpf-static-check.txt',
+    'bpf-object-metadata.json',
+    'dsq-policy-transcript.txt',
+    'bpf-verifier-host-refusal.json',
+    'partial-attach-host-refusal.json',
+    'partial-attach-manual-transcript.txt',
+    'cgroup-allowlist-proof.json',
+    'rollback-summary.json',
+    'rollback-snapshot.json',
+    'rollback-transcript.txt',
+    'stress-chaos-summary.json',
+    'stress-chaos-transcript.txt',
+    'security-threat-model.md',
+    'security-review-approved.json',
+    'package-default.toml',
+    'package-mutation-service.service',
+    'governance-gate.md',
+}
+
+repo_root = Path.cwd().resolve()
+release_root = (repo_root / 'evidence/releases').resolve()
 path = Path(os.environ['APPROVAL'])
-data = json.loads(path.read_text())
+if path.is_symlink(): sys.exit('approval artifact must not be a symlink')
+approval_resolved = path.resolve()
+if release_root not in approval_resolved.parents: sys.exit('approval path escapes evidence/releases')
+approval_dir = approval_resolved.parent
+
+def load_json_no_symlink(candidate, label):
+    if candidate.is_symlink(): sys.exit(label + ' must not be a symlink')
+    if not candidate.is_file(): sys.exit(label + ' missing')
+    return json.loads(candidate.read_text())
+
+data = load_json_no_symlink(path, 'approval artifact')
 if data.get('schema') != 'zig-scheduler/release-approval/v1': sys.exit('bad release approval schema')
 if data.get('historical') is True: sys.exit('historical approval cannot authorize mutation')
 if data.get('status') != 'controlled_lab_pilot_candidate': sys.exit('approval is not controlled lab candidate')
@@ -323,16 +365,43 @@ if att.get('scope') != 'controlled-lab-only': sys.exit('approval attestation sco
 current = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 sha = data.get('git_sha')
 if not sha: sys.exit('approval missing git_sha')
-if sha != current: sys.exit('approval git_sha is not current')
+if sha != current:
+    policy = data.get('git_sha_policy') or {}
+    if policy.get('kind') != 'content-bound-ancestor': sys.exit('approval git_sha is not current')
+    if policy.get('approved_git_sha') != sha: sys.exit('approval git_sha_policy approved sha mismatch')
+    ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', str(sha), current], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if ancestor.returncode != 0: sys.exit('approval git_sha is not an ancestor')
 manifest = data.get('artifact_hash_manifest')
-if not manifest or not Path(str(manifest)).is_file(): sys.exit('approval missing artifact hash manifest')
-manifest_data = json.loads(Path(str(manifest)).read_text())
+if not manifest: sys.exit('approval missing artifact hash manifest')
+manifest_path = (repo_root / str(manifest)).resolve()
+if manifest_path != approval_dir / 'artifact-hashes.json': sys.exit('approval artifact hash manifest must be in same release evidence dir')
+manifest_data = load_json_no_symlink(Path(str(manifest)), 'artifact hash manifest')
 if manifest_data.get('schema') != 'zig-scheduler/release-artifact-hashes/v1': sys.exit('bad artifact hash manifest schema')
-for name, item in (manifest_data.get('artifacts') or {}).items():
-    artifact_path = Path(str(item.get('path', '')))
-    if not artifact_path.is_file(): sys.exit('approval artifact missing: ' + name)
-    import hashlib
-    if hashlib.sha256(artifact_path.read_bytes()).hexdigest() != item.get('sha256'):
+artifacts = manifest_data.get('artifacts')
+if not isinstance(artifacts, dict) or not artifacts: sys.exit('artifact hash manifest is empty')
+if set(artifacts) != required_artifacts: sys.exit('artifact hash manifest required artifact set mismatch')
+summary_path = approval_dir / 'summary.json'
+summary = load_json_no_symlink(summary_path, 'release summary')
+if summary.get('schema') != 'zig-scheduler/release-gate-summary/v1': sys.exit('bad release summary schema')
+if summary.get('status') != 'PASS': sys.exit('release summary is not PASS')
+if summary.get('release_status') != data.get('status'): sys.exit('approval/summary status mismatch')
+if summary.get('production_ready') is not False or summary.get('arbitrary_host_safe') is not False: sys.exit('summary safety flags are not false')
+if summary.get('artifact_count') != len(required_artifacts): sys.exit('summary artifact count mismatch')
+if (repo_root / str(summary.get('artifact_hash_manifest', ''))).resolve() != manifest_path: sys.exit('summary artifact hash manifest mismatch')
+if (repo_root / str(summary.get('evidence_dir', ''))).resolve() != approval_dir: sys.exit('summary evidence dir mismatch')
+expected_evidence = {str(Path('evidence/releases') / approval_dir.name / name) for name in required_artifacts}
+expected_evidence.add(str(Path('evidence/releases') / approval_dir.name / 'artifact-hashes.json'))
+if set(data.get('evidence') or []) != expected_evidence: sys.exit('approval evidence list mismatch')
+for name, item in artifacts.items():
+    artifact_path_text = str(item.get('path', ''))
+    artifact_path = (repo_root / artifact_path_text).resolve()
+    expected_path = approval_dir / name
+    if artifact_path != expected_path: sys.exit('approval artifact path mismatch: ' + name)
+    item_path = Path(artifact_path_text)
+    if item_path.is_symlink(): sys.exit('approval artifact is symlink: ' + name)
+    if not item_path.is_file(): sys.exit('approval artifact missing: ' + name)
+    if approval_dir not in artifact_path.parents: sys.exit('approval artifact path escapes release dir: ' + name)
+    if hashlib.sha256(item_path.read_bytes()).hexdigest() != item.get('sha256'):
         sys.exit('approval artifact hash mismatch: ' + name)
 APPROVALPY
 

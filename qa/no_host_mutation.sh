@@ -213,13 +213,13 @@ main() {
   run_command linux-preflight-json zig build linux-preflight -- --json
   run_command root-preflight-json zig build run -- preflight --json
   run_command sched-ext-preflight-json zig build run -- sched-ext preflight --json
-  rm -rf evidence/lab/run-all/no-host-mutation evidence/releases/0.1.0-lab-runall
-  run_command lab-run-all-host-safe bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/no-host-mutation --release-version 0.1.0-lab-runall
+  rm -rf evidence/lab/run-all/no-host-mutation evidence/releases/0.2.0-lab-runall
+  run_command lab-run-all-host-safe bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/no-host-mutation --release-version 0.2.0-lab-runall
   if [ ! -f evidence/lab/run-all/no-host-mutation/summary.json ]; then
     fail 'lab run-all host-safe summary missing from no-host audit'
   fi
   python3 -c 'import json; from pathlib import Path; summary=json.loads(Path("evidence/lab/run-all/no-host-mutation/summary.json").read_text()); assert summary.get("host_mutation") is False; print("run_all_host_safe_summary=evidence/lab/run-all/no-host-mutation/summary.json")'
-  rm -rf evidence/releases/0.1.0-lab-runall
+  rm -rf evidence/releases/0.2.0-lab-runall
 
   for verb in load attach enable mutate apply; do
     run_refusal_command "refuse-$verb" zig build run -- "$verb"

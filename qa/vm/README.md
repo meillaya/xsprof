@@ -16,9 +16,9 @@ The cloud-init files are placeholders for a future disposable VM image. They mar
 `qa/vm/run_all_lab.sh` is the top-level lab orchestrator. It writes a summary under `evidence/lab/run-all/<name>/summary.json` and records every stage as `PASS`, `SKIP`, or `REFUSE` with `host_mutation=false` for host-safe fallback runs.
 
 ```bash
-bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/manual --release-version 0.1.0-lab-runall
-bash qa/vm/run_all_lab.sh --mode vm-required --out evidence/lab/run-all/manual-vm --release-version 0.1.0-lab-runall
-bash qa/vm/run_all_lab.sh --mode auto --out evidence/lab/run-all/manual-auto --release-version 0.1.0-lab-runall
+bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/manual --release-version 0.2.0-lab-runall
+bash qa/vm/run_all_lab.sh --mode vm-required --out evidence/lab/run-all/manual-vm --release-version 0.2.0-lab-runall
+bash qa/vm/run_all_lab.sh --mode auto --out evidence/lab/run-all/manual-auto --release-version 0.2.0-lab-runall
 ```
 
 Mode contract:
