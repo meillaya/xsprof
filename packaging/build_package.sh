@@ -31,7 +31,7 @@ zig_out_real="$(realpath zig-out)"
 out_parent_real="$(realpath "$out_parent")"
 case "$out_parent_real" in "$zig_out_real"|"$zig_out_real"/*) ;; *) fail 'package output parent escapes zig-out' ;; esac
 if [ -e "$out_dir" ] && [ -L "$out_dir" ]; then fail 'package output path must not be a symlink'; fi
-if [ ! -x zig-out/bin/zig-scheduler ] || [ ! -x zig-out/bin/zig-scheduler-linux-preflight ] || [ ! -x zig-out/bin/zig-scheduler-tui ]; then
+if [ ! -x zig-out/bin/zig-scheduler ] || [ ! -x zig-out/bin/zig-scheduler-linux-preflight ] || [ ! -x zig-out/bin/zig-scheduler-tui ] || [ ! -x zig-out/bin/zig-scheduler-daemon ]; then
   zig build install --summary all >/dev/null
 fi
 
@@ -49,8 +49,10 @@ install_file() {
 install_file zig-out/bin/zig-scheduler usr/bin/zig-scheduler
 install_file zig-out/bin/zig-scheduler-linux-preflight usr/bin/zig-scheduler-linux-preflight
 install_file zig-out/bin/zig-scheduler-tui usr/bin/zig-scheduler-tui
+install_file zig-out/bin/zig-scheduler-daemon usr/bin/zig-scheduler-daemon
 install_file packaging/config/default.toml etc/zig-scheduler/default.toml
 install_file packaging/systemd/zig-scheduler-preflight.service usr/lib/systemd/system/zig-scheduler-preflight.service
+install_file packaging/systemd/zig-scheduler-daemon.service usr/lib/systemd/system/zig-scheduler-daemon.service
 install_file packaging/systemd/zig-scheduler-lab-mutation.service usr/lib/systemd/system/zig-scheduler-lab-mutation.service
 install_file packaging/README.md usr/share/doc/zig-scheduler/README.md
 
@@ -86,6 +88,7 @@ manifest = {
     'files': files,
     'systemd_units': [
         'usr/lib/systemd/system/zig-scheduler-preflight.service',
+        'usr/lib/systemd/system/zig-scheduler-daemon.service',
         'usr/lib/systemd/system/zig-scheduler-lab-mutation.service',
     ],
 }

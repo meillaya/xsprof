@@ -1,0 +1,19 @@
+[Unit]
+Description=zig-scheduler disabled-safe control daemon (manual only)
+Documentation=README.md docs/runbooks/vm-lab.md docs/security/threat-model.md
+ConditionPathExists=!/etc/zig-scheduler/enable-lab-mutation
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/zig-scheduler-daemon --foreground --state-dir daemon
+WorkingDirectory=/var/lib/zig-scheduler
+StateDirectory=zig-scheduler
+DynamicUser=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+Restart=no
+StandardInput=null

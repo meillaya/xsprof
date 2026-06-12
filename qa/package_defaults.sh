@@ -11,9 +11,11 @@ while [ "$#" -gt 0 ]; do
 done
 [ "$mode" = inspect ] || fail '--mode must be inspect'
 preflight=packaging/systemd/zig-scheduler-preflight.service
+daemon=packaging/systemd/zig-scheduler-daemon.service
 mutation=packaging/systemd/zig-scheduler-lab-mutation.service
 config=packaging/config/default.toml
 [ -f "$preflight" ] || fail 'preflight service missing'
+[ -f "$daemon" ] || fail 'daemon service missing'
 [ -f "$mutation" ] || fail 'mutation service missing'
 [ -f "$config" ] || fail 'default config missing'
 grep -q '^ExecStart=/usr/bin/zig-scheduler preflight --json$' "$preflight" || fail 'preflight service must use supported root preflight command'
@@ -27,6 +29,12 @@ if grep -qE 'sched-ext attach|controller apply| load | enable | mutate ' "$prefl
 grep -q '^scheduler = "none"' "$config" || fail 'default scheduler must be none'
 grep -q '^auto_start_scheduler = false' "$config" || fail 'auto-start must be false'
 grep -q '^mutation_service_enabled = false' "$config" || fail 'mutation service default must be false'
+grep -q '^control_daemon_enabled = false' "$config" || fail 'daemon service default must be false'
+grep -q '^ExecStart=/usr/bin/zig-scheduler-daemon --foreground --state-dir daemon$' "$daemon" || fail 'daemon service must use foreground daemon command'
+grep -q '^NoNewPrivileges=yes$' "$daemon" || fail 'daemon service must keep NoNewPrivileges'
+grep -q '^CapabilityBoundingSet=$' "$daemon" || fail 'daemon service must have empty capabilities'
+if grep -q '^WantedBy=' "$daemon"; then fail 'daemon service must not install-enable by default'; fi
+if grep -qE 'sched-ext attach|controller apply| load | enable | mutate ' "$daemon"; then fail 'daemon service contains mutation command'; fi
 grep -q 'ConditionPathExists=/run/zig-scheduler-vm-lab.marker' "$mutation" || fail 'mutation service missing VM marker condition'
 grep -q 'ConditionPathExists=/var/lib/zig-scheduler/evidence/current/approval.json' "$mutation" || fail 'mutation service missing evidence approval condition'
 if grep -q '^WantedBy=' "$mutation"; then fail 'mutation service must not install-enable by default'; fi

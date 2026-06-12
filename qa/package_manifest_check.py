@@ -15,9 +15,11 @@ from typing import Final
 
 REQUIRED_FILES: Final[set[str]] = {
     "usr/bin/zig-scheduler",
+    "usr/bin/zig-scheduler-daemon",
     "usr/bin/zig-scheduler-linux-preflight",
     "usr/bin/zig-scheduler-tui",
     "etc/zig-scheduler/default.toml",
+    "usr/lib/systemd/system/zig-scheduler-daemon.service",
     "usr/lib/systemd/system/zig-scheduler-preflight.service",
     "usr/lib/systemd/system/zig-scheduler-lab-mutation.service",
 }
@@ -68,6 +70,11 @@ def run(argv: list[str]) -> int:
         seen.add(rel)
     missing = sorted(REQUIRED_FILES - seen)
     require(not missing, "missing required package files: " + ",".join(missing))
+    daemon_unit = install_root / "usr/lib/systemd/system/zig-scheduler-daemon.service"
+    daemon_text = daemon_unit.read_text()
+    require("ExecStart=/usr/bin/zig-scheduler-daemon --foreground --state-dir daemon" in daemon_text, "daemon service command is unsupported")
+    require("WantedBy=" not in daemon_text, "daemon service install-enables by default")
+    require("CapabilityBoundingSet=" in daemon_text, "daemon service must not keep capabilities")
     mutation_unit = install_root / "usr/lib/systemd/system/zig-scheduler-lab-mutation.service"
     require("WantedBy=" not in mutation_unit.read_text(), "mutation service install-enables by default")
     print(f"PASS package manifest: {manifest_path} files={len(seen)}")
