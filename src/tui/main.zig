@@ -11,14 +11,14 @@ pub fn main(init: std.process.Init) !void {
         try stderr_writer.interface.flush();
         std.process.exit(2);
     };
-    if (options.interactive) return runInteractive(allocator, options);
+    if (options.interactive) return runInteractive(allocator, init.io, options);
 
     const frame = try tui.renderSnapshot(allocator, options);
     defer allocator.free(frame);
     try writeStdout(frame);
 }
 
-fn runInteractive(allocator: std.mem.Allocator, options: tui.Options) !void {
+fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options) !void {
     const original_termios = enableRawMode();
     defer if (original_termios) |original| std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, original) catch {};
 
@@ -35,11 +35,35 @@ fn runInteractive(allocator: std.mem.Allocator, options: tui.Options) !void {
         };
         if (key == 'q' or key == 3) break;
         const action = tui.interactiveActionForKey(key) orelse continue;
-        const frame = try tui.renderInteractive(allocator, options, action);
+        const status = try dispatchStatus(allocator, io, options, action);
+        defer status.deinit(allocator);
+        const frame = try tui.renderInteractiveStatus(allocator, options, status.text);
         defer allocator.free(frame);
         try writeStdout("\n");
         try writeStdout(frame);
     }
+}
+
+const ActionStatus = struct {
+    text: []const u8,
+    owned: ?tui.daemon_adapter.Dispatch = null,
+
+    fn deinit(self: ActionStatus, allocator: std.mem.Allocator) void {
+        if (self.owned) |owned| owned.deinit(allocator);
+    }
+};
+
+fn dispatchStatus(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    options: tui.Options,
+    action: tui.OperatorAction,
+) !ActionStatus {
+    if (options.daemon_state_dir == null) return .{ .text = tui.interaction.statusForAction(action) };
+    const dispatch = tui.daemon_adapter.dispatch(allocator, io, options, action) catch {
+        return .{ .text = "daemon unsafe_to_assume" };
+    };
+    return .{ .text = dispatch.status, .owned = dispatch };
 }
 
 fn enableRawMode() ?std.posix.termios {

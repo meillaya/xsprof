@@ -66,7 +66,7 @@ pub fn writeActionResult(writer: anytype, allocator: std.mem.Allocator, line: []
     switch (parsed.value.kind) {
         .preflight => try writeEvent(writer, seq, "stage_finished", "preflight", "completed", "read_only"),
         .run_lab_host_safe => try writeEvent(writer, seq, "stage_started", "run_lab_host_safe", "queued", "read_only"),
-        else => try writeRefusal(writer, seq, "host_mutation_refused"),
+        else => try writeActionRefusal(writer, seq, @tagName(parsed.value.kind), "host_mutation_refused"),
     }
 }
 
@@ -74,6 +74,13 @@ fn writeEvent(writer: anytype, seq: usize, event: []const u8, action: []const u8
     try writer.print(
         "{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"{s}\",\"action\":\"{s}\",\"state\":\"{s}\",\"status\":\"{s}\",\"host_mutation\":false}}\n",
         .{ seq, event, action, state, status },
+    );
+}
+
+fn writeActionRefusal(writer: anytype, seq: usize, action: []const u8, reason: []const u8) !void {
+    try writer.print(
+        "{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"state\":\"refused_host\",\"status\":\"refused\",\"reason\":\"{s}\",\"host_mutation\":false}}\n",
+        .{ seq, action, reason },
     );
 }
 

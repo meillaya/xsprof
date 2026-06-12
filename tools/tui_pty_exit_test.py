@@ -9,12 +9,12 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import pty
 import subprocess
 import sys
 import time
-import errno
 from typing import Final
 
 SNAPSHOT_ARGS: Final[tuple[str, ...]] = (
@@ -39,15 +39,19 @@ INTERACTIVE_ARGS: Final[tuple[str, ...]] = (
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: tui_pty_exit_test.py <tui-binary>", file=sys.stderr)
+    if len(sys.argv) not in {2, 3}:
+        print("usage: tui_pty_exit_test.py <tui-binary> [daemon-binary]", file=sys.stderr)
         return 2
 
     binary = sys.argv[1]
+    daemon_binary = sys.argv[2] if len(sys.argv) == 3 else "zig-out/bin/zig-scheduler-daemon"
     snapshot_rc = run_snapshot(binary)
     if snapshot_rc != 0:
         return snapshot_rc
-    return run_interactive(binary)
+    interactive_rc = run_interactive(binary)
+    if interactive_rc != 0:
+        return interactive_rc
+    return run_interactive_daemon(binary, daemon_binary)
 
 
 def run_snapshot(binary: str) -> int:
@@ -120,6 +124,69 @@ def run_interactive(binary: str) -> int:
         print(output, file=sys.stderr)
         return 1
     print("PASS: root TUI PTY interactive action queued cleanly")
+    return 0
+
+def run_interactive_daemon(binary: str, daemon_binary: str) -> int:
+    state_dir = ".omo/evidence/tui-pty-daemon-test"
+    subprocess.run(["rm", "-rf", state_dir], check=False)
+    master_fd, slave_fd = pty.openpty()
+    proc: subprocess.Popen[bytes] | None = None
+    completed_rc = -1
+    try:
+        proc = subprocess.Popen(  # noqa: S603
+            [
+                binary,
+                *INTERACTIVE_ARGS,
+                "--daemon-state-dir",
+                state_dir,
+                "--daemon-bin",
+                daemon_binary,
+            ],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+        )
+        os.close(slave_fd)
+        slave_fd = -1
+        time.sleep(0.2)
+        os.write(master_fd, b"vq")
+        completed_rc = proc.wait(timeout=10)
+        time.sleep(0.1)
+        output = read_all(master_fd)
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+        print("FAIL: daemon TUI interactive timed out under PTY", file=sys.stderr)
+        return 1
+    finally:
+        if slave_fd >= 0:
+            os.close(slave_fd)
+        os.close(master_fd)
+
+    journal_path = f"{state_dir}/events.jsonl"
+    try:
+        with open(journal_path, encoding="utf-8") as journal_file:
+            journal = journal_file.read()
+    except FileNotFoundError:
+        print("FAIL: daemon TUI did not write daemon journal", file=sys.stderr)
+        print(output, file=sys.stderr)
+        return 1
+    finally:
+        subprocess.run(["rm", "-rf", state_dir], check=False)
+
+    if completed_rc != 0:
+        print(f"FAIL: daemon interactive TUI exited {completed_rc}", file=sys.stderr)
+        print(output, file=sys.stderr)
+        return 1
+    if "verifier queued/refused host-safe" not in output:
+        print("FAIL: TUI output missing verifier daemon refusal status", file=sys.stderr)
+        print(output, file=sys.stderr)
+        return 1
+    if '"action":"verifier_only"' not in journal or "host_mutation_refused" not in journal:
+        print("FAIL: daemon journal missing verifier_only refusal", file=sys.stderr)
+        print(journal, file=sys.stderr)
+        return 1
+    print("PASS: root TUI PTY dispatched verifier action through daemon")
     return 0
 
 

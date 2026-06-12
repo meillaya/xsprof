@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, preflight_exe, "linux-preflight", "Read-only Linux scheduler host preflight", .{});
     addRunStep(b, tui_exe, "tui", "Render the Linux scheduler operator TUI", .{});
     addRunStep(b, daemon_exe, "daemon", "Run disabled-safe foreground scheduler daemon", .{});
-    const tui_pty_step = addTuiPtyStep(b, tui_exe);
+    const tui_pty_step = addTuiPtyStep(b, tui_exe, daemon_exe);
     const daemon_stdio_step = addDaemonStdioStep(b, daemon_exe);
     addBpfStep(b);
     addPackageStep(b);
@@ -79,10 +79,11 @@ fn addPackageStep(b: *Build) void {
     package_step.dependOn(&package_build.step);
 }
 
-fn addTuiPtyStep(b: *Build, tui_exe: *Compile) *Build.Step {
+fn addTuiPtyStep(b: *Build, tui_exe: *Compile, daemon_exe: *Compile) *Build.Step {
     const tui_pty_exit_test = b.addSystemCommand(&.{"python3"});
     tui_pty_exit_test.addFileArg(b.path("tools/tui_pty_exit_test.py"));
     tui_pty_exit_test.addArtifactArg(tui_exe);
+    tui_pty_exit_test.addArtifactArg(daemon_exe);
 
     const tui_pty_step = b.step("tui-pty", "Run root TUI PTY snapshot smoke test");
     tui_pty_step.dependOn(&tui_pty_exit_test.step);

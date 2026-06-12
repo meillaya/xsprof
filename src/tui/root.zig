@@ -1,55 +1,21 @@
 const std = @import("std");
 const linux = @import("linux_scheduler");
+const args = @import("args.zig");
+pub const daemon_adapter = @import("daemon_adapter.zig");
 const fixture = @import("fixture.zig");
 pub const interaction = @import("interaction.zig");
 const layout = @import("layout.zig");
+const ui_model = @import("model.zig");
 const screens = @import("screens.zig");
 
 const line = layout.line;
 const row = layout.row;
 const countRows = layout.countRows;
 
-pub const Screen = enum { preflight, sched_ext, controller, observer, help };
-pub const Options = struct {
-    snapshot: bool = false,
-    interactive: bool = false,
-    test_mode: bool = false,
-    screen: Screen = .preflight,
-    width: u16 = 100,
-    height: u16 = 30,
-    fixture_path: ?[]const u8 = null,
-};
-
-pub fn parseArgs(args: []const []const u8) !Options {
-    var options = Options{};
-    var index: usize = 0;
-    while (index < args.len) : (index += 1) {
-        const arg = args[index];
-        if (std.mem.eql(u8, arg, "--snapshot")) {
-            options.snapshot = true;
-        } else if (std.mem.eql(u8, arg, "--interactive")) {
-            options.interactive = true;
-        } else if (std.mem.eql(u8, arg, "--test-mode")) {
-            options.test_mode = true;
-        } else if (std.mem.eql(u8, arg, "--screen")) {
-            options.screen = try parseScreen(try nextArg(args, &index));
-        } else if (std.mem.eql(u8, arg, "--width")) {
-            options.width = try parseDimension(try nextArg(args, &index));
-        } else if (std.mem.eql(u8, arg, "--height")) {
-            options.height = try parseDimension(try nextArg(args, &index));
-        } else if (std.mem.eql(u8, arg, "--fixture")) {
-            options.fixture_path = try nextArg(args, &index);
-        } else if (std.mem.eql(u8, arg, "--help")) {
-            return error.InvalidArguments;
-        } else {
-            return error.InvalidArguments;
-        }
-    }
-    if (options.snapshot == options.interactive) return error.InvalidArguments;
-    if (options.test_mode and !options.interactive) return error.InvalidArguments;
-    if (options.width < 80 or options.height < 8) return error.InvalidArguments;
-    return options;
-}
+pub const Screen = args.Screen;
+pub const Options = args.Options;
+pub const OperatorAction = linux.control.protocol.OperatorAction;
+pub const parseArgs = args.parse;
 
 pub fn renderSnapshot(allocator: std.mem.Allocator, options: Options) ![]u8 {
     var out: std.ArrayList(u8) = .empty;
@@ -62,7 +28,7 @@ pub fn renderSnapshot(allocator: std.mem.Allocator, options: Options) ![]u8 {
     } else {
         var report = try linux.collectPreflight(allocator);
         defer report.deinit();
-        try renderFrame(&writer.writer, options, liveModel(report), "");
+        try renderFrame(&writer.writer, options, ui_model.live(report), "");
     }
 
     out = writer.toArrayList();
@@ -84,7 +50,28 @@ pub fn renderInteractive(
     } else {
         var report = try linux.collectPreflight(allocator);
         defer report.deinit();
-        try renderFrame(&writer.writer, options, liveModel(report), interaction.statusForAction(action));
+        try renderFrame(&writer.writer, options, ui_model.live(report), interaction.statusForAction(action));
+    }
+    out = writer.toArrayList();
+    return out.toOwnedSlice(allocator);
+}
+
+pub fn renderInteractiveStatus(
+    allocator: std.mem.Allocator,
+    options: Options,
+    action_status: []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);
+    if (options.fixture_path) |path| {
+        var parsed = try fixture.load(allocator, path);
+        defer parsed.deinit();
+        try renderFrame(&writer.writer, options, fixture.model(parsed.value), action_status);
+    } else {
+        var report = try linux.collectPreflight(allocator);
+        defer report.deinit();
+        try renderFrame(&writer.writer, options, ui_model.live(report), action_status);
     }
     out = writer.toArrayList();
     return out.toOwnedSlice(allocator);
@@ -98,7 +85,7 @@ fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, 
     const width = @max(options.width, 80);
     const mode_label = if (options.interactive) "INTERACTIVE test queue" else if (model.fixture_warning.len == 0) "SNAPSHOT read-only" else "FIXTURE read-only";
     try line(writer, width, "╭", "─", "╮");
-    try row(writer, width, "▚ Linux Scheduler Operator", screenTitle(options.screen), mode_label);
+    try row(writer, width, "▚ Linux Scheduler Operator", args.screenTitle(options.screen), mode_label);
     try line(writer, width, "├", "─", "┤");
     if (model.fixture_warning.len != 0) try row(writer, width, "fixture warning", model.fixture_warning, "read-only evidence");
     switch (options.screen) {
@@ -117,60 +104,7 @@ fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, 
     try line(writer, width, "╰", "─", "╯");
 }
 
-pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
-    try writer.print("usage: {s} (--snapshot|--interactive [--test-mode]) [--fixture <preflight.json>] --screen preflight|sched-ext|controller|observer|help [--width <cols>] [--height <rows>]\n", .{exe_name});
-}
-
-fn liveModel(report: linux.PreflightReport) fixture.SnapshotModel {
-    return .{
-        .kernel_release = report.kernel_release,
-        .arch = report.arch,
-        .cgroup_status = @tagName(report.cgroup_v2.status),
-        .cgroup_controllers = report.cgroup_v2.controllers,
-        .capabilities = report.capabilities.effective_hex,
-        .sched_state = factText(report.sched_ext.state),
-        .sched_enable_seq = factText(report.sched_ext.enable_seq),
-        .sched_switch_all = factText(report.sched_ext.switch_all),
-        .sched_nr_rejected = factText(report.sched_ext.nr_rejected),
-        .btf_status = @tagName(report.btf.status),
-    };
-}
-
-fn parseScreen(raw: []const u8) !Screen {
-    if (std.mem.eql(u8, raw, "preflight")) return .preflight;
-    if (std.mem.eql(u8, raw, "sched-ext")) return .sched_ext;
-    if (std.mem.eql(u8, raw, "controller")) return .controller;
-    if (std.mem.eql(u8, raw, "observer")) return .observer;
-    if (std.mem.eql(u8, raw, "help")) return .help;
-    return error.InvalidArguments;
-}
-
-fn nextArg(args: []const []const u8, index: *usize) ![]const u8 {
-    index.* += 1;
-    if (index.* >= args.len) return error.InvalidArguments;
-    return args[index.*];
-}
-
-fn parseDimension(raw: []const u8) !u16 {
-    const value = std.fmt.parseUnsigned(u16, raw, 10) catch return error.InvalidArguments;
-    if (value == 0) return error.InvalidArguments;
-    return value;
-}
-
-fn screenTitle(screen: Screen) []const u8 {
-    return switch (screen) {
-        .preflight => "Home / Preflight",
-        .sched_ext => "sched_ext Readiness",
-        .controller => "Controller Dry Run",
-        .observer => "Observer",
-        .help => "Help",
-    };
-}
-
-fn factText(fact: linux.sched_ext.TextFact) []const u8 {
-    if (fact.value.len == 0) return @tagName(fact.status);
-    return fact.value;
-}
+pub const writeUsage = args.writeUsage;
 
 test "screen parsing and Linux labels stay simulator-free" {
     const options = try parseArgs(&.{ "--snapshot", "--screen", "sched-ext", "--width", "100", "--height", "30" });
