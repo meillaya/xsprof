@@ -1,0 +1,7 @@
+# GitHub Linguist language policy
+# Keep repository language statistics focused on the Zig implementation while
+# retaining shell/Python/C/docs/evidence files for local QA and governance.
+* linguist-vendored
+
+*.zig linguist-vendored=false linguist-generated=false linguist-language=Zig
+*.zon linguist-vendored=false linguist-generated=false linguist-language=Zig

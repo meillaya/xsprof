@@ -1,4 +1,33 @@
-.omx/
+# Zig build outputs
 .zig-cache/
 zig-out/
+simulator/.zig-cache/
+simulator/zig-out/
+
+# Local workflow/agent state
 .omo/
+.omx/
+.debug-journal.md
+
+# Python/local test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local verification scratch outputs. Tracked release/governance evidence is not
+# removed by these rules; intentional new evidence can still be added with git -f.
+evidence/lab/task-*/
+evidence/lab/verifier-*/
+evidence/lab/*-tmp/
+evidence/lab/run-all/*-manual/
+evidence/lab/run-all/final-next-manual/
+
+# Local scratch verification scripts/data that are not required to build or run.
+*.tmp
+*.log
+*.scratch.sh
+*.scratch.py
+qa/local-*.sh
+qa/local-*.py
+tools/local-*.sh
+tools/local-*.py
