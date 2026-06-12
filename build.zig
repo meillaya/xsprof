@@ -25,15 +25,20 @@ pub fn build(b: *std.Build) void {
     const tui_exe = addExecutable(b, "zig-scheduler-tui", b.path("src/tui/main.zig"), target, optimize, &.{
         .{ .name = "linux_scheduler_tui", .module = tui_mod },
     });
+    const daemon_exe = addExecutable(b, "zig-scheduler-daemon", b.path("src/daemon_main.zig"), target, optimize, &.{
+        .{ .name = "linux_scheduler", .module = root_mod },
+    });
 
-    for ([_]*Compile{ exe, preflight_exe, tui_exe }) |artifact| {
+    for ([_]*Compile{ exe, preflight_exe, tui_exe, daemon_exe }) |artifact| {
         b.installArtifact(artifact);
     }
 
     addRunStep(b, exe, "run", "Run fail-closed Linux scheduler operator CLI", .{});
     addRunStep(b, preflight_exe, "linux-preflight", "Read-only Linux scheduler host preflight", .{});
     addRunStep(b, tui_exe, "tui", "Render the Linux scheduler operator TUI", .{});
+    addRunStep(b, daemon_exe, "daemon", "Run disabled-safe foreground scheduler daemon", .{});
     const tui_pty_step = addTuiPtyStep(b, tui_exe);
+    const daemon_stdio_step = addDaemonStdioStep(b, daemon_exe);
     addBpfStep(b);
     addPackageStep(b);
 
@@ -42,6 +47,17 @@ pub fn build(b: *std.Build) void {
         addTestDependency(b, test_step, module);
     }
     test_step.dependOn(tui_pty_step);
+    test_step.dependOn(daemon_stdio_step);
+}
+
+fn addDaemonStdioStep(b: *Build, daemon_exe: *Compile) *Build.Step {
+    const daemon_stdio_test = b.addSystemCommand(&.{"bash"});
+    daemon_stdio_test.addFileArg(b.path("tools/daemon_stdio_test.sh"));
+    daemon_stdio_test.addArtifactArg(daemon_exe);
+
+    const daemon_stdio_step = b.step("daemon-stdio", "Run foreground daemon stdin/stdout smoke test");
+    daemon_stdio_step.dependOn(&daemon_stdio_test.step);
+    return daemon_stdio_step;
 }
 
 fn addBpfStep(b: *Build) void {
