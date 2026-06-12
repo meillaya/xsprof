@@ -45,7 +45,7 @@ bash qa/vm/run_lab.sh --mode read-only-smoke --kernel /path/to/bzImage --out evi
 bash qa/vm/run_lab.sh --mode read-only-smoke --env-file qa/vm/lab.env --out evidence/lab/vm-smoke
 ```
 
-Supported env-file keys are `ZIG_SCHEDULER_VM_IMAGE` and `ZIG_SCHEDULER_VM_KERNEL`. The file is parsed as data and is not sourced as shell code.
+Supported env-file keys are `ZIG_SCHEDULER_VM_IMAGE`, `ZIG_SCHEDULER_VM_KERNEL`, `ZIG_SCHEDULER_VM_DRIVER`, and `ZIG_SCHEDULER_VM_TEST_FIXTURE`. The file is parsed as data and is not sourced as shell code.
 
 Fail-closed outcomes:
 
@@ -54,7 +54,7 @@ Fail-closed outcomes:
 - No explicit image/kernel produces `SKIP: qemu boot image unavailable`.
 - Missing QEMU/KVM remains a host-safe `SKIP`, with `qemu_available` and `kvm_available` recorded.
 
-The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence, and it must not boot or mutate anything until later VM-only attach tasks add marker-gated execution.
+The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence.
 
 ## Disposable VM execution contract
 
@@ -74,4 +74,4 @@ Contract validation:
 bash qa/vm/contract_check.sh
 ```
 
-`run_lab.sh --mode execute` is intentionally present as a fail-closed contract endpoint before T15. It writes a refusal manifest with `reason=VM_EXECUTE_NOT_IMPLEMENTED`, `host_mutation=false`, and the contract hash. It must not start QEMU or execute guest commands until the later disposable VM implementation task adds boot/copy/execute/teardown behavior with independent evidence.
+`run_lab.sh --mode execute` now requires explicit VM config. Without config it refuses with `VM_CONFIG_REQUIRED`; with missing image/kernel paths it refuses with `VM_CONFIG_INVALID`; with missing QEMU/KVM it skips safely. The tracked `qa/vm/lab.env` fixture uses `ZIG_SCHEDULER_VM_DRIVER=fixture` and `ZIG_SCHEDULER_VM_TEST_FIXTURE=1` to exercise copy-in, marker probing, transcript creation, copy-out, and teardown receipts without claiming VM-live or release-eligible evidence.

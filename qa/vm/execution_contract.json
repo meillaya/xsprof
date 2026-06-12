@@ -1,6 +1,6 @@
 {
   "schema": "zig-scheduler/vm-execution-contract/v1",
-  "status": "specified-not-implemented",
+  "status": "implemented-fixture-gated",
   "host_mutation": false,
   "modes": ["read-only-smoke", "execute"],
   "inputs": {
@@ -17,7 +17,7 @@
     "env_file": {
       "required_for_execute": false,
       "parsed_as_data_only": true,
-      "allowed_keys": ["ZIG_SCHEDULER_VM_IMAGE", "ZIG_SCHEDULER_VM_KERNEL"]
+      "allowed_keys": ["ZIG_SCHEDULER_VM_IMAGE", "ZIG_SCHEDULER_VM_KERNEL", "ZIG_SCHEDULER_VM_DRIVER", "ZIG_SCHEDULER_VM_TEST_FIXTURE"]
     }
   },
   "guest_marker": {
@@ -96,7 +96,7 @@
     ]
   },
   "implementation_gate": {
-    "execute_mode_before_t15": "refuse",
-    "reason": "VM_EXECUTE_NOT_IMPLEMENTED"
+    "execute_mode_t15": "fixture-gated",
+    "reason": "real-qemu-command-transport-requires-later-signed-vm-profile"
   }
 }

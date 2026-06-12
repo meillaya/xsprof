@@ -39,7 +39,7 @@ bash qa/vm/run_lab.sh --mode read-only-smoke --kernel /path/to/bzImage --out evi
 bash qa/vm/run_lab.sh --mode read-only-smoke --env-file qa/vm/lab.env --out evidence/lab/vm-smoke
 ```
 
-Supported env-file keys are `ZIG_SCHEDULER_VM_IMAGE` and `ZIG_SCHEDULER_VM_KERNEL`. The file is parsed as data and is not sourced as shell code.
+Supported env-file keys are `ZIG_SCHEDULER_VM_IMAGE`, `ZIG_SCHEDULER_VM_KERNEL`, `ZIG_SCHEDULER_VM_DRIVER`, and `ZIG_SCHEDULER_VM_TEST_FIXTURE`. The file is parsed as data and is not sourced as shell code.
 
 Fail-closed outcomes:
 
@@ -48,9 +48,9 @@ Fail-closed outcomes:
 - No explicit image/kernel produces `SKIP: qemu boot image unavailable`.
 - Missing QEMU/KVM remains a host-safe `SKIP`, with `qemu_available` and `kvm_available` recorded.
 
-The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence, and it must not boot or mutate anything until later VM-only attach tasks add marker-gated execution.
+The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence.
 
-## Disposable VM execution contract before implementation
+## Disposable VM execution contract and fixture harness
 
 T07 adds the execution contract before any VM boot implementation. The contract lives at `qa/vm/execution_contract.json` and is validated by `bash qa/vm/contract_check.sh`.
 
@@ -65,4 +65,4 @@ The contract requires future VM execution to be disposable and evidence-first:
 7. **Teardown:** teardown is mandatory and must record whether QEMU/temp roots remain; orphan QEMU is a failed run.
 8. **Artifact manifest:** every VM-live bundle must preserve `host_mutation=false`, git SHA, VM marker, kernel tuple, command-allowlist hash, copy-in/out hashes, transcript path, and cleanup receipt.
 
-Before T15, `bash qa/vm/run_lab.sh --mode execute --out <dir>` must refuse with `VM_EXECUTE_NOT_IMPLEMENTED`. That refusal is the expected safe behavior: it proves the contract endpoint exists while preventing accidental boot, attach, or host mutation.
+At T15 and later, `bash qa/vm/run_lab.sh --mode execute --out <dir>` must fail closed unless explicit VM config is supplied. The tracked `qa/vm/lab.env` fixture exercises copy-in, marker probing, transcript creation, copy-out, and teardown receipts with `vm_kind=vm-configured-fixture`; that fixture is not VM-live and is not release-eligible proof. Real QEMU/KVM execution remains explicit-config-only and must never fall back to host `/sys` evidence.
