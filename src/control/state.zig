@@ -48,7 +48,7 @@ pub const Lifecycle = struct {
             .preflight, .run_lab_host_safe, .observe => self.applyReadOnly(),
             .run_lab_vm, .verifier_only => self.enterVerifierOnly(transition),
             .partial_attach => self.enterPartialSwitch(transition),
-            .stop, .rollback => self.enterRollback(transition.rollback_id),
+            .stop, .rollback, .stop_lab_run, .rollback_lab_run => self.enterRollback(transition.rollback_id),
         };
     }
 

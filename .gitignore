@@ -19,10 +19,13 @@ __pycache__/
 evidence/lab/task-*/
 evidence/lab/verifier-*/
 evidence/lab/*-tmp/
+evidence/lab/t[0-9]*-*/
 evidence/lab/run-all/task-*/
 evidence/lab/run-all/verifier-*/
+evidence/lab/run-all/t[0-9]*-*/
 evidence/lab/run-all/*-manual/
 evidence/lab/run-all/final-next-manual/
+evidence/lab/rollback-drill/t[0-9]*-*/
 
 # Local scratch verification scripts/data that are not required to build or run.
 *.tmp

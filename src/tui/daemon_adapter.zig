@@ -57,8 +57,8 @@ pub fn statusForAction(action: protocol.OperatorAction) []const u8 {
         .run_lab_host_safe => "host-safe lab queued local-daemon",
         .partial_attach => "partial attach queued local-daemon",
         .observe => "observe queued local-daemon",
-        .stop => "stop queued local-daemon",
-        .rollback => "rollback queued local-daemon",
+        .stop, .stop_lab_run => "stop queued local-daemon",
+        .rollback, .rollback_lab_run => "rollback queued local-daemon",
         .preflight => "preflight queued local-daemon",
         .run_lab_vm => "vm lab queued local-daemon",
     };
@@ -114,7 +114,7 @@ fn refusalStatus(action: protocol.OperatorAction) []const u8 {
     return switch (action.kind) {
         .verifier_only => "verifier queued/refused host-safe",
         .partial_attach => "partial attach queued/refused host-safe",
-        .stop, .rollback => "rollback queued/refused host-safe",
+        .stop, .rollback, .stop_lab_run, .rollback_lab_run => "rollback queued/refused host-safe",
         else => "daemon refused host-safe",
     };
 }

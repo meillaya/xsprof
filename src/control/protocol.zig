@@ -20,6 +20,8 @@ pub const ActionKind = enum {
     observe,
     stop,
     rollback,
+    stop_lab_run,
+    rollback_lab_run,
 };
 
 pub const EventKind = enum {
@@ -38,6 +40,7 @@ pub const OperatorAction = struct {
     target_cgroup: []const u8 = "",
     audit_id: []const u8 = "",
     rollback_id: []const u8 = "",
+    target_action_id: []const u8 = "",
 
     pub fn toJson(self: OperatorAction, allocator: std.mem.Allocator) ![]const u8 {
         var list: std.ArrayList(u8) = .empty;
@@ -53,6 +56,7 @@ pub const OperatorAction = struct {
         try appendOptionalJsonField(&writer.writer, "target_cgroup", self.target_cgroup);
         try appendOptionalJsonField(&writer.writer, "audit_id", self.audit_id);
         try appendOptionalJsonField(&writer.writer, "rollback_id", self.rollback_id);
+        try appendOptionalJsonField(&writer.writer, "target_action_id", self.target_action_id);
         try writer.writer.writeByte('}');
 
         list = writer.toArrayList();
@@ -103,6 +107,7 @@ const RawAction = struct {
     target_cgroup: ?[]const u8 = null,
     audit_id: ?[]const u8 = null,
     rollback_id: ?[]const u8 = null,
+    target_action_id: ?[]const u8 = null,
     command: ?[]const u8 = null,
     shell: ?[]const u8 = null,
     argv: ?[]const []const u8 = null,
@@ -137,6 +142,7 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
     try validateOptionalTargetCgroup(raw.target_cgroup);
     try validateOptional(raw.audit_id);
     try validateOptional(raw.rollback_id);
+    try validateOptional(raw.target_action_id);
 
     return .{ .arena = parsed, .value = .{
         .kind = kind,
@@ -145,10 +151,13 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
         .target_cgroup = raw.target_cgroup orelse "",
         .audit_id = raw.audit_id orelse "",
         .rollback_id = raw.rollback_id orelse "",
+        .target_action_id = raw.target_action_id orelse "",
     } };
 }
 
 fn parseActionKind(raw: []const u8) ?ActionKind {
+    if (std.mem.eql(u8, raw, "stop")) return .stop_lab_run;
+    if (std.mem.eql(u8, raw, "rollback")) return .rollback_lab_run;
     inline for (@typeInfo(ActionKind).@"enum".fields) |field| {
         if (std.mem.eql(u8, raw, field.name)) return @enumFromInt(field.value);
     }
@@ -260,4 +269,16 @@ test "operator action protocol preserves partial attach gates when rendering" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "command") == null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "shell") == null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "argv") == null);
+}
+
+test "operator action protocol accepts rollback lab targets" {
+    const parsed = try parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"rollback_lab_run","action_id":"rb-1","target_action_id":"lab-1","rollback_id":"RB-demo"}
+    );
+    defer parsed.deinit();
+    try std.testing.expectEqual(ActionKind.rollback_lab_run, parsed.value.kind);
+    try std.testing.expectEqualStrings("lab-1", parsed.value.target_action_id);
+    const rendered = try parsed.value.toJson(std.testing.allocator);
+    defer std.testing.allocator.free(rendered);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "target_action_id") != null);
 }

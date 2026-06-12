@@ -5,3 +5,4 @@ pub const daemon = @import("daemon.zig");
 pub const lab_runner = @import("lab_runner.zig");
 pub const journal = @import("journal.zig");
 pub const stream = @import("stream.zig");
+pub const rollback = @import("rollback.zig");

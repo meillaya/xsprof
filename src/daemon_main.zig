@@ -103,6 +103,14 @@ fn appendAction(
         try linux.control.lab_runner.runHostSafe(allocator, io, output, parsed.value, seq);
         return;
     }
+    if (parsed.value.kind == .run_lab_vm) {
+        try linux.control.rollback.handleRunLabVm(allocator, io, output, tracker, parsed.value, seq);
+        return;
+    }
+    if (linux.control.rollback.isRollbackAction(parsed.value.kind)) {
+        try linux.control.rollback.handleRollback(allocator, io, output, tracker, parsed.value, seq);
+        return;
+    }
 
     var event: std.ArrayList(u8) = .empty;
     defer event.deinit(allocator);

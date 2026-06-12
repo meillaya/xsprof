@@ -53,6 +53,67 @@ pub fn runHostSafe(
     try appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "PASS", "read_only", "host-safe lab summary captured", summary_path);
 }
 
+pub fn runVmFixture(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    output: *std.ArrayList(u8),
+    action: protocol.OperatorAction,
+    seq: *usize,
+) RunError![]u8 {
+    var plan = try commands.buildLabCommand(allocator, action);
+    defer plan.deinit(allocator);
+    try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "verifier_only", "", "");
+    var env_map = try buildEnv(allocator, plan.env);
+    defer env_map.deinit();
+    const result = try std.process.run(allocator, io, .{
+        .argv = plan.args(),
+        .environ_map = &env_map,
+        .stdout_limit = .limited(1024 * 1024),
+        .stderr_limit = .limited(256 * 1024),
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const summary_path = try std.fmt.allocPrint(allocator, "{s}/summary.json", .{plan.out_dir});
+    errdefer allocator.free(summary_path);
+    if (result.term != .exited or result.term.exited != 0) {
+        try appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "REFUSE", "incident", "VM lab harness refused", summary_path);
+        return error.InvalidSummary;
+    }
+    try appendSummaryStages(allocator, io, output, seq, summary_path);
+    try appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "PASS", "partial_switch_lab", "fixture VM lab summary captured", summary_path);
+    return summary_path;
+}
+
+pub fn runRollbackDrill(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    output: *std.ArrayList(u8),
+    action: protocol.OperatorAction,
+    seq: *usize,
+) RunError![]u8 {
+    var plan = try commands.buildLabCommand(allocator, action);
+    defer plan.deinit(allocator);
+    try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "rollback_pending", "", "");
+    var env_map = try buildEnv(allocator, plan.env);
+    defer env_map.deinit();
+    const result = try std.process.run(allocator, io, .{
+        .argv = plan.args(),
+        .environ_map = &env_map,
+        .stdout_limit = .limited(1024 * 1024),
+        .stderr_limit = .limited(256 * 1024),
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const summary_path = try std.fmt.allocPrint(allocator, "{s}/summary.json", .{plan.out_dir});
+    errdefer allocator.free(summary_path);
+    if (result.term != .exited or result.term.exited != 0) {
+        try appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "unsafe_to_assume", "incident", "rollback drill failed", summary_path);
+        return error.InvalidSummary;
+    }
+    try appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "PASS", "rolled_back", "rollback drill summary captured", summary_path);
+    return summary_path;
+}
+
 fn buildEnv(allocator: std.mem.Allocator, vars: []const commands.EnvVar) !std.process.Environ.Map {
     var map = std.process.Environ.Map.init(allocator);
     errdefer map.deinit();

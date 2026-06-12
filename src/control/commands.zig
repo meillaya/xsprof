@@ -43,10 +43,11 @@ pub fn buildLabCommand(allocator: std.mem.Allocator, action: protocol.OperatorAc
 
     return switch (action.kind) {
         .run_lab_host_safe => runAll(allocator, run_id),
+        .run_lab_vm => runVm(allocator, run_id),
         .verifier_only => verifierOnly(allocator, run_id),
         .partial_attach => partialAttach(allocator, action, run_id),
         .observe => observePartial(allocator, run_id),
-        .rollback, .stop => rollbackDrill(allocator, run_id),
+        .rollback, .stop, .rollback_lab_run, .stop_lab_run => rollbackDrill(allocator, run_id),
         else => error.InvalidAction,
     };
 }
@@ -57,6 +58,15 @@ fn runAll(allocator: std.mem.Allocator, run_id: []const u8) CommandError!Command
     append(&plan, "host-safe");
     append(&plan, "--out");
     append(&plan, plan.out_dir);
+    return plan;
+}
+
+fn runVm(allocator: std.mem.Allocator, run_id: []const u8) CommandError!CommandPlan {
+    var plan = try basePlan(allocator, "qa/vm/run_all_lab.sh", "run-all", run_id, .surrogate);
+    inline for (.{ .{ "--mode", "vm-required" }, .{ "--env-file", "qa/vm/lab.env" }, .{ "--out", plan.out_dir }, .{ "--release-version", "0.2.0-lab-live" } }) |pair| {
+        append(&plan, pair[0]);
+        append(&plan, pair[1]);
+    }
     return plan;
 }
 
