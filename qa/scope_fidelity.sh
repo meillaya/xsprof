@@ -24,8 +24,8 @@ grep -q '^APPROVED:' "$approval_file" || fail 'final reviewer approval missing A
 python3 - <<'PY'
 import json
 from pathlib import Path
-summary=Path('evidence/releases/0.1.0-lab/summary.json')
-approval=Path('evidence/releases/0.1.0-lab/release-approval.json')
+summary=Path('evidence/releases/0.2.0-lab/summary.json')
+approval=Path('evidence/releases/0.2.0-lab/release-approval.json')
 if not summary.exists() or not approval.exists():
     raise SystemExit('release artifacts missing')
 s=json.loads(summary.read_text())

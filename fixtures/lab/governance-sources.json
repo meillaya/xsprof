@@ -24,13 +24,13 @@
       "path": "qa/clean_archive_check.sh",
       "purpose": "clean archive and fresh clone reproducibility gate",
       "required": true,
-      "sha256": "d8f0e0b374953d2879ee92bb0dec7bcd013edf2dd34568ff99d815cbcbdb298b"
+      "sha256": "df252c2e5f80f8e9b403c0cc23c4de67b54989f0cfac22b0b4104be120efb3f3"
     },
     {
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and tracked-source validator",
       "required": true,
-      "sha256": "a464762d146b40afbd5da90ae386658656bcbc9ce09c1753136453f157fc7b54"
+      "sha256": "b4d38826342e307838c049ac643d6d1b02e2024e63a40b6e71841ff331f6e733"
     },
     {
       "path": "qa/release_gate.sh",

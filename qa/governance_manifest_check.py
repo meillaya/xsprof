@@ -201,7 +201,7 @@ def require_text(path: Path, needle: str, label: str) -> None:
 def validate_production_matrix() -> None:
     gate = Path("docs/releases/governance-gate.md")
     checklist = Path("docs/security/review-checklist.md")
-    release_summary = Path("evidence/releases/0.1.0-lab/summary.json")
+    release_summary = Path("evidence/releases/0.2.0-lab/summary.json")
     for label, needle in PRODUCTION_MATRIX_TERMS:
         require_text(gate, needle, label)
     require_text(checklist, "security signoff", "security signoff checklist")

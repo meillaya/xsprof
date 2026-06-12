@@ -81,12 +81,12 @@ rm -f /tmp/zig-scheduler-clean-archive-clone.$$.out
   pass 'package defaults pass in fresh clone'
   rm -f /tmp/zig-scheduler-clean-clone-package.$$.out
   if command -v zig >/dev/null 2>&1; then
-    printf 'RUN: git clone <local repo> <tmp> && cd <tmp> && zig build test --summary all && bash qa/release_gate.sh --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab\n'
+    printf 'RUN: git clone <local repo> <tmp> && cd <tmp> && zig build test --summary all && bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab\n'
     zig build test --summary all
   else
     fail 'zig is required for the exact fresh-clone proof'
   fi
-  bash qa/release_gate.sh --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab >/tmp/zig-scheduler-clean-clone-release.$$.out
+  bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab >/tmp/zig-scheduler-clean-clone-release.$$.out
   pass 'release_gate passes in fresh clone'
   rm -f /tmp/zig-scheduler-clean-clone-release.$$.out
 )
