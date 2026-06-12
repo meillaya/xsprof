@@ -111,6 +111,51 @@ run_refusal_command() {
   rm -f "$out"
 }
 
+run_checked_output_command() {
+  local label="$1"
+  local required_pattern="$2"
+  shift 2
+  printf 'CHECK: %s\n' "$label"
+  local out_file
+  out_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.out.XXXXXX")"
+  if have_strace; then
+    local trace_file
+    trace_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.${label//[^A-Za-z0-9_.-]/_}.XXXXXX")"
+    if ! strace -f -qq -yy -s 256 \
+      -e trace=open,openat,openat2,creat,mkdir,mkdirat,unlink,unlinkat,rename,renameat,renameat2,chmod,fchmodat,bpf,sched_setaffinity,sched_setscheduler,setpriority,ioprio_set \
+      -o "$trace_file" -- "$@" >"$out_file" 2>&1; then
+      cat "$out_file" >&2 || true
+      rm -f "$trace_file" "$out_file"
+      fail "$label command failed before output audit completed"
+    fi
+    if ! assert_trace_clean "$label" "$trace_file"; then
+      rm -f "$trace_file" "$out_file"
+      return 1
+    fi
+    rm -f "$trace_file"
+  else
+    if [ "$allow_no_strace_dev" != true ]; then
+      fail "strace is required for no-host mutation audit: $label"
+    fi
+    "$@" >"$out_file" 2>&1 || {
+      cat "$out_file" >&2 || true
+      rm -f "$out_file"
+      fail "$label command failed"
+    }
+  fi
+  grep -Eiq "$required_pattern" "$out_file" || {
+    cat "$out_file" >&2 || true
+    rm -f "$out_file"
+    fail "$label output missing required safety marker"
+  }
+  grep -q 'host_mutation":true' "$out_file" && {
+    cat "$out_file" >&2 || true
+    rm -f "$out_file"
+    fail "$label reported host_mutation=true"
+  }
+  rm -f "$out_file"
+}
+
 assert_trace_rejected() {
   local label="$1"
   local trace_file="$2"
@@ -248,6 +293,14 @@ PY
     run_refusal_command "refuse-$verb" zig build run -- "$verb"
   done
   run_refusal_command refuse-controller-dry-run zig build run -- controller plan --dry-run
+  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .omo/evidence/tui-pty-daemon-test
+  run_checked_output_command daemon-partial-attach 'host_mutation_refused|refused_host' \
+    bash -c "printf '%s\n' '{\"action\":\"partial_attach\",\"target_cgroup\":\"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope\",\"audit_id\":\"AUD-20990101T000000Z-deadbee-abc123\",\"rollback_id\":\"RB-demo\"}' | zig-out/bin/zig-scheduler-daemon --foreground --state-dir .zig-cache/tmp/no-host-daemon-partial"
+  run_checked_output_command daemon-rollback 'host_mutation_refused|refused_host' \
+    bash -c "printf '%s\n' '{\"action\":\"rollback\",\"rollback_id\":\"RB-demo\"}' | zig-out/bin/zig-scheduler-daemon --foreground --state-dir .zig-cache/tmp/no-host-daemon-rollback"
+  run_checked_output_command tui-daemon-verifier 'dispatched verifier action through daemon' \
+    python3 tools/tui_pty_exit_test.py zig-out/bin/zig-scheduler-tui zig-out/bin/zig-scheduler-daemon
+  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .omo/evidence/tui-pty-daemon-test
 
   printf 'PASS: no host mutation observed for root commands\n'
 }

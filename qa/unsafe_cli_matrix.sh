@@ -39,6 +39,43 @@ check_refusal() {
   printf 'PASS: %s refused rc=%s\n' "$label" "$rc"
 }
 
+check_daemon_event_refusal() {
+  local label="$1"
+  local action_json="$2"
+  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-$label"
+  local out rc before after
+  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
+  rm -rf "$state_dir"
+  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  set +e
+  printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
+  rc=$?
+  set -e
+  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  if [ "$rc" -ne 0 ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label daemon exited before structured refusal"
+  fi
+  grep -Eiq 'host_mutation_refused|refused_host' "$out" || {
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label daemon action missing host-safe refusal"
+  }
+  if grep -q 'host_mutation":true' "$out"; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label daemon action reported host mutation"
+  fi
+  if [ "$before" != "$after" ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label changed zig-out file list"
+  fi
+  rm -rf "$state_dir" "$out"
+  printf 'PASS: %s daemon refused host mutation\n' "$label"
+}
+
 zig build --summary all >/dev/null
 
 for verb in load attach enable mutate apply; do
@@ -49,5 +86,19 @@ check_refusal sched-ext-attach zig-out/bin/zig-scheduler sched-ext attach
 check_refusal controller-apply zig-out/bin/zig-scheduler controller apply
 check_refusal controller-mutate zig-out/bin/zig-scheduler controller mutate
 check_refusal scheduler-enable zig-out/bin/zig-scheduler scheduler enable
+check_daemon_event_refusal daemon-partial-attach '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
+check_daemon_event_refusal daemon-rollback '{"action":"rollback","rollback_id":"RB-demo"}'
+
+hostile_bin=".omo/evidence/task-T14-hostile-bin"
+rm -rf "$hostile_bin"
+mkdir -p "$hostile_bin"
+cat >"$hostile_bin/zig-scheduler-daemon" <<'SH'
+#!/usr/bin/env bash
+echo intercepted-daemon >&2
+exit 97
+SH
+chmod +x "$hostile_bin/zig-scheduler-daemon"
+PATH="$hostile_bin:$PATH" check_daemon_event_refusal hostile-path-daemon-partial '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
+rm -rf "$hostile_bin"
 
 printf 'PASS: unsafe CLI matrix\n'
