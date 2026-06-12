@@ -42,7 +42,7 @@
       "path": "qa/security_gate.sh",
       "purpose": "security profile gate consumed by governance checks",
       "required": true,
-      "sha256": "6d2fb4243366264e0cc6c50e713edb1e73fff2e9dadc2030037991311297d449"
+      "sha256": "cec13dad605182429cbabfe695ad9956932792ab2d0b0d8d7dbbcbc232b704dd"
     },
     {
       "path": "qa/wording_audit.sh",

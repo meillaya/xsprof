@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trusted_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:${HOME:-}/.nix-profile/bin"
+export PATH="$trusted_path"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 profile=""
