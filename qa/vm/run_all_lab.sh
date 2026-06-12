@@ -77,6 +77,8 @@ verifier_evidence_value = manifest.get("verifier_only_evidence", "")
 verifier_evidence = Path(verifier_evidence_value) if isinstance(verifier_evidence_value, str) and verifier_evidence_value else None
 partial_attach_evidence_value = manifest.get("partial_attach_evidence", "")
 partial_attach_evidence = Path(partial_attach_evidence_value) if isinstance(partial_attach_evidence_value, str) and partial_attach_evidence_value else None
+observe_summary_value = manifest.get("observe_partial_summary", "")
+observe_summary = Path(observe_summary_value) if isinstance(observe_summary_value, str) and observe_summary_value else None
 command_status = {}
 command_events = {}
 if vm_transcript is not None and vm_transcript.is_file():
@@ -137,6 +139,13 @@ for name, status, command, artifact, reason in stages:
         paths.append(verifier_evidence.as_posix())
     if name == "partial_attach" and partial_attach_evidence is not None and partial_attach_evidence.is_file():
         paths.append(partial_attach_evidence.as_posix())
+    if name == "observe_partial" and observe_summary is not None and observe_summary.is_file():
+        paths.append(observe_summary.as_posix())
+        observe = json.loads(observe_summary.read_text())
+        for field in ("runtime_samples", "daemon_runtime_events", "transcript", "audit_ledger"):
+            value = observe.get(field, "")
+            if isinstance(value, str) and value:
+                paths.append(value)
     record = {
         "schema": "zig-scheduler/run-all-stage/v1",
         "stage": name,

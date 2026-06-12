@@ -19,6 +19,8 @@ __pycache__/
 evidence/lab/task-*/
 evidence/lab/verifier-*/
 evidence/lab/*-tmp/
+evidence/lab/run-all/task-*/
+evidence/lab/run-all/verifier-*/
 evidence/lab/run-all/*-manual/
 evidence/lab/run-all/final-next-manual/
 

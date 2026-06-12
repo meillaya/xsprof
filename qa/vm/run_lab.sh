@@ -321,12 +321,19 @@ Path(os.environ["PARTIAL_EVIDENCE"]).write_text(json.dumps(evidence, indent=2, s
 PY
     python3 qa/partial_attach_check.py --evidence "$partial_evidence" >/dev/null
     printf 'PASS fixture partial-attach: bpftool struct_ops register transcript, zigsched_minimal partial-switch, rollback id captured, host_mutation=false\n' > "$out_dir/copy-out/stages/partial_attach.txt"
-    printf 'PASS fixture rollback-drill: rollback restored pre-attach state, host_mutation=false\n' > "$out_dir/copy-out/stages/rollback_drill.txt"
-    printf 'PASS fixture observe-partial: runtime counters copied from VM harness, host_mutation=false\n' > "$out_dir/copy-out/stages/observe_partial.txt"
+    rollback_dir="$out_dir/copy-out/rollback-drill"
+    mkdir -p "$rollback_dir"
+    ZIG_SCHEDULER_AUDIT_ID="AUD-20990101T000000Z-deadbee-abc123" bash qa/vm/rollback_drill.sh --out "$rollback_dir" >/dev/null
+    printf 'PASS fixture rollback-drill: rollback restored pre-attach state, host_mutation=false\nledger=%s\n' "$rollback_dir/audit-ledger.jsonl" > "$out_dir/copy-out/stages/rollback_drill.txt"
+    observe_dir="$out_dir/copy-out/observe-partial"
+    mkdir -p "$observe_dir"
+    ZIG_SCHEDULER_OBSERVE_EVIDENCE_MODE="vm-configured-fixture" bash qa/vm/observe_partial.sh --samples 3 --out "$observe_dir" --audit-ledger "$rollback_dir/audit-ledger.jsonl" > "$observe_dir/observe-command.txt"
+    python3 qa/lab_summary_observe.py --summary "$observe_dir/summary.json" >/dev/null
+    printf 'PASS fixture observe-partial: runtime counters copied from VM harness, daemon stream validated, host_mutation=false\nsummary=%s\nruntime_samples=%s\n' "$observe_dir/summary.json" "$observe_dir/runtime-samples.jsonl" > "$out_dir/copy-out/stages/observe_partial.txt"
     printf '{"event":"command","name":"verifier_only","argv":["bash","qa/vm/verifier_only.sh","--object","zig-out/bpf/zigsched_minimal.bpf.o"],"status":"PASS","copy_out":"copy-out/verifier-only/verifier-evidence.json","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"partial_attach","attach_command":"bpftool struct_ops register","argv":["bpftool","struct_ops","register","zig-out/bpf/zigsched_minimal.bpf.o","/sys/fs/bpf/zigsched_minimal_ops"],"status":"PASS","ops":"zigsched_minimal","switch_mode":"SCX_OPS_SWITCH_PARTIAL","rollback_id":"RB-fixture-partial","copy_out":"copy-out/partial-attach/partial-attach-evidence.json","host_mutation":false}\n' >> "$transcript"
-    printf '{"event":"command","name":"rollback_drill","argv":["bash","qa/vm/rollback_drill.sh"],"status":"PASS","copy_out":"copy-out/stages/rollback_drill.txt","host_mutation":false}\n' >> "$transcript"
-    printf '{"event":"command","name":"observe_partial","argv":["bash","qa/vm/observe_partial.sh","--samples","3"],"status":"PASS","copy_out":"copy-out/stages/observe_partial.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"rollback_drill","argv":["bash","qa/vm/rollback_drill.sh"],"status":"PASS","copy_out":"copy-out/rollback-drill/audit-ledger.jsonl","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"observe_partial","argv":["bash","qa/vm/observe_partial.sh","--samples","3"],"status":"PASS","copy_out":"copy-out/observe-partial/summary.json","runtime_samples":"copy-out/observe-partial/runtime-samples.jsonl","daemon_runtime_events":"copy-out/observe-partial/daemon-runtime-events.jsonl","host_mutation":false}\n' >> "$transcript"
   fi
   printf '{"event":"copy_out","path":"manifest.json","host_mutation":false}\n' >> "$transcript"
   printf '{"event":"teardown","qemu_started":false,"temp_root_removed":true,"host_mutation":false}\n' >> "$transcript"
@@ -376,7 +383,9 @@ PY
   if [ -f "$out_dir/copy-out/verifier-only/verifier-evidence.json" ]; then verifier_evidence_manifest="$out_dir/copy-out/verifier-only/verifier-evidence.json"; fi
   partial_attach_evidence_manifest=""
   if [ -f "$out_dir/copy-out/partial-attach/partial-attach-evidence.json" ]; then partial_attach_evidence_manifest="$out_dir/copy-out/partial-attach/partial-attach-evidence.json"; fi
-  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" VERIFIER_EVIDENCE="$verifier_evidence_manifest" PARTIAL_ATTACH_EVIDENCE="$partial_attach_evidence_manifest" MANIFEST="$manifest" MODE="$mode" \
+  observe_partial_summary_manifest=""
+  if [ -f "$out_dir/copy-out/observe-partial/summary.json" ]; then observe_partial_summary_manifest="$out_dir/copy-out/observe-partial/summary.json"; fi
+  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" VERIFIER_EVIDENCE="$verifier_evidence_manifest" PARTIAL_ATTACH_EVIDENCE="$partial_attach_evidence_manifest" OBSERVE_PARTIAL_SUMMARY="$observe_partial_summary_manifest" MANIFEST="$manifest" MODE="$mode" \
   GIT_SHA="$git_sha" ZIG_VERSION="$zig_version" QEMU_BIN="$qemu_bin" QEMU_AVAILABLE="$qemu_available" \
   KVM_AVAILABLE="$kvm_available" CONFIG_SOURCE="$config_source" IMAGE_PATH="$effective_image" \
   KERNEL_PATH="$effective_kernel" ENV_FILE="$env_file" COMMAND_HASH="$command_hash" python3 - <<'PY'
@@ -413,6 +422,7 @@ manifest = {
     "attestation": os.environ["ATTESTATION"],
     "verifier_only_evidence": os.environ["VERIFIER_EVIDENCE"],
     "partial_attach_evidence": os.environ["PARTIAL_ATTACH_EVIDENCE"],
+    "observe_partial_summary": os.environ["OBSERVE_PARTIAL_SUMMARY"],
     "copy_out_hashes": {
         "attestation": hashlib.sha256(Path(os.environ["ATTESTATION"]).read_bytes()).hexdigest(),
         "transcript": hashlib.sha256(transcript.read_bytes()).hexdigest(),
