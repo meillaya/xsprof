@@ -8,6 +8,7 @@
 #      curl -LsSf https://astral.sh/uv/install.sh | sh
 # 2. Run directly:
 #      uv run qa/verifier_log_check.py --input evidence/lab/verifier/bpf-verifier.log --out evidence/lab/verifier/parsed.json
+#      uv run qa/verifier_log_check.py --evidence evidence/lab/verifier/verifier-evidence.json
 # 3. Self-test:
 #      python3 qa/verifier_log_check.py --self-test
 # ──────────────────
@@ -16,22 +17,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import json
-import shutil
 import sys
 from typing import Final, Literal, TypeAlias
 
-JsonValue: TypeAlias = None | bool | int | float | str | list[str] | list["JsonValue"] | dict[str, "JsonValue"]
-JsonObject: TypeAlias = dict[str, JsonValue]
+_ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
+
 Status: TypeAlias = Literal["PASS", "SKIP", "FAIL", "REFUSE"]
 
 SCHEMA: Final[str] = "zig-scheduler/verifier-log-parse/v1"
 REFUSAL_SCHEMA: Final[str] = "zig-scheduler/verifier-only-refusal/v1"
-SELF_ROOT: Final[Path] = Path("evidence/lab/verifier-log-self-test")
+EVIDENCE_SCHEMA: Final[str] = "zig-scheduler/verifier-only-evidence/v1"
+STATUSES: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "FAIL", "REFUSE"})
 
 
 @dataclass(frozen=True, slots=True)
 class Args:
     input_path: Path | None
+    evidence_path: Path | None
     out_path: Path | None
     allow_refusal: bool
     self_test: bool
@@ -51,8 +54,9 @@ class VerifierLogError(Exception):
 
 def parse_args(argv: list[str]) -> Args:
     if argv == ["--self-test"]:
-        return Args(input_path=None, out_path=None, allow_refusal=False, self_test=True)
+        return Args(input_path=None, evidence_path=None, out_path=None, allow_refusal=False, self_test=True)
     input_path: Path | None = None
+    evidence_path: Path | None = None
     out_path: Path | None = None
     allow_refusal = False
     index = 0
@@ -60,15 +64,19 @@ def parse_args(argv: list[str]) -> Args:
         arg = argv[index]
         if arg == "--input" and index + 1 < len(argv):
             input_path = Path(argv[index + 1]); index += 2
+        elif arg == "--evidence" and index + 1 < len(argv):
+            evidence_path = Path(argv[index + 1]); index += 2
         elif arg == "--out" and index + 1 < len(argv):
             out_path = Path(argv[index + 1]); index += 2
         elif arg == "--allow-refusal":
             allow_refusal = True; index += 1
         else:
-            raise VerifierLogError("usage: verifier_log_check.py --input <log-or-json> [--out <json>] [--allow-refusal] | --self-test")
-    if input_path is None:
-        raise VerifierLogError("--input is required")
-    return Args(input_path=input_path, out_path=out_path, allow_refusal=allow_refusal, self_test=False)
+            raise VerifierLogError("usage: verifier_log_check.py --input <log-or-json> [--out <json>] [--allow-refusal] | --evidence <verifier-evidence.json> [--out <json>] | --self-test")
+    if input_path is None and evidence_path is None:
+        raise VerifierLogError("--input or --evidence is required")
+    if input_path is not None and evidence_path is not None:
+        raise VerifierLogError("--input and --evidence are mutually exclusive")
+    return Args(input_path=input_path, evidence_path=evidence_path, out_path=out_path, allow_refusal=allow_refusal, self_test=False)
 
 
 def parse_lines(text: str) -> ParsedLog:
@@ -156,6 +164,7 @@ def parse_log(path: Path) -> JsonObject:
     parsed = parse_lines(path.read_text())
     reason = reason_from(parsed)
     status = status_from(reason)
+    verifier_errors: list[JsonValue] = [error for error in parsed.errors]
     if status == "PASS" and (state_changed(parsed.values) or cgroup_changed(parsed.values)):
         raise VerifierLogError("clean verifier logs must preserve sched_ext and cgroup state")
     if status == "PASS" and (len(parsed.values.get("object_sha256", "")) != 64 or len(parsed.values.get("bpf_metadata_object_sha256", "")) != 64):
@@ -170,7 +179,7 @@ def parse_log(path: Path) -> JsonObject:
         "bpf_metadata_path": parsed.values.get("bpf_metadata_path", ""),
         "bpf_metadata_object_sha256": parsed.values.get("bpf_metadata_object_sha256", ""),
         "bpftool_rc": parsed.bpftool_rc,
-        "verifier_errors": parsed.errors,
+        "verifier_errors": verifier_errors,
         "sched_ext_state_before": parsed.values.get("sched_ext_state_before", ""),
         "sched_ext_state_after": parsed.values.get("sched_ext_state_after", ""),
         "enable_seq_before": parsed.values.get("sched_ext_enable_seq_before", ""),
@@ -179,6 +188,53 @@ def parse_log(path: Path) -> JsonObject:
         "cgroup_membership_after": parsed.values.get("cgroup_membership_after", ""),
         "host_mutation": False,
     }
+
+
+def parse_evidence(path: Path) -> JsonObject:
+    raw: JsonValue = json.loads(path.read_text())
+    if not isinstance(raw, dict) or raw.get("schema") != EVIDENCE_SCHEMA:
+        raise VerifierLogError("JSON input is not verifier-only evidence")
+    if raw.get("host_mutation") is not False:
+        raise VerifierLogError("verifier evidence must have host_mutation=false")
+    reject_contradictions(raw, "verifier evidence")
+    status = require_text(raw, "parsed_verifier_status")
+    reason = require_text(raw, "parsed_verifier_reason")
+    if status not in STATUSES:
+        raise VerifierLogError(f"verifier evidence has invalid parsed status: {status}")
+    if len(require_text(raw, "object_sha256")) != 64 or len(require_text(raw, "bpf_metadata_object_sha256")) != 64:
+        raise VerifierLogError("verifier evidence requires object and metadata sha")
+    if require_text(raw, "sched_ext_state_before") != require_text(raw, "sched_ext_state_after"):
+        raise VerifierLogError("verifier evidence changed sched_ext state")
+    if require_text(raw, "enable_seq_before") != require_text(raw, "enable_seq_after"):
+        raise VerifierLogError("verifier evidence changed sched_ext enable_seq")
+    if require_text(raw, "cgroup_membership_before") != require_text(raw, "cgroup_membership_after"):
+        raise VerifierLogError("verifier evidence changed cgroup membership")
+    return {
+        "schema": SCHEMA,
+        "status": status,
+        "reason": reason,
+        "input": path.as_posix(),
+        "object": require_text(raw, "object"),
+        "object_sha256": require_text(raw, "object_sha256"),
+        "bpf_metadata_path": require_text(raw, "bpf_metadata_path"),
+        "bpf_metadata_object_sha256": require_text(raw, "bpf_metadata_object_sha256"),
+        "bpftool_rc": None,
+        "verifier_errors": [],
+        "sched_ext_state_before": require_text(raw, "sched_ext_state_before"),
+        "sched_ext_state_after": require_text(raw, "sched_ext_state_after"),
+        "enable_seq_before": require_text(raw, "enable_seq_before"),
+        "enable_seq_after": require_text(raw, "enable_seq_after"),
+        "cgroup_membership_before": require_text(raw, "cgroup_membership_before"),
+        "cgroup_membership_after": require_text(raw, "cgroup_membership_after"),
+        "host_mutation": False,
+    }
+
+
+def require_text(data: JsonObject, field: str) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or value == "":
+        raise VerifierLogError(f"verifier evidence missing text field: {field}")
+    return value
 
 
 def parse_refusal(path: Path, allow_refusal: bool) -> JsonObject:
@@ -220,65 +276,10 @@ def write_result(result: JsonObject, out_path: Path | None) -> None:
 
 
 def self_test() -> None:
-    shutil.rmtree(SELF_ROOT, ignore_errors=True)
-    SELF_ROOT.mkdir(parents=True)
-    bad = write_log("bad.log", "invalid mem access 'scalar'\nbpftool_rc=255")
-    skip = write_log("skip.log", "SKIP: bpftool unavailable inside VM; verifier load not attempted")
-    clean = write_log("clean.log", "bpftool_rc=0")
-    missing = SELF_ROOT / "missing-state.log"
-    missing.write_text("schema=zig-scheduler/bpf-verifier-log/v1\nobject=zig-out/bpf/min.o\nobject_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbpftool_rc=0\n")
-    state_delta = SELF_ROOT / "state-delta.log"
-    state_delta.write_text("\n".join((
-        "schema=zig-scheduler/bpf-verifier-log/v1",
-        "object=zig-out/bpf/zigsched_minimal.bpf.o",
-        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbpf_metadata_path=zig-out/bpf/zigsched_minimal.bpf.meta.json\nbpf_metadata_object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "sched_ext_state_before=enabled",
-        "sched_ext_enable_seq_before=1",
-        "bpftool_rc=0",
-        "sched_ext_state_after=disabled",
-        "sched_ext_enable_seq_after=1",
-        "cgroup_membership_before=abc",
-        "cgroup_membership_after=abc",
-    )) + "\n")
-    assert_result(parse_log(bad), "FAIL", "INVALID_MEM_ACCESS")
-    assert_result(parse_log(skip), "SKIP", "BPFTOOL_UNAVAILABLE")
-    assert_result(parse_log(clean), "PASS", "VERIFIER_ACCEPTED")
-    assert_result(parse_log(missing), "FAIL", "MISSING_STATE_EVIDENCE")
-    assert_result(parse_log(state_delta), "FAIL", "SCHED_EXT_STATE_CHANGED")
-    refusal = SELF_ROOT / "host-refusal.json"
-    refusal.write_text(json.dumps({"schema": REFUSAL_SCHEMA, "status": "refused-host", "reason": "marker required", "object": "obj.o", "host_mutation": False}) + "\n")
-    assert_result(parse_refusal(refusal, allow_refusal=True), "REFUSE", "marker required")
-    try:
-        parse_refusal(refusal, allow_refusal=False)
-    except VerifierLogError:
-        pass
-    else:
-        raise VerifierLogError("refusal without --allow-refusal was accepted")
-    shutil.rmtree(SELF_ROOT, ignore_errors=True)
-    print("PASS verifier log self-test: fail/skip/pass/refusal cases classified")
+    import importlib
 
-
-def write_log(name: str, tail: str) -> Path:
-    path = SELF_ROOT / name
-    body = "\n".join((
-        "schema=zig-scheduler/bpf-verifier-log/v1",
-        "object=zig-out/bpf/zigsched_minimal.bpf.o",
-        "object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbpf_metadata_path=zig-out/bpf/zigsched_minimal.bpf.meta.json\nbpf_metadata_object_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "sched_ext_state_before=enabled",
-        "sched_ext_enable_seq_before=1",
-        tail,
-        "sched_ext_state_after=enabled",
-        "sched_ext_enable_seq_after=1",
-        "cgroup_membership_before=abc",
-        "cgroup_membership_after=abc",
-    ))
-    path.write_text(body + "\n")
-    return path
-
-
-def assert_result(result: JsonObject, status: Status, reason: str) -> None:
-    if result.get("status") != status or result.get("reason") != reason:
-        raise VerifierLogError(f"expected {status}/{reason}, got {result}")
+    module = importlib.import_module("verifier_log_selftest")
+    module.run_self_test()
 
 
 def run(argv: list[str]) -> int:
@@ -286,9 +287,12 @@ def run(argv: list[str]) -> int:
     if args.self_test:
         self_test()
         return 0
-    if args.input_path is None:
+    if args.evidence_path is not None:
+        result = parse_evidence(args.evidence_path)
+    elif args.input_path is not None:
+        result = parse_input(args.input_path, args.allow_refusal)
+    else:
         raise VerifierLogError("internal parser error")
-    result = parse_input(args.input_path, args.allow_refusal)
     write_result(result, args.out_path)
     if result["status"] == "FAIL":
         return 1
@@ -298,7 +302,7 @@ def run(argv: list[str]) -> int:
 def main() -> int:
     try:
         return run(sys.argv[1:])
-    except (OSError, json.JSONDecodeError, VerifierLogError) as exc:
+    except (OSError, json.JSONDecodeError, EvidenceSafetyError, VerifierLogError) as exc:
         print(f"FAIL verifier log check: {exc}", file=sys.stderr)
         return 1
 

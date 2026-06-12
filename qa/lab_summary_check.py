@@ -19,12 +19,11 @@ import json
 import shutil
 import subprocess
 import sys
-from typing import Final, TypeAlias
+from typing import Final
 
-from lab_summary_observe import ObserveSummaryError, validate_observe
-
-JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
-JsonObject: TypeAlias = dict[str, JsonValue]
+_ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
+from qa.lab_summary_observe import ObserveSummaryError, validate_observe
 
 SUMMARY_SCHEMA: Final[str] = "zig-scheduler/run-all-lab/v1"
 STAGE_SCHEMA: Final[str] = "zig-scheduler/run-all-stage/v1"
@@ -156,13 +155,7 @@ def validate_stage(stage: JsonObject, index: int) -> list[Path]:
 
 
 def git_tracked(path: Path) -> bool:
-    result = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", path.as_posix()],
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    result = subprocess.run(["git", "ls-files", "--error-unmatch", path.as_posix()], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return result.returncode == 0
 
 
@@ -175,6 +168,7 @@ def validate_summary(path: Path) -> None:
         raise LabSummaryError(f"summary has invalid status: {status}")
     require_string(summary, "mode", "summary")
     require_string(summary, "release_status", "summary")
+    reject_contradictions(summary, "summary")
     summary_paths = assert_common(summary, "summary")
     release_use = require_bool(summary, "release_use", "summary")
     stages = require_list(summary, "stages", "summary")
@@ -303,7 +297,7 @@ def run(argv: list[str]) -> int:
 def main() -> int:
     try:
         return run(sys.argv[1:])
-    except LabSummaryError as exc:
+    except (EvidenceSafetyError, LabSummaryError) as exc:
         print(f"FAIL lab summary schema: {exc}", file=sys.stderr)
         return 1
 

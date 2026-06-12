@@ -214,11 +214,76 @@ write_execute_fixture() {
   printf '{"event":"command","name":"marker_probe","argv":["test","-f","/run/zig-scheduler-vm-lab.marker"],"status":"PASS","host_mutation":false}\n' >> "$transcript"
   if [ "${ZIG_SCHEDULER_VM_RUN_ALL:-0}" = "1" ]; then
     mkdir -p "$out_dir/copy-out/stages"
+    verifier_dir="$out_dir/copy-out/verifier-only"
+    mkdir -p "$verifier_dir"
+    verifier_object="zig-out/bpf/zigsched_minimal.bpf.o"
+    verifier_meta="zig-out/bpf/zigsched_minimal.bpf.meta.json"
+    if [ ! -f "$verifier_object" ] || [ ! -f "$verifier_meta" ]; then
+      bash tools/build_bpf.sh >/dev/null 2>&1 || true
+    fi
+    verifier_object_sha="0000000000000000000000000000000000000000000000000000000000000000"
+    if [ -f "$verifier_object" ]; then verifier_object_sha="$(sha256sum "$verifier_object" | awk '{print $1}')"; fi
+    verifier_meta_sha="$verifier_object_sha"
+    if [ -f "$verifier_meta" ]; then
+      verifier_meta_sha="$(python3 - "$verifier_meta" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get("object_sha256", ""))
+PY
+)"
+    fi
+    verifier_log="$verifier_dir/bpf-verifier.log"
+    verifier_parsed="$verifier_dir/verifier-parsed.json"
+    verifier_evidence="$verifier_dir/verifier-evidence.json"
+    {
+      printf 'schema=zig-scheduler/bpf-verifier-log/v1\n'
+      printf 'vm_marker=/run/zig-scheduler-vm-lab.marker\n'
+      printf 'object=%s\n' "$verifier_object"
+      printf 'object_sha256=%s\n' "$verifier_object_sha"
+      printf 'bpf_metadata_path=%s\n' "$verifier_meta"
+      printf 'bpf_metadata_object_sha256=%s\n' "$verifier_meta_sha"
+      printf 'sched_ext_state_before=fixture-disabled\n'
+      printf 'sched_ext_enable_seq_before=fixture-0\n'
+      printf 'bpftool_rc=0\n'
+      printf 'sched_ext_state_after=fixture-disabled\n'
+      printf 'sched_ext_enable_seq_after=fixture-0\n'
+      printf 'cgroup_membership_before=fixture-cgroup-membership\n'
+      printf 'cgroup_membership_after=fixture-cgroup-membership\n'
+    } > "$verifier_log"
+    python3 qa/verifier_log_check.py --input "$verifier_log" --out "$verifier_parsed"
+    VERIFIER_EVIDENCE="$verifier_evidence" VERIFIER_LOG="$verifier_log" VERIFIER_PARSED="$verifier_parsed" python3 - <<'PY'
+import json, os
+from pathlib import Path
+parsed = json.loads(Path(os.environ["VERIFIER_PARSED"]).read_text())
+evidence = {
+    "schema": "zig-scheduler/verifier-only-evidence/v1",
+    "status": "verifier-attempted-fixture",
+    "vm_marker": "/run/zig-scheduler-vm-lab.marker",
+    "object": parsed["object"],
+    "object_sha256": parsed["object_sha256"],
+    "bpf_metadata_path": parsed["bpf_metadata_path"],
+    "bpf_metadata_object_sha256": parsed["bpf_metadata_object_sha256"],
+    "parsed_verifier_status": parsed["status"],
+    "parsed_verifier_reason": parsed["reason"],
+    "verifier_log_path": os.environ["VERIFIER_LOG"],
+    "verifier_parse_path": os.environ["VERIFIER_PARSED"],
+    "sched_ext_state_before": parsed["sched_ext_state_before"],
+    "sched_ext_state_after": parsed["sched_ext_state_after"],
+    "enable_seq_before": parsed["enable_seq_before"],
+    "enable_seq_after": parsed["enable_seq_after"],
+    "cgroup_membership_before": parsed["cgroup_membership_before"],
+    "cgroup_membership_after": parsed["cgroup_membership_after"],
+    "host_mutation": False,
+    "release_eligible_live_proof": False,
+}
+Path(os.environ["VERIFIER_EVIDENCE"]).write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+PY
+    python3 qa/verifier_log_check.py --evidence "$verifier_evidence" >/dev/null
     printf 'PASS fixture verifier-only: verifier log parsed, no attach/state delta, host_mutation=false\n' > "$out_dir/copy-out/stages/verifier_only.txt"
     printf 'PASS fixture partial-attach: attach simulated inside VM harness, rollback id captured, host_mutation=false\n' > "$out_dir/copy-out/stages/partial_attach.txt"
     printf 'PASS fixture rollback-drill: rollback restored pre-attach state, host_mutation=false\n' > "$out_dir/copy-out/stages/rollback_drill.txt"
     printf 'PASS fixture observe-partial: runtime counters copied from VM harness, host_mutation=false\n' > "$out_dir/copy-out/stages/observe_partial.txt"
-    printf '{"event":"command","name":"verifier_only","argv":["bash","qa/vm/verifier_only.sh","--object","zig-out/bpf/zigsched_minimal.bpf.o"],"status":"PASS","copy_out":"copy-out/stages/verifier_only.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"verifier_only","argv":["bash","qa/vm/verifier_only.sh","--object","zig-out/bpf/zigsched_minimal.bpf.o"],"status":"PASS","copy_out":"copy-out/verifier-only/verifier-evidence.json","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"partial_attach","argv":["bash","qa/vm/partial_attach.sh","--target","/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope"],"status":"PASS","copy_out":"copy-out/stages/partial_attach.txt","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"rollback_drill","argv":["bash","qa/vm/rollback_drill.sh"],"status":"PASS","copy_out":"copy-out/stages/rollback_drill.txt","host_mutation":false}\n' >> "$transcript"
     printf '{"event":"command","name":"observe_partial","argv":["bash","qa/vm/observe_partial.sh","--samples","3"],"status":"PASS","copy_out":"copy-out/stages/observe_partial.txt","host_mutation":false}\n' >> "$transcript"
@@ -267,7 +332,9 @@ receipt = {
 }
 Path(os.environ["CLEANUP"]).write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 PY
-  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" MANIFEST="$manifest" MODE="$mode" \
+  verifier_evidence_manifest=""
+  if [ -f "$out_dir/copy-out/verifier-only/verifier-evidence.json" ]; then verifier_evidence_manifest="$out_dir/copy-out/verifier-only/verifier-evidence.json"; fi
+  TRANSCRIPT="$transcript" CLEANUP="$cleanup" COPY_IN="$copy_in_index" ATTESTATION="$attestation" VERIFIER_EVIDENCE="$verifier_evidence_manifest" MANIFEST="$manifest" MODE="$mode" \
   GIT_SHA="$git_sha" ZIG_VERSION="$zig_version" QEMU_BIN="$qemu_bin" QEMU_AVAILABLE="$qemu_available" \
   KVM_AVAILABLE="$kvm_available" CONFIG_SOURCE="$config_source" IMAGE_PATH="$effective_image" \
   KERNEL_PATH="$effective_kernel" ENV_FILE="$env_file" COMMAND_HASH="$command_hash" python3 - <<'PY'
@@ -302,6 +369,7 @@ manifest = {
     "command_allowlist_hash": os.environ["COMMAND_HASH"],
     "copy_in_hashes": copy_in.as_posix(),
     "attestation": os.environ["ATTESTATION"],
+    "verifier_only_evidence": os.environ["VERIFIER_EVIDENCE"],
     "copy_out_hashes": {
         "attestation": hashlib.sha256(Path(os.environ["ATTESTATION"]).read_bytes()).hexdigest(),
         "transcript": hashlib.sha256(transcript.read_bytes()).hexdigest(),

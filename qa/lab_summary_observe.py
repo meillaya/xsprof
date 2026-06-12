@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TypeAlias
 import json
+import sys
 
-from audit_ledger_check import AuditLedgerError, validate_ledger
-from runtime_sample_check import RuntimeSampleError, validate_file
+_ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from qa.audit_ledger_check import AuditLedgerError, validate_ledger
+from qa.runtime_sample_check import RuntimeSampleError, validate_file
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
