@@ -1,0 +1,16 @@
+{
+  "schema": "zig-scheduler/live-attach-proof/v1",
+  "action_id": "act-surrogate-live",
+  "audit_id": "AUD-20990101T000000Z-deadbee-abc123",
+  "rollback_id": "RB-demo",
+  "evidence_mode": "vm-live",
+  "vm_kind": "host-safe-surrogate",
+  "vm_marker_present": false,
+  "vm_marker_path": "",
+  "git_sha": "stale-sha",
+  "kernel_tuple": {"release": "6.12.0-lab", "arch": "x86_64", "config_sha256": "self-test"},
+  "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope",
+  "registered_ops": "zigsched_minimal_ops",
+  "host_mutation": false,
+  "private_logs": false
+}

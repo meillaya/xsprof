@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const tuples = @import("tuples.zig");
 pub const verifier = @import("verifier.zig");
+pub const evidence = @import("evidence.zig");
 
 pub const KernelTuple = struct {
     release: []const u8 = "",

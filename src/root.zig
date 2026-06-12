@@ -6,6 +6,7 @@ pub const observability = @import("observability/root.zig");
 pub const lab = @import("lab/root.zig");
 pub const config = @import("config/root.zig");
 pub const audit = @import("audit/root.zig");
+pub const control = @import("control/root.zig");
 
 pub const PreflightReport = observability.PreflightReport;
 pub const OutputFormat = enum { text, json };
@@ -111,4 +112,5 @@ test "root module pulls imported module tests" {
     std.testing.refAllDecls(lab);
     std.testing.refAllDecls(config);
     std.testing.refAllDecls(audit);
+    std.testing.refAllDecls(control);
 }

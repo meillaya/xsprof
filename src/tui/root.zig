@@ -1,17 +1,19 @@
 const std = @import("std");
 const linux = @import("linux_scheduler");
 const fixture = @import("fixture.zig");
+pub const interaction = @import("interaction.zig");
 const layout = @import("layout.zig");
 const screens = @import("screens.zig");
 
 const line = layout.line;
 const row = layout.row;
-const section = layout.section;
 const countRows = layout.countRows;
 
 pub const Screen = enum { preflight, sched_ext, controller, observer, help };
 pub const Options = struct {
     snapshot: bool = false,
+    interactive: bool = false,
+    test_mode: bool = false,
     screen: Screen = .preflight,
     width: u16 = 100,
     height: u16 = 30,
@@ -25,6 +27,10 @@ pub fn parseArgs(args: []const []const u8) !Options {
         const arg = args[index];
         if (std.mem.eql(u8, arg, "--snapshot")) {
             options.snapshot = true;
+        } else if (std.mem.eql(u8, arg, "--interactive")) {
+            options.interactive = true;
+        } else if (std.mem.eql(u8, arg, "--test-mode")) {
+            options.test_mode = true;
         } else if (std.mem.eql(u8, arg, "--screen")) {
             options.screen = try parseScreen(try nextArg(args, &index));
         } else if (std.mem.eql(u8, arg, "--width")) {
@@ -39,7 +45,8 @@ pub fn parseArgs(args: []const []const u8) !Options {
             return error.InvalidArguments;
         }
     }
-    if (!options.snapshot) return error.InvalidArguments;
+    if (options.snapshot == options.interactive) return error.InvalidArguments;
+    if (options.test_mode and !options.interactive) return error.InvalidArguments;
     if (options.width < 80 or options.height < 8) return error.InvalidArguments;
     return options;
 }
@@ -51,20 +58,45 @@ pub fn renderSnapshot(allocator: std.mem.Allocator, options: Options) ![]u8 {
     if (options.fixture_path) |path| {
         var parsed = try fixture.load(allocator, path);
         defer parsed.deinit();
-        try renderFrame(&writer.writer, options, fixture.model(parsed.value));
+        try renderFrame(&writer.writer, options, fixture.model(parsed.value), "");
     } else {
         var report = try linux.collectPreflight(allocator);
         defer report.deinit();
-        try renderFrame(&writer.writer, options, liveModel(report));
+        try renderFrame(&writer.writer, options, liveModel(report), "");
     }
 
     out = writer.toArrayList();
     return out.toOwnedSlice(allocator);
 }
 
-fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel) !void {
+pub fn renderInteractive(
+    allocator: std.mem.Allocator,
+    options: Options,
+    action: ?linux.control.protocol.OperatorAction,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);
+    if (options.fixture_path) |path| {
+        var parsed = try fixture.load(allocator, path);
+        defer parsed.deinit();
+        try renderFrame(&writer.writer, options, fixture.model(parsed.value), interaction.statusForAction(action));
+    } else {
+        var report = try linux.collectPreflight(allocator);
+        defer report.deinit();
+        try renderFrame(&writer.writer, options, liveModel(report), interaction.statusForAction(action));
+    }
+    out = writer.toArrayList();
+    return out.toOwnedSlice(allocator);
+}
+
+pub fn interactiveActionForKey(key: u8) ?linux.control.protocol.OperatorAction {
+    return interaction.actionForKey(key);
+}
+
+fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, action_status: []const u8) !void {
     const width = @max(options.width, 80);
-    const mode_label = if (model.fixture_warning.len == 0) "SNAPSHOT read-only" else "FIXTURE read-only";
+    const mode_label = if (options.interactive) "INTERACTIVE test queue" else if (model.fixture_warning.len == 0) "SNAPSHOT read-only" else "FIXTURE read-only";
     try line(writer, width, "╭", "─", "╮");
     try row(writer, width, "▚ Linux Scheduler Operator", screenTitle(options.screen), mode_label);
     try line(writer, width, "├", "─", "┤");
@@ -76,16 +108,17 @@ fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel) 
         .observer => try screens.renderObserver(writer, width),
         .help => try screens.renderHelp(writer, width),
     }
-    while (countRows(writer.buffered()) + 3 < options.height) {
+    while (countRows(writer.buffered()) + @as(usize, if (action_status.len == 0) 3 else 4) < options.height) {
         try row(writer, width, "", "", "");
     }
     try line(writer, width, "├", "─", "┤");
+    if (action_status.len != 0) try row(writer, width, action_status, "typed only", "no shell execution");
     try row(writer, width, "q quit  ? help  h home  w theme", "FAIL-CLOSED", "refuse mutation/load");
     try line(writer, width, "╰", "─", "╯");
 }
 
 pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
-    try writer.print("usage: {s} --snapshot [--fixture <preflight.json>] --screen preflight|sched-ext|controller|observer|help [--width <cols>] [--height <rows>]\n", .{exe_name});
+    try writer.print("usage: {s} (--snapshot|--interactive [--test-mode]) [--fixture <preflight.json>] --screen preflight|sched-ext|controller|observer|help [--width <cols>] [--height <rows>]\n", .{exe_name});
 }
 
 fn liveModel(report: linux.PreflightReport) fixture.SnapshotModel {
@@ -230,4 +263,8 @@ test "CJK lifecycle fixture stays within requested terminal widths" {
         try std.testing.expect(layout.maxLineCells(frame) <= width);
         try std.testing.expect(std.unicode.utf8ValidateSlice(frame));
     }
+}
+
+test "interactive TUI action module tests are linked" {
+    std.testing.refAllDecls(interaction);
 }

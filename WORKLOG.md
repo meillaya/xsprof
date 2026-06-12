@@ -55,3 +55,32 @@ The approved next-phase plan is `.omo/plans/next-linux-scheduler-maturity.md`. I
 3. Keep clean-clone reproducibility in mind: any required policy, runbook, fixture, or gate input must be tracked.
 4. If a change touches UI/TUI behavior, preserve the root TUI visual family while keeping Linux concepts separate from simulator concepts.
 5. If a change touches mutation-capable behavior, require VM marker evidence, rollback evidence, audit ids, security review, and explicit release governance before broadening scope.
+
+### TUI-driven live lab scheduler plan
+
+The approved plan `.omo/plans/tui-driven-live-lab-scheduler.md` defines the next roadmap toward making the TUI the operator entrypoint for controlled lab scheduler work. The intended path is:
+
+1. keep the root host fail-closed and read-only by default;
+2. add typed TUI actions that talk to an internal Zig lifecycle daemon instead of executing shell commands directly;
+3. connect those actions to host-safe lab harness flows first;
+4. implement disposable VM boot/copy/execute/teardown before claiming live scheduler proof;
+5. run `zigsched_minimal` through VM-only verifier and partial-switch attach evidence;
+6. stream VM-live runtime samples and scheduler events into the TUI;
+7. expose safe stop and rollback controls with audit and incident evidence;
+8. keep any non-VM operation as a later separately approved governance gate, not an implementation in the current plan.
+
+The plan intentionally uses uppercase `WORKLOG.md` because the tracked governance and release gates require this file. Lowercase `worklog.md` is not used as a separate repository behavior source.
+
+Current execution posture remains controlled-lab only: not production-ready, not arbitrary-host-safe, and not authorized for ordinary host scheduler mutation.
+
+## Timestamped implementation milestones
+
+The entries below are timestamped worklog records for the new TUI-driven live-lab scheduler features completed or staged in the current implementation wave. Timestamps are log-record times, not production-readiness claims.
+
+- `2026-06-12T12:22:43-04:00` — **T01 / governance worklog restored:** Recreated tracked uppercase `WORKLOG.md`, preserved fail-closed operator guidance, and kept future-agent instructions independent from ignored `.omo/` or `.omx` workflow state.
+- `2026-06-12T12:22:43-04:00` — **T02 / typed TUI action protocol:** Added typed operator actions and daemon event JSON contracts for `preflight`, host-safe lab runs, verifier-only checks, VM lab actions, observe, stop, and rollback; parser rejects shell-command fields, unknown actions, path traversal, and control-character injection.
+- `2026-06-12T12:22:43-04:00` — **T03 / control lifecycle state machine:** Added a pure fail-closed lifecycle model for read-only, verifier-only, VM partial-switch lab, rollback-pending, rolled-back, refused-host, and incident states; duplicate mutation and invalid rollback transitions are rejected before any executor exists.
+- `2026-06-12T12:22:43-04:00` — **T04 / interactive TUI shell:** Extended the root TUI from deterministic snapshots to a testable interactive PTY shell that queues typed actions while preserving the terminal dashboard visual family and never executing lab scripts directly.
+- `2026-06-12T12:22:43-04:00` — **T05 / trusted lab command registry:** Added a fixed-argv lab command registry/refusal adapter for host-safe lab, verifier-only, partial attach, observe, stop, and rollback actions; hostile `PATH`, shell strings, and newline arguments are refused or isolated.
+- `2026-06-12T12:22:43-04:00` — **T06 / live-lab evidence schemas:** Added validators and Zig schema constants for action journals, daemon event journals, VM transcript indexes, live attach proof, live behavior proof, rollback results, and TUI session transcripts; validators reject surrogate-as-live evidence, missing VM markers, stale git SHAs, and private raw log fields.
+- `2026-06-12T12:22:43-04:00` — **Next milestone / T07 disposable VM contract:** The next unchecked plan item is to specify the disposable VM execution contract and read-only smoke behavior before any VM boot/copy/execute implementation. This remains a design-and-validation step only: no host scheduler mutation, no BPF load, and no production-ready claim.

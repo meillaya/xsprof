@@ -20,6 +20,8 @@ import shutil
 import sys
 from typing import Final, TypeAlias
 
+from live_lab_evidence_check import self_test as live_evidence_self_test
+
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 
@@ -193,6 +195,7 @@ def self_test() -> None:
     missing_hash.write_text(json.dumps(sample, sort_keys=True) + "\n")
     reject(missing_hash, "missing events hash")
     shutil.rmtree(root)
+    live_evidence_self_test()
     print("PASS runtime sample self-test: privacy-safe samples accepted and unsafe samples rejected")
 
 
