@@ -45,7 +45,7 @@ pub const Lifecycle = struct {
 
     pub fn apply(self: *Lifecycle, transition: Transition) StateError!void {
         return switch (transition.action) {
-            .preflight, .run_lab_host_safe, .observe => self.applyReadOnly(),
+            .preflight, .run_lab_host_safe, .observe, .incident_drill => self.applyReadOnly(),
             .run_lab_vm, .verifier_only => self.enterVerifierOnly(transition),
             .partial_attach => self.enterPartialSwitch(transition),
             .stop, .rollback, .stop_lab_run, .rollback_lab_run => self.enterRollback(transition.rollback_id),

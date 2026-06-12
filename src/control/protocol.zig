@@ -22,6 +22,7 @@ pub const ActionKind = enum {
     rollback,
     stop_lab_run,
     rollback_lab_run,
+    incident_drill,
 };
 
 pub const EventKind = enum {

@@ -61,6 +61,7 @@ pub fn statusForAction(action: protocol.OperatorAction) []const u8 {
         .rollback, .rollback_lab_run => "rollback queued local-daemon",
         .preflight => "preflight queued local-daemon",
         .run_lab_vm => "vm lab queued local-daemon",
+        .incident_drill => "incident drill queued local-daemon",
     };
 }
 
@@ -78,6 +79,10 @@ pub fn statusFromDaemonOutput(allocator: std.mem.Allocator, raw: []const u8, act
         const event_action = event.action orelse continue;
         if (!std.mem.eql(u8, event_action, @tagName(action.kind))) continue;
         if (isRefusal(event)) found = refusalStatus(action, event.reason.?);
+        if (std.mem.eql(u8, event.event, "incident") and isStatus(event, "INCIDENT")) {
+            found = "INCIDENT rollback/fallback drill";
+            continue;
+        }
         if (isStatus(event, "queued") and found.len == 0) found = statusForAction(action);
         if (isStatus(event, "active")) found = activeStatus(action);
         if (isStatus(event, "PASS")) found = passStatus(action);
@@ -117,6 +122,7 @@ fn isStatus(event: RawDaemonEvent, expected: []const u8) bool {
 fn activeStatus(action: protocol.OperatorAction) []const u8 {
     return switch (action.kind) {
         .run_lab_vm => "vm lab active rollback ready",
+        .incident_drill => "INCIDENT rollback/fallback drill",
         else => statusForAction(action),
     };
 }
@@ -125,6 +131,7 @@ fn passStatus(action: protocol.OperatorAction) []const u8 {
     return switch (action.kind) {
         .rollback, .rollback_lab_run => "rollback completed PASS",
         .stop, .stop_lab_run => "stop completed PASS",
+        .incident_drill => "INCIDENT rollback/fallback drill",
         else => "daemon completed read-only action",
     };
 }
@@ -143,6 +150,7 @@ fn refusalStatus(action: protocol.OperatorAction, reason: []const u8) []const u8
             .verifier_only => "verifier queued/refused host-safe",
             .partial_attach => "partial attach queued/refused host-safe",
             .stop, .rollback, .stop_lab_run, .rollback_lab_run => "rollback queued/refused host-safe",
+            .incident_drill => "incident drill refused host-safe",
             else => "daemon refused host-safe",
         };
     }
@@ -177,4 +185,11 @@ test "daemon output parser reports rollback target refusals and PASS" {
 
     const pass = "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"rollback_completed\",\"action\":\"rollback_lab_run\",\"status\":\"PASS\",\"host_mutation\":false}\n";
     try std.testing.expectEqualStrings("rollback completed PASS", statusFromDaemonOutput(std.testing.allocator, pass, .{ .kind = .rollback_lab_run }));
+}
+
+test "daemon output parser preserves incident status after PASS event" {
+    const raw =
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"incident\",\"action\":\"incident_drill\",\"status\":\"INCIDENT\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"stage_finished\",\"action\":\"incident_drill\",\"status\":\"PASS\",\"host_mutation\":false}\n";
+    try std.testing.expectEqualStrings("INCIDENT rollback/fallback drill", statusFromDaemonOutput(std.testing.allocator, raw, .{ .kind = .incident_drill }));
 }

@@ -48,6 +48,7 @@ pub fn buildLabCommand(allocator: std.mem.Allocator, action: protocol.OperatorAc
         .partial_attach => partialAttach(allocator, action, run_id),
         .observe => observePartial(allocator, run_id),
         .rollback, .stop, .rollback_lab_run, .stop_lab_run => rollbackDrill(allocator, run_id),
+        .incident_drill => incidentDrill(allocator, run_id),
         else => error.InvalidAction,
     };
 }
@@ -102,6 +103,13 @@ fn observePartial(allocator: std.mem.Allocator, run_id: []const u8) CommandError
 
 fn rollbackDrill(allocator: std.mem.Allocator, run_id: []const u8) CommandError!CommandPlan {
     var plan = try basePlan(allocator, "qa/vm/rollback_drill.sh", "rollback-drill", run_id, .surrogate);
+    append(&plan, "--out");
+    append(&plan, plan.out_dir);
+    return plan;
+}
+
+fn incidentDrill(allocator: std.mem.Allocator, run_id: []const u8) CommandError!CommandPlan {
+    var plan = try basePlan(allocator, "qa/vm/incident_drill.sh", "incident-drill", run_id, .surrogate);
     append(&plan, "--out");
     append(&plan, plan.out_dir);
     return plan;

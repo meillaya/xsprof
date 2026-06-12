@@ -37,6 +37,7 @@ pub fn actionForKey(key: u8) ?protocol.OperatorAction {
         'v' => .{ .kind = .verifier_only, .run_id = "tui-test-verifier" },
         'p' => .{ .kind = .partial_attach, .run_id = "tui-test-partial" },
         'o' => .{ .kind = .observe, .run_id = "tui-test-observe" },
+        'i' => .{ .kind = .incident_drill, .run_id = "tui-incident" },
         else => null,
     };
 }
@@ -107,6 +108,7 @@ pub fn statusForAction(action: ?protocol.OperatorAction) []const u8 {
         .observe => "ACTION queued observe",
         .stop, .stop_lab_run => "ACTION queued stop target rollback id",
         .rollback, .rollback_lab_run => "ACTION queued rollback target rollback id",
+        .incident_drill => "ACTION queued incident_drill",
     };
 }
 

@@ -111,6 +111,11 @@ fn appendAction(
         try linux.control.rollback.handleRollback(allocator, io, output, tracker, parsed.value, seq);
         return;
     }
+    if (parsed.value.kind == .incident_drill) {
+        const summary_path = try linux.control.lab_runner.runIncidentDrill(allocator, io, output, parsed.value, seq);
+        allocator.free(summary_path);
+        return;
+    }
 
     var event: std.ArrayList(u8) = .empty;
     defer event.deinit(allocator);
