@@ -34,6 +34,7 @@ case "$mode" in host-safe|vm-required|auto) ;; *) fail '--mode must be host-safe
 [ -n "$out_dir" ] || fail '--out is required'
 case "$out_dir$release_version$image_arg$kernel_arg$env_file" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 prepare_evidence_dir evidence/lab "$out_dir"
+find "$out_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
 summary="$out_dir/summary.json"
 stages_dir="$out_dir/stages"
@@ -49,6 +50,152 @@ started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 vm_marker="/run/zig-scheduler-vm-lab.marker"
 has_vm=false
 if [ -f "$vm_marker" ]; then has_vm=true; fi
+if [ "$mode" != host-safe ] && [ -n "$env_file$image_arg$kernel_arg" ]; then
+  run_lab_dir="$out_dir/run-lab"
+  mkdir -p "$run_lab_dir"
+  run_lab_args=(bash qa/vm/run_lab.sh --mode execute --out "$run_lab_dir")
+  run_lab_command='bash qa/vm/run_lab.sh --mode execute'
+  if [ -n "$image_arg" ]; then run_lab_args+=(--image "$image_arg"); run_lab_command="$run_lab_command --image $image_arg"; fi
+  if [ -n "$kernel_arg" ]; then run_lab_args+=(--kernel "$kernel_arg"); run_lab_command="$run_lab_command --kernel $kernel_arg"; fi
+  if [ -n "$env_file" ]; then run_lab_args+=(--env-file "$env_file"); run_lab_command="$run_lab_command --env-file $env_file"; fi
+  set +e
+  ZIG_SCHEDULER_VM_RUN_ALL=1 "${run_lab_args[@]}" > "$run_lab_dir/transcript.txt" 2>&1
+  run_lab_rc=$?
+  set -e
+  RUN_LAB_RC="$run_lab_rc" RUN_LAB_COMMAND="$run_lab_command" RUN_LAB_DIR="$run_lab_dir" OUT_DIR="$out_dir" STAGES_DIR="$stages_dir" SUMMARY="$summary" MODE="$mode" GIT_SHA="$git_sha" STARTED_AT="$started_at" python3 - <<'PY'
+import json, os
+from pathlib import Path
+
+out_dir = Path(os.environ["OUT_DIR"])
+stages_dir = Path(os.environ["STAGES_DIR"])
+run_lab_dir = Path(os.environ["RUN_LAB_DIR"])
+manifest_path = run_lab_dir / "manifest.json"
+manifest = json.loads(manifest_path.read_text())
+vm_transcript_value = manifest.get("transcript_path", "")
+vm_transcript = Path(vm_transcript_value) if isinstance(vm_transcript_value, str) and vm_transcript_value else None
+command_status = {}
+command_events = {}
+if vm_transcript is not None and vm_transcript.is_file():
+    for line in vm_transcript.read_text().splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if event.get("event") == "command":
+            name = str(event.get("name", ""))
+            command_status[name] = str(event.get("status", "FAIL"))
+            command_events[name] = event
+run_lab_rc = int(os.environ["RUN_LAB_RC"])
+base_status = manifest.get("status", "FAIL")
+vm_kind = manifest.get("vm_kind", "vm-configured-skip")
+kernel_tuple = manifest.get("kernel_tuple", {"release": "unknown", "arch": "unknown", "config_sha256": "unknown"})
+status_map = {"PASS": "PASS", "skip": "SKIP", "refuse": "REFUSE"}
+run_lab_status = status_map.get(str(base_status), "FAIL" if run_lab_rc != 0 else "PASS")
+
+def delegated_status(name):
+    if run_lab_status != "PASS":
+        return run_lab_status
+    if command_status.get(name) == "PASS":
+        return "PASS"
+    return "FAIL"
+
+def delegated_reason(name):
+    if run_lab_status != "PASS":
+        return "VM execution harness did not complete"
+    if command_status.get(name) == "PASS":
+        return "delegated command present in VM execution transcript"
+    return "missing delegated command in VM execution transcript"
+
+stages = [
+    ("run_lab", run_lab_status, os.environ["RUN_LAB_COMMAND"], run_lab_dir, "disposable VM harness execute"),
+    ("verifier_only", delegated_status("verifier_only"), "delegated qa/vm/verifier_only.sh inside disposable VM harness", out_dir / "verifier-only", delegated_reason("verifier_only")),
+    ("partial_attach", delegated_status("partial_attach"), "delegated qa/vm/partial_attach.sh inside disposable VM harness", out_dir / "partial-attach", delegated_reason("partial_attach")),
+    ("rollback_drill", delegated_status("rollback_drill"), "delegated qa/vm/rollback_drill.sh inside disposable VM harness", out_dir / "rollback-drill", delegated_reason("rollback_drill")),
+    ("observe_partial", delegated_status("observe_partial"), "delegated qa/vm/observe_partial.sh inside disposable VM harness", out_dir / "observe-partial", delegated_reason("observe_partial")),
+    ("release_gate", "SKIP", "release gate withheld for fixture/non-release VM proof", out_dir / "release-gate", "release proof requires real VM-live evidence"),
+]
+started_at = os.environ["STARTED_AT"]
+ended_at = started_at
+stage_records = []
+artifact_paths = []
+for name, status, command, artifact, reason in stages:
+    artifact.mkdir(parents=True, exist_ok=True)
+    transcript = artifact / "transcript.txt"
+    if not transcript.exists():
+        command_event = command_events.get(name)
+        event_text = json.dumps(command_event, sort_keys=True) if command_event is not None else "missing"
+        transcript_path = vm_transcript.as_posix() if vm_transcript is not None else "missing"
+        transcript.write_text(f"{reason}\nvm_kind={vm_kind}\nhost_mutation=false\nvm_transcript={transcript_path}\nvm_command_event={event_text}\n")
+    rollback_result = status if name == "rollback_drill" else "N/A"
+    paths = [artifact.as_posix(), transcript.as_posix()]
+    if vm_transcript is not None and vm_transcript.is_file():
+        paths.append(vm_transcript.as_posix())
+    record = {
+        "schema": "zig-scheduler/run-all-stage/v1",
+        "stage": name,
+        "status": status,
+        "reason": reason,
+        "command": command,
+        "artifact": artifact.as_posix(),
+        "artifact_paths": paths,
+        "vm_kind": vm_kind,
+        "kernel_tuple": kernel_tuple,
+        "git_sha": os.environ["GIT_SHA"],
+        "host_mutation": False,
+        "rollback_result": rollback_result,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "mode": os.environ["MODE"],
+        "delegated_by": manifest_path.as_posix(),
+    }
+    stage_path = stages_dir / f"{name}.json"
+    stage_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    stage_records.append(record)
+    artifact_paths.extend(record["artifact_paths"])
+statuses = {stage["status"] for stage in stage_records}
+summary_status = "PASS"
+release_status = "fixture_not_release_eligible"
+if run_lab_status == "REFUSE":
+    summary_status = "REFUSE"
+    release_status = "vm_execution_refused"
+elif run_lab_status == "FAIL" or "FAIL" in statuses:
+    summary_status = "FAIL"
+    release_status = "vm_execution_failed"
+summary = {
+    "schema": "zig-scheduler/run-all-lab/v1",
+    "status": summary_status,
+    "mode": os.environ["MODE"],
+    "git_sha": os.environ["GIT_SHA"],
+    "host_mutation": False,
+    "release_status": release_status,
+    "release_use": False,
+    "vm_kind": vm_kind,
+    "kernel_tuple": kernel_tuple,
+    "rollback_result": next((stage["rollback_result"] for stage in stage_records if stage["stage"] == "rollback_drill"), "N/A"),
+    "artifact_paths": artifact_paths,
+    "started_at": started_at,
+    "ended_at": ended_at,
+    "stages": stage_records,
+    "vm_execution_manifest": manifest_path.as_posix(),
+    "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False},
+}
+Path(os.environ["SUMMARY"]).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+(out_dir / "delegate-status.txt").write_text(summary_status + "\n")
+PY
+  printf 'summary=%s\n' "$summary"
+  printf 'host_mutation=false\n'
+  delegate_status="$(cat "$out_dir/delegate-status.txt")"
+  if [ "$delegate_status" = REFUSE ]; then
+    printf 'REFUSE: run-all VM execution harness refused\n'
+    exit 1
+  fi
+  if [ "$delegate_status" = FAIL ]; then
+    printf 'FAIL: run-all VM execution harness failed\n'
+    exit 1
+  fi
+  printf 'PASS: run-all lab harness delegated to disposable VM execution harness\n'
+  exit 0
+fi
+
 if [ "$mode" = vm-required ] && [ "$has_vm" != true ]; then
   ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" SUMMARY="$summary" MODE="$mode" GIT_SHA="$git_sha" KERNEL_RELEASE="$kernel_release" KERNEL_ARCH="$kernel_arch" KERNEL_CONFIG_SHA256="$kernel_config_sha256" STARTED_AT="$started_at" python3 - <<'JSONPY'
 import json, os

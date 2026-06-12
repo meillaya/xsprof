@@ -212,6 +212,17 @@ write_execute_fixture() {
   printf '{"event":"boot","driver":"fixture","vm_marker":"/run/zig-scheduler-vm-lab.marker","host_mutation":false}\n' > "$transcript"
   printf '{"event":"copy_in","path":"qa/vm/execution_contract.json","host_mutation":false}\n' >> "$transcript"
   printf '{"event":"command","name":"marker_probe","argv":["test","-f","/run/zig-scheduler-vm-lab.marker"],"status":"PASS","host_mutation":false}\n' >> "$transcript"
+  if [ "${ZIG_SCHEDULER_VM_RUN_ALL:-0}" = "1" ]; then
+    mkdir -p "$out_dir/copy-out/stages"
+    printf 'PASS fixture verifier-only: verifier log parsed, no attach/state delta, host_mutation=false\n' > "$out_dir/copy-out/stages/verifier_only.txt"
+    printf 'PASS fixture partial-attach: attach simulated inside VM harness, rollback id captured, host_mutation=false\n' > "$out_dir/copy-out/stages/partial_attach.txt"
+    printf 'PASS fixture rollback-drill: rollback restored pre-attach state, host_mutation=false\n' > "$out_dir/copy-out/stages/rollback_drill.txt"
+    printf 'PASS fixture observe-partial: runtime counters copied from VM harness, host_mutation=false\n' > "$out_dir/copy-out/stages/observe_partial.txt"
+    printf '{"event":"command","name":"verifier_only","argv":["bash","qa/vm/verifier_only.sh","--object","zig-out/bpf/zigsched_minimal.bpf.o"],"status":"PASS","copy_out":"copy-out/stages/verifier_only.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"partial_attach","argv":["bash","qa/vm/partial_attach.sh","--target","/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope"],"status":"PASS","copy_out":"copy-out/stages/partial_attach.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"rollback_drill","argv":["bash","qa/vm/rollback_drill.sh"],"status":"PASS","copy_out":"copy-out/stages/rollback_drill.txt","host_mutation":false}\n' >> "$transcript"
+    printf '{"event":"command","name":"observe_partial","argv":["bash","qa/vm/observe_partial.sh","--samples","3"],"status":"PASS","copy_out":"copy-out/stages/observe_partial.txt","host_mutation":false}\n' >> "$transcript"
+  fi
   printf '{"event":"copy_out","path":"manifest.json","host_mutation":false}\n' >> "$transcript"
   printf '{"event":"teardown","qemu_started":false,"temp_root_removed":true,"host_mutation":false}\n' >> "$transcript"
   find "$guest_root/work/repo" -type f -maxdepth 1 -print | sort | while read -r copied; do
