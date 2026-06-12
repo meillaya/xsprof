@@ -55,3 +55,23 @@ Fail-closed outcomes:
 - Missing QEMU/KVM remains a host-safe `SKIP`, with `qemu_available` and `kvm_available` recorded.
 
 The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence, and it must not boot or mutate anything until later VM-only attach tasks add marker-gated execution.
+
+## Disposable VM execution contract
+
+`qa/vm/execution_contract.json` is the tracked contract for the later disposable VM executor. T07 specifies the contract only; it does not boot QEMU and it does not mutate the host. The contract defines:
+
+- explicit image/kernel/env-file inputs, with env files parsed as data only;
+- copy-in artifacts for verifier, partial attach, observe, and rollback scripts;
+- copy-out artifacts including transcript index, verifier log, runtime samples, rollback result, and cleanup receipt;
+- the VM marker `/run/zig-scheduler-vm-lab.marker`, required before any attach or VM-live evidence claim;
+- a fixed command allowlist with mutation-capable commands gated by audit id, rollback id, and VM marker;
+- boot/command/teardown/overall timeouts and required teardown receipts;
+- artifact-manifest fields that must include `host_mutation=false`, VM marker, kernel tuple, transcript path, and cleanup receipt.
+
+Contract validation:
+
+```bash
+bash qa/vm/contract_check.sh
+```
+
+`run_lab.sh --mode execute` is intentionally present as a fail-closed contract endpoint before T15. It writes a refusal manifest with `reason=VM_EXECUTE_NOT_IMPLEMENTED`, `host_mutation=false`, and the contract hash. It must not start QEMU or execute guest commands until the later disposable VM implementation task adds boot/copy/execute/teardown behavior with independent evidence.

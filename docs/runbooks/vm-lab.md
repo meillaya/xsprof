@@ -49,3 +49,20 @@ Fail-closed outcomes:
 - Missing QEMU/KVM remains a host-safe `SKIP`, with `qemu_available` and `kvm_available` recorded.
 
 The read-only skeleton records explicit config and availability only. It must not use host `/sys` as VM evidence, and it must not boot or mutate anything until later VM-only attach tasks add marker-gated execution.
+
+## Disposable VM execution contract before implementation
+
+T07 adds the execution contract before any VM boot implementation. The contract lives at `qa/vm/execution_contract.json` and is validated by `bash qa/vm/contract_check.sh`.
+
+The contract requires future VM execution to be disposable and evidence-first:
+
+1. **Inputs:** image/kernel paths come only from explicit CLI arguments or `ZIG_SCHEDULER_VM_IMAGE` / `ZIG_SCHEDULER_VM_KERNEL` in an env file parsed as data, not sourced as shell.
+2. **Copy-in:** the VM receives only allowlisted lab artifacts such as the minimal BPF object and `qa/vm/{verifier_only,partial_attach,observe_partial,rollback_drill}.sh`.
+3. **Marker:** guest-side `/run/zig-scheduler-vm-lab.marker` is mandatory before attach, observe, rollback, or `vm-live` evidence.
+4. **Allowlist:** guest commands are selected by fixed argv entries from the contract; mutation-capable commands require guest marker, audit id, and/or rollback id as declared.
+5. **Timeouts:** boot, command, teardown, and overall run timeouts are declared up front.
+6. **Copy-out:** transcript index, verifier log, runtime samples, rollback result, and cleanup receipt must be copied out and hashed.
+7. **Teardown:** teardown is mandatory and must record whether QEMU/temp roots remain; orphan QEMU is a failed run.
+8. **Artifact manifest:** every VM-live bundle must preserve `host_mutation=false`, git SHA, VM marker, kernel tuple, command-allowlist hash, copy-in/out hashes, transcript path, and cleanup receipt.
+
+Before T15, `bash qa/vm/run_lab.sh --mode execute --out <dir>` must refuse with `VM_EXECUTE_NOT_IMPLEMENTED`. That refusal is the expected safe behavior: it proves the contract endpoint exists while preventing accidental boot, attach, or host mutation.

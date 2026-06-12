@@ -1,0 +1,102 @@
+{
+  "schema": "zig-scheduler/vm-execution-contract/v1",
+  "status": "specified-not-implemented",
+  "host_mutation": false,
+  "modes": ["read-only-smoke", "execute"],
+  "inputs": {
+    "image": {
+      "required_for_execute": true,
+      "source": ["--image", "ZIG_SCHEDULER_VM_IMAGE"],
+      "must_be_file": true
+    },
+    "kernel": {
+      "required_for_execute": false,
+      "source": ["--kernel", "ZIG_SCHEDULER_VM_KERNEL"],
+      "must_be_file": true
+    },
+    "env_file": {
+      "required_for_execute": false,
+      "parsed_as_data_only": true,
+      "allowed_keys": ["ZIG_SCHEDULER_VM_IMAGE", "ZIG_SCHEDULER_VM_KERNEL"]
+    }
+  },
+  "guest_marker": {
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "required_before_attach": true,
+    "required_for_vm_live_evidence": true
+  },
+  "copy_in": [
+    "zig-out/bpf/zigsched_minimal.bpf.o",
+    "qa/vm/verifier_only.sh",
+    "qa/vm/partial_attach.sh",
+    "qa/vm/observe_partial.sh",
+    "qa/vm/rollback_drill.sh"
+  ],
+  "copy_out": [
+    "manifest.json",
+    "transcript.jsonl",
+    "bpf-verifier.log",
+    "runtime-samples.jsonl",
+    "rollback-result.json",
+    "cleanup-receipt.json"
+  ],
+  "command_allowlist": [
+    {
+      "name": "verifier_only",
+      "argv0": "qa/vm/verifier_only.sh",
+      "mutation_capable": false
+    },
+    {
+      "name": "partial_attach",
+      "argv0": "qa/vm/partial_attach.sh",
+      "mutation_capable": true,
+      "requires_audit_id": true,
+      "requires_rollback_id": true,
+      "requires_guest_marker": true
+    },
+    {
+      "name": "observe_partial",
+      "argv0": "qa/vm/observe_partial.sh",
+      "mutation_capable": false,
+      "requires_guest_marker": true
+    },
+    {
+      "name": "rollback_drill",
+      "argv0": "qa/vm/rollback_drill.sh",
+      "mutation_capable": true,
+      "requires_rollback_id": true,
+      "requires_guest_marker": true
+    }
+  ],
+  "timeouts": {
+    "boot_sec": 120,
+    "command_sec": 300,
+    "teardown_sec": 60,
+    "overall_sec": 600
+  },
+  "teardown": {
+    "always_attempt": true,
+    "terminate_qemu": true,
+    "remove_temp_roots": true,
+    "record_process_receipt": true,
+    "fail_on_orphan_qemu": true
+  },
+  "artifact_manifest": {
+    "schema": "zig-scheduler/vm-transcript-index/v1",
+    "required_fields": [
+      "git_sha",
+      "host_mutation",
+      "vm_marker",
+      "kernel_tuple",
+      "command_allowlist_hash",
+      "copy_in_hashes",
+      "copy_out_hashes",
+      "transcript_path",
+      "cleanup_receipt"
+    ]
+  },
+  "implementation_gate": {
+    "execute_mode_before_t15": "refuse",
+    "reason": "VM_EXECUTE_NOT_IMPLEMENTED"
+  }
+}
