@@ -44,7 +44,7 @@ if [ -r "/boot/config-$kernel_release" ]; then
   kernel_config_sha256="$(sha256sum "/boot/config-$kernel_release" | awk '{print $1}')"
 fi
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
+vm_marker="/run/zig-scheduler-vm-lab.marker"
 has_vm=false
 if [ -f "$vm_marker" ]; then has_vm=true; fi
 if [ "$mode" = vm-required ] && [ "$has_vm" != true ]; then

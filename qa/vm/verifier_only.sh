@@ -7,7 +7,8 @@ source qa/path_safety.sh
 
 object_file=""
 out_dir=""
-vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
+default_vm_marker="/run/zig-scheduler-vm-lab.marker"
+vm_marker="${ZIG_SCHEDULER_VM_MARKER:-$default_vm_marker}"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -107,6 +108,13 @@ PY
 if [ "${ZIG_SCHEDULER_HOST_SAFE:-}" = "1" ]; then
   json_write_refusal 'host-safe run_all mode disables verifier-only BPF load before marker or bpftool handling'
   printf 'REFUSE: host-safe run_all mode disables verifier-only BPF load before mutation-capable logic\n'
+  printf 'refusal=%s\n' "$refusal_json"
+  exit 0
+fi
+
+if [ "$vm_marker" != "$default_vm_marker" ]; then
+  json_write_refusal 'verifier-only flow ignores VM marker overrides outside explicit host-safe refusal mode'
+  printf 'REFUSE: verifier-only VM marker override is not allowed outside host-safe refusal mode; no BPF verifier load attempted\n'
   printf 'refusal=%s\n' "$refusal_json"
   exit 0
 fi

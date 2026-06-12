@@ -11,7 +11,8 @@ rollback_id=""
 out_dir=""
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 approval_file=""
-vm_marker="${ZIG_SCHEDULER_VM_MARKER:-/run/zig-scheduler-vm-lab.marker}"
+default_vm_marker="/run/zig-scheduler-vm-lab.marker"
+vm_marker="${ZIG_SCHEDULER_VM_MARKER:-$default_vm_marker}"
 sys_root="${ZIG_SCHEDULER_SYS_ROOT:-}"
 allow_prefix="/sys/fs/cgroup/zig-scheduler-lab.slice/"
 
@@ -174,6 +175,34 @@ if [ "${ZIG_SCHEDULER_HOST_SAFE:-}" = "1" ]; then
   printf 'REFUSE: host-safe run_all mode disables partial attach before mutation-capable logic\n'
   printf 'refusal=%s\n' "$host_refusal"
   exit 0
+fi
+
+if [ "$vm_marker" != "$default_vm_marker" ]; then
+  if [ -z "$sys_root" ]; then
+    json_refusal VM_MARKER_OVERRIDE_REJECTED 'partial attach ignores VM marker overrides outside sysroot surrogate tests and host-safe refusal mode'
+    printf 'REFUSE: partial attach VM marker override requires sysroot surrogate; host attach refused\n'
+    printf 'refusal=%s\n' "$host_refusal"
+    exit 0
+  fi
+  case "$vm_marker" in
+    /*) ;;
+    *) fail 'VM marker override must be an absolute VM path' ;;
+  esac
+  case "$vm_marker" in
+    *$'\n'*|*$'\r'*|*'/../'*|../*|*/..|*/./*|./*|*/.|*'//'*) fail 'unsafe VM marker override path' ;;
+  esac
+  sys_root_real="$(realpath -e "$sys_root")" || fail 'sysroot realpath unavailable'
+  marker_real="$(realpath -e "$(host_path "$vm_marker")" 2>/dev/null || true)"
+  if [ -z "$marker_real" ]; then
+    json_refusal VM_MARKER_MISSING 'partial attach requires disposable VM marker inside sysroot surrogate; host attach refused before mutation'
+    printf 'REFUSE: partial attach requires disposable VM marker; host attach refused\n'
+    printf 'refusal=%s\n' "$host_refusal"
+    exit 0
+  fi
+  case "$marker_real" in
+    "$sys_root_real"|"$sys_root_real"/*) ;;
+    *) fail 'VM marker override escapes sysroot surrogate' ;;
+  esac
 fi
 
 if [ ! -f "$(host_path "$vm_marker")" ]; then
