@@ -301,7 +301,14 @@ run_stage() {
   set -e
   local status reason
   if [ "$rc" -eq 0 ]; then
-    if grep -Eiq 'REFUSE|refused-host|requires disposable VM marker' "$artifact/transcript.txt" "$artifact"/*.json 2>/dev/null; then
+    if [ -f "$artifact/summary.json" ] && python3 - <<'PY' "$artifact/summary.json"
+import json, sys
+from pathlib import Path
+raise SystemExit(0 if json.loads(Path(sys.argv[1]).read_text()).get('status') == 'PASS' else 1)
+PY
+    then
+      status="PASS"; reason="stage summary PASS"
+    elif grep -Eiq 'REFUSE|refused-host|requires disposable VM marker' "$artifact/transcript.txt" "$artifact"/*.json 2>/dev/null; then
       status="REFUSE"; reason="host-safe refusal captured"
     elif grep -Eiq 'SKIP|skip|qemu unavailable|boot image unavailable' "$artifact/transcript.txt" "$artifact"/*.json 2>/dev/null; then
       status="SKIP"; reason="host-safe skip captured"
@@ -348,8 +355,8 @@ run_stage partial_attach "$partial_attach_command" "$out_dir/partial-attach" "${
 run_stage rollback_drill 'bash qa/vm/rollback_drill.sh' "$out_dir/rollback-drill" bash qa/vm/rollback_drill.sh --out "$out_dir/rollback-drill"
 run_stage cgroup_race 'bash qa/vm/cgroup_race.sh' "$out_dir/cgroup-race" bash qa/vm/cgroup_race.sh --out "$out_dir/cgroup-race"
 run_stage dsq_policy_smoke 'bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s' "$out_dir/dsq-policy" bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s --out "$out_dir/dsq-policy"
-run_stage stress_chaos 'bash qa/vm/stress_chaos.sh --duration 1s' "$out_dir/stress-chaos" bash qa/vm/stress_chaos.sh --duration 1s --out "$out_dir/stress-chaos"
 run_stage observe_partial 'bash qa/vm/observe_partial.sh --samples 3' "$out_dir/observe-partial" bash qa/vm/observe_partial.sh --samples 3 --out "$out_dir/observe-partial"
+run_stage stress_chaos 'bash qa/vm/stress_chaos.sh --duration 1s --runtime-samples observe-partial/runtime-samples.jsonl' "$out_dir/stress-chaos" bash qa/vm/stress_chaos.sh --duration 1s --out "$out_dir/stress-chaos" --runtime-samples "$out_dir/observe-partial/runtime-samples.jsonl" --observe-summary "$out_dir/observe-partial/summary.json" --dsq-summary "$out_dir/dsq-policy/summary.json"
 release_evidence_dir="evidence/releases/$release_version"
 run_stage release_gate "bash qa/release_gate.sh --version $release_version --no-approval" "$out_dir/release-gate" bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir" --no-approval
 

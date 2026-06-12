@@ -124,11 +124,11 @@ PY
 
 for seq in $(seq 0 $((samples - 1))); do
   if [ "$seq" -eq 0 ]; then
-    write_fact_set disabled none 41 'nr_rejected: 0 dispatch_failed: 0 phase: pre-attach' 0
+    write_fact_set disabled none 41 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: pre-attach' 0
   elif [ "$seq" -eq $((samples - 1)) ]; then
-    write_fact_set disabled none 42 'nr_rejected: 0 dispatch_failed: 0 phase: rolled-back' 0
+    write_fact_set disabled none 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: rolled-back' 0
   else
-    write_fact_set enabled zigsched_minimal 42 'nr_rejected: 0 dispatch_failed: 0 phase: observing' 0
+    write_fact_set enabled zigsched_minimal 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: observing' 0
   fi
   sample_json "$seq"
   printf 'sample=%s state=%s\n' "$seq" "$(cat "$tmp/sys/kernel/sched_ext/state")" >> "$transcript"
