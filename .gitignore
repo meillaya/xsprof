@@ -36,3 +36,12 @@ qa/local-*.sh
 qa/local-*.py
 tools/local-*.sh
 tools/local-*.py
+
+# Local disposable VM/TUI live-run evidence. These can contain large initramfs
+# bundles and are reproducible with qa/vm/run_microvm_live_lab.sh.
+evidence/lab/run-all/microvm-live-*/
+evidence/lab/tui-e2e/*/
+evidence/lab/incident-drill/tui-*/
+evidence/lab/rollback-drill/tui-*/
+evidence/lab/run-all/tui-*/
+evidence/releases/0.2.0-lab-runall/

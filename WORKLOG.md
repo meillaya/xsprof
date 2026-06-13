@@ -47,3 +47,10 @@ Going forward, every meaningful feature, verification checkpoint, commit/push ch
 - `2026-06-12T19:18:00-04:00` — **T29 non-VM operation gate ADR:** Added ADR 0003 as a proposed/not implemented design gate. Non-VM scheduler mutation remains refused until a future explicit approval supplies kernel tuple evidence, verifier logs, live behavior proof, rollback and incident drills, audit ledger validation, security signoff, package safety proof, and updated governance/release approval.
 - `2026-06-12T19:24:00-04:00` — **T30 TUI-driven workflow docs:** Refreshed README, VM lab runbook, fallback runbook, verifier/incident runbook, packaging notes, and security threat notes with the TUI-to-daemon workflow, key map, exact manual QA commands, evidence paths, and continued host-safety boundaries.
 - `2026-06-12T19:36:00-04:00` — **T31 blocked on real VM-live artifact:** Added `qa/tui_live_lab_e2e.sh`, a fail-closed TUI-driven e2e harness that refuses completion without a `qa/live_behavior_check.py`-accepted VM-live bundle and only prints `LAB RUN COMPLETE rolled_back=true live_behavior=PASS` when rollback is observed and the bundle validates. Independent verification confirmed this environment has no VM image/kernel config and no existing VM-live summary; T31 remains incomplete rather than relabeling host-safe or fixture evidence.
+
+## 2026-06-13T00:23:52Z — Local microVM live sched_ext lab setup
+- Installed/verified local QEMU/KVM prerequisite and added `qa/vm/run_microvm_live_lab.sh` for disposable microVM lab runs.
+- Updated `zigsched_minimal` BPF object to modern libbpf map/struct_ops declarations and verified real guest-side `bpftool struct_ops register` succeeds for `zigsched_minimal`.
+- Generated a VM-live behavior bundle under `evidence/lab/run-all/microvm-live-*` and validated it with `qa/live_behavior_check.py`.
+- Fed the VM-live bundle through `qa/tui_live_lab_e2e.sh`; result: `LAB RUN COMPLETE rolled_back=true live_behavior=PASS`.
+- Scope remains lab-only: no arbitrary-host attach path or production deployment claim was added.

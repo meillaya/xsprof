@@ -1,0 +1,42 @@
+{
+  "artifact_paths": [
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/serial.txt",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/partial-attach/partial-attach-evidence.json",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/partial-attach/partial-attach-transcript.txt",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/observe-partial/summary.json",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/observe-partial/runtime-samples.jsonl",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/observe-partial/daemon-runtime-events.jsonl",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/observe-partial/observe-transcript.txt",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/rollback-drill/audit-ledger.jsonl",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/rollback-drill/AUD-20990101T000000Z-deadbee-abc123.rollback-snapshot.json",
+    "evidence/lab/run-all/microvm-live-20260612T202227-0400/rollback-drill/AUD-20990101T000000Z-deadbee-abc123.rollback-transcript.txt"
+  ],
+  "cleanup": {
+    "qemu_leftovers": false,
+    "tmux_leftovers": false
+  },
+  "ended_at": "2026-06-13T00:22:33Z",
+  "evidence_mode": "vm-live",
+  "git_sha": "869bddd9c894d67fe6bf8902835ee02e83819145",
+  "host_mutation": false,
+  "kernel_image": "/boot/vmlinuz-linux-cachyos",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "config_sha256": "microvm-host-kernel",
+    "release": "7.0.11-1-cachyos"
+  },
+  "mode": "microvm-live",
+  "qemu_bin": "/home/mei/.nix-profile/bin/qemu-system-x86_64",
+  "release_eligible_live_proof": false,
+  "release_status": "controlled_lab_pilot_candidate",
+  "release_use": false,
+  "rollback_result": "PASS",
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "stages": [],
+  "started_at": "2026-06-13T00:22:28Z",
+  "status": "PASS",
+  "vm_execution_manifest": "evidence/lab/run-all/microvm-live-20260612T202227-0400/serial.txt",
+  "vm_kind": "qemu-vm",
+  "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+  "vm_marker_present": true
+}

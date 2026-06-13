@@ -1,10 +1,28 @@
 #ifndef ZIGSCHED_COMMON_H
 #define ZIGSCHED_COMMON_H
 
-#define SEC(name) __attribute__((section(name), used))
-#define __ksym __attribute__((section(".ksyms")))
-#define __weak __attribute__((weak))
-#define __always_inline inline __attribute__((always_inline))
+typedef unsigned char __u8;
+typedef unsigned short __u16;
+typedef unsigned int __u32;
+typedef unsigned long long __u64;
+typedef signed int __s32;
+typedef signed long long __s64;
+typedef __u16 __be16;
+typedef __u32 __be32;
+typedef __u32 __wsum;
+typedef unsigned char zigsched_u8;
+typedef unsigned int zigsched_u32;
+typedef unsigned long long zigsched_u64;
+typedef zigsched_u32 u32;
+typedef zigsched_u64 u64;
+typedef int s32;
+typedef int zigsched_s32;
+#ifndef __cplusplus
+typedef _Bool bool;
+#endif
+
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
 
 #define ZIGSCHED_ABI_VERSION 1u
 #define ZIGSCHED_BUILD_PROBE_OK 0
@@ -21,20 +39,19 @@
 #define SCX_SLICE_DFL 20000000ULL
 #define BPF_MAP_TYPE_ARRAY 2u
 
-typedef unsigned char zigsched_u8;
-typedef unsigned int zigsched_u32;
-typedef unsigned long long zigsched_u64;
+struct task_struct {
+    zigsched_u8 __opaque;
+};
+struct cpumask;
+struct scx_cpu_acquire_args;
+struct scx_cpu_release_args;
+struct scx_init_task_args;
+struct scx_exit_task_args;
+struct scx_dump_ctx;
+struct cgroup;
+struct scx_cgroup_init_args;
+struct scx_exit_info;
 
-typedef zigsched_u32 u32;
-typedef zigsched_u64 u64;
-typedef int zigsched_s32;
-#ifndef __cplusplus
-typedef unsigned char bool;
-#endif
-
-struct task_struct;
-
-extern void *bpf_map_lookup_elem(void *map, const void *key) __weak __ksym;
 extern zigsched_s32 scx_bpf_select_cpu_dfl(struct task_struct *p, zigsched_s32 prev_cpu, u64 wake_flags, bool *direct) __weak __ksym;
 extern zigsched_s32 scx_bpf_create_dsq(u64 dsq_id, zigsched_s32 node) __weak __ksym;
 extern void scx_bpf_dsq_insert(struct task_struct *p, u64 dsq_id, u64 slice, u64 enq_flags) __weak __ksym;
@@ -83,20 +100,49 @@ struct zigsched_policy_config {
     zigsched_u64 mode;
 };
 
-struct bpf_map_def {
-    zigsched_u32 type;
-    zigsched_u32 key_size;
-    zigsched_u32 value_size;
-    zigsched_u32 max_entries;
-};
-
 struct sched_ext_ops {
-    char name[128];
-    zigsched_u64 flags;
-    zigsched_s32 (*init)(void);
     zigsched_s32 (*select_cpu)(struct task_struct *p, zigsched_s32 prev_cpu, zigsched_u64 wake_flags);
     void (*enqueue)(struct task_struct *p, zigsched_u64 enq_flags);
+    void (*dequeue)(struct task_struct *p, zigsched_u64 deq_flags);
     void (*dispatch)(zigsched_s32 cpu, struct task_struct *prev);
+    void (*tick)(struct task_struct *p);
+    void (*runnable)(struct task_struct *p, zigsched_u64 enq_flags);
+    void (*running)(struct task_struct *p);
+    void (*stopping)(struct task_struct *p, bool runnable);
+    void (*quiescent)(struct task_struct *p, zigsched_u64 deq_flags);
+    bool (*yield)(struct task_struct *from, struct task_struct *to);
+    bool (*core_sched_before)(struct task_struct *a, struct task_struct *b);
+    void (*set_weight)(struct task_struct *p, zigsched_u32 weight);
+    void (*set_cpumask)(struct task_struct *p, const struct cpumask *cpumask);
+    void (*update_idle)(zigsched_s32 cpu, bool idle);
+    void (*cpu_acquire)(zigsched_s32 cpu, struct scx_cpu_acquire_args *args);
+    void (*cpu_release)(zigsched_s32 cpu, struct scx_cpu_release_args *args);
+    zigsched_s32 (*init_task)(struct task_struct *p, struct scx_init_task_args *args);
+    void (*exit_task)(struct task_struct *p, struct scx_exit_task_args *args);
+    void (*enable)(struct task_struct *p);
+    void (*disable)(struct task_struct *p);
+    void (*dump)(struct scx_dump_ctx *ctx);
+    void (*dump_cpu)(struct scx_dump_ctx *ctx, zigsched_s32 cpu, bool idle);
+    void (*dump_task)(struct scx_dump_ctx *ctx, struct task_struct *p);
+    zigsched_s32 (*cgroup_init)(struct cgroup *cgrp, struct scx_cgroup_init_args *args);
+    void (*cgroup_exit)(struct cgroup *cgrp);
+    zigsched_s32 (*cgroup_prep_move)(struct task_struct *p, struct cgroup *from, struct cgroup *to);
+    void (*cgroup_move)(struct task_struct *p, struct cgroup *from, struct cgroup *to);
+    void (*cgroup_cancel_move)(struct task_struct *p, struct cgroup *from, struct cgroup *to);
+    void (*cgroup_set_weight)(struct cgroup *cgrp, zigsched_u32 weight);
+    void (*cgroup_set_bandwidth)(struct cgroup *cgrp, zigsched_u64 period, zigsched_u64 quota, zigsched_u64 burst);
+    void (*cgroup_set_idle)(struct cgroup *cgrp, bool idle);
+    void (*cpu_online)(zigsched_s32 cpu);
+    void (*cpu_offline)(zigsched_s32 cpu);
+    zigsched_s32 (*init)(void);
+    void (*exit)(struct scx_exit_info *ei);
+    zigsched_u32 dispatch_max_batch;
+    zigsched_u64 flags;
+    zigsched_u32 timeout_ms;
+    zigsched_u32 exit_dump_len;
+    zigsched_u64 hotplug_seq;
+    char name[128];
+    void *priv;
 };
 
 #endif

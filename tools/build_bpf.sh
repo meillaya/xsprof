@@ -106,7 +106,7 @@ if ! "$cc" -target bpf -O2 -c "$probe_c" -o "$probe_o" >"$log_file" 2>&1; then
 fi
 
 rm -f "$skip_file" "$skip_json" "$meta_file"
-"$cc" -target bpf -O2 -g -Wall -Wextra \
+"$cc" -target bpf -D__TARGET_ARCH_x86 -O2 -g -Wall -Wextra \
   -ffile-prefix-map="$repo_root=." \
   -I "$repo_root/bpf/include" \
   -c "$source_file" \

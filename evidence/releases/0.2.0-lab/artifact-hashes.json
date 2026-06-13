@@ -2,15 +2,15 @@
   "artifacts": {
     "bpf-object-metadata.json": {
       "path": "evidence/releases/0.2.0-lab/bpf-object-metadata.json",
-      "sha256": "49582ffc964033c50a078e2baafa5e0c6b30b6cbd6549c205e36bfbbc65dca6d"
+      "sha256": "da292f6f868d65430ed967b8e2f31cc676942b7781b8b4ab89f3f73d03940570"
     },
     "bpf-static-check.txt": {
       "path": "evidence/releases/0.2.0-lab/bpf-static-check.txt",
-      "sha256": "dfa9811ed8e3f07869461e9b6c16cbb1cf8464eb9ac0f2f14796fe47a767bacd"
+      "sha256": "a25e5a53599dd02775c2e3fbe26ba01c87fe87d084ce09730c54eecb6fc40f8a"
     },
     "bpf-verifier-host-refusal.json": {
       "path": "evidence/releases/0.2.0-lab/bpf-verifier-host-refusal.json",
-      "sha256": "051fc276c0116d492613c4e8a44ed5ceba95da4b48fc523f25506180672b1970"
+      "sha256": "9fd3b05a38023db8407450d9772b78173260e1ce1f5da68ab5e3552472c6c3c2"
     },
     "cgroup-allowlist-proof.json": {
       "path": "evidence/releases/0.2.0-lab/cgroup-allowlist-proof.json",
@@ -22,15 +22,19 @@
     },
     "dsq-summary.json": {
       "path": "evidence/releases/0.2.0-lab/dsq-summary.json",
-      "sha256": "310481663a0c777b897704b2135b1ff4105b54b8eca8dd57b51c6b4688b63b88"
+      "sha256": "582ad16a7d69b4d0bed8e0ce512b4d63f758acf0d88bb07b446a1bd1719fe597"
     },
     "governance-gate.md": {
       "path": "evidence/releases/0.2.0-lab/governance-gate.md",
-      "sha256": "71182644e71eae59ef455e36ab85e3b3e2268109a286b67ac95eab9a431fcf76"
+      "sha256": "d7042876296373eda3061d8041427ee39335e555d297bdde57ca98cf4f55e621"
+    },
+    "live-behavior-summary.json": {
+      "path": "evidence/releases/0.2.0-lab/live-behavior-summary.json",
+      "sha256": "174dce1ad82bea6b5f163529c7de25815198a3fb38bc04baaee06162d2ff82ab"
     },
     "package-default.toml": {
       "path": "evidence/releases/0.2.0-lab/package-default.toml",
-      "sha256": "121a5d25cf8aec50d4a25175a8278eea1aaa798d03767092e39c5557996b518e"
+      "sha256": "c56813c482bedd1a532a8e95d438bd538c4792b02d404ecec14e73ebcd73a20a"
     },
     "package-mutation-service.service": {
       "path": "evidence/releases/0.2.0-lab/package-mutation-service.service",
@@ -58,11 +62,11 @@
     },
     "security-review-approved.json": {
       "path": "evidence/releases/0.2.0-lab/security-review-approved.json",
-      "sha256": "41ee86ac62b034faf445eb6f99f3a0861e1af5c371c4edda9949060eb43b650c"
+      "sha256": "69ab672ab57701002f44f8c8b03f983d3fffa3637aa7e876d651bb680f7bc9a1"
     },
     "security-threat-model.md": {
       "path": "evidence/releases/0.2.0-lab/security-threat-model.md",
-      "sha256": "a7260335769211911636f7170fa1f7b5ed1e2a4fa1cace1db6c0378280d44560"
+      "sha256": "3e933f64e610f417fd78909173e0e4c064a5b446218c91a237ad5746364622e6"
     },
     "stress-chaos-summary.json": {
       "path": "evidence/releases/0.2.0-lab/stress-chaos-summary.json",

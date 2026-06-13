@@ -84,3 +84,26 @@ python3 qa/vm/attestation_check.py --self-test
 ```
 
 The validator rejects missing markers, stale git SHA values, host `/sys` paths, and unsupported kernel tuples.
+
+## Local microVM live sched_ext lab
+
+For operator-controlled local verification on a machine with QEMU, KVM, a
+readable sched_ext-capable kernel image, Nix, and host `bpftool`, run:
+
+```bash
+bash qa/vm/run_microvm_live_lab.sh --out evidence/lab/run-all/microvm-live-manual
+bash qa/tui_live_lab_e2e.sh \
+  --out evidence/lab/tui-e2e/microvm-live-manual \
+  --live-bundle evidence/lab/run-all/microvm-live-manual/summary.json
+```
+
+The microVM runner boots a disposable initramfs with the configured kernel,
+creates `/run/zig-scheduler-vm-lab.marker` inside the guest, registers the
+`zigsched_minimal` `sched_ext` struct_ops policy, captures before/during/after
+runtime samples, unregisters the struct_ops by guest-local id, and validates the
+resulting `vm-live` bundle with `qa/live_behavior_check.py`.
+
+This remains a lab-only proof path. It does not make arbitrary host operation or
+production-readiness claims, and the generated evidence under
+`evidence/lab/run-all/microvm-live-*` is ignored because it includes large local
+initramfs artifacts.
