@@ -60,7 +60,9 @@ fi
 
 preflight_screen="$(zig build tui -- --snapshot --screen preflight --width 100 --height 30)"
 printf '%s' "$preflight_screen" | grep -F '╭' >/dev/null || fail "root preflight TUI missing rounded box language"
-printf '%s' "$preflight_screen" | grep -F 'Linux Scheduler Operator' >/dev/null || fail "root preflight TUI missing Linux operator header"
+printf '%s' "$preflight_screen" | grep -F '▚ zig-scheduler' >/dev/null || fail "root preflight TUI missing simulator-family zig-scheduler header"
+printf '%s' "$preflight_screen" | grep -F 'operator dashboard home' >/dev/null || fail "root preflight TUI missing operator dashboard home title"
+printf '%s' "$preflight_screen" | grep -F 'SNAPSHOT read-only' >/dev/null || fail "root preflight TUI missing read-only snapshot mode"
 printf '%s' "$preflight_screen" | grep -F 'sched_ext' >/dev/null || fail "root preflight TUI missing sched_ext content"
 printf '%s' "$preflight_screen" | grep -F 'refuse' >/dev/null || fail "root preflight TUI missing refusal/safety language"
 if printf '%s' "$preflight_screen" | grep -E 'completion_order|Gantt|Task Metrics|simulator metrics' >/dev/null; then
@@ -68,7 +70,8 @@ if printf '%s' "$preflight_screen" | grep -E 'completion_order|Gantt|Task Metric
 fi
 
 sched_screen="$(zig build tui -- --snapshot --screen sched-ext --width 100 --height 30)"
-printf '%s' "$sched_screen" | grep -F 'Linux Scheduler Operator' >/dev/null || fail "root sched-ext TUI missing operator header"
+printf '%s' "$sched_screen" | grep -F '▚ zig-scheduler' >/dev/null || fail "root sched-ext TUI missing simulator-family zig-scheduler header"
+printf '%s' "$sched_screen" | grep -F 'SNAPSHOT read-only' >/dev/null || fail "root sched-ext TUI missing read-only snapshot mode"
 printf '%s' "$sched_screen" | grep -F 'sched_ext Readiness' >/dev/null || fail "root sched-ext TUI missing readiness screen"
 printf '%s' "$sched_screen" | grep -F 'fallback' >/dev/null || fail "root sched-ext TUI missing fallback language"
 
