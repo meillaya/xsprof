@@ -1,5 +1,6 @@
 const std = @import("std");
 const commands = @import("commands.zig");
+const env_builder = @import("env_builder.zig");
 const protocol = @import("protocol.zig");
 
 const line_trim_chars = [_]u8{ ' ', 9, 13 };
@@ -81,7 +82,7 @@ pub fn runHostSafe(
     defer plan.deinit(allocator);
     try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "read_only", "", "");
 
-    var env_map = try buildEnv(allocator, plan.env);
+    var env_map = try env_builder.build(allocator, plan.env, false, null);
     defer env_map.deinit();
     const result = try std.process.run(allocator, io, .{
         .argv = plan.args(),
@@ -112,7 +113,7 @@ pub fn runVmFixture(
     var plan = try commands.buildLabCommand(allocator, action);
     defer plan.deinit(allocator);
     try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "verifier_only", "", "");
-    var env_map = try buildEnv(allocator, plan.env);
+    var env_map = try env_builder.build(allocator, plan.env, false, null);
     defer env_map.deinit();
     const result = try std.process.run(allocator, io, .{
         .argv = plan.args(),
@@ -136,6 +137,7 @@ pub fn runVmFixture(
 pub fn runMicrovmLive(
     allocator: std.mem.Allocator,
     io: std.Io,
+    environ: std.process.Environ,
     output: *std.ArrayList(u8),
     action: protocol.OperatorAction,
     seq: *usize,
@@ -147,7 +149,7 @@ pub fn runMicrovmLive(
         try appendMicrovmLiveStartEventsForPlan(allocator, output, action, seq, plan.out_dir);
     }
 
-    var env_map = try buildEnv(allocator, plan.env);
+    var env_map = try env_builder.build(allocator, plan.env, true, environ);
     defer env_map.deinit();
     const result = try std.process.run(allocator, io, .{
         .argv = plan.args(),
@@ -206,7 +208,7 @@ pub fn runRollbackDrill(
     var plan = try commands.buildLabCommand(allocator, action);
     defer plan.deinit(allocator);
     try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "rollback_pending", "", "");
-    var env_map = try buildEnv(allocator, plan.env);
+    var env_map = try env_builder.build(allocator, plan.env, false, null);
     defer env_map.deinit();
     const result = try std.process.run(allocator, io, .{
         .argv = plan.args(),
@@ -236,7 +238,7 @@ pub fn runIncidentDrill(
     var plan = try commands.buildLabCommand(allocator, action);
     defer plan.deinit(allocator);
     try appendEvent(allocator, output, seq, "stage_started", @tagName(action.kind), "queued", "incident", "", "");
-    var env_map = try buildEnv(allocator, plan.env);
+    var env_map = try env_builder.build(allocator, plan.env, false, null);
     defer env_map.deinit();
     const result = try std.process.run(allocator, io, .{
         .argv = plan.args(),
@@ -404,13 +406,6 @@ fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
         return allocator.dupe(u8, std.mem.trim(u8, ref_value, &git_trim_chars));
     }
     return allocator.dupe(u8, trimmed);
-}
-
-fn buildEnv(allocator: std.mem.Allocator, vars: []const commands.EnvVar) !std.process.Environ.Map {
-    var map = std.process.Environ.Map.init(allocator);
-    errdefer map.deinit();
-    for (vars) |env_var| try map.put(env_var.name, env_var.value);
-    return map;
 }
 
 fn appendSummaryStages(

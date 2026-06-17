@@ -8,10 +8,10 @@ pub fn main(init: std.process.Init) !void {
         try writeStderr("usage: zig-scheduler-daemon --foreground [--follow] --state-dir <relative-dir> [--stream-runtime <relative-jsonl>] [--stream-from <sequence>]\n");
         std.process.exit(2);
     };
-    try runForeground(allocator, init.io, options);
+    try runForeground(allocator, init.io, init.minimal.environ, options);
 }
 
-fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.control.daemon.Options) !void {
+fn runForeground(allocator: std.mem.Allocator, io: std.Io, environ: std.process.Environ, options: linux.control.daemon.Options) !void {
     var dir = try std.Io.Dir.cwd().createDirPathOpen(io, options.state_dir, .{});
     defer dir.close(io);
 
@@ -57,7 +57,7 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.contro
             try follow_flush.flush(output.items);
             break;
         }
-        try appendAction(allocator, io, &output, &tracker, git_sha, line, &seq, &follow_flush);
+        try appendAction(allocator, io, environ, &output, &tracker, git_sha, line, &seq, &follow_flush);
         try follow_flush.flush(output.items);
     }
 
@@ -87,6 +87,7 @@ fn appendReady(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: us
 fn appendAction(
     allocator: std.mem.Allocator,
     io: std.Io,
+    environ: std.process.Environ,
     output: *std.ArrayList(u8),
     tracker: *linux.control.journal.Tracker,
     git_sha: []const u8,
@@ -128,7 +129,7 @@ fn appendAction(
     if (parsed.value.kind == .run_lab_microvm_live) {
         try linux.control.lab_runner.appendMicrovmLiveStartEvents(allocator, output, parsed.value, seq);
         try follow_flush.flush(output.items);
-        try linux.control.lab_runner.runMicrovmLive(allocator, io, output, parsed.value, seq, true);
+        try linux.control.lab_runner.runMicrovmLive(allocator, io, environ, output, parsed.value, seq, true);
         try follow_flush.flush(output.items);
         return;
     }

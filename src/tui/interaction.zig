@@ -12,6 +12,11 @@ pub const ControlState = struct {
     lab_action_id: []const u8 = "",
     rollback_id: []const u8 = "",
     audit_id: []const u8 = "",
+    run_id: []const u8 = "",
+    lab_action_id_buf: [96]u8 = undefined,
+    rollback_id_buf: [96]u8 = undefined,
+    audit_id_buf: [96]u8 = undefined,
+    run_id_buf: [96]u8 = undefined,
     rollback_confirm_pending: bool = false,
     stop_confirm_pending: bool = false,
     rollback_sent: bool = false,
@@ -24,12 +29,12 @@ pub const ControlResult = union(enum) {
     status: []const u8,
 };
 
-pub fn controlForKey(key: u8, state: *ControlState, _: bool) ?ControlResult {
+pub fn controlForKey(key: u8, state: *ControlState, test_mode: bool) ?ControlResult {
     const binding = actions.bindingForKey(key) orelse return null;
     return switch (binding.kind) {
         .quit, .help, .home => .{ .status = actions.statusForUi(binding.kind).? },
         .theme => toggleTheme(state),
-        .run_vm_lab => armVmLab(state),
+        .run_vm_lab => armVmLab(state, test_mode),
         .rollback_lab => rollbackControl(state),
         .stop_lab => stopControl(state),
         else => if (actionForKey(key)) |action| .{ .action = action } else null,
@@ -53,25 +58,34 @@ fn toggleTheme(state: *ControlState) ControlResult {
     return .{ .status = if (state.warm_theme) "THEME warm dark" else "THEME cool dark" };
 }
 
-fn armVmLab(state: *ControlState) ControlResult {
+fn armVmLab(state: *ControlState, test_mode: bool) ControlResult {
     if (hasRollbackTarget(state) and !state.rollback_sent and !state.stop_sent) {
         state.rollback_confirm_pending = false;
         state.stop_confirm_pending = false;
         return .{ .status = "live VM already armed rollback ready" };
     }
-    state.lab_action_id = tui_lab_action_id;
-    state.rollback_id = tui_rollback_id;
-    state.audit_id = tui_audit_id;
+    if (test_mode) {
+        state.lab_action_id = tui_lab_action_id;
+        state.rollback_id = tui_rollback_id;
+        state.audit_id = tui_audit_id;
+        state.run_id = "tui-vm-lab";
+    } else {
+        const suffix = std.os.linux.getpid();
+        state.lab_action_id = std.fmt.bufPrint(&state.lab_action_id_buf, "tui-vm-lab-{d}", .{suffix}) catch tui_lab_action_id;
+        state.rollback_id = std.fmt.bufPrint(&state.rollback_id_buf, "RB-tui-vm-lab-{d}", .{suffix}) catch tui_rollback_id;
+        state.audit_id = std.fmt.bufPrint(&state.audit_id_buf, "AUD-tui-vm-lab-{d}", .{suffix}) catch tui_audit_id;
+        state.run_id = std.fmt.bufPrint(&state.run_id_buf, "tui-vm-lab-{d}", .{suffix}) catch "tui-vm-lab";
+    }
     state.rollback_confirm_pending = false;
     state.stop_confirm_pending = false;
     state.rollback_sent = false;
     state.stop_sent = false;
     return .{ .action = .{
-        .kind = .run_lab_vm,
-        .action_id = tui_lab_action_id,
-        .run_id = "tui-vm-lab",
-        .audit_id = tui_audit_id,
-        .rollback_id = tui_rollback_id,
+        .kind = .run_lab_microvm_live,
+        .action_id = state.lab_action_id,
+        .run_id = state.run_id,
+        .audit_id = state.audit_id,
+        .rollback_id = state.rollback_id,
     } };
 }
 
@@ -152,7 +166,7 @@ test "navigation and theme keys produce deterministic statuses" {
 test "duplicate live VM arm is refused without dispatching another action" {
     var state = ControlState{};
     const first = controlForKey('m', &state, true).?;
-    try std.testing.expectEqual(protocol.ActionKind.run_lab_vm, first.action.kind);
+    try std.testing.expectEqual(protocol.ActionKind.run_lab_microvm_live, first.action.kind);
     const second = controlForKey('m', &state, true).?;
     try std.testing.expectEqualStrings("live VM already armed rollback ready", second.status);
 }

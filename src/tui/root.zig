@@ -425,7 +425,7 @@ test "interactive TUI control state maps rollback key with confirmation" {
     try std.testing.expectEqualStrings("rollback refused missing audit/rollback id", missing.status);
     const arm = interaction.controlForKey('m', &control_state, true).?;
     try std.testing.expectEqual(OperatorAction{
-        .kind = .run_lab_vm,
+        .kind = .run_lab_microvm_live,
         .action_id = "tui-vm-lab",
         .run_id = "tui-vm-lab",
         .audit_id = "AUD-tui-vm-lab",

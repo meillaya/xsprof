@@ -6,97 +6,268 @@ cd "$repo_root"
 source qa/path_safety.sh
 
 out_dir=""
-live_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-}"
-keys="rvmmbbpiq"
+mode=""
+live_bundle_arg=""
+live_bundle_env="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-}"
+keys="mq"
 width="120"
 height="30"
+timeout_seconds="900"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-usage() { printf 'usage: %s --out evidence/lab/tui-e2e/<run-id> [--live-bundle evidence/lab/run-all/<vm-live>/summary.json] [--keys rvmmbbpiq]\n' "$0" >&2; }
+usage() {
+  cat >&2 <<'EOF'
+usage: qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode launch-live-vm [--keys mq]
+       qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode validate-existing-bundle --live-bundle evidence/lab/run-all/<vm-live>/summary.json
+
+Modes:
+  launch-live-vm           strict T20 proof: the TUI must launch/generate the fresh live microVM bundle; pre-existing bundle inputs are refused.
+  validate-existing-bundle compatibility only: validates a supplied live behavior bundle and never counts as T20 launch proof.
+EOF
+}
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
-    --live-bundle) [ "$#" -ge 2 ] || fail '--live-bundle requires value'; live_bundle="$2"; shift 2 ;;
+    --mode) [ "$#" -ge 2 ] || fail '--mode requires value'; mode="$2"; shift 2 ;;
+    --live-bundle) [ "$#" -ge 2 ] || fail '--live-bundle requires value'; live_bundle_arg="$2"; shift 2 ;;
     --keys) [ "$#" -ge 2 ] || fail '--keys requires value'; keys="$2"; shift 2 ;;
     --width) [ "$#" -ge 2 ] || fail '--width requires value'; width="$2"; shift 2 ;;
     --height) [ "$#" -ge 2 ] || fail '--height requires value'; height="$2"; shift 2 ;;
+    --timeout-seconds) [ "$#" -ge 2 ] || fail '--timeout-seconds requires value'; timeout_seconds="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$live_bundle$keys$width$height" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+[ -n "$mode" ] || fail '--mode is required; use launch-live-vm for T20 proof or validate-existing-bundle for compatibility'
+case "$out_dir$mode$live_bundle_arg$live_bundle_env$keys$width$height$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$mode" in launch-live-vm|validate-existing-bundle) ;; *) fail "invalid mode: $mode" ;; esac
+case "$keys" in *$'\n'*|*$'\r'*|*/*|*..*) fail 'unsafe keys argument' ;; esac
+
 prepare_evidence_dir evidence/lab "$out_dir"
 find "$out_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+mkdir -p .omo/evidence
 
 transcript="$out_dir/tui-transcript.txt"
 daemon_state="$out_dir/daemon-state"
 daemon_events="$daemon_state/events.jsonl"
 summary="$out_dir/summary.json"
+pty_log="$out_dir/pty-driver.log"
+live_behavior_log="$out_dir/live-behavior-check.txt"
+freshness_log="$out_dir/live-bundle-freshness-check.txt"
 mkdir -p "$daemon_state"
 
-zig build install >/dev/null
-printf '%sq' "$keys" | ./zig-out/bin/zig-scheduler-tui \
-  --interactive --test-mode \
-  --fixture fixtures/lab/preflight-ready.json \
-  --screen sched-ext --width "$width" --height "$height" \
-  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
-  --daemon-state-dir "$daemon_state" \
-  > "$transcript"
+write_summary() {
+  local status="$1" reason="$2" live_behavior="$3" freshness="$4" rolled_back="$5" generated_bundle="$6" driver_rc="$7"
+  [ -e "$transcript" ] || : > "$transcript"
+  [ -e "$pty_log" ] || : > "$pty_log"
+  [ -e "$live_behavior_log" ] || printf '%s\n' "$live_behavior" > "$live_behavior_log"
+  [ -e "$freshness_log" ] || printf '%s\n' "$freshness" > "$freshness_log"
+  STATUS="$status" REASON="$reason" LIVE_BEHAVIOR="$live_behavior" FRESHNESS="$freshness" ROLLED_BACK="$rolled_back" \
+  OUT_DIR="$out_dir" MODE="$mode" KEYS="$keys" TRANSCRIPT="$transcript" DAEMON_EVENTS="$daemon_events" GENERATED_BUNDLE="$generated_bundle" \
+  SUPPLIED_BUNDLE="${live_bundle_arg:-$live_bundle_env}" SUMMARY="$summary" PTY_LOG="$pty_log" LIVE_BEHAVIOR_LOG="$live_behavior_log" FRESHNESS_LOG="$freshness_log" DRIVER_RC="$driver_rc" \
+  python3 - <<'PY'
+import json
+import os
 
-[ -s "$daemon_events" ] || fail "missing daemon events: $daemon_events"
-
-status="REFUSE"
-reason="VM-live behavior bundle required"
-live_behavior="MISSING"
-rolled_back="false"
-if [ -n "$live_bundle" ]; then
-  if python3 qa/live_behavior_check.py --bundle "$live_bundle" > "$out_dir/live-behavior-check.txt" 2>&1; then
-    status="PASS"
-    reason="TUI transcript plus validated VM-live behavior bundle"
-    live_behavior="PASS"
-  else
-    status="FAIL"
-    reason="VM-live behavior bundle rejected"
-    live_behavior="FAIL"
-  fi
-else
-  printf 'REFUSE: ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE or --live-bundle is required for T31 completion\n' > "$out_dir/live-behavior-check.txt"
-fi
-
-if grep -q 'rollback completed PASS\|rollback already_rolled_back' "$transcript" || grep -q '"action":"rollback_lab_run".*"status":"PASS"\|"status":"already_rolled_back"' "$daemon_events"; then
-  rolled_back="true"
-fi
-
-STATUS="$status" REASON="$reason" LIVE_BEHAVIOR="$live_behavior" ROLLED_BACK="$rolled_back" OUT_DIR="$out_dir" TRANSCRIPT="$transcript" DAEMON_EVENTS="$daemon_events" LIVE_BUNDLE="$live_bundle" SUMMARY="$summary" python3 - <<'PY'
-import json, os
+artifact_paths = [os.environ["TRANSCRIPT"], os.environ["SUMMARY"], os.environ["PTY_LOG"], os.environ["LIVE_BEHAVIOR_LOG"], os.environ["FRESHNESS_LOG"]]
+if os.path.exists(os.environ["DAEMON_EVENTS"]):
+    artifact_paths.append(os.environ["DAEMON_EVENTS"])
+if os.environ["GENERATED_BUNDLE"]:
+    artifact_paths.append(os.environ["GENERATED_BUNDLE"])
 summary = {
-    "schema": "zig-scheduler/tui-live-lab-e2e/v1",
+    "schema": "zig-scheduler/tui-live-lab-e2e/v2",
+    "mode": os.environ["MODE"],
     "status": os.environ["STATUS"],
     "reason": os.environ["REASON"],
     "host_mutation": False,
     "rolled_back": os.environ["ROLLED_BACK"] == "true",
     "live_behavior": os.environ["LIVE_BEHAVIOR"],
+    "freshness": os.environ["FRESHNESS"],
+    "keys": os.environ["KEYS"],
     "tui_transcript": os.environ["TRANSCRIPT"],
     "daemon_events": os.environ["DAEMON_EVENTS"],
-    "live_behavior_bundle": os.environ["LIVE_BUNDLE"],
-    "artifact_paths": [os.environ["TRANSCRIPT"], os.environ["DAEMON_EVENTS"], os.environ["SUMMARY"]],
+    "generated_live_bundle": os.environ["GENERATED_BUNDLE"],
+    "supplied_live_bundle": os.environ["SUPPLIED_BUNDLE"],
+    "pty_driver_log": os.environ["PTY_LOG"],
+    "live_behavior_log": os.environ["LIVE_BEHAVIOR_LOG"],
+    "freshness_log": os.environ["FRESHNESS_LOG"],
+    "driver_rc": int(os.environ["DRIVER_RC"]),
+    "artifact_paths": artifact_paths,
 }
-if os.environ["LIVE_BUNDLE"]:
-    summary["artifact_paths"].append(os.environ["LIVE_BUNDLE"])
-print(json.dumps(summary, indent=2, sort_keys=True), file=open(os.environ["SUMMARY"], "w"))
+with open(os.environ["SUMMARY"], "w", encoding="utf-8") as handle:
+    json.dump(summary, handle, indent=2, sort_keys=True)
+    handle.write("\n")
 PY
+}
 
-if [ "$status" = PASS ] && [ "$rolled_back" = true ]; then
+extract_generated_bundle() {
+  [ -s "$daemon_events" ] || return 1
+  python3 - "$daemon_events" <<'PY'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+
+found = ""
+for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    if not line.strip():
+        continue
+    event = json.loads(line)
+    if event.get("host_mutation") is not False:
+        raise SystemExit(2)
+    if event.get("action") != "run_lab_microvm_live":
+        continue
+    artifact = event.get("artifact")
+    if isinstance(artifact, str) and artifact.endswith("/summary.json"):
+        found = artifact
+print(found)
+raise SystemExit(0 if found else 1)
+PY
+}
+
+rollback_observed() {
+  [ -s "$daemon_events" ] || return 1
+  python3 - "$daemon_events" <<'PY'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+
+for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    if not line.strip():
+        continue
+    event = json.loads(line)
+    if event.get("host_mutation") is not False:
+        raise SystemExit(2)
+    if event.get("event") == "rollback" and event.get("action") == "run_lab_microvm_live" and event.get("status") == "PASS":
+        raise SystemExit(0)
+    if event.get("event") == "rollback_completed" and event.get("status") in {"PASS", "already_rolled_back"}:
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+terminal_refusal_reason() {
+  [ -s "$daemon_events" ] || return 1
+  python3 - "$daemon_events" <<'PY'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+
+reason = ""
+status = ""
+for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    if not line.strip():
+        continue
+    event = json.loads(line)
+    if event.get("host_mutation") is not False:
+        print("unsafe_host_mutation_event")
+        raise SystemExit(0)
+    if event.get("action") == "run_lab_microvm_live" and event.get("status") in {"REFUSE", "SKIP"}:
+        status = str(event.get("status"))
+        reason = str(event.get("reason") or "runner_refused")
+if status:
+    print(f"{status} {reason}")
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+run_compatibility_mode() {
+  local supplied="${live_bundle_arg:-$live_bundle_env}"
+  [ -n "$supplied" ] || { printf 'REFUSE: --live-bundle or ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE required in validate-existing-bundle mode host_mutation=false\n' | tee "$live_behavior_log"; write_summary REFUSE 'compatibility bundle missing' MISSING NOT_RUN false "" 0; exit 2; }
+  if python3 qa/live_behavior_check.py --bundle "$supplied" > "$live_behavior_log" 2>&1; then
+    write_summary PASS 'compatibility mode validated supplied bundle; not T20 launch proof' PASS NOT_RUN true "$supplied" 0
+    printf 'COMPATIBILITY COMPLETE rolled_back=true live_behavior=PASS t20_proof=false summary=%s\n' "$summary"
+    exit 0
+  fi
+  write_summary FAIL 'compatibility bundle rejected' FAIL NOT_RUN false "$supplied" 0
+  printf 'FAIL: compatibility bundle rejected host_mutation=false summary=%s\n' "$summary" >&2
+  exit 1
+}
+
+if [ "$mode" = validate-existing-bundle ]; then
+  run_compatibility_mode
+fi
+
+if [ -n "$live_bundle_arg" ] || [ -n "$live_bundle_env" ]; then
+  printf 'REFUSE: launch-live-vm mode rejects pre-existing live bundles as completion proof host_mutation=false\n' | tee "$live_behavior_log"
+  write_summary REFUSE 'pre-existing bundle refused in strict launch-live-vm mode' REFUSED NOT_RUN false "" 0
+  printf 'REFUSE: TUI e2e incomplete host_mutation=false rolled_back=false live_behavior=REFUSED summary=%s\n' "$summary"
+  exit 2
+fi
+
+zig build install > "$out_dir/zig-build-install.txt" 2>&1
+set +e
+python3 tools/tui_live_vm_pty_test.py \
+  --tui ./zig-out/bin/zig-scheduler-tui \
+  --daemon ./zig-out/bin/zig-scheduler-daemon \
+  --state-dir "$daemon_state" \
+  --transcript "$transcript" \
+  --keys "$keys" \
+  --width "$width" \
+  --height "$height" \
+  --timeout-seconds "$timeout_seconds" \
+  > "$pty_log" 2>&1
+pty_rc=$?
+set -e
+
+if [ "$pty_rc" -ne 0 ]; then
+  write_summary REFUSE 'TUI PTY driver failed or timed out' MISSING NOT_RUN false "" "$pty_rc"
+  printf 'REFUSE: TUI e2e driver failed host_mutation=false summary=%s\n' "$summary"
+  exit 2
+fi
+
+if [ ! -s "$daemon_events" ]; then
+  write_summary REFUSE 'missing daemon events' MISSING NOT_RUN false "" "$pty_rc"
+  printf 'REFUSE: missing daemon events host_mutation=false summary=%s\n' "$summary"
+  exit 2
+fi
+
+if refusal="$(terminal_refusal_reason 2>/dev/null)"; then
+  terminal_status="${refusal%% *}"
+  printf '%s\n' "$refusal" > "$live_behavior_log"
+  write_summary "$terminal_status" "$refusal" MISSING NOT_RUN false "" "$pty_rc"
+  printf '%s: TUI e2e incomplete host_mutation=false rolled_back=false live_behavior=MISSING summary=%s\n' "$terminal_status" "$summary"
+  exit 2
+fi
+
+generated_bundle="$(extract_generated_bundle 2>/dev/null || true)"
+if [ -z "$generated_bundle" ] || [ ! -f "$generated_bundle" ]; then
+  write_summary REFUSE 'TUI did not generate a live bundle summary' MISSING NOT_RUN false "$generated_bundle" "$pty_rc"
+  printf 'REFUSE: TUI did not generate live bundle host_mutation=false summary=%s\n' "$summary"
+  exit 2
+fi
+
+rolled_back=false
+if rollback_observed; then rolled_back=true; fi
+
+live_behavior=FAIL
+if python3 qa/live_behavior_check.py --bundle "$generated_bundle" > "$live_behavior_log" 2>&1; then
+  live_behavior=PASS
+fi
+freshness=FAIL
+if python3 qa/live_bundle_freshness_check.py --bundle "$generated_bundle" > "$freshness_log" 2>&1; then
+  freshness=PASS
+fi
+
+if [ "$live_behavior" = PASS ] && [ "$freshness" = PASS ] && [ "$rolled_back" = true ]; then
+  write_summary PASS 'TUI launched fresh live microVM bundle and validators passed' PASS PASS true "$generated_bundle" "$pty_rc"
   printf 'LAB RUN COMPLETE rolled_back=true live_behavior=PASS summary=%s\n' "$summary"
   exit 0
 fi
-if [ "$status" = PASS ]; then
-  printf 'FAIL: live behavior passed but rollback was not observed summary=%s\n' "$summary" >&2
-  exit 1
+
+status=FAIL
+reason="live behavior, freshness, or rollback validation failed"
+if grep -q 'current worktree is dirty\|bundle was generated from a dirty worktree' "$freshness_log" 2>/dev/null; then
+  status=REFUSE
+  reason="dirty_worktree_prevents_freshness_validation"
 fi
-printf '%s: TUI e2e incomplete rolled_back=%s live_behavior=%s summary=%s\n' "$status" "$rolled_back" "$live_behavior" "$summary"
+write_summary "$status" "$reason" "$live_behavior" "$freshness" "$rolled_back" "$generated_bundle" "$pty_rc"
+printf '%s: TUI e2e incomplete host_mutation=false rolled_back=%s live_behavior=%s freshness=%s summary=%s\n' "$status" "$rolled_back" "$live_behavior" "$freshness" "$summary"
 if [ "$status" = REFUSE ]; then exit 2; fi
 exit 1
