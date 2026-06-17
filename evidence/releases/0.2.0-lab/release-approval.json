@@ -27,9 +27,9 @@
     "evidence/releases/0.2.0-lab/live-behavior-summary.json",
     "evidence/releases/0.2.0-lab/artifact-hashes.json"
   ],
-  "git_sha": "869bddd9c894d67fe6bf8902835ee02e83819145",
+  "git_sha": "c75caad935e691426348c7a58dd116f684e19b2f",
   "git_sha_policy": {
-    "approved_git_sha": "869bddd9c894d67fe6bf8902835ee02e83819145",
+    "approved_git_sha": "c75caad935e691426348c7a58dd116f684e19b2f",
     "artifact_hash_manifest": "evidence/releases/0.2.0-lab/artifact-hashes.json",
     "kind": "content-bound-ancestor",
     "statement": "Approval remains usable on descendant commits only when the git SHA is an ancestor and this release artifact hash manifest still matches exactly."

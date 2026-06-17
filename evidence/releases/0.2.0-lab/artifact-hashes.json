@@ -30,7 +30,7 @@
     },
     "live-behavior-summary.json": {
       "path": "evidence/releases/0.2.0-lab/live-behavior-summary.json",
-      "sha256": "174dce1ad82bea6b5f163529c7de25815198a3fb38bc04baaee06162d2ff82ab"
+      "sha256": "5ef09e307a7b81b77b7f7bbcce222b73f17c4ca38b72c28fffb1daeb342defdb"
     },
     "package-default.toml": {
       "path": "evidence/releases/0.2.0-lab/package-default.toml",
@@ -62,11 +62,11 @@
     },
     "security-review-approved.json": {
       "path": "evidence/releases/0.2.0-lab/security-review-approved.json",
-      "sha256": "69ab672ab57701002f44f8c8b03f983d3fffa3637aa7e876d651bb680f7bc9a1"
+      "sha256": "77099d12b4566ba67e2ad12f44606f73612f20d3cb4a9338a23ac8672e19731b"
     },
     "security-threat-model.md": {
       "path": "evidence/releases/0.2.0-lab/security-threat-model.md",
-      "sha256": "3e933f64e610f417fd78909173e0e4c064a5b446218c91a237ad5746364622e6"
+      "sha256": "4168f0e44146e3a50354c5c443969e6c2b55679dccfb7523ee3de868c6e609f6"
     },
     "stress-chaos-summary.json": {
       "path": "evidence/releases/0.2.0-lab/stress-chaos-summary.json",
