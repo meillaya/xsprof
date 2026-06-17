@@ -8,6 +8,7 @@ source qa/path_safety.sh
 out_dir=""
 kernel_arg="${ZIG_SCHEDULER_VM_KERNEL:-}"
 qemu_arg="${ZIG_SCHEDULER_QEMU_BIN:-}"
+nix_arg="${ZIG_SCHEDULER_NIX_BIN:-}"
 mem="${ZIG_SCHEDULER_MICROVM_MEM:-1024M}"
 smp="${ZIG_SCHEDULER_MICROVM_SMP:-2}"
 timeout_seconds="${ZIG_SCHEDULER_MICROVM_TIMEOUT:-120}"
@@ -26,7 +27,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$kernel_arg$qemu_arg$mem$smp$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 [ ! -e "$out_dir" ] || fail '--out must name a new output directory'
 prepare_evidence_dir evidence/lab "$out_dir"
 mkdir -p "$out_dir"
@@ -66,6 +67,38 @@ find_qemu() {
   fail 'qemu-system-x86_64 not found in trusted qemu locations; install qemu or set ZIG_SCHEDULER_QEMU_BIN to /usr/bin/qemu-system-x86_64, /run/current-system/sw/bin/qemu-system-x86_64, or /nix/store/.../bin/qemu-system-x86_64'
 }
 
+validate_nix_bin() {
+  local raw="$1" canonical base
+  case "$raw" in
+    /*) ;;
+    *) fail 'nix override refused: path must be absolute' ;;
+  esac
+  base="$(basename -- "$raw")"
+  [ "$base" = nix ] || fail 'nix override refused: basename must be nix'
+  case "$raw" in
+    *$'\n'*|*$'\r'*) fail 'nix override refused: control characters are not allowed' ;;
+    */../*|*/..|*/./*|*/.) fail 'nix override refused: traversal components are not allowed' ;;
+    /home/*|/tmp/*|/var/tmp/*|/dev/shm/*) fail 'nix override refused: user/writable paths are not trusted' ;;
+    */.zig-cache/*|*/.omo/*|*/.omx/*) fail 'nix override refused: repo-local scratch paths are not trusted' ;;
+  esac
+  canonical="$(readlink -f -- "$raw" 2>/dev/null || true)"
+  [ -n "$canonical" ] || fail 'nix override refused: canonical path does not exist'
+  case "$canonical" in
+    /usr/bin/nix|/run/current-system/sw/bin/nix|/nix/var/nix/profiles/default/bin/nix|/nix/profile/bin/nix|/nix/store/*/bin/nix) ;;
+    *) fail 'nix override refused: canonical path is outside trusted nix locations' ;;
+  esac
+  [ -x "$canonical" ] || fail 'nix override refused: canonical path is not executable'
+  printf '%s\n' "$canonical"
+}
+
+find_nix_bin() {
+  if [ -n "$nix_arg" ]; then validate_nix_bin "$nix_arg"; return; fi
+  for candidate in /nix/var/nix/profiles/default/bin/nix /run/current-system/sw/bin/nix /usr/bin/nix /nix/profile/bin/nix; do
+    if [ -x "$candidate" ]; then validate_nix_bin "$candidate"; return; fi
+  done
+  fail 'nix not found in trusted locations; install nix or set ZIG_SCHEDULER_NIX_BIN to /usr/bin/nix, /run/current-system/sw/bin/nix, /nix/var/nix/profiles/default/bin/nix, /nix/profile/bin/nix, or /nix/store/.../bin/nix'
+}
+
 find_kernel() {
   if [ -n "$kernel_arg" ]; then printf '%s\n' "$kernel_arg"; return; fi
   if [ -r "/boot/vmlinuz-$(uname -r)" ]; then printf '/boot/vmlinuz-%s\n' "$(uname -r)"; return; fi
@@ -76,8 +109,10 @@ find_kernel() {
 }
 
 qemu_bin="$(find_qemu)"
+nix_bin="$(find_nix_bin)"
 kernel_image="$(find_kernel)"
 [ -x "$qemu_bin" ] || fail "qemu is not executable: $qemu_bin"
+[ -x "$nix_bin" ] || fail "nix is not executable: $nix_bin"
 [ -r "$kernel_image" ] || fail "kernel image is not readable: $kernel_image"
 [ -e /dev/kvm ] || fail '/dev/kvm is required for the microVM live lab'
 
@@ -91,7 +126,7 @@ git_dirty=false
 if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then git_dirty=true; fi
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-busybox_store="$(nix build nixpkgs#pkgsStatic.busybox --no-link --print-out-paths 2>/dev/null | tail -n 1 || true)"
+busybox_store="$("$nix_bin" build nixpkgs#pkgsStatic.busybox --no-link --print-out-paths 2>/dev/null | tail -n 1 || true)"
 [ -n "$busybox_store" ] || fail 'could not build/fetch pkgsStatic.busybox through nix'
 busybox_bin="$busybox_store/bin/busybox"
 [ -x "$busybox_bin" ] || fail "busybox not executable: $busybox_bin"

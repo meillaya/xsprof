@@ -15,9 +15,13 @@ height="30"
 timeout_seconds="900"
 self_test=false
 self_test_summary=".omo/evidence/task-T26-failure-summary.json"
-daemon_bin="${ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN:-./zig-out/bin/zig-scheduler-daemon}"
+self_test_daemon_bin=""
+daemon_bin="./zig-out/bin/zig-scheduler-daemon"
+legacy_daemon_env="${ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN:-}"
+self_test_daemon_env="${ZIG_SCHEDULER_TUI_LIVE_SELF_TEST_DAEMON_BIN:-}"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+refuse() { printf 'REFUSE: %s\n' "$*" >&2; exit 2; }
 usage() {
   cat >&2 <<'EOF'
 usage: qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode launch-live-vm [--keys mq]
@@ -28,6 +32,10 @@ Modes:
   launch-live-vm           strict T20 proof: the TUI must launch/generate the fresh live microVM bundle; pre-existing bundle inputs are refused.
   validate-existing-bundle compatibility only: validates a supplied live behavior bundle and never counts as T20 launch proof.
   --self-test              run the T26 fail-closed failure-mode matrix with local fixtures; never launches QEMU.
+
+Self-test internals:
+  self-test-launch-live-vm  T26 fixture-only mode; accepts --self-test-daemon-bin or ZIG_SCHEDULER_TUI_LIVE_SELF_TEST_DAEMON_BIN.
+                            This mode is not valid T20/T25 live proof and normal launch-live-vm refuses daemon overrides.
 EOF
 }
 
@@ -42,6 +50,7 @@ while [ "$#" -gt 0 ]; do
     --width) [ "$#" -ge 2 ] || fail '--width requires value'; width="$2"; shift 2 ;;
     --height) [ "$#" -ge 2 ] || fail '--height requires value'; height="$2"; shift 2 ;;
     --timeout-seconds) [ "$#" -ge 2 ] || fail '--timeout-seconds requires value'; timeout_seconds="$2"; shift 2 ;;
+    --self-test-daemon-bin) [ "$#" -ge 2 ] || fail '--self-test-daemon-bin requires value'; self_test_daemon_bin="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
@@ -53,9 +62,25 @@ fi
 
 [ -n "$out_dir" ] || fail '--out is required'
 [ -n "$mode" ] || fail '--mode is required; use launch-live-vm for T20 proof or validate-existing-bundle for compatibility'
-case "$out_dir$mode$live_bundle_arg$live_bundle_env$keys$width$height$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
-case "$mode" in launch-live-vm|validate-existing-bundle) ;; *) fail "invalid mode: $mode" ;; esac
+case "$out_dir$mode$live_bundle_arg$live_bundle_env$keys$width$height$timeout_seconds$self_test_daemon_bin$legacy_daemon_env$self_test_daemon_env" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$mode" in launch-live-vm|validate-existing-bundle|self-test-launch-live-vm) ;; *) fail "invalid mode: $mode" ;; esac
 case "$keys" in *$'\n'*|*$'\r'*|*/*|*..*) fail 'unsafe keys argument' ;; esac
+if [ -n "$legacy_daemon_env" ]; then
+  refuse 'ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN is refused; launch-live-vm always uses ./zig-out/bin/zig-scheduler-daemon and T26 fixtures must use self-test-launch-live-vm'
+fi
+if [ -n "$self_test_daemon_env" ] && [ "$mode" != self-test-launch-live-vm ]; then
+  refuse 'ZIG_SCHEDULER_TUI_LIVE_SELF_TEST_DAEMON_BIN is only allowed with --mode self-test-launch-live-vm'
+fi
+if [ -n "$self_test_daemon_bin" ] && [ "$mode" != self-test-launch-live-vm ]; then
+  refuse '--self-test-daemon-bin is only allowed with --mode self-test-launch-live-vm'
+fi
+if [ "$mode" = self-test-launch-live-vm ]; then
+  daemon_bin="${self_test_daemon_bin:-$self_test_daemon_env}"
+  [ -n "$daemon_bin" ] || fail 'self-test-launch-live-vm requires --self-test-daemon-bin or ZIG_SCHEDULER_TUI_LIVE_SELF_TEST_DAEMON_BIN'
+  case "$out_dir" in evidence/lab/tui-e2e/t26-self-test/*) ;; *) fail 'self-test-launch-live-vm output must stay under evidence/lab/tui-e2e/t26-self-test' ;; esac
+  case "$daemon_bin" in evidence/lab/tui-e2e/t26-self-test/*|./evidence/lab/tui-e2e/t26-self-test/*) ;; *) fail 'self-test daemon must stay under evidence/lab/tui-e2e/t26-self-test' ;; esac
+  [ -x "$daemon_bin" ] || fail 'self-test daemon is not executable'
+fi
 
 prepare_evidence_dir evidence/lab "$out_dir"
 find "$out_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
@@ -205,6 +230,10 @@ if [ "$mode" = validate-existing-bundle ]; then
   run_compatibility_mode
 fi
 
+if [ "$mode" = self-test-launch-live-vm ]; then
+  live_bundle_env=""
+fi
+
 if [ -n "$live_bundle_arg" ] || [ -n "$live_bundle_env" ]; then
   printf 'REFUSE: launch-live-vm mode rejects pre-existing live bundles as completion proof host_mutation=false\n' | tee "$live_behavior_log"
   write_summary REFUSE 'pre-existing bundle refused in strict launch-live-vm mode' REFUSED NOT_RUN false "" 0
@@ -267,6 +296,11 @@ if python3 qa/live_bundle_freshness_check.py --bundle "$generated_bundle" > "$fr
 fi
 
 if [ "$live_behavior" = PASS ] && [ "$freshness" = PASS ] && [ "$rolled_back" = true ]; then
+  if [ "$mode" = self-test-launch-live-vm ]; then
+    write_summary REFUSE 'self-test fixture mode cannot produce T20/T25 live proof' PASS PASS true "$generated_bundle" "$pty_rc"
+    printf 'REFUSE: self-test fixture mode cannot produce live proof host_mutation=false summary=%s\n' "$summary"
+    exit 2
+  fi
   write_summary PASS 'TUI launched fresh live microVM bundle and validators passed' PASS PASS true "$generated_bundle" "$pty_rc"
   printf 'LAB RUN COMPLETE rolled_back=true live_behavior=PASS summary=%s\n' "$summary"
   exit 0

@@ -126,9 +126,9 @@ run_fixture_scenario() {
   local name="$1" class="$2" behavior="$3" expected="$4" timeout_value="${5:-8}"
   local out="$matrix_root/$name" log="$matrix_root/$name/output.txt"
   mkdir -p "$out"
-  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN=$fake_daemon bash qa/tui_live_lab_e2e.sh --out $out/run --mode launch-live-vm --timeout-seconds $timeout_value --keys mq"
+  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior bash qa/tui_live_lab_e2e.sh --out $out/run --mode self-test-launch-live-vm --self-test-daemon-bin $fake_daemon --timeout-seconds $timeout_value --keys mq"
   set +e
-  T26_FAKE_DAEMON_BEHAVIOR="$behavior" ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN="$fake_daemon" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode launch-live-vm --timeout-seconds "$timeout_value" --keys mq > "$log" 2>&1
+  T26_FAKE_DAEMON_BEHAVIOR="$behavior" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode self-test-launch-live-vm --self-test-daemon-bin "$fake_daemon" --timeout-seconds "$timeout_value" --keys mq > "$log" 2>&1
   local rc=$?
   set -e
   record_result "$name" "$class" "$cmd" "$rc" "$log" "$expected"
