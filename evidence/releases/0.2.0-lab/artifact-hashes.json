@@ -30,7 +30,7 @@
     },
     "live-behavior-summary.json": {
       "path": "evidence/releases/0.2.0-lab/live-behavior-summary.json",
-      "sha256": "5ef09e307a7b81b77b7f7bbcce222b73f17c4ca38b72c28fffb1daeb342defdb"
+      "sha256": "feaba17a791957292861becd81dc7d13aaf79329cb351081636df124c3fe2dfe"
     },
     "package-default.toml": {
       "path": "evidence/releases/0.2.0-lab/package-default.toml",
