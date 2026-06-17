@@ -101,6 +101,17 @@ fn appendAction(
         return;
     };
     defer parsed.deinit();
+    if (parsed.value.kind == .run_lab_microvm_live) {
+        var validation_plan = linux.control.commands.buildLabCommand(allocator, parsed.value) catch |err| switch (err) {
+            error.InvalidField, error.InvalidAction => {
+                try appendInvalidField(allocator, output, parsed.value, seq.*);
+                seq.* += 1;
+                return;
+            },
+            else => |e| return e,
+        };
+        validation_plan.deinit(allocator);
+    }
     tracker.remember(allocator, parsed.value.action_id) catch |err| switch (err) {
         error.DuplicateActionId => {
             try appendDuplicate(allocator, output, parsed.value, seq.*);
@@ -127,9 +138,23 @@ fn appendAction(
         return;
     }
     if (parsed.value.kind == .run_lab_microvm_live) {
-        try linux.control.lab_runner.appendMicrovmLiveStartEvents(allocator, output, parsed.value, seq);
+        linux.control.lab_runner.appendMicrovmLiveStartEvents(allocator, output, parsed.value, seq) catch |err| switch (err) {
+            error.InvalidField, error.InvalidAction => {
+                try appendInvalidField(allocator, output, parsed.value, seq.*);
+                seq.* += 1;
+                return;
+            },
+            else => |e| return e,
+        };
         try follow_flush.flush(output.items);
-        try linux.control.lab_runner.runMicrovmLive(allocator, io, environ, output, parsed.value, seq, true);
+        linux.control.lab_runner.runMicrovmLive(allocator, io, environ, output, parsed.value, seq, true) catch |err| switch (err) {
+            error.InvalidField, error.InvalidAction => {
+                try appendInvalidField(allocator, output, parsed.value, seq.*);
+                seq.* += 1;
+                return;
+            },
+            else => |e| return e,
+        };
         try follow_flush.flush(output.items);
         return;
     }
@@ -179,6 +204,20 @@ fn appendInvalidActionId(allocator: std.mem.Allocator, output: *std.ArrayList(u8
     try appendEvent(allocator, output, event.items);
 }
 
+fn appendInvalidField(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
+    var event: std.ArrayList(u8) = .empty;
+    defer event.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
+    try writer.writer.print(
+        "{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"action_id\":",
+        .{ seq, @tagName(action.kind) },
+    );
+    try writeJsonString(&writer.writer, action.action_id);
+    try writer.writer.writeAll(",\"state\":\"refused_host\",\"status\":\"refused\",\"reason\":\"invalid_field\",\"host_mutation\":false}\n");
+    event = writer.toArrayList();
+    try appendEvent(allocator, output, event.items);
+}
+
 fn appendMalformed(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
     var event: std.ArrayList(u8) = .empty;
     defer event.deinit(allocator);
@@ -203,6 +242,19 @@ fn appendOverflow(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq:
 fn appendEvent(allocator: std.mem.Allocator, output: *std.ArrayList(u8), event: []const u8) !void {
     try linux.control.daemon.ensureCanWriteEvent(output.items.len, event);
     try output.appendSlice(allocator, event);
+}
+
+fn writeJsonString(writer: anytype, value: []const u8) !void {
+    try writer.writeByte('"');
+    for (value) |byte| switch (byte) {
+        '"' => try writer.writeAll("\\\""),
+        '\\' => try writer.writeAll("\\\\"),
+        '\n' => try writer.writeAll("\\n"),
+        '\r' => try writer.writeAll("\\r"),
+        '\t' => try writer.writeAll("\\t"),
+        else => if (byte < 0x20) try writer.print("\\u{x:0>4}", .{byte}) else try writer.writeByte(byte),
+    };
+    try writer.writeByte('"');
 }
 
 fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {

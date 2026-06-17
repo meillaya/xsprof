@@ -246,6 +246,54 @@ TRACE
   printf 'PASS: no-host-mutation self-test\n'
 }
 
+
+run_daemon_json_checked() {
+  local label="$1"
+  local required_pattern="$2"
+  local state_dir="$3"
+  local action_json="$4"
+  rm -rf "$state_dir"
+  run_checked_output_command "$label" "$required_pattern" \
+    bash -c 'printf "%s\n" "$1" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$2"' _ "$action_json" "$state_dir"
+}
+
+run_live_daemon_json_checked() {
+  local label="$1"
+  local state_dir="$2"
+  local action_json="$3"
+  rm -rf "$state_dir"
+  run_checked_output_command "$label" '"action":"run_lab_microvm_live".*"status":"(REFUSE|PASS)".*"host_mutation":false' \
+    bash -c 'printf "%s\n" "$1" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$2"' _ "$action_json" "$state_dir"
+}
+
+run_tui_live_key_flow() {
+  local label="$1"
+  local keys="$2"
+  local state_dir=".zig-cache/tmp/no-host-tui-$label"
+  local transcript=".omo/evidence/task-T21-no-host-${label}-transcript.txt"
+  rm -rf "$state_dir" "$transcript"
+  run_checked_output_command "tui-live-${label}" 'run_lab_microvm_live.*host_mutation=false|host_mutation=false.*run_lab_microvm_live' \
+    bash -c 'python3 tools/tui_live_vm_pty_test.py --tui zig-out/bin/zig-scheduler-tui --daemon zig-out/bin/zig-scheduler-daemon --state-dir "$1" --transcript "$2" --keys "$3" --timeout-seconds 60 >/dev/null && test -f "$1/events.jsonl" && grep -q run_lab_microvm_live "$1/events.jsonl" && ! grep -q host_mutation.:true "$1/events.jsonl" "$2" && printf "run_lab_microvm_live keys=%s host_mutation=false\n" "$3"' _ "$state_dir" "$transcript" "$keys"
+  printf 'PASS: tui-live-%s action=run_lab_microvm_live keys=%s host_mutation=false\n' "$label" "$keys"
+  rm -rf "$state_dir"
+}
+
+assert_no_lingering_processes() {
+  local scan_file
+  scan_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.process-scan.XXXXXX")"
+  ps -eo pid=,ppid=,comm=,args= >"$scan_file"
+  if grep -E 'zig-scheduler-(daemon|tui)|qemu-system-' "$scan_file" | grep -F "$repo_root" | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
+    rm -f "$scan_file"
+    fail 'lingering repo-local daemon/TUI/QEMU process detected'
+  fi
+  if grep -E 'qemu-system-' "$scan_file" | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
+    rm -f "$scan_file"
+    fail 'lingering qemu-system process detected after no-host audit'
+  fi
+  rm -f "$scan_file"
+  printf 'CHECK: process-cleanup no lingering qemu/daemon/TUI processes\n'
+}
+
 main() {
   if [[ "${1:-}" == "--self-test" ]]; then
     self_test
@@ -293,16 +341,23 @@ PY
     run_refusal_command "refuse-$verb" zig build run -- "$verb"
   done
   run_refusal_command refuse-controller-dry-run zig build run -- controller plan --dry-run
-  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .omo/evidence/tui-pty-daemon-test
-  run_checked_output_command daemon-partial-attach 'host_mutation_refused|refused_host' \
-    bash -c "printf '%s\n' '{\"action\":\"partial_attach\",\"target_cgroup\":\"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope\",\"audit_id\":\"AUD-20990101T000000Z-deadbee-abc123\",\"rollback_id\":\"RB-demo\"}' | zig-out/bin/zig-scheduler-daemon --foreground --state-dir .zig-cache/tmp/no-host-daemon-partial"
-  run_checked_output_command daemon-rollback 'host_mutation_refused|refused_host' \
-    bash -c "printf '%s\n' '{\"action\":\"rollback\",\"rollback_id\":\"RB-demo\"}' | zig-out/bin/zig-scheduler-daemon --foreground --state-dir .zig-cache/tmp/no-host-daemon-rollback"
-  run_checked_output_command tui-daemon-verifier 'dispatched verifier action through daemon' \
-    python3 tools/tui_pty_exit_test.py zig-out/bin/zig-scheduler-tui zig-out/bin/zig-scheduler-daemon
-  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .omo/evidence/tui-pty-daemon-test
+  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .zig-cache/tmp/no-host-daemon-live .omo/evidence/tui-pty-daemon-test
+  run_daemon_json_checked daemon-partial-attach 'host_mutation_refused|refused_host' .zig-cache/tmp/no-host-daemon-partial \
+    '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
+  run_daemon_json_checked daemon-rollback 'host_mutation_refused|refused_host' .zig-cache/tmp/no-host-daemon-rollback \
+    '{"action":"rollback","rollback_id":"RB-demo"}'
+  run_live_daemon_json_checked daemon-live-microvm .zig-cache/tmp/no-host-daemon-live \
+    '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"no-host-live","run_id":"no-host-live","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-no-host-live"}'
+  printf 'PASS: daemon-live-microvm action=run_lab_microvm_live host_mutation=false\n'
+  rm -rf evidence/lab/run-all/no-host-live
+  run_checked_output_command tui-daemon-verifier 'dispatched verifier action through daemon'     python3 tools/tui_pty_exit_test.py zig-out/bin/zig-scheduler-tui zig-out/bin/zig-scheduler-daemon
+  run_tui_live_key_flow m-q mq
+  run_tui_live_key_flow m-b-b-q mbbq
+  run_tui_live_key_flow m-s-s-q mssq
+  rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .zig-cache/tmp/no-host-daemon-live .omo/evidence/tui-pty-daemon-test
+  assert_no_lingering_processes
 
-  printf 'PASS: no host mutation observed for root commands\n'
+  printf 'PASS: no host mutation observed for root commands and live VM TUI keys\n'
 }
 
 main "$@"

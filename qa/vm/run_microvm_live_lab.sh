@@ -34,11 +34,36 @@ qemu_scan_before="$out_dir/qemu-process-scan-before.txt"
 qemu_scan_after="$out_dir/qemu-process-scan-after.txt"
 pgrep -a qemu-system-x86_64 > "$qemu_scan_before" 2>/dev/null || true
 
+validate_qemu_bin() {
+  local raw="$1" canonical base
+  case "$raw" in
+    /*) ;;
+    *) fail 'qemu override refused: path must be absolute' ;;
+  esac
+  base="$(basename -- "$raw")"
+  [ "$base" = qemu-system-x86_64 ] || fail 'qemu override refused: basename must be qemu-system-x86_64'
+  case "$raw" in
+    *$'\n'*|*$'\r'*) fail 'qemu override refused: control characters are not allowed' ;;
+    */../*|*/..|*/./*|*/.) fail 'qemu override refused: traversal components are not allowed' ;;
+    /home/*|/tmp/*|/var/tmp/*|/dev/shm/*) fail 'qemu override refused: user/writable paths are not trusted' ;;
+    */.zig-cache/*|*/.omo/*|*/.omx/*) fail 'qemu override refused: repo-local scratch paths are not trusted' ;;
+  esac
+  canonical="$(readlink -f -- "$raw" 2>/dev/null || true)"
+  [ -n "$canonical" ] || fail 'qemu override refused: canonical path does not exist'
+  case "$canonical" in
+    /usr/bin/qemu-system-x86_64|/run/current-system/sw/bin/qemu-system-x86_64|/nix/store/*/bin/qemu-system-x86_64) ;;
+    *) fail 'qemu override refused: canonical path is outside trusted qemu locations' ;;
+  esac
+  [ -x "$canonical" ] || fail 'qemu override refused: canonical path is not executable'
+  printf '%s\n' "$canonical"
+}
+
 find_qemu() {
-  if [ -n "$qemu_arg" ]; then printf '%s\n' "$qemu_arg"; return; fi
-  if command -v qemu-system-x86_64 >/dev/null 2>&1; then command -v qemu-system-x86_64; return; fi
-  if [ -x "$HOME/.nix-profile/bin/qemu-system-x86_64" ]; then printf '%s\n' "$HOME/.nix-profile/bin/qemu-system-x86_64"; return; fi
-  fail 'qemu-system-x86_64 not found; install qemu or set ZIG_SCHEDULER_QEMU_BIN'
+  if [ -n "$qemu_arg" ]; then validate_qemu_bin "$qemu_arg"; return; fi
+  for candidate in /usr/bin/qemu-system-x86_64 /run/current-system/sw/bin/qemu-system-x86_64; do
+    if [ -x "$candidate" ]; then validate_qemu_bin "$candidate"; return; fi
+  done
+  fail 'qemu-system-x86_64 not found in trusted qemu locations; install qemu or set ZIG_SCHEDULER_QEMU_BIN to /usr/bin/qemu-system-x86_64, /run/current-system/sw/bin/qemu-system-x86_64, or /nix/store/.../bin/qemu-system-x86_64'
 }
 
 find_kernel() {

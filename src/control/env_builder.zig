@@ -47,52 +47,69 @@ fn resolveQemuBinFromEnv(
     path_value: ?[]const u8,
     home_value: ?[]const u8,
 ) !?[]const u8 {
+    _ = path_value;
+    _ = home_value;
     const io = std.Io.Threaded.global_single_threaded.io();
-    if (qemu_override) |override_path| {
-        if (try probeExecutable(allocator, io, override_path)) |resolved| return resolved;
-    }
-    if (path_value) |path| {
-        if (try resolveFromPath(allocator, io, path)) |resolved| return resolved;
-    }
-    if (home_value) |home| {
-        if (try resolveFromHome(allocator, io, home)) |resolved| return resolved;
-    }
+    if (qemu_override) |override_path| return try resolveExplicitQemuOverride(allocator, io, override_path);
     return null;
 }
 
-fn resolveFromPath(
+fn resolveExplicitQemuOverride(
     allocator: std.mem.Allocator,
     io: std.Io,
-    path_value: []const u8,
+    override_path: []const u8,
 ) !?[]const u8 {
-    var dirs = std.mem.splitScalar(u8, path_value, ':');
-    while (dirs.next()) |dir| {
-        if (dir.len == 0) continue;
-        const candidate = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, qemu_name });
-        defer allocator.free(candidate);
-        if (try probeExecutable(allocator, io, candidate)) |resolved| return resolved;
+    if (!isSafeExplicitQemuPathSyntax(override_path)) return null;
+    const canonical = std.Io.Dir.realPathFileAbsoluteAlloc(io, override_path, allocator) catch return null;
+    errdefer allocator.free(canonical);
+    if (!isTrustedCanonicalQemuPath(canonical)) {
+        allocator.free(canonical);
+        return null;
     }
-    return null;
+    return canonical;
 }
 
-fn resolveFromHome(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    home_value: []const u8,
-) !?[]const u8 {
-    const candidate = try std.fmt.allocPrint(allocator, "{s}/.nix-profile/bin/{s}", .{ home_value, qemu_name });
-    defer allocator.free(candidate);
-    return try probeExecutable(allocator, io, candidate);
+fn isSafeExplicitQemuPathSyntax(path: []const u8) bool {
+    if (path.len == 0) return false;
+    if (std.mem.indexOfScalar(u8, path, 0) != null) return false;
+    if (!std.fs.path.isAbsolute(path)) return false;
+    if (!std.mem.eql(u8, std.fs.path.basename(path), qemu_name)) return false;
+    if (hasDotPathComponent(path)) return false;
+    if (hasPathPrefix(path, "/home/")) return false;
+    if (hasPathPrefix(path, "/tmp/")) return false;
+    if (hasPathPrefix(path, "/var/tmp/")) return false;
+    if (hasPathPrefix(path, "/dev/shm/")) return false;
+    if (std.mem.indexOf(u8, path, "/.zig-cache/") != null) return false;
+    if (std.mem.indexOf(u8, path, "/.omo/") != null) return false;
+    if (std.mem.indexOf(u8, path, "/.omx/") != null) return false;
+    return true;
 }
 
-fn probeExecutable(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    absolute_path: []const u8,
-) !?[]const u8 {
-    const file = std.Io.Dir.openFileAbsolute(io, absolute_path, .{}) catch return null;
-    file.close(io);
-    return try allocator.dupe(u8, absolute_path);
+fn isTrustedCanonicalQemuPath(path: []const u8) bool {
+    if (std.mem.eql(u8, path, "/usr/bin/" ++ qemu_name)) return true;
+    if (std.mem.eql(u8, path, "/run/current-system/sw/bin/" ++ qemu_name)) return true;
+    return isTrustedNixStoreQemuPath(path);
+}
+
+fn isTrustedNixStoreQemuPath(path: []const u8) bool {
+    const prefix = "/nix/store/";
+    if (!std.mem.startsWith(u8, path, prefix)) return false;
+    const rest = path[prefix.len..];
+    const first_slash = std.mem.indexOfScalar(u8, rest, '/') orelse return false;
+    if (first_slash == 0) return false;
+    return std.mem.eql(u8, rest[first_slash..], "/bin/" ++ qemu_name);
+}
+
+fn hasDotPathComponent(path: []const u8) bool {
+    var components = std.mem.splitScalar(u8, path, '/');
+    while (components.next()) |component| {
+        if (std.mem.eql(u8, component, ".") or std.mem.eql(u8, component, "..")) return true;
+    }
+    return false;
+}
+
+fn hasPathPrefix(path: []const u8, prefix: []const u8) bool {
+    return std.mem.eql(u8, path, prefix[0 .. prefix.len - 1]) or std.mem.startsWith(u8, path, prefix);
 }
 
 fn envValue(
@@ -106,12 +123,17 @@ fn envValue(
     };
 }
 
-test "resolveQemuBinFromEnv falls back to HOME when PATH is sanitized" {
+test "resolveQemuBinFromEnv ignores ambient PATH and HOME candidates" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     const io = std.Io.Threaded.global_single_threaded.io();
 
+    try makePath(&tmp.dir, "hostile-bin");
     try makePath(&tmp.dir, ".nix-profile/bin");
+    try tmp.dir.writeFile(io, .{
+        .sub_path = "hostile-bin/qemu-system-x86_64",
+        .data = "#!/bin/sh\n",
+    });
     try tmp.dir.writeFile(io, .{
         .sub_path = ".nix-profile/bin/qemu-system-x86_64",
         .data = "#!/bin/sh\n",
@@ -119,41 +141,88 @@ test "resolveQemuBinFromEnv falls back to HOME when PATH is sanitized" {
 
     const home_abs = try tmpPath(std.testing.allocator, tmp, ".");
     defer std.testing.allocator.free(home_abs);
-    const sanitized_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+    const path_value = try tmpPath(std.testing.allocator, tmp, "hostile-bin");
+    defer std.testing.allocator.free(path_value);
 
-    const resolved = try resolveQemuBinFromEnv(std.testing.allocator, null, sanitized_path, home_abs);
-    try std.testing.expect(resolved != null);
-    defer std.testing.allocator.free(resolved.?);
-    try std.testing.expect(std.mem.endsWith(u8, resolved.?, "/.nix-profile/bin/qemu-system-x86_64"));
+    const resolved = try resolveQemuBinFromEnv(std.testing.allocator, null, path_value, home_abs);
+    try std.testing.expectEqual(@as(?[]const u8, null), resolved);
 }
 
-test "build injects explicit qemu override into the daemon child env" {
+test "build injects only canonical trusted explicit qemu override into the daemon child env" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const io = std.Io.Threaded.global_single_threaded.io();
-
-    try makePath(&tmp.dir, ".nix-profile/bin");
-    try tmp.dir.writeFile(io, .{
-        .sub_path = ".nix-profile/bin/qemu-system-x86_64",
-        .data = "#!/bin/sh\n",
-    });
-
-    const home_abs = try tmpPath(std.testing.allocator, tmp, ".");
-    defer std.testing.allocator.free(home_abs);
+    const qemu_bin = "/usr/bin/qemu-system-x86_64";
     const path_value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = "/tmp" } };
 
-    var map = try buildFromEnv(std.testing.allocator, vars, true, null, path_value, home_abs);
+    var map = try buildFromEnv(std.testing.allocator, vars, true, qemu_bin, path_value, "/tmp");
     defer map.deinit();
 
-    const expected = try std.fmt.allocPrint(
-        std.testing.allocator,
-        "{s}/.nix-profile/bin/{s}",
-        .{ home_abs, qemu_name },
-    );
-    defer std.testing.allocator.free(expected);
+    if (try resolveQemuBinFromEnv(std.testing.allocator, qemu_bin, path_value, "/tmp")) |resolved| {
+        defer std.testing.allocator.free(resolved);
+        try std.testing.expectEqualStrings(resolved, map.get("ZIG_SCHEDULER_QEMU_BIN").?);
+    } else {
+        try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
+    }
+}
 
-    try std.testing.expectEqualStrings(expected, map.get("ZIG_SCHEDULER_QEMU_BIN").?);
+test "explicit qemu override syntax rejects traversal relative home and wrong basename" {
+    try std.testing.expect(!isSafeExplicitQemuPathSyntax("qemu-system-x86_64"));
+    try std.testing.expect(!isSafeExplicitQemuPathSyntax("/usr/../tmp/qemu-system-x86_64"));
+    try std.testing.expect(!isSafeExplicitQemuPathSyntax("/usr/bin/./qemu-system-x86_64"));
+    try std.testing.expect(!isSafeExplicitQemuPathSyntax("/home/operator/bin/qemu-system-x86_64"));
+    try std.testing.expect(!isSafeExplicitQemuPathSyntax("/usr/bin/sh"));
+    try std.testing.expect(isSafeExplicitQemuPathSyntax("/usr/bin/qemu-system-x86_64"));
+    try std.testing.expect(isSafeExplicitQemuPathSyntax("/run/current-system/sw/bin/qemu-system-x86_64"));
+    try std.testing.expect(isSafeExplicitQemuPathSyntax("/nix/store/abc123-qemu/bin/qemu-system-x86_64"));
+}
+
+test "canonical qemu override allowlist rejects symlink escape destinations" {
+    try std.testing.expect(isTrustedCanonicalQemuPath("/usr/bin/qemu-system-x86_64"));
+    try std.testing.expect(isTrustedCanonicalQemuPath("/run/current-system/sw/bin/qemu-system-x86_64"));
+    try std.testing.expect(isTrustedCanonicalQemuPath("/nix/store/abc123-qemu/bin/qemu-system-x86_64"));
+    try std.testing.expect(!isTrustedCanonicalQemuPath("/home/operator/.nix-profile/bin/qemu-system-x86_64"));
+    try std.testing.expect(!isTrustedCanonicalQemuPath("/tmp/qemu-system-x86_64"));
+    try std.testing.expect(!isTrustedCanonicalQemuPath("/usr/local/bin/qemu-system-x86_64"));
+    try std.testing.expect(!isTrustedCanonicalQemuPath("/nix/store/abc123-qemu/sbin/qemu-system-x86_64"));
+    try std.testing.expect(!isTrustedCanonicalQemuPath("/nix/store/abc123-qemu/bin/qemu-kvm"));
+}
+
+test "build rejects explicit qemu override from home and traversal paths" {
+    const path_value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+    const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = "/home/operator" } };
+    const rejected = [_][]const u8{
+        "/home/operator/bin/qemu-system-x86_64",
+        "/usr/../home/operator/bin/qemu-system-x86_64",
+        "/usr/bin/../local/bin/qemu-system-x86_64",
+        "/usr/bin/qemu-kvm",
+    };
+    for (rejected) |override_path| {
+        var map = try buildFromEnv(std.testing.allocator, vars, true, override_path, path_value, "/home/operator");
+        defer map.deinit();
+        try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
+    }
+}
+
+test "build does not inject explicit qemu override from writable temp paths" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const io = std.Io.Threaded.global_single_threaded.io();
+
+    try tmp.dir.writeFile(io, .{
+        .sub_path = "qemu-system-x86_64",
+        .data = "#!/bin/sh\n",
+    });
+
+    const tmp_abs = try tmpPath(std.testing.allocator, tmp, "qemu-system-x86_64");
+    defer std.testing.allocator.free(tmp_abs);
+    const path_value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+    const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = "/tmp" } };
+
+    var map = try buildFromEnv(std.testing.allocator, vars, true, tmp_abs, path_value, "/tmp");
+    defer map.deinit();
+
+    try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
 }
 
 fn makePath(dir: *std.Io.Dir, sub_path: []const u8) !void {

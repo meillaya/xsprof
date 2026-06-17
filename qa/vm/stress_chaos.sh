@@ -150,7 +150,7 @@ state_after="$(read_fact /sys/kernel/sched_ext/state)"
 ops_after="$(read_fact /sys/kernel/sched_ext/root/ops)"
 events_after="$(read_fact /sys/kernel/sched_ext/events)"
 qemu_leftovers=false
-if pgrep -f 'qemu-system.*zig-scheduler' >/dev/null 2>&1; then qemu_leftovers=true; fi
+if ps -eo comm=,args= | awk '$1 ~ /^qemu-system/ && $0 ~ /zig-scheduler/ { found=1 } END { exit(found ? 0 : 1) }'; then qemu_leftovers=true; fi
 tmux_leftovers=false
 if command -v tmux >/dev/null 2>&1 && tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -q '^ulw-qa-T26-leftover$'; then tmux_leftovers=true; fi
 

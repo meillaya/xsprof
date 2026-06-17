@@ -114,10 +114,10 @@ check_live_microvm_refusal() {
     rm -rf "$state_dir" "$out"
     fail "$label live-runner refusal was not host-safe"
   }
-  if grep -q 'invalid_action_id' "$out"; then
+  if grep -q 'invalid_field' "$out"; then
     cat "$out" >&2 || true
     rm -rf "$state_dir" "$out"
-    fail "$label overfit to invalid action id instead of live runner"
+    fail "$label overfit to validation refusal instead of live runner"
   fi
   if grep -q 'host_mutation":true' "$out"; then
     cat "$out" >&2 || true
@@ -143,7 +143,156 @@ check_live_microvm_refusal() {
     fail "$label changed zig-out file list"
   fi
   rm -rf "$state_dir" "$out"
-  printf 'PASS: %s live microVM refused reason=%s host_mutation=false\n' "$label" "$reason"
+  printf 'PASS: %s action=run_lab_microvm_live live microVM refused reason=%s host_mutation=false\n' "$label" "$reason"
+}
+
+check_malformed_live_action_refusal() {
+  local label="$1"
+  local action_json="$2"
+  local expected_reason="$3"
+  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-$label"
+  local out rc before after
+  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
+  rm -rf "$state_dir"
+  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  set +e
+  printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
+  rc=$?
+  set -e
+  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  if [ "$rc" -ne 0 ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label daemon exited before structured validation refusal"
+  fi
+  grep -q "$expected_reason" "$out" || {
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label missing expected validation reason $expected_reason"
+  }
+  if grep -q 'host_mutation":true' "$out"; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label reported host mutation"
+  fi
+  if [ "$before" != "$after" ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label changed zig-out file list"
+  fi
+  rm -rf "$state_dir" "$out"
+  printf 'PASS: %s live action validation refused reason=%s host_mutation=false\n' "$label" "$expected_reason"
+}
+
+check_state_dir_rejected() {
+  local label="$1"
+  local state_dir="$2"
+  local out rc before after
+  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
+  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  set +e
+  printf '%s\n' "$(live_microvm_action_json "$label")" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
+  rc=$?
+  set -e
+  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  if [ "$rc" -eq 0 ]; then
+    cat "$out" >&2 || true
+    rm -f "$out"
+    fail "$label accepted unsafe daemon state dir $state_dir"
+  fi
+  if [ -e "$state_dir" ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label created unsafe daemon state dir $state_dir"
+  fi
+  grep -Eiq 'usage|state|invalid|foreground' "$out" || {
+    cat "$out" >&2 || true
+    rm -f "$out"
+    fail "$label missing state-dir refusal explanation"
+  }
+  if [ "$before" != "$after" ]; then
+    cat "$out" >&2 || true
+    rm -f "$out"
+    fail "$label changed zig-out file list"
+  fi
+  rm -f "$out"
+  printf 'PASS: %s rejected unsafe daemon state dir host_mutation=false\n' "$label"
+}
+
+check_tui_key_flow() {
+  local label="$1"
+  local keys="$2"
+  local expected_followup="${3:-}"
+  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-tui-$label"
+  local transcript=".omo/evidence/task-T21-${label}-tui-transcript.txt"
+  local out rc before after journal
+  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
+  rm -rf "$state_dir" "$transcript"
+  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  set +e
+  python3 tools/tui_live_vm_pty_test.py \
+    --tui zig-out/bin/zig-scheduler-tui \
+    --daemon zig-out/bin/zig-scheduler-daemon \
+    --state-dir "$state_dir" \
+    --transcript "$transcript" \
+    --keys "$keys" \
+    --timeout-seconds 60 >"$out" 2>&1
+  rc=$?
+  set -e
+  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  if [ "$rc" -ne 0 ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label TUI key flow failed"
+  fi
+  journal="$state_dir/events.jsonl"
+  if [ ! -f "$journal" ]; then
+    cat "$out" >&2 || true
+    cat "$transcript" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label missing daemon journal"
+  fi
+  grep -q 'run_lab_microvm_live' "$journal" || {
+    cat "$journal" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label did not dispatch live microVM action"
+  }
+  if [ -n "$expected_followup" ]; then
+    grep -q "\"action\":\"$expected_followup\"" "$journal" || {
+      cat "$journal" >&2 || true
+      cat "$transcript" >&2 || true
+      rm -rf "$state_dir" "$out"
+      fail "$label did not dispatch expected follow-up action $expected_followup"
+    }
+    grep -E "\"action\":\"$expected_followup\".*\"status\":\"(REFUSE|SKIP|PASS|refused|accepted|active|queued)\"" "$journal" >/dev/null || {
+      cat "$journal" >&2 || true
+      cat "$transcript" >&2 || true
+      rm -rf "$state_dir" "$out"
+      fail "$label missing bounded status for $expected_followup"
+    }
+  fi
+  grep -Eq '"status":"(REFUSE|SKIP|PASS|refused|accepted|active|queued)"' "$journal" || {
+    cat "$journal" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label missing bounded daemon status"
+  }
+  if grep -q 'host_mutation":true' "$journal" "$transcript"; then
+    cat "$journal" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label reported host mutation"
+  fi
+  if grep -Eiq 'intercepted|/bin/sh -c|bash -c|; rm|\$\(' "$journal" "$transcript"; then
+    cat "$journal" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label showed shell/host command injection markers"
+  fi
+  if [ "$before" != "$after" ]; then
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label changed zig-out file list"
+  fi
+  printf 'PASS: %s TUI keys=%s dispatched run_lab_microvm_live with host_mutation=false\n' "$label" "$keys"
+  rm -rf "$state_dir" "$out"
 }
 
 zig build --summary all >/dev/null
@@ -159,18 +308,63 @@ check_refusal scheduler-enable zig-out/bin/zig-scheduler scheduler enable
 check_daemon_event_refusal daemon-partial-attach '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
 check_daemon_event_refusal daemon-rollback '{"action":"rollback","rollback_id":"RB-demo"}'
 check_live_microvm_refusal daemon-live-microvm "$(live_microvm_action_json daemon-live-microvm)"
+check_malformed_live_action_refusal malformed-live-action-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad;id","run_id":"unsafe-matrix-bad-action","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-action"}' 'malformed_action'
+check_malformed_live_action_refusal malformed-live-run-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-run-id","run_id":"../escape","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-run"}' 'invalid_field'
+check_malformed_live_action_refusal malformed-live-audit '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-audit","run_id":"unsafe-matrix-bad-audit","audit_id":"AUD;bad","rollback_id":"RB-bad-audit"}' 'malformed_action'
+check_malformed_live_action_refusal malformed-live-rollback '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-rollback","run_id":"unsafe-matrix-bad-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB;bad"}' 'malformed_action'
+check_state_dir_rejected state-dir-absolute "/tmp/zig-scheduler-unsafe-absolute-$$"
+check_state_dir_rejected state-dir-traversal ".zig-cache/tmp/../zig-scheduler-unsafe-traversal"
+check_tui_key_flow tui-mq mq
+check_tui_key_flow tui-mbbq mbbq rollback_lab_run
+check_tui_key_flow tui-mssq mssq stop_lab_run
 
-hostile_bin="$repo_root/.omo/evidence/task-T14-hostile-bin"
-rm -rf "$hostile_bin"
+hostile_bin="$repo_root/.omo/evidence/task-T21-hostile-bin"
+hostile_qemu_sentinel="$repo_root/.omo/evidence/task-T21-hostile-qemu-sentinel.txt"
+rm -rf "$hostile_bin" "$hostile_qemu_sentinel"
 mkdir -p "$hostile_bin"
-cat >"$hostile_bin/zig-scheduler-daemon" <<'SH'
+cat >"$hostile_bin/qemu-system-x86_64" <<SH
 #!/usr/bin/env bash
-echo intercepted-daemon >&2
+printf 'hostile qemu executed\n' >"$hostile_qemu_sentinel"
+exit 96
+SH
+chmod +x "$hostile_bin/qemu-system-x86_64"
+PATH="$hostile_bin:$PATH" check_live_microvm_refusal hostile-path-qemu-live-microvm "$(live_microvm_action_json hostile-path-qemu-live-microvm)"
+if [ -e "$hostile_qemu_sentinel" ]; then
+  cat "$hostile_qemu_sentinel" >&2 || true
+  rm -rf "$hostile_bin"
+  fail 'hostile PATH qemu-system-x86_64 was executed'
+fi
+printf 'PASS: hostile PATH qemu-system-x86_64 sentinel absent host_mutation=false\n'
+rm -rf "$hostile_bin"
+
+
+home_hostile_bin="$HOME/zig-scheduler-T21-hostile-qemu-$$"
+home_hostile_qemu="$home_hostile_bin/qemu-system-x86_64"
+home_hostile_sentinel="$repo_root/.omo/evidence/task-T21-home-hostile-qemu-sentinel.txt"
+rm -rf "$home_hostile_bin" "$home_hostile_sentinel"
+mkdir -p "$home_hostile_bin"
+cat >"$home_hostile_qemu" <<SH
+#!/usr/bin/env bash
+printf 'home hostile qemu executed\n' >"$home_hostile_sentinel"
 exit 97
 SH
-chmod +x "$hostile_bin/zig-scheduler-daemon"
-PATH="$hostile_bin:$PATH" check_daemon_event_refusal hostile-path-daemon-partial '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
-PATH="$hostile_bin:$PATH" check_live_microvm_refusal hostile-path-daemon-live-microvm "$(live_microvm_action_json hostile-path-daemon-live-microvm)"
-rm -rf "$hostile_bin"
+chmod +x "$home_hostile_qemu"
+ZIG_SCHEDULER_QEMU_BIN="$home_hostile_qemu" check_live_microvm_refusal hostile-home-qemu-override "$(live_microvm_action_json hostile-home-qemu-override)"
+if [ -e "$home_hostile_sentinel" ]; then
+  cat "$home_hostile_sentinel" >&2 || true
+  rm -rf "$home_hostile_bin"
+  fail 'hostile /home ZIG_SCHEDULER_QEMU_BIN was executed'
+fi
+printf 'PASS: hostile /home ZIG_SCHEDULER_QEMU_BIN rejected sentinel absent host_mutation=false\n'
+
+traversal_qemu="/usr/../${home_hostile_qemu#/}"
+ZIG_SCHEDULER_QEMU_BIN="$traversal_qemu" check_live_microvm_refusal hostile-traversal-qemu-override "$(live_microvm_action_json hostile-traversal-qemu-override)"
+if [ -e "$home_hostile_sentinel" ]; then
+  cat "$home_hostile_sentinel" >&2 || true
+  rm -rf "$home_hostile_bin"
+  fail 'hostile traversal ZIG_SCHEDULER_QEMU_BIN was executed'
+fi
+printf 'PASS: hostile traversal ZIG_SCHEDULER_QEMU_BIN rejected sentinel absent host_mutation=false\n'
+rm -rf "$home_hostile_bin"
 
 printf 'PASS: unsafe CLI matrix\n'
