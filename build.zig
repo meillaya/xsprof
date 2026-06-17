@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, exe, "run", "Run fail-closed Linux scheduler operator CLI", .{});
     addRunStep(b, preflight_exe, "linux-preflight", "Read-only Linux scheduler host preflight", .{});
     addRunStep(b, tui_exe, "tui", "Render the Linux scheduler operator TUI", .{});
+    addTuiLiveVmStep(b, tui_exe, daemon_exe);
     addRunStep(b, daemon_exe, "daemon", "Run disabled-safe foreground scheduler daemon", .{});
     const tui_pty_step = addTuiPtyStep(b, tui_exe, daemon_exe);
     const daemon_stdio_step = addDaemonStdioStep(b, daemon_exe);
@@ -88,6 +89,30 @@ fn addTuiPtyStep(b: *Build, tui_exe: *Compile, daemon_exe: *Compile) *Build.Step
     const tui_pty_step = b.step("tui-pty", "Run root TUI PTY snapshot smoke test");
     tui_pty_step.dependOn(&tui_pty_exit_test.step);
     return tui_pty_step;
+}
+
+fn addTuiLiveVmStep(b: *Build, tui_exe: *Compile, daemon_exe: *Compile) void {
+    const run_cmd = b.addRunArtifact(tui_exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    } else {
+        run_cmd.addArgs(&.{
+            "--interactive",
+            "--screen",
+            "vm-lab",
+            "--daemon-state-dir",
+            ".omo/evidence/tui-live-vm",
+            "--daemon-bin",
+        });
+        run_cmd.addArtifactArg(daemon_exe);
+    }
+
+    const run_step = b.step(
+        "tui-live-vm",
+        "Run fail-closed, VM-gated live microVM lab TUI (press m/b/s inside TUI)",
+    );
+    run_step.dependOn(&run_cmd.step);
 }
 
 fn addModule(

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Screen = enum { preflight, sched_ext, controller, observer, help };
+pub const Screen = enum { preflight, sched_ext, vm_lab, controller, observer, help };
 
 pub const Options = struct {
     snapshot: bool = false,
@@ -51,13 +51,24 @@ pub fn parse(args: []const []const u8) !Options {
 }
 
 pub fn writeUsage(writer: anytype, exe_name: []const u8) !void {
-    try writer.print("usage: {s} (--snapshot|--interactive [--test-mode]) [--daemon-state-dir <dir>] [--daemon-bin <path>] [--fixture <preflight.json>] --screen preflight|sched-ext|controller|observer|help [--width <cols>] [--height <rows>]\n", .{exe_name});
+    try writer.print(
+        "usage: {s} (--snapshot|--interactive [--test-mode]) [--daemon-state-dir <dir>] [--daemon-bin <path>] [--fixture <preflight.json>] --screen preflight|sched-ext|vm-lab|controller|observer|help [--width <cols>] [--height <rows>]\n\n" ++
+            "First-class live VM lab entrypoint:\n" ++
+            "  zig build tui-live-vm\n" ++
+            "  zig build tui-live-vm -- --help\n\n" ++
+            "Default tui-live-vm command expands to this installed-binary command:\n" ++
+            "  zig-out/bin/zig-scheduler-tui --interactive --screen vm-lab --daemon-state-dir .omo/evidence/tui-live-vm --daemon-bin zig-out/bin/zig-scheduler-daemon\n\n" ++
+            "The TUI does not attach sched_ext on the host. A live lab requires QEMU/KVM, bpftool/libbpf, BTF, a sched_ext-capable kernel tuple, and a disposable VM bundle.\n" ++
+            "Keys: m starts the VM lab action, b/b rolls back, s/s safe-stops then rolls back, q quits.\n",
+        .{exe_name},
+    );
 }
 
 pub fn screenTitle(screen: Screen) []const u8 {
     return switch (screen) {
-        .preflight => "Home / Preflight",
+        .preflight => "operator dashboard home",
         .sched_ext => "sched_ext Readiness",
+        .vm_lab => "live microVM lab",
         .controller => "Controller Dry Run",
         .observer => "Observer",
         .help => "Help",
@@ -67,6 +78,7 @@ pub fn screenTitle(screen: Screen) []const u8 {
 fn parseScreen(raw: []const u8) !Screen {
     if (std.mem.eql(u8, raw, "preflight")) return .preflight;
     if (std.mem.eql(u8, raw, "sched-ext")) return .sched_ext;
+    if (std.mem.eql(u8, raw, "vm-lab")) return .vm_lab;
     if (std.mem.eql(u8, raw, "controller")) return .controller;
     if (std.mem.eql(u8, raw, "observer")) return .observer;
     if (std.mem.eql(u8, raw, "help")) return .help;
@@ -90,4 +102,16 @@ test "tui args parse daemon options only in interactive mode" {
     try std.testing.expect(options.interactive);
     try std.testing.expectEqualStrings(".omo/evidence/tui-daemon", options.daemon_state_dir.?);
     try std.testing.expectError(error.InvalidArguments, parse(&.{ "--snapshot", "--daemon-state-dir", ".omo/evidence/tui-daemon" }));
+}
+
+test "tui usage documents live VM lab command without host attach claim" {
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(std.testing.allocator, &buffer);
+    try writeUsage(&writer.writer, "zig-scheduler-tui");
+    buffer = writer.toArrayList();
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig build tui-live-vm -- --help") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig-out/bin/zig-scheduler-tui --interactive --screen vm-lab") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "does not attach sched_ext on the host") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "QEMU/KVM") != null);
 }

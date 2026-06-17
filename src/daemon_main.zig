@@ -5,7 +5,7 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const argv = try init.minimal.args.toSlice(init.arena.allocator());
     const options = linux.control.daemon.parseArgs(argv[1..]) catch {
-        try writeStderr("usage: zig-scheduler-daemon --foreground --state-dir <relative-dir> [--stream-runtime <relative-jsonl>] [--stream-from <sequence>]\n");
+        try writeStderr("usage: zig-scheduler-daemon --foreground [--follow] --state-dir <relative-dir> [--stream-runtime <relative-jsonl>] [--stream-from <sequence>]\n");
         std.process.exit(2);
     };
     try runForeground(allocator, init.io, options);
@@ -18,6 +18,8 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.contro
     var output: std.ArrayList(u8) = .empty;
     defer output.deinit(allocator);
     var tracker = linux.control.journal.Tracker{};
+    var flushed_bytes: usize = 0;
+    var follow_flush = FollowFlush{ .enabled = options.follow, .flushed_bytes = &flushed_bytes };
     defer tracker.deinit(allocator);
     const existing = dir.readFileAlloc(io, "events.jsonl", allocator, .limited(linux.control.daemon.max_journal_bytes)) catch |err| switch (err) {
         error.FileNotFound => null,
@@ -27,18 +29,21 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.contro
     if (existing) |raw| {
         defer allocator.free(raw);
         try output.appendSlice(allocator, raw);
+        if (raw.len != 0 and raw[raw.len - 1] != '\n') try output.append(allocator, '\n');
         seq = (try tracker.loadExisting(allocator, raw)).next_seq;
+        if (options.follow) flushed_bytes = output.items.len;
     }
     const git_sha = try readGitSha(allocator, io);
     defer allocator.free(git_sha);
     try appendReady(allocator, &output, seq);
     seq += 1;
+    try follow_flush.flush(output.items);
 
     if (options.runtime_stream_path) |path| {
         const raw = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(linux.control.daemon.max_journal_bytes));
         defer allocator.free(raw);
         try linux.control.stream.appendRuntimeFile(allocator, &output, raw, &seq, options.stream_from, git_sha);
-        try writeStdout(output.items);
+        if (options.follow) try follow_flush.flush(output.items) else try writeStdout(output.items);
         try dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
         return;
     }
@@ -49,14 +54,26 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, options: linux.contro
         if (std.mem.trim(u8, line, " \t\r\n").len == 0) continue;
         if (seq > linux.control.daemon.max_events_per_run) {
             try appendOverflow(allocator, &output, seq);
+            try follow_flush.flush(output.items);
             break;
         }
-        try appendAction(allocator, io, &output, &tracker, git_sha, line, &seq);
+        try appendAction(allocator, io, &output, &tracker, git_sha, line, &seq, &follow_flush);
+        try follow_flush.flush(output.items);
     }
 
-    try writeStdout(output.items);
+    if (options.follow) try follow_flush.flush(output.items) else try writeStdout(output.items);
     try dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
 }
+
+const FollowFlush = struct {
+    enabled: bool,
+    flushed_bytes: *usize,
+
+    fn flush(self: *FollowFlush, bytes: []const u8) !void {
+        if (!self.enabled) return;
+        try flushNewOutput(bytes, self.flushed_bytes);
+    }
+};
 
 fn appendReady(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
     var event: std.ArrayList(u8) = .empty;
@@ -75,6 +92,7 @@ fn appendAction(
     git_sha: []const u8,
     line: []const u8,
     seq: *usize,
+    follow_flush: *FollowFlush,
 ) !void {
     var parsed = linux.control.protocol.parseActionJson(allocator, std.mem.trim(u8, line, " \t\r\n")) catch {
         try appendMalformed(allocator, output, seq.*);
@@ -105,6 +123,13 @@ fn appendAction(
     }
     if (parsed.value.kind == .run_lab_vm) {
         try linux.control.rollback.handleRunLabVm(allocator, io, output, tracker, parsed.value, seq);
+        return;
+    }
+    if (parsed.value.kind == .run_lab_microvm_live) {
+        try linux.control.lab_runner.appendMicrovmLiveStartEvents(allocator, output, parsed.value, seq);
+        try follow_flush.flush(output.items);
+        try linux.control.lab_runner.runMicrovmLive(allocator, io, output, parsed.value, seq, true);
+        try follow_flush.flush(output.items);
         return;
     }
     if (linux.control.rollback.isRollbackAction(parsed.value.kind)) {
@@ -197,11 +222,14 @@ fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
     return allocator.dupe(u8, trimmed);
 }
 
+fn flushNewOutput(bytes: []const u8, flushed_bytes: *usize) !void {
+    if (flushed_bytes.* >= bytes.len) return;
+    try writeStdout(bytes[flushed_bytes.*..]);
+    flushed_bytes.* = bytes.len;
+}
+
 fn writeStdout(bytes: []const u8) !void {
-    var buffer: [8192]u8 = undefined;
-    var writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &buffer);
-    try writer.interface.writeAll(bytes);
-    try writer.interface.flush();
+    try std.Io.File.stdout().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), bytes);
 }
 
 fn writeStderr(bytes: []const u8) !void {

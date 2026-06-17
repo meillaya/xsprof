@@ -1,0 +1,27 @@
+{
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "status": "PASS",
+  "evidence_mode": "vm-live",
+  "vm_kind": "vm-live",
+  "mode": "vm-required",
+  "lab_scope": "lab-only vm guest",
+  "bundle_path": "evidence/lab/run-all/microvm-live-stale/summary.json",
+  "cleanup_status": "cleanup receipt PASS but stale bundle",
+  "current_stage": "validation",
+  "incident_status": "unsafe_to_assume",
+  "runtime_samples": "runtime samples x3",
+  "runtime_ops": "zigsched_minimal",
+  "runtime_counters": "nr_rejected=0 samples=3",
+  "rollback_result": "PASS",
+  "rollback_id": "RB-stale-bundle",
+  "audit_id": "AUD-stale-bundle",
+  "release_status": "closed_stale_bundle",
+  "release_eligible_live_proof": false,
+  "release_use": false,
+  "vm_marker": "/run/zig-scheduler-vm-lab.marker",
+  "kernel": { "release": "6.12.0-sched-ext-lab", "arch": "x86_64" },
+  "stages": [
+    { "stage": "validation", "status": "REFUSE", "reason": "git/BPF freshness mismatch" },
+    { "stage": "release_gate", "status": "SKIP", "reason": "stale bundle rejected" }
+  ]
+}

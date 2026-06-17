@@ -4,6 +4,13 @@ const tui = @import("linux_scheduler_tui");
 pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const argv = try init.minimal.args.toSlice(init.arena.allocator());
+    if (argv.len > 1 and (std.mem.eql(u8, argv[1], "--help") or std.mem.eql(u8, argv[1], "help"))) {
+        var stdout_buffer: [2048]u8 = undefined;
+        var stdout_writer = std.Io.File.stdout().writer(std.Io.Threaded.global_single_threaded.io(), &stdout_buffer);
+        try tui.writeUsage(&stdout_writer.interface, "zig-scheduler-tui");
+        try stdout_writer.interface.flush();
+        return;
+    }
     const options = tui.parseArgs(argv[1..]) catch {
         var stderr_buffer: [1024]u8 = undefined;
         var stderr_writer = std.Io.File.stderr().writer(std.Io.Threaded.global_single_threaded.io(), &stderr_buffer);
@@ -22,7 +29,8 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
     const original_termios = enableRawMode();
     defer if (original_termios) |original| std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, original) catch {};
 
-    const initial = try tui.renderInteractive(allocator, options, null);
+    var current_options = options;
+    const initial = try tui.renderInteractive(allocator, current_options, null);
     defer allocator.free(initial);
     try writeStdout(initial);
 
@@ -34,14 +42,26 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
             error.EndOfStream => break,
             else => return err,
         };
-        if (key == 'q' or key == 3) break;
-        const result = tui.interaction.controlForKey(key, &control_state, options.test_mode) orelse continue;
-        const status = try controlStatus(allocator, io, options, result);
+        if (key == 3) break;
+        const result = tui.interaction.controlForKey(key, &control_state, current_options.test_mode) orelse continue;
+        applyNavigation(key, &current_options);
+        const status = try controlStatus(allocator, io, current_options, result);
         defer status.deinit(allocator);
-        const frame = try tui.renderInteractiveStatus(allocator, options, status.text);
+        const frame = try tui.renderInteractiveStatus(allocator, current_options, status.text);
         defer allocator.free(frame);
         try writeStdout("\n");
         try writeStdout(frame);
+        if (key == 'q') break;
+    }
+}
+
+fn applyNavigation(key: u8, options: *tui.Options) void {
+    const binding = tui.actions.bindingForKey(key) orelse return;
+    switch (binding.kind) {
+        .help => options.screen = .help,
+        .home => options.screen = .preflight,
+        .run_vm_lab => options.screen = .vm_lab,
+        else => {},
     }
 }
 

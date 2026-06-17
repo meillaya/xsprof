@@ -15,6 +15,7 @@ pub const ActionKind = enum {
     preflight,
     run_lab_host_safe,
     run_lab_vm,
+    run_lab_microvm_live,
     verifier_only,
     partial_attach,
     observe,
@@ -29,7 +30,13 @@ pub const EventKind = enum {
     state_changed,
     stage_started,
     stage_finished,
+    microvm_boot,
+    vm_marker,
+    bpf_register,
     runtime_sample,
+    rollback,
+    cleanup,
+    validation,
     incident,
     refusal,
 };
@@ -69,13 +76,21 @@ pub const DaemonEvent = struct {
     kind: EventKind,
     action_id: []const u8,
     status: []const u8,
+    live_bundle_path: []const u8 = "",
 
     pub fn toJson(self: DaemonEvent, allocator: std.mem.Allocator) ![]const u8 {
-        return std.fmt.allocPrint(
-            allocator,
-            "{{\"schema\":\"{s}\",\"event\":\"{s}\",\"action_id\":\"{s}\",\"status\":\"{s}\"}}",
+        if (self.kind == .validation and self.live_bundle_path.len == 0) return error.InvalidField;
+        var list: std.ArrayList(u8) = .empty;
+        errdefer list.deinit(allocator);
+        var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &list);
+        try writer.writer.print(
+            "{{\"schema\":\"{s}\",\"event\":\"{s}\",\"action_id\":\"{s}\",\"status\":\"{s}\",\"host_mutation\":false",
             .{ event_schema, @tagName(self.kind), self.action_id, self.status },
         );
+        try appendOptionalJsonField(&writer.writer, "live_bundle_path", self.live_bundle_path);
+        try writer.writer.writeByte('}');
+        list = writer.toArrayList();
+        return try list.toOwnedSlice(allocator);
     }
 };
 
@@ -112,6 +127,7 @@ const RawAction = struct {
     command: ?[]const u8 = null,
     shell: ?[]const u8 = null,
     argv: ?[]const []const u8 = null,
+    host_mutation: ?bool = null,
 };
 
 pub const ParsedAction = struct {
@@ -135,7 +151,7 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
     if (raw.schema) |found| {
         if (!std.mem.eql(u8, found, schema)) return error.InvalidSchema;
     }
-    if (raw.command != null or raw.shell != null or raw.argv != null) return error.InvalidField;
+    if (raw.command != null or raw.shell != null or raw.argv != null or raw.host_mutation != null) return error.InvalidField;
 
     const kind = parseActionKind(raw.action) orelse return error.UnknownAction;
     try validateOptional(raw.action_id);
@@ -282,4 +298,79 @@ test "operator action protocol accepts rollback lab targets" {
     const rendered = try parsed.value.toJson(std.testing.allocator);
     defer std.testing.allocator.free(rendered);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "target_action_id") != null);
+}
+
+test "operator action protocol accepts live microvm action without execution fields" {
+    const parsed = try parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-1","run_id":"live-demo","audit_id":"AUD-live-demo","rollback_id":"RB-live-demo"}
+    );
+    defer parsed.deinit();
+    try std.testing.expectEqual(ActionKind.run_lab_microvm_live, parsed.value.kind);
+    try std.testing.expectEqualStrings("live-demo", parsed.value.run_id);
+
+    const rendered = try parsed.value.toJson(std.testing.allocator);
+    defer std.testing.allocator.free(rendered);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "run_lab_microvm_live") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "command") == null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "shell") == null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "argv") == null);
+}
+
+test "operator action protocol rejects live microvm command smuggling" {
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"live-demo","argv":["qemu-system-x86_64"]}
+    ));
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"live-demo","command":"qa/vm/run_microvm_live_lab.sh"}
+    ));
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"live-demo","shell":"sh"}
+    ));
+}
+
+test "operator action protocol rejects live microvm host mutation flags" {
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"live-demo","host_mutation":true}
+    ));
+}
+
+test "daemon event protocol includes live microvm lifecycle event kinds" {
+    const lifecycle = [_]EventKind{
+        .microvm_boot,
+        .vm_marker,
+        .bpf_register,
+        .runtime_sample,
+        .rollback,
+        .cleanup,
+    };
+    inline for (lifecycle) |kind| {
+        const rendered = try (DaemonEvent{
+            .kind = kind,
+            .action_id = "live-1",
+            .status = "accepted",
+        }).toJson(std.testing.allocator);
+        defer std.testing.allocator.free(rendered);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "host_mutation\":false") != null);
+    }
+}
+
+test "daemon validation event requires live bundle path" {
+    try std.testing.expectError(error.InvalidField, (DaemonEvent{
+        .kind = .validation,
+        .action_id = "live-1",
+        .status = "PASS",
+    }).toJson(std.testing.allocator));
+}
+
+test "daemon event protocol exposes live bundle path for validation events" {
+    const rendered = try (DaemonEvent{
+        .kind = .validation,
+        .action_id = "live-1",
+        .status = "PASS",
+        .live_bundle_path = "evidence/lab/run-all/microvm-live-tui-demo/summary.json",
+    }).toJson(std.testing.allocator);
+    defer std.testing.allocator.free(rendered);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\"live_bundle_path\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "microvm-live-tui-demo") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "host_mutation\":false") != null);
 }

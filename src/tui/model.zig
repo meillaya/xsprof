@@ -13,6 +13,9 @@ pub fn live(report: linux.PreflightReport) fixture.SnapshotModel {
         .sched_switch_all = factText(report.sched_ext.switch_all),
         .sched_nr_rejected = factText(report.sched_ext.nr_rejected),
         .btf_status = @tagName(report.btf.status),
+        .lab_scope = "host fail-closed",
+        .bundle_path = "none",
+        .cleanup_status = "not-started",
     };
 }
 

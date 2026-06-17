@@ -11,6 +11,7 @@ pub const Options = struct {
     state_dir: []const u8,
     runtime_stream_path: ?[]const u8 = null,
     stream_from: usize = 0,
+    follow: bool = false,
 };
 
 pub fn parseArgs(args: []const []const u8) DaemonError!Options {
@@ -18,11 +19,14 @@ pub fn parseArgs(args: []const []const u8) DaemonError!Options {
     var state_dir: []const u8 = "";
     var runtime_stream_path: ?[]const u8 = null;
     var stream_from: usize = 0;
+    var follow = false;
     var index: usize = 0;
     while (index < args.len) : (index += 1) {
         const arg = args[index];
         if (std.mem.eql(u8, arg, "--foreground")) {
             foreground = true;
+        } else if (std.mem.eql(u8, arg, "--follow")) {
+            follow = true;
         } else if (std.mem.eql(u8, arg, "--state-dir")) {
             index += 1;
             if (index >= args.len) return error.InvalidArgs;
@@ -47,6 +51,7 @@ pub fn parseArgs(args: []const []const u8) DaemonError!Options {
         .state_dir = state_dir,
         .runtime_stream_path = runtime_stream_path,
         .stream_from = stream_from,
+        .follow = follow,
     };
 }
 
@@ -110,6 +115,8 @@ fn writeRefusal(writer: anytype, seq: usize, reason: []const u8) !void {
 }
 
 test "daemon args require foreground state dir and reject path traversal" {
+    const followed = try parseArgs(&.{ "--foreground", "--follow", "--state-dir", ".omo/evidence/task-T08-state" });
+    try std.testing.expect(followed.follow);
     _ = try parseArgs(&.{ "--foreground", "--state-dir", ".omo/evidence/task-T08-state" });
     try std.testing.expectError(error.InvalidArgs, parseArgs(&.{ "--state-dir", ".omo/evidence/task-T08-state" }));
     try std.testing.expectError(error.InvalidStateDir, parseArgs(&.{ "--foreground", "--state-dir", "../bad" }));

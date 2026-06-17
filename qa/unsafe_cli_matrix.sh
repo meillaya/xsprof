@@ -88,6 +88,7 @@ check_refusal controller-mutate zig-out/bin/zig-scheduler controller mutate
 check_refusal scheduler-enable zig-out/bin/zig-scheduler scheduler enable
 check_daemon_event_refusal daemon-partial-attach '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
 check_daemon_event_refusal daemon-rollback '{"action":"rollback","rollback_id":"RB-demo"}'
+check_daemon_event_refusal daemon-live-microvm '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"unsafe-matrix-live"}'
 
 hostile_bin=".omo/evidence/task-T14-hostile-bin"
 rm -rf "$hostile_bin"
@@ -99,6 +100,7 @@ exit 97
 SH
 chmod +x "$hostile_bin/zig-scheduler-daemon"
 PATH="$hostile_bin:$PATH" check_daemon_event_refusal hostile-path-daemon-partial '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
+PATH="$hostile_bin:$PATH" check_daemon_event_refusal hostile-path-daemon-live-microvm '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","run_id":"unsafe-matrix-live"}'
 rm -rf "$hostile_bin"
 
 printf 'PASS: unsafe CLI matrix\n'

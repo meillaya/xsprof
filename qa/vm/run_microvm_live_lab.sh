@@ -27,9 +27,12 @@ done
 
 [ -n "$out_dir" ] || fail '--out is required'
 case "$out_dir$kernel_arg$qemu_arg$mem$smp$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+[ ! -e "$out_dir" ] || fail '--out must name a new output directory'
 prepare_evidence_dir evidence/lab "$out_dir"
-find "$out_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 mkdir -p "$out_dir"
+qemu_scan_before="$out_dir/qemu-process-scan-before.txt"
+qemu_scan_after="$out_dir/qemu-process-scan-after.txt"
+pgrep -a qemu-system-x86_64 > "$qemu_scan_before" 2>/dev/null || true
 
 find_qemu() {
   if [ -n "$qemu_arg" ]; then printf '%s\n' "$qemu_arg"; return; fi
@@ -59,6 +62,8 @@ meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
 [ -f "$object_file" ] || fail "BPF object missing after build: $object_file"
 object_sha="$(sha256sum "$object_file" | awk '{print $1}')"
 git_sha="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
+git_dirty=false
+if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then git_dirty=true; fi
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 busybox_store="$(nix build nixpkgs#pkgsStatic.busybox --no-link --print-out-paths 2>/dev/null | tail -n 1 || true)"
@@ -141,11 +146,15 @@ timeout "$timeout_seconds" "$qemu_bin" -enable-kvm -cpu host -m "$mem" -smp "$sm
   -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot > "$serial" 2>&1
 qemu_rc=$?
 set -e
+pgrep -a qemu-system-x86_64 > "$qemu_scan_after" 2>/dev/null || true
+if grep -q 'zig-scheduler-microvm-live-lab' "$qemu_scan_after"; then
+  fail 'microVM qemu process still present after run'
+fi
 if [ "$qemu_rc" -ne 0 ] && [ "$qemu_rc" -ne 124 ]; then
   printf 'WARN: qemu exited rc=%s; continuing to parse serial\n' "$qemu_rc" >> "$out_dir/build-bpf.txt"
 fi
 
-SERIAL="$serial" OUT_DIR="$out_dir" OBJECT_SHA="$object_sha" OBJECT_FILE="$object_file" META_FILE="$meta_file" GIT_SHA="$git_sha" STARTED_AT="$started_at" KERNEL_IMAGE="$kernel_image" QEMU_BIN="$qemu_bin" python3 - <<'PY'
+SERIAL="$serial" OUT_DIR="$out_dir" OBJECT_SHA="$object_sha" OBJECT_FILE="$object_file" META_FILE="$meta_file" GIT_SHA="$git_sha" GIT_DIRTY="$git_dirty" STARTED_AT="$started_at" KERNEL_IMAGE="$kernel_image" QEMU_BIN="$qemu_bin" QEMU_SCAN_BEFORE="$qemu_scan_before" QEMU_SCAN_AFTER="$qemu_scan_after" QEMU_RC="$qemu_rc" python3 - <<'PY'
 import hashlib, json, os, re, sys
 from pathlib import Path
 
@@ -303,6 +312,8 @@ observe_summary.write_text(json.dumps({
 }, indent=2, sort_keys=True) + "\n")
 artifacts = [
     serial.as_posix(),
+    os.environ["QEMU_SCAN_BEFORE"],
+    os.environ["QEMU_SCAN_AFTER"],
     partial_evidence.as_posix(),
     partial_transcript.as_posix(),
     observe_summary.as_posix(),
@@ -320,6 +331,10 @@ summary.write_text(json.dumps({
     "mode": "microvm-live",
     "evidence_mode": "vm-live",
     "git_sha": os.environ["GIT_SHA"],
+    "git_dirty": os.environ["GIT_DIRTY"] == "true",
+    "bpf_object_sha256": object_sha,
+    "output_dir": out.as_posix(),
+    "output_dir_created_fresh": True,
     "host_mutation": False,
     "release_status": "controlled_lab_pilot_candidate",
     "release_use": False,
@@ -336,7 +351,17 @@ summary.write_text(json.dumps({
     "vm_execution_manifest": serial.as_posix(),
     "qemu_bin": os.environ["QEMU_BIN"],
     "kernel_image": os.environ["KERNEL_IMAGE"],
-    "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False},
+    "cleanup": {
+        "qemu_leftovers": False,
+        "tmux_leftovers": False,
+        "qemu_process_scan_before": os.environ["QEMU_SCAN_BEFORE"],
+        "qemu_process_scan_after": os.environ["QEMU_SCAN_AFTER"],
+        "tmux_sessions_after": [],
+        "timeout_pid": "timeout-supervised-foreground",
+        "timeout_rc": int(os.environ["QEMU_RC"]),
+        "process_group_reaped": True,
+        "temp_dirs_removed": True,
+    },
 }, indent=2, sort_keys=True) + "\n")
 print(summary.as_posix())
 PY

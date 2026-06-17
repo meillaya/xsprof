@@ -34,6 +34,9 @@ pub const SnapshotModel = struct {
     rollback_status: []const u8 = "rollback required",
     incident_status: []const u8 = "none",
     release_eligibility: []const u8 = "not release eligible",
+    bundle_path: []const u8 = "none",
+    cleanup_status: []const u8 = "not-started",
+    lab_scope: []const u8 = "host fail-closed",
     fixture_warning: []const u8 = "",
 };
 
@@ -101,6 +104,9 @@ pub const PreflightFixture = struct {
     runtime_ops: []const u8 = "",
     runtime_counters: []const u8 = "",
     incident_status: []const u8 = "",
+    bundle_path: []const u8 = "",
+    cleanup_status: []const u8 = "",
+    lab_scope: []const u8 = "",
     stages: []StageJson = &.{},
 };
 
@@ -148,6 +154,9 @@ pub fn model(value: PreflightFixture) SnapshotModel {
         .rollback_status = rollbackStatus(value),
         .incident_status = incidentStatus(value),
         .release_eligibility = releaseEligibility(value),
+        .bundle_path = bundlePath(value),
+        .cleanup_status = cleanupStatus(value),
+        .lab_scope = labScope(value),
         .fixture_warning = "FIXTURE deterministic host facts; do not infer live support",
     };
 }
@@ -166,6 +175,9 @@ fn isRunAllSummary(value: PreflightFixture) bool {
 }
 
 fn labStatus(value: PreflightFixture) []const u8 {
+    if (isRunAllSummary(value) and std.mem.eql(u8, value.status, "PASS") and std.mem.eql(u8, value.incident_status, "unsafe_to_assume")) {
+        return "unsafe_to_assume";
+    }
     if (isRunAllSummary(value)) return value.status;
     if (!isRollbackSummary(value)) return "read-only";
     if (std.mem.eql(u8, value.status, "PASS")) return "fallback-fired";
@@ -263,6 +275,27 @@ fn releaseEligibility(value: PreflightFixture) []const u8 {
     if (value.release_eligible_live_proof) return "eligible with live proof";
     if (value.release_use) return "pending signed proof";
     return "not release eligible";
+}
+
+fn bundlePath(value: PreflightFixture) []const u8 {
+    if (value.bundle_path.len != 0) {
+        if (std.fs.path.dirname(value.bundle_path)) |parent| return std.fs.path.basename(parent);
+        return std.fs.path.basename(value.bundle_path);
+    }
+    if (isRunAllSummary(value)) return "bundle path required";
+    return "none";
+}
+
+fn cleanupStatus(value: PreflightFixture) []const u8 {
+    if (value.cleanup_status.len != 0) return value.cleanup_status;
+    if (isRunAllSummary(value) and std.mem.eql(u8, value.status, "PASS")) return "cleanup receipt required";
+    return "not-started";
+}
+
+fn labScope(value: PreflightFixture) []const u8 {
+    if (value.lab_scope.len != 0) return value.lab_scope;
+    if (std.mem.eql(u8, evidenceMode(value), "vm-live")) return "lab-only vm guest";
+    return "host fail-closed";
 }
 
 fn stageStatus(value: PreflightFixture, name: []const u8, fallback: []const u8) []const u8 {

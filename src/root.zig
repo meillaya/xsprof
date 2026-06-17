@@ -61,6 +61,13 @@ pub fn writeHelp(writer: anytype, exe_name: []const u8) !void {
         "usage: {s} [help | preflight --json | sched-ext preflight --json | controller plan --dry-run]\n\n" ++
             "zig-scheduler is now a fail-closed Linux scheduler operator surface.\n" ++
             "Initial commands are read-only or dry-run only; no BPF load, cgroup write, affinity write, or scheduler mutation is implemented.\n" ++
+            "unsafe host mutation is refused on this root CLI; attach/load paths remain VM-only and approval-gated.\n\n" ++
+            "Operator TUI entrypoints:\n" ++
+            "  zig build tui -- --snapshot --screen vm-lab --width 120 --height 30\n" ++
+            "  zig build tui-live-vm\n" ++
+            "    opens the interactive VM lab TUI with the daemon wired to .omo/evidence/tui-live-vm.\n" ++
+            "    prerequisites for an actual live lab: QEMU/KVM, bpftool/libbpf, BTF, sched_ext kernel tuple, and a disposable VM bundle.\n" ++
+            "    press m to start the lab action, b/b to rollback, s/s to safe-stop and rollback.\n\n" ++
             "The simulator is archived separately under simulator/ and runs from that package root.\n",
         .{exe_name},
     );

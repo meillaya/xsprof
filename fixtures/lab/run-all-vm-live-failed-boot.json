@@ -1,0 +1,27 @@
+{
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "status": "FAIL",
+  "evidence_mode": "vm-live",
+  "vm_kind": "vm-live",
+  "mode": "vm-required",
+  "lab_scope": "lab-only vm guest",
+  "bundle_path": "evidence/lab/run-all/microvm-live-failed-boot/summary.json",
+  "cleanup_status": "cleanup receipt PASS",
+  "current_stage": "microvm_boot",
+  "incident_status": "unsafe_to_assume",
+  "runtime_samples": "not-started",
+  "runtime_ops": "not-attached",
+  "runtime_counters": "nr_rejected=unknown",
+  "rollback_result": "SKIP",
+  "rollback_id": "RB-failed-boot",
+  "audit_id": "AUD-failed-boot",
+  "release_status": "closed",
+  "release_eligible_live_proof": false,
+  "release_use": false,
+  "vm_marker": "missing",
+  "kernel": { "release": "6.12.0-sched-ext-lab", "arch": "x86_64" },
+  "stages": [
+    { "stage": "microvm_boot", "status": "FAIL", "reason": "qemu boot timeout" },
+    { "stage": "release_gate", "status": "SKIP", "reason": "failed boot blocks release gate" }
+  ]
+}

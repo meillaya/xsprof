@@ -44,6 +44,7 @@ pub fn buildLabCommand(allocator: std.mem.Allocator, action: protocol.OperatorAc
     return switch (action.kind) {
         .run_lab_host_safe => runAll(allocator, run_id),
         .run_lab_vm => runVm(allocator, run_id),
+        .run_lab_microvm_live => runMicrovmLive(allocator, run_id),
         .verifier_only => verifierOnly(allocator, run_id),
         .partial_attach => partialAttach(allocator, action, run_id),
         .observe => observePartial(allocator, run_id),
@@ -68,6 +69,13 @@ fn runVm(allocator: std.mem.Allocator, run_id: []const u8) CommandError!CommandP
         append(&plan, pair[0]);
         append(&plan, pair[1]);
     }
+    return plan;
+}
+
+fn runMicrovmLive(allocator: std.mem.Allocator, run_id: []const u8) CommandError!CommandPlan {
+    var plan = try basePlan(allocator, "qa/vm/run_microvm_live_lab.sh", "run-all", run_id, .surrogate);
+    append(&plan, "--out");
+    append(&plan, plan.out_dir);
     return plan;
 }
 
@@ -146,6 +154,8 @@ fn validateOptional(value: []const u8) CommandError!void {
 
 fn validateToken(value: []const u8) CommandError!void {
     if (value.len == 0 or value.len > 80) return error.InvalidField;
+    if (std.mem.eql(u8, value, ".") or std.mem.eql(u8, value, "..")) return error.InvalidField;
+    if (value[0] == '.' or value[value.len - 1] == '.') return error.InvalidField;
     for (value) |byte| {
         if (!std.ascii.isAlphanumeric(byte) and byte != '-' and byte != '_' and byte != '.') return error.InvalidField;
     }
@@ -205,4 +215,65 @@ test "trusted lab command registry maps verifier attach observe and rollback" {
         try std.testing.expect(std.mem.startsWith(u8, plan.executable, "qa/vm/"));
         try expectNoPathLookup(plan);
     }
+}
+
+test "trusted lab command registry maps live microvm action to fixed argv" {
+    var plan = try buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "microvm-live-demo",
+    });
+    defer plan.deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings("qa/vm/run_microvm_live_lab.sh", plan.executable);
+    try std.testing.expectEqualStrings("qa/vm/run_microvm_live_lab.sh", plan.args()[0]);
+    try std.testing.expectEqualStrings("--out", plan.args()[1]);
+    try std.testing.expectEqualStrings("evidence/lab/run-all/microvm-live-demo", plan.args()[2]);
+    try std.testing.expectEqual(@as(usize, 3), plan.args().len);
+    try std.testing.expectEqual(HostBehavior.surrogate, plan.host_behavior);
+    try expectNoPathLookup(plan);
+}
+
+test "trusted lab command registry keeps fixture vm route separate from live microvm route" {
+    var fixture_plan = try buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_vm,
+        .run_id = "fixture-vm-demo",
+    });
+    defer fixture_plan.deinit(std.testing.allocator);
+    try std.testing.expectEqualStrings("qa/vm/run_all_lab.sh", fixture_plan.executable);
+    try std.testing.expect(std.mem.indexOf(u8, fixture_plan.out_dir, "fixture-vm-demo") != null);
+
+    var live_plan = try buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "live-vm-demo",
+    });
+    defer live_plan.deinit(std.testing.allocator);
+    try std.testing.expectEqualStrings("qa/vm/run_microvm_live_lab.sh", live_plan.executable);
+    try std.testing.expect(std.mem.indexOf(u8, live_plan.out_dir, "live-vm-demo") != null);
+}
+
+test "trusted lab command registry rejects live microvm unsafe run ids" {
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "../escape",
+    }));
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = ".",
+    }));
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "..",
+    }));
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = ".hidden",
+    }));
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "trailing.",
+    }));
+    try std.testing.expectError(error.InvalidField, buildLabCommand(std.testing.allocator, .{
+        .kind = .run_lab_microvm_live,
+        .run_id = "bad\nrun",
+    }));
 }

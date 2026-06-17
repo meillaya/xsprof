@@ -1,0 +1,28 @@
+{
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "status": "PASS",
+  "evidence_mode": "vm-live",
+  "vm_kind": "vm-live",
+  "mode": "vm-required",
+  "lab_scope": "lab-only vm guest",
+  "bundle_path": "evidence/lab/run-all/microvm-live-rollback-done/summary.json",
+  "cleanup_status": "cleanup receipt PASS",
+  "current_stage": "rollback_done",
+  "incident_status": "none",
+  "runtime_samples": "runtime samples x3",
+  "runtime_ops": "none after rollback",
+  "runtime_counters": "nr_rejected=0 samples=3",
+  "rollback_result": "PASS",
+  "rollback_id": "RB-rollback-done",
+  "audit_id": "AUD-rollback-done",
+  "release_status": "withheld_signed_live_proof_required",
+  "release_eligible_live_proof": false,
+  "release_use": false,
+  "vm_marker": "/run/zig-scheduler-vm-lab.marker",
+  "kernel": { "release": "6.12.0-sched-ext-lab", "arch": "x86_64" },
+  "stages": [
+    { "stage": "rollback_drill", "status": "PASS", "reason": "rollback complete and state restored" },
+    { "stage": "observe_partial", "status": "PASS", "reason": "after rollback samples linked" },
+    { "stage": "release_gate", "status": "SKIP", "reason": "signed live proof withheld" }
+  ]
+}

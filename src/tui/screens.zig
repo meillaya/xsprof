@@ -5,33 +5,33 @@ const row = layout.row;
 const section = layout.section;
 
 pub fn renderPreflight(writer: anytype, width: usize, model: fixture.SnapshotModel) !void {
-    try section(writer, width, "Host Preflight", "Safety Gate");
-    try row(writer, width, "kernel tuple", model.kernel_release, "read-only opens only");
-    try row(writer, width, "arch", model.arch, "no cgroup writes");
-    try row(writer, width, "cgroup v2", model.cgroup_status, "no affinity/scheduler writes");
-    try row(writer, width, "controllers", model.cgroup_controllers, "no BPF load path");
+    try section(writer, width, "dashboard home", "operator sources");
+    try row(writer, width, "choose a flow", "preflight", "read-only host facts");
+    try row(writer, width, "sched_ext readiness", model.sched_state, "BTF + kernel tuple");
+    try row(writer, width, "live microVM lab", model.lab_scope, "m key launches gated flow later");
+    try row(writer, width, "rollback / audit", model.rollback_status, model.audit_id);
+    try row(writer, width, "observer", model.runtime_samples, "runtime stream caveats");
+    try section(writer, width, "host facts", "safety gate");
+    try row(writer, width, "kernel tuple", model.kernel_release, model.arch);
+    try row(writer, width, "cgroup v2", model.cgroup_status, "no cgroup writes");
+    try row(writer, width, "controllers", model.cgroup_controllers, "no affinity/scheduler writes");
     try row(writer, width, "capabilities", model.capabilities, "refuse unsafe verbs");
-    try row(writer, width, "sched_ext", model.sched_state, "lab gate required later");
-    try row(writer, width, "BTF", model.btf_status, "lab gate required later");
-    try section(writer, width, "Read-only Probe Matrix", "Mutation Refusals");
-    try row(writer, width, "/sys/kernel/sched_ext/state", model.sched_state, "load: refused");
-    try row(writer, width, "enable_seq", model.sched_enable_seq, "attach: refused");
-    try row(writer, width, "switch_all", model.sched_switch_all, "enable: refused");
-    try row(writer, width, "nr_rejected", model.sched_nr_rejected, "mutate: refused");
-    try row(writer, width, "/sys/kernel/btf/vmlinux", model.btf_status, "apply: refused");
-    try section(writer, width, "Operator Checklist", "Evidence Channel");
-    try row(writer, width, "lab tuple", "required later", "tmux transcript");
-    try row(writer, width, "rollback id", "required before writes", "audit id required");
-    try row(writer, width, "fallback drill", "required before load", "partial switch first");
-    try row(writer, width, "toolchain", "informational", "no compile/load here");
-    try row(writer, width, "kernel config", "unsafe_to_assume if hidden", "do not infer support");
-    try row(writer, width, "observer", "preflight only", "no performance claims");
+    try row(writer, width, "sched_ext", model.sched_state, "no BPF load path on host");
+    try row(writer, width, "BTF", model.btf_status, "lab gate required");
+    try section(writer, width, "start here", "recent evidence");
+    try row(writer, width, "1 preflight", "zig build tui -- --screen preflight", "snapshot only");
+    try row(writer, width, "2 live lab", "zig build tui-live-vm", "VM-only attach path");
+    try row(writer, width, "3 rollback", "b rollback after m", "audit id required");
+    try row(writer, width, "4 observe", "runtime samples", "no performance claims");
+    try row(writer, width, "recent", model.bundle_path, model.cleanup_status);
+    try section(writer, width, "operator contract", "FAIL-CLOSED");
+    try row(writer, width, "unsafe verbs", "load attach enable mutate apply", "refused");
+    try row(writer, width, "lab boundary", model.evidence_mode, "host fail-closed");
     try row(writer, width, "decision", "closed", "operator approval missing");
-    try row(writer, width, "mode", "read-only", "FAIL-CLOSED");
 }
 
 pub fn renderSchedExt(writer: anytype, width: usize, model: fixture.SnapshotModel) !void {
-    try section(writer, width, "sched_ext Readiness", "Fallback Drill");
+    try section(writer, width, "sched_ext status", "fallback drill");
     try row(writer, width, "state", model.sched_state, "partial switch first");
     try row(writer, width, "enable_seq", model.sched_enable_seq, "fallback command recorded");
     try row(writer, width, "nr_rejected", model.sched_nr_rejected, "DSQ plan required");
@@ -45,11 +45,40 @@ pub fn renderSchedExt(writer: anytype, width: usize, model: fixture.SnapshotMode
     try row(writer, width, "rollback status", model.rollback_status, model.rollback_id);
     try row(writer, width, "incident", model.incident_status, "unsafe_to_assume on gaps");
     try section(writer, width, "Gate Ledger", "No-load Contract");
+    try row(writer, width, "lab scope", model.lab_scope, "host fail-closed");
+    try row(writer, width, "bundle path", model.bundle_path, "freshness required");
+    try row(writer, width, "cleanup status", model.cleanup_status, "process scan required");
     try row(writer, width, "vm marker", model.vm_marker, model.evidence_mode);
     try row(writer, width, "kernel tuple", model.kernel_release, model.arch);
     try row(writer, width, "audit id", model.audit_id, model.audit_status);
     try row(writer, width, "release eligible", model.release_eligibility, model.release_gate_status);
     try row(writer, width, "approved lab", model.lab_gate, "load command absent");
+}
+
+pub fn renderVmLab(writer: anytype, width: usize, model: fixture.SnapshotModel) !void {
+    try section(writer, width, "lifecycle lanes", model.current_stage);
+    try row(writer, width, "preflight build boot", model.lab_status, model.incident_status);
+    try row(writer, width, "marker verifier attach", model.verifier_status, model.runtime_ops);
+    try row(writer, width, "observe rollback audit cleanup", model.runtime_samples, model.cleanup_status);
+    try row(writer, width, "progress", "▰▰▰▰▰▰▰▰▰▱", "VM-only attach path");
+    try row(writer, width, "lab scope", model.lab_scope, "host fail-closed");
+    try row(writer, width, "vm marker", model.vm_marker, model.evidence_mode);
+    try row(writer, width, "bundle", model.bundle_path, model.cleanup_status);
+    try section(writer, width, "event stream", "current stage");
+    try row(writer, width, "microvm_boot", model.current_stage, "guest-only");
+    try row(writer, width, "bpf_register", model.runtime_ops, "no host load");
+    try row(writer, width, "runtime_sample", model.runtime_samples, model.runtime_counters);
+    try row(writer, width, "rollback", model.rollback_status, model.rollback_id);
+    try row(writer, width, "validation", model.lab_gate, model.release_gate_status);
+    try section(writer, width, "runtime counters", "audit / rollback ledger");
+    try row(writer, width, "ops", model.runtime_ops, "zigsched_minimal required during attach");
+    try row(writer, width, "samples", model.runtime_samples, "before / during / after");
+    try row(writer, width, "counters", model.runtime_counters, "reject/fallback/fatal stable");
+    try row(writer, width, "audit id", model.audit_id, model.audit_status);
+    try row(writer, width, "rollback id", model.rollback_id, model.rollback_status);
+    try section(writer, width, "safety contract", "not release proof");
+    try row(writer, width, "release eligible", model.release_eligibility, "signed live proof withheld");
+    try row(writer, width, "cleanup", model.cleanup_status, "process scan required");
 }
 
 pub fn renderController(writer: anytype, width: usize, model: fixture.SnapshotModel) !void {
