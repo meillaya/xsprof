@@ -12,13 +12,13 @@
       "path": "README.md",
       "purpose": "tracked project overview and governance entrypoint",
       "required": true,
-      "sha256": "04d1667d8640b1a9a9ce3128377966b6608ecee713a1c34fa61e62fa1a9d0a40"
+      "sha256": "a90ce9d94454fd29b5c798f22d96e8e2732f2a1f9aba956b78e5d3129fb189d0"
     },
     {
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "38f1b1b9ecdef4de1a37848bcdea2d20031b04eb4312b6d11198e9652c43d932"
+      "sha256": "002214d72e7abbb6b855a8c9529595d190aac5e7f7dfb0f7998276f812007606"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -78,7 +78,7 @@
       "path": "docs/ci.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "27c307c5bfecde495c1dd2f474db862b7abaf15a16b5dea08158e850d1ee6527"
+      "sha256": "bcffbf991ef46ed5aff5bc0c6102ab53aad985f64a5c38680113d34dd77dc6fe"
     },
     {
       "path": "docs/releases/governance-gate.md",
@@ -96,7 +96,7 @@
       "path": "docs/runbooks/sched-ext-fallback.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "2e1079fbe7be0d33b2693be9031de3f4d9d43993474eccebaf8c94907acec2cb"
+      "sha256": "7c800a96e7c06a7c8249cf83fced78206d020a65481f84765abcdd14a647d12a"
     },
     {
       "path": "docs/runbooks/verifier-and-incident.md",
@@ -108,7 +108,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "a6bffcc2b6c3230f5e1aa9c8b85e292597d0fcd34f9e3b660492eccb5026c418"
+      "sha256": "5bf1b997f4de573b377fec33693ae2755720ac3714a47f48f8b13bece585d951"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -120,7 +120,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "3e933f64e610f417fd78909173e0e4c064a5b446218c91a237ad5746364622e6"
+      "sha256": "4168f0e44146e3a50354c5c443969e6c2b55679dccfb7523ee3de868c6e609f6"
     },
     {
       "path": "qa/vm/execution_contract.json",

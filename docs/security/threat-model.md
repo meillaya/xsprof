@@ -1,16 +1,19 @@
 # sched_ext Security Threat Model
 
-Status: required for any mutation-capable lab release. This repository remains path-to-production only and is not a production-ready arbitrary-host scheduler.
+Status: required for any mutation-capable lab release. This repository remains path-to-production only and is not a production-ready arbitrary-host scheduler. The operator host stays fail-closed; the live attach path is VM-only and goes through a trusted daemon command registry.
 
 ## Assets and trust boundaries
+
 - Root privileges and Linux capabilities: CAP_BPF, CAP_SYS_ADMIN, and CAP_PERFMON must be treated as hazardous.
 - BPF verifier assumptions: verifier acceptance is necessary but not sufficient for operational safety.
 - Cgroup scope: mutation-capable paths are limited to `/sys/fs/cgroup/zig-scheduler-lab.slice/` in disposable VM/lab evidence.
+- Toolchain provenance: QEMU/KVM, `nix`-backed busybox fetches, and `bpftool`/`libbpf` are explicit host dependencies for the live VM flow; missing pieces must skip or refuse instead of masquerading as success.
 - Audit ledger and rollback snapshots: records must be append-only, per-audit-id, and secret-free.
-- Logs and TUI output: no private command lines, credentials, cookies, tokens, hostnames beyond lab tuple, or unbounded logs.
+- Logs, transcripts, and TUI output: no private command lines, credentials, cookies, tokens, hostnames beyond the lab tuple, or unbounded logs.
 - Packaging defaults: install read-only operator defaults only; no auto-starting scheduler.
 
 ## Threats and mitigations
+
 | Threat | Mitigation | Gate evidence |
 | --- | --- | --- |
 | Root privilege misuse | Host default refuses load/attach/enable/mutate/apply; no-host mutation QA | `qa/no_host_mutation.sh` |
@@ -24,7 +27,9 @@ Status: required for any mutation-capable lab release. This repository remains p
 | Premature production claim | Wording and release governance gates | wording audit |
 
 ## Mandatory mutation-release review
+
 A mutation-capable release profile must include a signed JSON review artifact with:
+
 - `schema`: `zig-scheduler/security-review/v1`
 - `profile`: `mutation-capable-lab`
 - `status`: `approved`
@@ -41,8 +46,11 @@ The TUI-driven workflow introduces an operator action queue and daemon stdin bou
 
 - the TUI emits typed `operator-action/v1` JSON only;
 - the daemon maps actions to fixed argv entries, not shell-concatenated commands;
+- `m` requests a disposable microVM run through the trusted registry entry that launches `qa/vm/run_microvm_live_lab.sh`;
+- `s` requests a safe stop; `b` confirms rollback; stale or duplicate target ids refuse instead of mutating host state;
 - hazardous actions on ordinary hosts refuse with `host_mutation=false`;
 - incident and rollback paths preserve audit ids, rollback ids, event journals, and cleanup receipts;
+- live bundles, runtime samples, and daemon events are verification artifacts only and must not be treated as proof of deployment, arbitrary-host safety, or release approval;
 - transcripts are verification artifacts and must not contain secrets, credentials, private command lines, or unbounded host data.
 
 Security review for any future mutation-capable profile must include the TUI key map, daemon action parser, command registry, runtime stream privacy filters, rollback ledger validation, and packaging no-auto-start behavior.

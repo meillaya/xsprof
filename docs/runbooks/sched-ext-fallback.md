@@ -1,6 +1,6 @@
 # sched_ext Fallback Runbook
 
-Status: VM-only runbook for future lab profiles. This project does not provide a host mutation path today.
+Status: VM-only runbook for future lab profiles. This project does not provide a host mutation path today. The first-class live operator flow starts from `zig build tui-live-vm` or `zig build tui -- --interactive --screen vm-lab ...`; fallback actions are then staged inside the disposable VM guest.
 
 ## Scope and prohibitions
 
@@ -36,7 +36,7 @@ Use the fallback procedure if any of these occur in the VM-only lab:
 1. Freeze the evidence clock: record audit id, rollback id, timestamp, kernel release, and git SHA.
 2. Capture pre/post sched_ext state checks: read `/sys/kernel/sched_ext/state`, `/sys/kernel/sched_ext/enable_seq`, and `/sys/kernel/sched_ext/root/ops` when available.
 3. If the scheduler process is still running, terminate only the VM lab scheduler process using the lab harness control channel. Do not run host mutation commands.
-4. If the VM remains responsive and the lab profile explicitly allows it, use SysRq-S to request sched_ext fallback. SysRq-S is documented by the kernel as the sched_ext abort/fallback sequence; record the exact lab console transcript.
+4. If the VM remains responsive and the lab profile explicitly allows it, use SysRq-S to request sched_ext fallback. SysRq-S is the sched_ext abort/fallback sequence; record the exact lab console transcript.
 5. If debug data is required and the VM remains responsive, use SysRq-D to request a sched_ext debug dump. SysRq-D is for diagnostics and does not replace fallback.
 6. Apply the rollback id inside the VM-only lab harness. The rollback must restore the lab cgroup membership and scheduler process state recorded before the run.
 7. Capture post sched_ext state checks: `/sys/kernel/sched_ext/state`, `/sys/kernel/sched_ext/enable_seq`, `nr_rejected`, and the target cgroup membership snapshot.
@@ -54,18 +54,17 @@ The fallback drill is complete only when the evidence bundle contains audit id, 
 
 ## TUI-driven rollback and fallback controls
 
-Rollback and fallback drills must be visible from the TUI/daemon path, not only from direct scripts. In test mode, `m` arms the lab action id and rollback id, `b` asks for rollback confirmation, and a second `b` dispatches the typed `rollback_lab_run` action. Stop uses the same pattern with `s` then `s`.
+Rollback and fallback drills must be visible from the TUI/daemon path, not only from direct scripts. In test mode, `m` requests a fresh disposable microVM run, `s` asks for a safe stop, `b` asks for rollback confirmation, and stale or duplicate target ids refuse instead of mutating host scheduler state.
 
-Manual QA command for the rollback control surface:
+Manual QA command for the live rollback control surface:
 
 ```bash
 printf 'mbbq' | ./zig-out/bin/zig-scheduler-tui \
   --interactive --test-mode \
-  --fixture fixtures/lab/preflight-ready.json \
-  --screen sched-ext --width 120 --height 30 \
-  --daemon-bin ./zig-out/bin/zig-scheduler-daemon \
-  --daemon-state-dir .omo/evidence/tui-rollback-daemon-state \
-  > .omo/evidence/tui-rollback-transcript.txt
+  --screen vm-lab --width 120 --height 30 \
+  --daemon-bin "./zig-out/bin/zig-scheduler-daemon" \
+  --daemon-state-dir ".omo/evidence/tui-rollback-daemon-state" \
+  > ".omo/evidence/tui-rollback-transcript.txt"
 ```
 
 Review `.omo/evidence/tui-rollback-daemon-state/events.jsonl` for `rollback_completed`, `status=PASS` or `already_rolled_back`, and `host_mutation=false`. Missing target action id, missing rollback id, or stale rollback id must show a refusal instead of attempting host scheduler changes.

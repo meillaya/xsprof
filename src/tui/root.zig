@@ -37,6 +37,10 @@ pub fn renderSnapshot(allocator: std.mem.Allocator, options: Options) ![]u8 {
     return out.toOwnedSlice(allocator);
 }
 
+fn interactiveAnsiFrame(allocator: std.mem.Allocator, plain: []const u8) ![]u8 {
+    return std.fmt.allocPrint(allocator, "\x1b[38;5;45m{s}\x1b[0m", .{plain});
+}
+
 pub fn renderInteractive(
     allocator: std.mem.Allocator,
     options: Options,
@@ -55,7 +59,9 @@ pub fn renderInteractive(
         try renderFrame(&writer.writer, options, ui_model.live(report), interaction.statusForAction(action));
     }
     out = writer.toArrayList();
-    return out.toOwnedSlice(allocator);
+    const plain = try out.toOwnedSlice(allocator);
+    defer allocator.free(plain);
+    return interactiveAnsiFrame(allocator, plain);
 }
 
 pub fn renderInteractiveStatus(
@@ -76,7 +82,9 @@ pub fn renderInteractiveStatus(
         try renderFrame(&writer.writer, options, ui_model.live(report), action_status);
     }
     out = writer.toArrayList();
-    return out.toOwnedSlice(allocator);
+    const plain = try out.toOwnedSlice(allocator);
+    defer allocator.free(plain);
+    return interactiveAnsiFrame(allocator, plain);
 }
 
 pub fn interactiveActionForKey(key: u8) ?linux.control.protocol.OperatorAction {
