@@ -21,7 +21,7 @@
     "sha256": {
       "AGENTS.md": "aed6e229950d4afd0d5c69c3defd8c8044f25dc729f96e85b9a5fc8ddcd158f6",
       "docs/security/review-checklist.md": "019950561ff0f5005bcb1c78c094b96981150603ab11b945f1557dc84abec93a",
-      "docs/security/threat-model.md": "3e933f64e610f417fd78909173e0e4c064a5b446218c91a237ad5746364622e6"
+      "docs/security/threat-model.md": "4168f0e44146e3a50354c5c443969e6c2b55679dccfb7523ee3de868c6e609f6"
     }
   },
   "historical": false,
