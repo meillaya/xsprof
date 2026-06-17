@@ -13,21 +13,28 @@ keys="mq"
 width="120"
 height="30"
 timeout_seconds="900"
+self_test=false
+self_test_summary=".omo/evidence/task-T26-failure-summary.json"
+daemon_bin="${ZIG_SCHEDULER_TUI_LIVE_DAEMON_BIN:-./zig-out/bin/zig-scheduler-daemon}"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat >&2 <<'EOF'
 usage: qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode launch-live-vm [--keys mq]
        qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode validate-existing-bundle --live-bundle evidence/lab/run-all/<vm-live>/summary.json
+       qa/tui_live_lab_e2e.sh --self-test [--summary .omo/evidence/task-T26-failure-summary.json]
 
 Modes:
   launch-live-vm           strict T20 proof: the TUI must launch/generate the fresh live microVM bundle; pre-existing bundle inputs are refused.
   validate-existing-bundle compatibility only: validates a supplied live behavior bundle and never counts as T20 launch proof.
+  --self-test              run the T26 fail-closed failure-mode matrix with local fixtures; never launches QEMU.
 EOF
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --self-test) self_test=true; shift ;;
+    --summary) [ "$#" -ge 2 ] || fail '--summary requires value'; self_test_summary="$2"; shift 2 ;;
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
     --mode) [ "$#" -ge 2 ] || fail '--mode requires value'; mode="$2"; shift 2 ;;
     --live-bundle) [ "$#" -ge 2 ] || fail '--live-bundle requires value'; live_bundle_arg="$2"; shift 2 ;;
@@ -39,6 +46,10 @@ while [ "$#" -gt 0 ]; do
     *) fail "unknown argument: $1" ;;
   esac
 done
+
+if [ "$self_test" = true ]; then
+  exec bash qa/tui_live_lab_failure_matrix.sh --summary "$self_test_summary"
+fi
 
 [ -n "$out_dir" ] || fail '--out is required'
 [ -n "$mode" ] || fail '--mode is required; use launch-live-vm for T20 proof or validate-existing-bundle for compatibility'
@@ -205,7 +216,7 @@ zig build install > "$out_dir/zig-build-install.txt" 2>&1
 set +e
 python3 tools/tui_live_vm_pty_test.py \
   --tui ./zig-out/bin/zig-scheduler-tui \
-  --daemon ./zig-out/bin/zig-scheduler-daemon \
+  --daemon "$daemon_bin" \
   --state-dir "$daemon_state" \
   --transcript "$transcript" \
   --keys "$keys" \
