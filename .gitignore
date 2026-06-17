@@ -45,3 +45,6 @@ evidence/lab/incident-drill/tui-*/
 evidence/lab/rollback-drill/tui-*/
 evidence/lab/run-all/tui-*/
 evidence/releases/0.2.0-lab-runall/
+# Ignored current-run release evidence breaks the HEAD/freshness loop; curated
+# tracked snapshots under evidence/releases/<version>/ remain explicit git adds.
+evidence/releases/*-runall/current/

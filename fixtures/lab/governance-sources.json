@@ -36,7 +36,7 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "946fc8c37fa273383d07e7ebbd51139005b9399440eaea7897ae6f5ee5af6261"
+      "sha256": "426f4daf6264077eaff65f1c6b192e3b15023060aca664012ca56c53f286f944"
     },
     {
       "path": "qa/security_gate.sh",
@@ -84,7 +84,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "d7042876296373eda3061d8041427ee39335e555d297bdde57ca98cf4f55e621"
+      "sha256": "8c9813bab0b1d403513dfd988129a8edeb72a3142b2625f70816763f584ecf64"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -108,7 +108,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "5bf1b997f4de573b377fec33693ae2755720ac3714a47f48f8b13bece585d951"
+      "sha256": "39412d65294a793332f572207e5f8074758c881f47b7ab27715c7084b0cbf78b"
     },
     {
       "path": "docs/security/review-checklist.md",

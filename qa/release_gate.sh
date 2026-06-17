@@ -8,6 +8,7 @@ version=""
 evidence_dir=""
 self_test=false
 no_approval=false
+current_run=false
 live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/run-all/vm-live-behavior/summary.json}"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
@@ -17,13 +18,36 @@ validate_governance_manifest() {
 reject_nohost_bypass_env() {
   [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" != "1" ] || fail 'release gate rejects ambient ZIG_SCHEDULER_ALLOW_NO_STRACE'
 }
+current_run_default_dir() {
+  local run_version="$1"
+  case "$run_version" in
+    *-runall) ;;
+    *) run_version="${run_version}-runall" ;;
+  esac
+  printf 'evidence/releases/%s/current\n' "$run_version"
+}
+require_ignored_untracked_current_run_dir() {
+  local dir="$1"
+  local tracked_hits=""
+  tracked_hits="$(git ls-files -- "$dir" "$dir/" 2>/dev/null || true)"
+  if [ -n "$tracked_hits" ]; then
+    fail "--current-run evidence path contains tracked files: $dir"
+  fi
+  if git ls-files --error-unmatch -- "$dir" >/dev/null 2>&1; then
+    fail "--current-run evidence path is tracked: $dir"
+  fi
+  if ! git check-ignore -q -- "$dir/.release-gate-ignore-probe"; then
+    fail "--current-run evidence path must be ignored by git: $dir"
+  fi
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --self-test) self_test=true; shift ;;
     --version) [ "$#" -ge 2 ] || fail '--version requires value'; version="$2"; shift 2 ;;
     --evidence) [ "$#" -ge 2 ] || fail '--evidence requires value'; evidence_dir="$2"; shift 2 ;;
+    --current-run) current_run=true; shift ;;
     --no-approval) no_approval=true; shift ;;
-    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab [--no-approval]'; exit 0 ;;
+    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab [--current-run] [--no-approval]'; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
@@ -130,20 +154,32 @@ check_live_behavior_gate()
 check_skip_cleanup()
 print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, live behavior proof, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
 PY
+  python3 qa/live_bundle_freshness_check.py --self-test >/dev/null
+  printf 'PASS live bundle freshness self-test covered by release gate\n'
   if ZIG_SCHEDULER_ALLOW_NO_STRACE=1 bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab >/dev/null 2>&1; then
     fail 'self-test expected ambient no-strace release bypass rejection'
   fi
   printf 'PASS reject ambient no-strace release bypass\n'
+  if bash qa/release_gate.sh --version 0.2.0-lab --current-run --evidence evidence/releases/0.2.0-lab >/dev/null 2>&1; then
+    fail 'self-test expected tracked current-run evidence rejection'
+  fi
+  printf 'PASS reject tracked current-run evidence path\n'
   exit 0
 fi
 [ -n "$version" ] || fail '--version is required'
 reject_nohost_bypass_env
 validate_governance_manifest
-[ -n "$evidence_dir" ] || fail '--evidence is required'
+if [ "$current_run" = true ] && [ -z "$evidence_dir" ]; then
+  evidence_dir="$(current_run_default_dir "$version")"
+fi
+[ -n "$evidence_dir" ] || fail '--evidence is required unless --current-run supplies the default'
 case "$version$evidence_dir" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$version" in *-lab|*-lab-*) ;; *) fail 'version must be lab candidate suffix, e.g. 0.1.0-lab' ;; esac
 case "$evidence_dir" in evidence/releases/*) ;; *) fail '--evidence must be under evidence/releases' ;; esac
 case "$evidence_dir" in *'/../'*|../*|*/..) fail 'unsafe evidence path' ;; esac
+if [ "$current_run" = true ]; then
+  require_ignored_untracked_current_run_dir "$evidence_dir"
+fi
 allowed_root="$(realpath evidence/releases)"
 parent_dir="$(dirname "$evidence_dir")"
 [ -d "$parent_dir" ] || mkdir -p "$parent_dir"
@@ -196,11 +232,12 @@ require_file docs/releases/governance-gate.md
 if [ "$missing" -ne 0 ]; then fail 'release gate missing required artifacts'; fi
 bash qa/wording_audit.sh >/dev/null
 if [ "$no_approval" = true ]; then
-  python3 - <<'DRYRUNPY' "$evidence_dir" "$version"
+  python3 - <<'DRYRUNPY' "$evidence_dir" "$version" "$current_run"
 import json, sys
 from pathlib import Path
 out = Path(sys.argv[1])
 version = sys.argv[2]
+current_run = sys.argv[3] == 'true'
 for stale_name in ('release-approval.json', 'artifact-hashes.json'):
     stale_path = out / stale_name
     if stale_path.exists() or stale_path.is_symlink():
@@ -218,6 +255,8 @@ summary = {
     'artifact_hash_manifest': '',
     'evidence_dir': str(out),
     'no_host_gate': 'not_required_non_approval_dry_run',
+    'current_run_evidence': current_run,
+    'evidence_retention': 'ignored-current-run-not-for-commit' if current_run else 'tracked-release-snapshot',
 }
 summary_tmp = out / 'summary.json.tmp'
 summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
@@ -235,12 +274,12 @@ rm -rf evidence/lab/run-all/no-host-mutation
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
-python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle"
+python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle" "$current_run"
 import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
 from qa.live_behavior_check import LiveBehaviorError, validate_bundle
-out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3])
+out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3]); current_run = sys.argv[4] == 'true'
 checks = {}
 checks['dsq'] = json.loads(Path('evidence/lab/dsq-vtime/summary.json').read_text())
 checks['rollback'] = json.loads(Path('evidence/lab/rollback-drill/summary.json').read_text())
@@ -267,6 +306,8 @@ def write_skip_summary(reason):
         'artifact_count': 0,
         'artifact_hash_manifest': '',
         'evidence_dir': str(out),
+        'current_run_evidence': current_run,
+        'evidence_retention': 'ignored-current-run-not-for-commit' if current_run else 'tracked-release-snapshot',
     }
     summary_tmp = out / 'summary.json.tmp'
     summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
@@ -277,6 +318,14 @@ def write_skip_summary(reason):
 def require_live_behavior_bundle():
     if not live_behavior_bundle.is_file():
         write_skip_summary('VM-live behavior bundle missing; controlled-lab mutation candidate not approved')
+    freshness = subprocess.run(
+        ['python3', 'qa/live_bundle_freshness_check.py', '--bundle', str(live_behavior_bundle)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if freshness.returncode != 0:
+        raise SystemExit('VM-live behavior bundle freshness invalid: ' + freshness.stdout.strip())
     try:
         validate_bundle(live_behavior_bundle)
     except (LiveBehaviorError, OSError, json.JSONDecodeError) as exc:
@@ -505,6 +554,8 @@ approval = {
  'production_ready': False,
  'arbitrary_host_safe': False,
  'historical': False,
+ 'current_run_evidence': current_run,
+ 'evidence_retention': 'ignored-current-run-not-for-commit' if current_run else 'tracked-release-snapshot',
  'artifact_hash_manifest': str(hash_manifest),
  'signed_attestation': {
    'kind': 'owner-override-release-attestation',
@@ -536,6 +587,8 @@ summary = {
  'artifact_hash_manifest': str(hash_manifest),
  'evidence_dir': str(out),
  'no_host_gate': 'executed',
+ 'current_run_evidence': current_run,
+ 'evidence_retention': 'ignored-current-run-not-for-commit' if current_run else 'tracked-release-snapshot',
 }
 if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm': raise SystemExit('summary/status contradiction')
 summary_tmp = out / 'summary.json.tmp'
@@ -557,4 +610,7 @@ fi
 printf 'summary=%s\n' "$evidence_dir/summary.json"
 printf 'approval=%s\n' "$evidence_dir/release-approval.json"
 printf 'hashes=%s\n' "$evidence_dir/artifact-hashes.json"
+if [ "$current_run" = true ]; then
+  printf 'current_run_evidence=ignored_not_for_commit\n'
+fi
 printf 'PASS: release gate controlled_lab_pilot_candidate\n'

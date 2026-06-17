@@ -135,3 +135,15 @@ Evidence paths to preserve for review:
 - cleanup/process-scan evidence: the `cleanup` block and process-scan files referenced by the live bundle summary.
 
 If explicit VM config is missing, the run must SKIP or REFUSE with `host_mutation=false`. A SKIP is valid host-safe CI evidence only; it is not VM-live behavior proof.
+
+## Final current-run release evidence
+
+For final T27/T28 verification after a live VM bundle has been produced from the current `HEAD`, run the release gate in current-run mode instead of refreshing the tracked release snapshot:
+
+```bash
+bash qa/release_gate.sh --version 0.2.0-lab --current-run
+```
+
+`--current-run` defaults to `evidence/releases/0.2.0-lab-runall/current`. That directory is ignored and is for same-run verification only; do not commit it. The release gate refuses current-run output that is tracked or not ignored, and still validates the supplied live bundle with `qa/live_bundle_freshness_check.py` before any controlled-lab approval record is written. If the live bundle is stale for the current git SHA, dirty, or built from a different BPF object, the final gate must fail rather than updating tracked evidence.
+
+Tracked `evidence/releases/<version>/` evidence remains a curated historical snapshot. Refresh and commit that snapshot only as an intentional release-history update, not as part of the final live-bundle freshness proof.
