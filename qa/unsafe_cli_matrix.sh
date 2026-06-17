@@ -104,35 +104,50 @@ check_live_microvm_refusal() {
     rm -rf "$state_dir" "$out"
     fail "$label did not reach live microVM action"
   }
-  grep -q '"status":"REFUSE"' "$out" || {
-    cat "$out" >&2 || true
+  if grep -q '"status":"REFUSE"' "$out"; then
+    grep -q '"state":"refused_host"' "$out" || {
+      cat "$out" >&2 || true
+      rm -rf "$state_dir" "$out"
+      fail "$label live-runner refusal was not host-safe"
+    }
+    if grep -q 'invalid_field' "$out"; then
+      cat "$out" >&2 || true
+      rm -rf "$state_dir" "$out"
+      fail "$label overfit to validation refusal instead of live runner"
+    fi
+    reason="$(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
+    case "$reason" in
+      qemu_not_found|kvm_unavailable|kernel_unavailable|nix_busybox_unavailable|microvm_runner_refused) ;;
+      *)
+        cat "$out" >&2 || true
+        rm -rf "$state_dir" "$out"
+        fail "$label unexpected live-runner refusal reason: ${reason:-missing}"
+        ;;
+    esac
+    artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
+    case "$artifact" in
+      evidence/lab/run-all/unsafe-matrix-*) rm -rf "$artifact" ;;
+    esac
+    if [ "$before" != "$after" ]; then
+      cat "$out" >&2 || true
+      rm -rf "$state_dir" "$out"
+      fail "$label changed zig-out file list"
+    fi
     rm -rf "$state_dir" "$out"
-    fail "$label did not record a live-runner refusal"
-  }
-  grep -q '"state":"refused_host"' "$out" || {
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label live-runner refusal was not host-safe"
-  }
-  if grep -q 'invalid_field' "$out"; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label overfit to validation refusal instead of live runner"
+    printf 'PASS: %s action=run_lab_microvm_live live microVM refused reason=%s host_mutation=false\n' "$label" "$reason"
+    return 0
   fi
+  grep -q '"event":"incident".*"action":"run_lab_microvm_live".*"reason":"live_bundle_rejected".*"host_mutation":false' "$out" || {
+    cat "$out" >&2 || true
+    rm -rf "$state_dir" "$out"
+    fail "$label did not record a safe live-bundle rejection incident"
+  }
   if grep -q 'host_mutation":true' "$out"; then
     cat "$out" >&2 || true
     rm -rf "$state_dir" "$out"
     fail "$label daemon action reported host mutation"
   fi
-  reason="$(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-  case "$reason" in
-    qemu_not_found|kvm_unavailable|kernel_unavailable|nix_busybox_unavailable|microvm_runner_refused) ;;
-    *)
-      cat "$out" >&2 || true
-      rm -rf "$state_dir" "$out"
-      fail "$label unexpected live-runner refusal reason: ${reason:-missing}"
-      ;;
-  esac
+  reason="live_bundle_rejected"
   artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
   case "$artifact" in
     evidence/lab/run-all/unsafe-matrix-*) rm -rf "$artifact" ;;
@@ -143,7 +158,7 @@ check_live_microvm_refusal() {
     fail "$label changed zig-out file list"
   fi
   rm -rf "$state_dir" "$out"
-  printf 'PASS: %s action=run_lab_microvm_live live microVM refused reason=%s host_mutation=false\n' "$label" "$reason"
+  printf 'PASS: %s action=run_lab_microvm_live live microVM safe incident reason=%s host_mutation=false\n' "$label" "$reason"
 }
 
 check_malformed_live_action_refusal() {

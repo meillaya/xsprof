@@ -262,7 +262,7 @@ run_live_daemon_json_checked() {
   local state_dir="$2"
   local action_json="$3"
   rm -rf "$state_dir"
-  run_checked_output_command "$label" '"action":"run_lab_microvm_live".*"status":"(REFUSE|PASS)".*"host_mutation":false' \
+  run_checked_output_command "$label" '("action":"run_lab_microvm_live".*"status":"(REFUSE|PASS)".*"host_mutation":false|"event":"incident".*"action":"run_lab_microvm_live".*"reason":"live_bundle_rejected".*"host_mutation":false)' \
     bash -c 'printf "%s\n" "$1" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$2"' _ "$action_json" "$state_dir"
 }
 

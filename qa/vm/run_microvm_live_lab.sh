@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 source qa/path_safety.sh
+source qa/vm/qemu_discovery.sh
 
 out_dir=""
 kernel_arg="${ZIG_SCHEDULER_VM_KERNEL:-}"
@@ -60,11 +61,13 @@ validate_qemu_bin() {
 }
 
 find_qemu() {
+  local canonical
   if [ -n "$qemu_arg" ]; then validate_qemu_bin "$qemu_arg"; return; fi
-  for candidate in /usr/bin/qemu-system-x86_64 /run/current-system/sw/bin/qemu-system-x86_64; do
-    if [ -x "$candidate" ]; then validate_qemu_bin "$candidate"; return; fi
-  done
-  fail 'qemu-system-x86_64 not found in trusted qemu locations; install qemu or set ZIG_SCHEDULER_QEMU_BIN to /usr/bin/qemu-system-x86_64, /run/current-system/sw/bin/qemu-system-x86_64, or /nix/store/.../bin/qemu-system-x86_64'
+  canonical="$(qemu_discovery_find 2>/dev/null || true)"
+  [ -n "$canonical" ] || {
+    fail 'qemu-system-x86_64 not found in trusted qemu locations; install qemu or set ZIG_SCHEDULER_QEMU_BIN to /usr/bin/qemu-system-x86_64, /run/current-system/sw/bin/qemu-system-x86_64, or /nix/store/.../bin/qemu-system-x86_64'
+  }
+  printf '%s\n' "$canonical"
 }
 
 validate_nix_bin() {
