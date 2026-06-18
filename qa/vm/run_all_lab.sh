@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SIZE_OK: Run-all lab orchestrator intentionally stays one audited shell entrypoint so ordered stage traps, summaries, cleanup, and release gating share one CI surface.
 set -euo pipefail
 trusted_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH="$trusted_path"

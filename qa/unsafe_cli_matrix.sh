@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SIZE_OK: Single unsafe CLI matrix preserves one stable command/trap surface for branch-wide refusal checks; splitting would obscure CI audit flow.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

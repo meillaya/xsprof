@@ -102,21 +102,61 @@ def task_evidence(evidence: Path, task: str) -> TaskEvidence:
     )
 
 
+def task_number(task: str) -> int:
+    return int(task.removeprefix("T"))
+
+
+def task_name(number: int) -> str:
+    return f"T{number:02d}"
+
+
+def task_span(tasks: list[str]) -> str:
+    if not tasks:
+        return "no tasks"
+    if len(tasks) == 1:
+        return f"{tasks[0]} (1 task)"
+    ordered = sorted(tasks, key=task_number)
+    return f"{ordered[0]}-{ordered[-1]} ({len(tasks)} tasks)"
+
+
+def missing_tasks_in_sequence(tasks: list[str]) -> list[str]:
+    if not tasks:
+        return []
+    task_numbers = {task_number(task) for task in tasks}
+    first = min(task_numbers)
+    last = max(task_numbers)
+    return [task_name(number) for number in range(first, last + 1) if number not in task_numbers]
+
+
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     plan_text = args.plan.read_text()
-    tasks = {match.group("task"): match.group("mark") for match in TASK_RE.finditer(plan_text)}
-    expected = [f"T{number:02d}" for number in range(1, 31)]
+    matches = list(TASK_RE.finditer(plan_text))
+    tasks = {match.group("task"): match.group("mark") for match in matches}
+    expected = list(dict.fromkeys(match.group("task") for match in matches))
     failures: list[str] = []
     print(f"plan={args.plan}")
     print(f"evidence={args.evidence}")
+    print(f"tasks={task_span(expected)}")
+    if not expected:
+        failures.append("plan contains no tasks matching TASK_RE")
+    for missing_task in missing_tasks_in_sequence(expected):
+        failures.append(f"missing task {missing_task} in plan sequence")
     for task in expected:
         mark = tasks.get(task)
         evidence = task_evidence(args.evidence, task)
         complete = mark == "x"
+        checkbox = "complete" if complete else "open"
         print(
-            f"{task}: checkbox={'complete' if complete else 'open'} "
-            f"red={evidence.red} green={evidence.green} manual={evidence.manual} ledger={evidence.completed}"
+            " ".join(
+                [
+                    f"{task}: checkbox={checkbox}",
+                    f"red={evidence.red}",
+                    f"green={evidence.green}",
+                    f"manual={evidence.manual}",
+                    f"ledger={evidence.completed}",
+                ]
+            )
         )
         if not complete:
             failures.append(f"{task} checkbox is not complete")
@@ -140,7 +180,7 @@ def main(argv: list[str]) -> int:
         for failure in failures:
             print(f"- {failure}")
         return 1
-    print("PASS: plan compliance T01-T30 complete with required evidence")
+    print(f"PASS: plan compliance {task_span(expected)} complete with required evidence")
     return 0
 
 

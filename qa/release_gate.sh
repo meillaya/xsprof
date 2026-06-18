@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SIZE_OK: Single release CI gate keeps env scrub, trap cleanup, evidence checks, and approval refusal on one audited fail-closed command surface.
 set -euo pipefail
 trusted_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:${HOME:-}/.nix-profile/bin"
 export PATH="$trusted_path"

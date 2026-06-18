@@ -8,3 +8,11 @@ pub const lab_runner = @import("lab_runner.zig");
 pub const journal = @import("journal.zig");
 pub const stream = @import("stream.zig");
 pub const rollback = @import("rollback.zig");
+
+test "control protocol tests are linked" {
+    @import("std").testing.refAllDecls(@import("protocol_tests.zig"));
+}
+
+test "control command tests are linked" {
+    @import("std").testing.refAllDecls(@import("commands_tests.zig"));
+}
