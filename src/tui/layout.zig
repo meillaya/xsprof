@@ -42,7 +42,7 @@ pub fn countRows(bytes: []const u8) usize {
     return rows;
 }
 
-fn writeCell(writer: anytype, text: []const u8, width: usize) !void {
+pub fn writeCell(writer: anytype, text: []const u8, width: usize) !void {
     const clipped = clipToCells(text, width);
     try writer.writeAll(clipped.text);
     var cells = clipped.cells;

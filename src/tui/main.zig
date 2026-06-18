@@ -35,6 +35,7 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
     defer if (original_termios) |original| std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, original) catch {};
 
     var current_options = options;
+    applyTerminalSize(&current_options);
     const initial = try tui.renderInteractive(allocator, current_options, null);
     defer allocator.free(initial);
     try writeStdout(initial);
@@ -62,6 +63,15 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
         try writeStdout(frame);
         if (key == 'q') break;
     }
+}
+
+fn applyTerminalSize(options: *tui.Options) void {
+    if (options.width_explicit and options.height_explicit) return;
+    var size: std.posix.winsize = .{ .row = 0, .col = 0, .xpixel = 0, .ypixel = 0 };
+    const rc = std.os.linux.ioctl(std.posix.STDOUT_FILENO, std.os.linux.T.IOCGWINSZ, @intFromPtr(&size));
+    if (std.os.linux.errno(rc) != .SUCCESS) return;
+    if (!options.width_explicit and size.col >= 80) options.width = size.col;
+    if (!options.height_explicit and size.row >= 8) options.height = size.row;
 }
 
 fn runLiveVmEventLoop(
