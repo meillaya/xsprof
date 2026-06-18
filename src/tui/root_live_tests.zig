@@ -105,6 +105,38 @@ test "vm-lab screen renders lifecycle lanes counters and rollback ledger" {
     try expectNotContains(frame, "policy [FCFS]");
 }
 
+test "interactive live daemon output renders transcript-visible VM state" {
+    const raw =
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"stage_started\",\"action\":\"run_lab_microvm_live\",\"state\":\"vm_only_pending\",\"status\":\"queued\",\"reason\":\"microvm_live_runner_start\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"microvm_boot\",\"action\":\"run_lab_microvm_live\",\"state\":\"vm_live\",\"status\":\"PASS\",\"reason\":\"vm marker present\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/summary.json\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"bpf_register\",\"action\":\"run_lab_microvm_live\",\"state\":\"zigsched_minimal\",\"status\":\"PASS\",\"reason\":\"runtime ops observed\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/partial-attach/partial-attach-evidence.json\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"runtime_sample\",\"action\":\"run_lab_microvm_live\",\"state\":\"observing\",\"status\":\"PASS\",\"reason\":\"runtime samples accepted\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/observe-partial/runtime-samples.jsonl\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"rollback\",\"action\":\"run_lab_microvm_live\",\"state\":\"rolled_back\",\"status\":\"PASS\",\"reason\":\"PASS\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/rollback-drill/audit-ledger.jsonl\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"cleanup\",\"action\":\"run_lab_microvm_live\",\"state\":\"clean\",\"status\":\"PASS\",\"reason\":\"process scan clean\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/summary.json\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"validation\",\"action\":\"run_lab_microvm_live\",\"state\":\"vm_live_validated\",\"status\":\"PASS\",\"reason\":\"live bundle freshness accepted\",\"artifact\":\"evidence/lab/run-all/tui-vm-lab-test/summary.json\",\"host_mutation\":false}\n";
+    const frame = try root.renderInteractiveDaemonOutput(std.testing.allocator, .{
+        .interactive = true,
+        .screen = .vm_lab,
+        .width = 165,
+        .height = 30,
+    }, raw, "daemon completed read-only action");
+    defer std.testing.allocator.free(frame);
+    for ([_][]const u8{
+        "tui-vm-lab-test",
+        "runtime_sample",
+        "accepted",
+        "ops recorded",
+        "zigsched_minimal",
+        "rollback ready/completed",
+        "cleanup receipt PASS",
+        "live bundle freshness",
+        "lab-only vm guest",
+        "not release eligible",
+    }) |label| try expectContains(frame, label);
+    try expectNotContains(frame, "production");
+    try expectNotContains(frame, "host mutation");
+}
+
 test "CJK lifecycle fixture stays within requested terminal widths" {
     for ([_]u16{ 80, 100, 120 }) |width| {
         const frame = try root.renderSnapshot(std.testing.allocator, .{

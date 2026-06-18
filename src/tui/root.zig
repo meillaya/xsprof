@@ -3,6 +3,7 @@ const linux = @import("linux_scheduler");
 pub const actions = @import("actions.zig");
 const args = @import("args.zig");
 pub const daemon_adapter = @import("daemon_adapter.zig");
+pub const daemon_model = @import("daemon_model.zig");
 const fixture = @import("fixture.zig");
 pub const interaction = @import("interaction.zig");
 const layout = @import("layout.zig");
@@ -81,6 +82,42 @@ pub fn renderInteractiveStatus(
         defer report.deinit();
         try renderFrame(&writer.writer, options, ui_model.live(report), action_status);
     }
+    out = writer.toArrayList();
+    const plain = try out.toOwnedSlice(allocator);
+    defer allocator.free(plain);
+    return interactiveAnsiFrame(allocator, plain);
+}
+
+pub fn renderInteractiveDaemonOutput(
+    allocator: std.mem.Allocator,
+    options: Options,
+    raw_events: []const u8,
+    action_status: []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);
+    var render_options = options;
+    render_options.screen = .vm_lab;
+    const model = daemon_model.modelFromDaemonOutput(allocator, raw_events, action_status);
+    try renderFrame(&writer.writer, render_options, model, action_status);
+    out = writer.toArrayList();
+    const plain = try out.toOwnedSlice(allocator);
+    defer allocator.free(plain);
+    return interactiveAnsiFrame(allocator, plain);
+}
+
+pub fn renderInteractiveDaemonQueued(
+    allocator: std.mem.Allocator,
+    options: Options,
+    action_status: []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);
+    var render_options = options;
+    render_options.screen = .vm_lab;
+    try renderFrame(&writer.writer, render_options, daemon_model.queuedModel(action_status), action_status);
     out = writer.toArrayList();
     const plain = try out.toOwnedSlice(allocator);
     defer allocator.free(plain);

@@ -214,6 +214,41 @@ raise SystemExit(1)
 PY
 }
 
+assert_transcript_visible_live_state() {
+  [ -s "$transcript" ] || return 1
+  python3 - "$transcript" "$generated_bundle" <<'PY'
+from __future__ import annotations
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", text)
+bundle = sys.argv[2]
+bundle_dir = str(Path(bundle).parent)
+needles = [
+    "lab-only vm guest",
+    "runtime samples accepted",
+    "ops recorded",
+    "zigsched_minimal",
+    "rollback ready/completed",
+    "cleanup receipt PASS",
+    "live bundle freshness accepted",
+    "not release eligible",
+]
+missing = [needle for needle in needles if needle not in text]
+if bundle_dir not in text and Path(bundle_dir).name not in text:
+    missing.append(bundle_dir)
+for stale in ("runtime_sample │ not-started", "ops │ not-attached", "bundle │ none"):
+    if stale in text:
+        missing.append(f"stale:{stale}")
+if missing:
+    print("missing transcript live state: " + ", ".join(missing))
+    raise SystemExit(1)
+print("PASS: transcript-visible live VM state includes daemon-derived bundle/runtime/rollback/cleanup/validation fields")
+PY
+}
+
 run_compatibility_mode() {
   local supplied="${live_bundle_arg:-$live_bundle_env}"
   [ -n "$supplied" ] || { printf 'REFUSE: --live-bundle or ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE required in validate-existing-bundle mode host_mutation=false\n' | tee "$live_behavior_log"; write_summary REFUSE 'compatibility bundle missing' MISSING NOT_RUN false "" 0; exit 2; }
@@ -282,6 +317,12 @@ if [ -z "$generated_bundle" ] || [ ! -f "$generated_bundle" ]; then
   write_summary REFUSE 'TUI did not generate a live bundle summary' MISSING NOT_RUN false "$generated_bundle" "$pty_rc"
   printf 'REFUSE: TUI did not generate live bundle host_mutation=false summary=%s\n' "$summary"
   exit 2
+fi
+
+if ! assert_transcript_visible_live_state >> "$pty_log" 2>&1; then
+  write_summary FAIL 'TUI transcript did not show daemon-derived live state' MISSING NOT_RUN false "$generated_bundle" "$pty_rc"
+  printf 'FAIL: TUI transcript missing daemon-derived live state host_mutation=false summary=%s\n' "$summary" >&2
+  exit 1
 fi
 
 rolled_back=false

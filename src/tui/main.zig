@@ -45,6 +45,24 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
         if (key == 3) break;
         const result = tui.interaction.controlForKey(key, &control_state, current_options.test_mode) orelse continue;
         applyNavigation(key, &current_options);
+        if (result == .action and result.action.kind == .run_lab_microvm_live and current_options.daemon_state_dir != null) {
+            const queued_status = tui.interaction.statusForAction(result.action);
+            const queued_frame = try tui.renderInteractiveDaemonQueued(allocator, current_options, queued_status);
+            defer allocator.free(queued_frame);
+            try writeStdout("\n");
+            try writeStdout(queued_frame);
+
+            const status = try dispatchStatus(allocator, io, current_options, result.action);
+            defer status.deinit(allocator);
+            const frame = if (status.owned) |dispatch|
+                try tui.renderInteractiveDaemonOutput(allocator, current_options, dispatch.raw, status.text)
+            else
+                try tui.renderInteractiveStatus(allocator, current_options, status.text);
+            defer allocator.free(frame);
+            try writeStdout("\n");
+            try writeStdout(frame);
+            continue;
+        }
         const status = try controlStatus(allocator, io, current_options, result);
         defer status.deinit(allocator);
         const frame = try tui.renderInteractiveStatus(allocator, current_options, status.text);
