@@ -19,7 +19,7 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, environ: std.process.
     defer output.deinit(allocator);
     var tracker = linux.control.journal.Tracker{};
     var flushed_bytes: usize = 0;
-    var follow_flush = FollowFlush{ .enabled = options.follow, .flushed_bytes = &flushed_bytes };
+    var follow_flush = linux.control.daemon_dispatch.FollowFlush{ .enabled = options.follow, .flushed_bytes = &flushed_bytes };
     defer tracker.deinit(allocator);
     const existing = dir.readFileAlloc(io, "events.jsonl", allocator, .limited(linux.control.daemon.max_journal_bytes)) catch |err| switch (err) {
         error.FileNotFound => null,
@@ -33,9 +33,9 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, environ: std.process.
         seq = (try tracker.loadExisting(allocator, raw)).next_seq;
         if (options.follow) flushed_bytes = output.items.len;
     }
-    const git_sha = try readGitSha(allocator, io);
+    const git_sha = try linux.control.daemon_dispatch.readGitSha(allocator, io);
     defer allocator.free(git_sha);
-    try appendReady(allocator, &output, seq);
+    try linux.control.daemon_dispatch.appendReady(allocator, &output, seq);
     seq += 1;
     try follow_flush.flush(output.items);
 
@@ -53,232 +53,16 @@ fn runForeground(allocator: std.mem.Allocator, io: std.Io, environ: std.process.
     while (try stdin_reader.interface.takeDelimiter('\n')) |line| {
         if (std.mem.trim(u8, line, " \t\r\n").len == 0) continue;
         if (seq > linux.control.daemon.max_events_per_run) {
-            try appendOverflow(allocator, &output, seq);
+            try linux.control.daemon_dispatch.appendOverflow(allocator, &output, seq);
             try follow_flush.flush(output.items);
             break;
         }
-        try appendAction(allocator, io, environ, &output, &tracker, git_sha, line, &seq, &follow_flush);
+        try linux.control.daemon_dispatch.appendAction(allocator, io, environ, &output, &tracker, &dir, git_sha, line, &seq, &follow_flush);
         try follow_flush.flush(output.items);
     }
 
     if (options.follow) try follow_flush.flush(output.items) else try writeStdout(output.items);
     try dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
-}
-
-const FollowFlush = struct {
-    enabled: bool,
-    flushed_bytes: *usize,
-
-    fn flush(self: *FollowFlush, bytes: []const u8) !void {
-        if (!self.enabled) return;
-        try flushNewOutput(bytes, self.flushed_bytes);
-    }
-};
-
-fn appendReady(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try writer.writer.print("{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"state_changed\",\"state\":\"read_only\",\"status\":\"ready\",\"host_mutation\":false}}\n", .{seq});
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendAction(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    environ: std.process.Environ,
-    output: *std.ArrayList(u8),
-    tracker: *linux.control.journal.Tracker,
-    git_sha: []const u8,
-    line: []const u8,
-    seq: *usize,
-    follow_flush: *FollowFlush,
-) !void {
-    var parsed = linux.control.protocol.parseActionJson(allocator, std.mem.trim(u8, line, " \t\r\n")) catch {
-        try appendMalformed(allocator, output, seq.*);
-        seq.* += 1;
-        return;
-    };
-    defer parsed.deinit();
-    if (parsed.value.kind == .run_lab_microvm_live) {
-        var validation_plan = linux.control.commands.buildLabCommand(allocator, parsed.value) catch |err| switch (err) {
-            error.InvalidField, error.InvalidAction => {
-                try appendInvalidField(allocator, output, parsed.value, seq.*);
-                seq.* += 1;
-                return;
-            },
-            else => |e| return e,
-        };
-        validation_plan.deinit(allocator);
-    }
-    tracker.remember(allocator, parsed.value.action_id) catch |err| switch (err) {
-        error.DuplicateActionId => {
-            try appendDuplicate(allocator, output, parsed.value, seq.*);
-            seq.* += 1;
-            return;
-        },
-        error.InvalidActionId => {
-            try appendInvalidActionId(allocator, output, parsed.value, seq.*);
-            seq.* += 1;
-            return;
-        },
-        else => |e| return e,
-    };
-    if (parsed.value.action_id.len != 0) {
-        try appendJournalRecord(allocator, output, parsed.value, git_sha, seq.*);
-        seq.* += 1;
-    }
-    if (parsed.value.kind == .run_lab_host_safe) {
-        try linux.control.lab_runner.runHostSafe(allocator, io, output, parsed.value, seq);
-        return;
-    }
-    if (parsed.value.kind == .run_lab_vm) {
-        try linux.control.rollback.handleRunLabVm(allocator, io, output, tracker, parsed.value, seq);
-        return;
-    }
-    if (parsed.value.kind == .run_lab_microvm_live) {
-        linux.control.lab_runner.appendMicrovmLiveStartEvents(allocator, output, parsed.value, seq) catch |err| switch (err) {
-            error.InvalidField, error.InvalidAction => {
-                try appendInvalidField(allocator, output, parsed.value, seq.*);
-                seq.* += 1;
-                return;
-            },
-            else => |e| return e,
-        };
-        try follow_flush.flush(output.items);
-        linux.control.lab_runner.runMicrovmLive(allocator, io, environ, output, parsed.value, seq, true) catch |err| switch (err) {
-            error.InvalidField, error.InvalidAction => {
-                try appendInvalidField(allocator, output, parsed.value, seq.*);
-                seq.* += 1;
-                return;
-            },
-            else => |e| return e,
-        };
-        try follow_flush.flush(output.items);
-        return;
-    }
-    if (linux.control.rollback.isRollbackAction(parsed.value.kind)) {
-        try linux.control.rollback.handleRollback(allocator, io, output, tracker, parsed.value, seq);
-        return;
-    }
-    if (parsed.value.kind == .incident_drill) {
-        const summary_path = try linux.control.lab_runner.runIncidentDrill(allocator, io, output, parsed.value, seq);
-        allocator.free(summary_path);
-        return;
-    }
-
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.daemon.writeActionResult(&writer.writer, allocator, line, seq.*);
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-    seq.* += 1;
-}
-
-fn appendJournalRecord(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, git_sha: []const u8, seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.journal.writeRecord(&writer.writer, seq, action, git_sha);
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendDuplicate(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.journal.writeDuplicateRefusal(&writer.writer, seq, action);
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendInvalidActionId(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.journal.writeInvalidActionIdRefusal(&writer.writer, seq, action);
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendInvalidField(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: linux.control.protocol.OperatorAction, seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try writer.writer.print(
-        "{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"action_id\":",
-        .{ seq, @tagName(action.kind) },
-    );
-    try writeJsonString(&writer.writer, action.action_id);
-    try writer.writer.writeAll(",\"state\":\"refused_host\",\"status\":\"refused\",\"reason\":\"invalid_field\",\"host_mutation\":false}\n");
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendMalformed(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try linux.control.daemon.writeActionResult(&writer.writer, allocator, "{not-json", seq);
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendOverflow(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize) !void {
-    var event: std.ArrayList(u8) = .empty;
-    defer event.deinit(allocator);
-    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
-    try writer.writer.print(
-        "{{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":{d},\"event\":\"refusal\",\"state\":\"incident\",\"status\":\"refused\",\"reason\":\"journal_limit_exceeded\",\"host_mutation\":false}}\n",
-        .{seq},
-    );
-    event = writer.toArrayList();
-    try appendEvent(allocator, output, event.items);
-}
-
-fn appendEvent(allocator: std.mem.Allocator, output: *std.ArrayList(u8), event: []const u8) !void {
-    try linux.control.daemon.ensureCanWriteEvent(output.items.len, event);
-    try output.appendSlice(allocator, event);
-}
-
-fn writeJsonString(writer: anytype, value: []const u8) !void {
-    try writer.writeByte('"');
-    for (value) |byte| switch (byte) {
-        '"' => try writer.writeAll("\\\""),
-        '\\' => try writer.writeAll("\\\\"),
-        '\n' => try writer.writeAll("\\n"),
-        '\r' => try writer.writeAll("\\r"),
-        '\t' => try writer.writeAll("\\t"),
-        else => if (byte < 0x20) try writer.print("\\u{x:0>4}", .{byte}) else try writer.writeByte(byte),
-    };
-    try writer.writeByte('"');
-}
-
-fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
-    const head = std.Io.Dir.cwd().readFileAlloc(io, ".git/HEAD", allocator, .limited(1024)) catch {
-        return allocator.dupe(u8, "unknown");
-    };
-    defer allocator.free(head);
-    const trimmed = std.mem.trim(u8, head, " \t\r\n");
-    if (std.mem.startsWith(u8, trimmed, "ref: ")) {
-        const ref_path = try std.fmt.allocPrint(allocator, ".git/{s}", .{std.mem.trim(u8, trimmed[5..], " \t\r\n")});
-        defer allocator.free(ref_path);
-        const ref_value = std.Io.Dir.cwd().readFileAlloc(io, ref_path, allocator, .limited(128)) catch {
-            return allocator.dupe(u8, "unknown");
-        };
-        defer allocator.free(ref_value);
-        return allocator.dupe(u8, std.mem.trim(u8, ref_value, " \t\r\n"));
-    }
-    return allocator.dupe(u8, trimmed);
-}
-
-fn flushNewOutput(bytes: []const u8, flushed_bytes: *usize) !void {
-    if (flushed_bytes.* >= bytes.len) return;
-    try writeStdout(bytes[flushed_bytes.*..]);
-    flushed_bytes.* = bytes.len;
 }
 
 fn writeStdout(bytes: []const u8) !void {

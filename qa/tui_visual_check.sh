@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
+# SIZE_OK: single shell command gate; visual self-test fixtures, harness invocation, and rejection checks stay together so the stable QA surface remains portable without adding dependency-bearing wrapper scripts.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 TUI_CHECK=${TUI_CHECK:-/home/mei/.codex/plugins/cache/sisyphuslabs/omo/4.11.0/skills/visual-qa/scripts/cli.ts}
-
-# SIZE_OK: this harness intentionally stays in one shell entrypoint because the
-# gate evidence calls it directly and it has one responsibility: validate static
-# TUI captures for visual-family grammar, root-only semantics, ANSI evidence, and
-# malformed input behavior. The embedded Python is pure validation/fixture code,
-# avoids new repo dependencies, and is covered by --self-test cases below.
 
 usage() {
   cat <<'USAGE' >&2
@@ -16,7 +11,7 @@ usage: qa/tui_visual_check.sh --reference <sim-capture> --actual <root-capture> 
 
 Validates root operator TUI visual family against a simulator reference capture without exact text matching.
 Checks overflow, border alignment, simulator-family grammar tokens, root operator tokens,
-forbidden simulator semantics in root captures, and ANSI presence when --ansi is supplied.
+forbidden simulator semantics in root captures, and semantic ANSI palette evidence when --ansi is supplied.
 USAGE
 }
 
@@ -87,6 +82,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+SGR_RE = re.compile(r"\x1b\[([0-9;?]*)m")
 BORDER_LEFT = {"│", "├", "╭", "╰", "┌", "└"}
 BORDER_RIGHT = {"│", "┤", "╮", "╯", "┐", "┘"}
 REFERENCE_FAMILY_TOKENS = (
@@ -125,6 +121,14 @@ FORBIDDEN_ROOT_TOKENS = (
     "arrival tick",
     "production-ready",
 )
+SEMANTIC_ANSI_CLASSES = {
+    "surface": ("48;5;235", "48;5;236", "48;5;237"),
+    "neutral": ("38;5;245", "38;5;244", "38;5;250"),
+    "accent": ("38;5;45", "38;5;39", "38;5;51"),
+    "warning": ("38;5;220", "38;5;214", "38;5;226", "33"),
+    "success": ("38;5;114", "38;5;82", "38;5;120", "32"),
+    "danger": ("38;5;205", "38;5;198", "38;5;203", "31", "35"),
+}
 
 @dataclass(frozen=True)
 class Capture:
@@ -150,6 +154,23 @@ def display_width(text: str) -> int:
 
 def strip_ansi(text: str) -> str:
     return ANSI_RE.sub("", text)
+
+
+def ansi_codes(text: str) -> set[str]:
+    return {match.group(1) or "0" for match in SGR_RE.finditer(text)}
+
+
+def ansi_palette_issues(capture: Capture) -> list[str]:
+    codes = ansi_codes(capture.text)
+    issues: list[str] = []
+    for label, accepted in SEMANTIC_ANSI_CLASSES.items():
+        if not any(code in codes for code in accepted):
+            issues.append(
+                f"{capture.path}: missing semantic ANSI {label} class; observed SGR codes={sorted(codes)}"
+            )
+    if len(codes - {"0"}) < 5:
+        issues.append(f"{capture.path}: ANSI palette too small; rejects one-global-color captures, observed SGR codes={sorted(codes)}")
+    return issues
 
 
 def load_capture(raw: str, label: str) -> Capture:
@@ -234,6 +255,7 @@ def main() -> int:
         ansi = load_capture(ansi_path, "ansi")
         if not ANSI_RE.search(ansi.text):
             issues.append(f"{ansi.path}: missing ANSI escape/style capture; use tmux capture-pane -e -p")
+        issues.extend(ansi_palette_issues(ansi))
         issues.extend(assert_tokens(ansi, ACTUAL_FAMILY_TOKENS, "ansi simulator-family"))
         issues.extend(assert_tokens(ansi, ROOT_REQUIRED_TOKENS, "ansi operator"))
     if issues:
@@ -265,6 +287,7 @@ if [[ $self_test -eq 1 ]]; then
   bad_short="$tmp/short.txt"
   bad_overflow="$tmp/overflow.txt"
   bad_no_ansi="$tmp/no-ansi.txt"
+  bad_cyan_only="$tmp/cyan-only.txt"
   missing_ref="$tmp/missing-ref.txt"
   missing_actual="$tmp/missing-actual.txt"
   missing_ansi="$tmp/missing-ansi.txt"
@@ -311,7 +334,19 @@ actual = "\n".join([
 Path(sys.argv[1]).write_text(ref, encoding="utf-8")
 Path(sys.argv[2]).write_text(actual, encoding="utf-8")
 PYFIX
-  printf '\033[36m%s\033[0m\n' "$(cat "$good_actual")" > "$good_ansi"
+  python3 - "$good_actual" "$good_ansi" "$bad_cyan_only" <<'PYANSI'
+from pathlib import Path
+import sys
+plain = Path(sys.argv[1]).read_text(encoding="utf-8")
+semantic = (
+    "\033[48;5;235m\033[38;5;45m▚ zig-scheduler\033[38;5;245m live microVM lab "
+    "\033[38;5;220mread-only\033[38;5;245m "
+    "\033[38;5;114mPASS\033[38;5;245m "
+    "\033[38;5;205mFAIL-CLOSED\033[0m\n"
+)
+Path(sys.argv[2]).write_text(semantic + plain, encoding="utf-8")
+Path(sys.argv[3]).write_text(f"\033[38;5;45m{plain}\033[0m", encoding="utf-8")
+PYANSI
   printf '╭bad╮\n' > "$bad_short"
   { cat "$good_actual"; printf 'this line intentionally overflows cols xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n'; } > "$bad_overflow"
   cp "$good_actual" "$bad_no_ansi"
@@ -335,6 +370,7 @@ PYFIX
   expect_clean_failure truncated run_validator "$good_ref" "$bad_short" "" "120"
   expect_clean_failure overflow run_validator "$good_ref" "$bad_overflow" "" "120"
   expect_clean_failure no_ansi run_validator "$good_ref" "$good_actual" "$bad_no_ansi" "120"
+  expect_clean_failure cyan_only_palette run_validator "$good_ref" "$good_actual" "$bad_cyan_only" "120"
   expect_clean_failure missing_reference run_validator "$missing_ref" "$good_actual" "" "120"
   expect_clean_failure missing_actual run_validator "$good_ref" "$missing_actual" "" "120"
   expect_clean_failure missing_ansi run_validator "$good_ref" "$good_actual" "$missing_ansi" "120"

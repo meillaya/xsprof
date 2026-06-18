@@ -20,6 +20,15 @@ import sys
 import time
 from typing import Final
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.tui_live_vm_cleanup import (
+    cleanup_launched_live_processes,
+    run_self_test,
+    wait_for_event_journal,
+)
+
 DEFAULT_WIDTH: Final[str] = "120"
 DEFAULT_HEIGHT: Final[str] = "30"
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 900.0
@@ -108,7 +117,7 @@ def run_tui(args: Args) -> int:
         time.sleep(0.25)
         output += read_available(master_fd)
         for key in args.keys:
-            os.write(master_fd, bytes((key,)))
+            _ = os.write(master_fd, bytes((key,)))
             time.sleep(0.10)
             output += read_available(master_fd)
         while proc.poll() is None:
@@ -120,21 +129,23 @@ def run_tui(args: Args) -> int:
         output += read_available(master_fd)
         return proc.returncode
     finally:
+        wait_for_event_journal(args.state_dir)
+        cleanup_launched_live_processes(args.state_dir)
         if slave_fd >= 0:
             os.close(slave_fd)
         os.close(master_fd)
-        args.transcript.write_text(output, encoding="utf-8")
+        _ = args.transcript.write_text(output, encoding="utf-8")
 
 
 def terminate_process_group(proc: subprocess.Popen[bytes]) -> None:
     try:
         os.killpg(proc.pid, signal.SIGTERM)
-        proc.wait(timeout=5)
+        _ = proc.wait(timeout=5)
     except ProcessLookupError:
         return
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=5)
+        _ = proc.wait(timeout=5)
 
 
 def read_available(fd: int) -> str:
@@ -155,6 +166,8 @@ def read_available(fd: int) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if argv == ["--self-test"]:
+        return run_self_test()
     args = parse_args(argv)
     rc = run_tui(args)
     if rc != 0:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SIZE_OK: single shell command gate; PTY setup, daemon launch, and evidence assertions are intentionally serialized in one bash entrypoint to preserve the stable CI command surface and shell-portable cleanup traps.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +10,7 @@ out_dir=""
 mode=""
 live_bundle_arg=""
 live_bundle_env="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-}"
-keys="mq"
+keys="mbbq"
 width="120"
 height="30"
 timeout_seconds="900"

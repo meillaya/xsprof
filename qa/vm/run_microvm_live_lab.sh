@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SIZE_OK: single shell command gate; microVM discovery, launch, rollback, and cleanup traps share one process scope so splitting would weaken shell-portable trap ownership and owned-temp cleanup guarantees.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -135,8 +136,10 @@ busybox_bin="$busybox_store/bin/busybox"
 [ -x "$busybox_bin" ] || fail "busybox not executable: $busybox_bin"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-microvm-live.XXXXXX")"
+printf '%s\n' "$out_dir" > "$scratch/zig-scheduler-owner-out-dir"
+printf '%s\n' "$$" > "$scratch/zig-scheduler-owner-pid"
 cleanup() { rm -rf "$scratch"; }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM HUP
 root="$scratch/root"
 mkdir -p "$root/bin" "$root/usr/bin" "$root/usr/lib" "$root/usr/lib64" "$root/lib64" "$root/proc" "$root/sys" "$root/dev" "$root/run" "$root/tmp" "$root/sys/fs/bpf" "$root/sys/fs/cgroup"
 cp "$busybox_bin" "$root/bin/busybox"

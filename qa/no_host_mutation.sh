@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
+# SIZE_OK: single shell command gate; syscall tracing, fallback probes, and assertions must stay in one audited bash entrypoint so CI/build invocations do not depend on sourced cleanup code that could mask host-mutation failures.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+
+microvm_tmp_before=""
+
+cleanup_microvm_tmp_before() {
+  if [ -n "${microvm_tmp_before:-}" ]; then
+    rm -f -- "$microvm_tmp_before" || true
+  fi
+  return 0
+}
 
 allow_no_strace_dev=false
 
@@ -278,6 +288,28 @@ run_tui_live_key_flow() {
   rm -rf "$state_dir"
 }
 
+
+scan_microvm_tmpdirs() {
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name 'zigsched-microvm-live.*' -print 2>/dev/null | sort || true
+}
+
+assert_no_new_microvm_tmpdirs() {
+  local before_file="$1"
+  local after_file new_file
+  python3 tools/tui_live_vm_cleanup.py --cleanup-owned-lab-tmpdirs
+  after_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-scan.XXXXXX")"
+  new_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-new.XXXXXX")"
+  scan_microvm_tmpdirs > "$after_file"
+  comm -13 "$before_file" "$after_file" > "$new_file" || true
+  if [ -s "$new_file" ]; then
+    cat "$new_file" >&2
+    rm -f "$after_file" "$new_file"
+    fail 'current no-host run left zigsched-microvm-live temp directories'
+  fi
+  rm -f "$after_file" "$new_file"
+  printf 'CHECK: temp-cleanup no current-run zigsched-microvm-live residue\n'
+}
+
 assert_no_lingering_processes() {
   local scan_file
   scan_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.process-scan.XXXXXX")"
@@ -286,9 +318,9 @@ assert_no_lingering_processes() {
     rm -f "$scan_file"
     fail 'lingering repo-local daemon/TUI/QEMU process detected'
   fi
-  if grep -E 'qemu-system-' "$scan_file" | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
+  if grep -E 'qemu-system-' "$scan_file" | grep -F 'zig-scheduler-microvm-live-lab' | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
     rm -f "$scan_file"
-    fail 'lingering qemu-system process detected after no-host audit'
+    fail 'lingering tagged qemu-system live lab process detected after no-host audit'
   fi
   rm -f "$scan_file"
   printf 'CHECK: process-cleanup no lingering qemu/daemon/TUI processes\n'
@@ -313,6 +345,9 @@ main() {
   printf 'worktree_status_all<<STATUS\n'
   git status --short --untracked-files=all
   printf 'STATUS\n'
+  microvm_tmp_before="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-before.XXXXXX")"
+  trap cleanup_microvm_tmp_before EXIT
+  scan_microvm_tmpdirs > "$microvm_tmp_before"
 
   run_command linux-preflight-json zig build linux-preflight -- --json
   run_command root-preflight-json zig build run -- preflight --json
@@ -356,6 +391,7 @@ PY
   run_tui_live_key_flow m-s-s-q mssq
   rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .zig-cache/tmp/no-host-daemon-live .omo/evidence/tui-pty-daemon-test
   assert_no_lingering_processes
+  assert_no_new_microvm_tmpdirs "$microvm_tmp_before"
 
   printf 'PASS: no host mutation observed for root commands and live VM TUI keys\n'
 }
