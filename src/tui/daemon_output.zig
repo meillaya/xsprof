@@ -20,6 +20,7 @@ pub fn statusForAction(action: protocol.OperatorAction) []const u8 {
 
 pub fn statusFromDaemonOutput(allocator: std.mem.Allocator, raw: []const u8, action: protocol.OperatorAction) []const u8 {
     var found: []const u8 = "";
+    var terminal_failure = false;
     var lines = std.mem.splitScalar(u8, raw, '\n');
     while (lines.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
@@ -32,17 +33,25 @@ pub fn statusFromDaemonOutput(allocator: std.mem.Allocator, raw: []const u8, act
         if (isUnsafeIncident(event)) return "daemon unsafe_to_assume";
         const event_action = event.action orelse continue;
         if (!std.mem.eql(u8, event_action, @tagName(action.kind))) continue;
-        if (isRefusal(event)) found = refusalStatus(action, event.reason.?);
+        if (terminal_failure) continue;
+        if (isRefusal(event)) {
+            found = refusalStatus(action, event.reason.?);
+            terminal_failure = true;
+            continue;
+        }
         if (isStatus(event, "REFUSE")) {
             found = terminalRefuseStatus(action, event.reason orelse "refused");
+            terminal_failure = true;
             continue;
         }
         if (isStatus(event, "SKIP")) {
             found = terminalSkipStatus(action, event.reason orelse "skipped");
+            terminal_failure = true;
             continue;
         }
         if (std.mem.eql(u8, event.event, "incident") and isStatus(event, "INCIDENT")) {
             found = "INCIDENT rollback/fallback drill";
+            terminal_failure = true;
             continue;
         }
         if (isStatus(event, "queued") and found.len == 0) found = statusForAction(action);
@@ -207,4 +216,12 @@ test "daemon output parser preserves incident status after PASS event" {
         "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"incident\",\"action\":\"incident_drill\",\"status\":\"INCIDENT\",\"host_mutation\":false}\n" ++
         "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"stage_finished\",\"action\":\"incident_drill\",\"status\":\"PASS\",\"host_mutation\":false}\n";
     try std.testing.expectEqualStrings("INCIDENT rollback/fallback drill", statusFromDaemonOutput(std.testing.allocator, raw, .{ .kind = .incident_drill }));
+}
+
+test "daemon output parser preserves live microvm refusal after cleanup and validation" {
+    const raw =
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"stage_finished\",\"action\":\"run_lab_microvm_live\",\"status\":\"REFUSE\",\"reason\":\"qemu_not_found\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"cleanup\",\"action\":\"run_lab_microvm_live\",\"status\":\"PASS\",\"reason\":\"process scan clean\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"event\":\"validation\",\"action\":\"run_lab_microvm_live\",\"status\":\"PASS\",\"reason\":\"live bundle freshness accepted\",\"host_mutation\":false}\n";
+    try std.testing.expectEqualStrings("live microvm REFUSE qemu_not_found", statusFromDaemonOutput(std.testing.allocator, raw, .{ .kind = .run_lab_microvm_live }));
 }

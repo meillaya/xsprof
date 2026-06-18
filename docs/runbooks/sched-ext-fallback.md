@@ -54,7 +54,7 @@ The fallback drill is complete only when the evidence bundle contains audit id, 
 
 ## TUI-driven rollback and fallback controls
 
-Rollback and fallback drills must be visible from the TUI/daemon path, not only from direct scripts. In test mode, `m` requests a fresh disposable microVM run, `s` asks for a safe stop, `b` asks for rollback confirmation, and stale or duplicate target ids refuse instead of mutating host scheduler state.
+Rollback and fallback drills must be visible from the TUI/daemon path, not only from direct scripts. In test mode, `m` requests a fresh disposable microVM run, `s` asks for a safe stop, `b` asks for rollback confirmation outside an active live run, and the active live event-loop path sends rollback for the current VM target immediately. Stale or duplicate target ids refuse instead of mutating host scheduler state.
 
 Manual QA command for the live rollback control surface:
 

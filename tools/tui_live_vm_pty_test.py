@@ -24,6 +24,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.tui_live_vm_cleanup import (
+    cleanup_live_artifacts_without_daemon_kill,
     cleanup_launched_live_processes,
     run_self_test,
     wait_for_event_journal,
@@ -90,6 +91,7 @@ def run_tui(args: Args) -> int:
     os.set_blocking(master_fd, False)
     proc: subprocess.Popen[bytes] | None = None
     output = ""
+    force_cleanup = False
     try:
         proc = subprocess.Popen(  # noqa: S603
             [
@@ -122,15 +124,21 @@ def run_tui(args: Args) -> int:
             output += read_available(master_fd)
         while proc.poll() is None:
             if time.monotonic() >= deadline:
+                force_cleanup = True
                 terminate_process_group(proc)
+                output += "\nINCIDENT timeout\n"
                 raise DriverError(f"TUI live VM PTY run timed out after {args.timeout_seconds:.0f}s")
             time.sleep(0.25)
             output += read_available(master_fd)
         output += read_available(master_fd)
+        force_cleanup = proc.returncode != 0
         return proc.returncode
     finally:
         wait_for_event_journal(args.state_dir)
-        cleanup_launched_live_processes(args.state_dir)
+        if force_cleanup:
+            cleanup_launched_live_processes(args.state_dir)
+        else:
+            cleanup_live_artifacts_without_daemon_kill(args.state_dir)
         if slave_fd >= 0:
             os.close(slave_fd)
         os.close(master_fd)

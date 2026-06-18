@@ -60,10 +60,28 @@ case "$behavior" in
     event_line 1 stage_started active fixture_active_then_crash | tee "$state_dir/events.jsonl"
     exit 42
     ;;
+  zero_exit_incomplete)
+    event_line 1 stage_started active fixture_zero_exit_incomplete | tee "$state_dir/events.jsonl"
+    exit 0
+    ;;
+  live_progression_no_bundle)
+    {
+      event_line 1 stage_started queued microvm_live_runner_start
+      event_line 2 microvm_boot PASS "vm marker present"
+      event_line 3 bpf_register PASS "runtime ops observed"
+      event_line 4 runtime_sample PASS "runtime samples accepted"
+      event_line 5 rollback PASS PASS
+      event_line 6 cleanup PASS "process scan clean"
+      event_line 7 validation PASS "live bundle freshness accepted"
+    } | tee "$state_dir/events.jsonl"
+    exit 0
+    ;;
   qemu_refuse) status=REFUSE; reason=qemu_not_found ;;
   kvm_skip) status=SKIP; reason=kvm_unavailable ;;
   verifier_register_failure) status=REFUSE; reason=verifier_register_failed ;;
   lost_runtime_stream) status=REFUSE; reason=lost_runtime_stream ;;
+  rollback_failure) status=REFUSE; reason="rollback drill failed" ;;
+  cleanup_residue) status=REFUSE; reason="process scan dirty" ;;
   *) status=REFUSE; reason=unknown_fixture_failure ;;
 esac
 if [ "${status:-}" ]; then
@@ -81,9 +99,11 @@ record_result() {
   NAME="$name" CLASS="$class" COMMAND_TEXT="$command_text" RC="$rc" OUTPUT_PATH="$output" EXPECTED="$expected" RESULTS_JSONL="$results_jsonl" python3 - <<'PY'
 import json
 import os
+import re
 from pathlib import Path
 name = os.environ['NAME']
 text = Path(os.environ['OUTPUT_PATH']).read_text(encoding='utf-8', errors='replace')
+plain = re.sub(r'\x1b\[[0-9;?]*[ -/]*[@-~]', '', text)
 expected = os.environ['EXPECTED']
 rc = int(os.environ['RC'])
 checks = []
@@ -94,12 +114,30 @@ if '"host_mutation":true' in text or '"host_mutation": true' in text or 'host_mu
 if 'LAB RUN COMPLETE' in text:
     passed = False
     checks.append('false_lab_complete_seen')
-if expected not in text:
+if expected not in plain:
     passed = False
     checks.append(f'missing_expected:{expected}')
-if name in {'missing_qemu','missing_kvm','stale_bundle','verifier_register_failure','forced_timeout','lost_runtime_stream','malformed_event','tui_quit_crash'} and rc == 0:
+if expected.startswith('INCIDENT '):
+    incident_at = plain.find(expected)
+    if incident_at >= 0:
+        suffix = plain[incident_at:]
+        for forbidden in ('[SAFE] footer mode SAFE', 'live bundle freshness accepted', '\n│ NORMAL     ', '\n│ RUNNING     ', '\n│ ROLLBACK     ', '\n│ CLEANUP     '):
+            if forbidden in suffix:
+                passed = False
+                checks.append(f'incident_overwritten_by_success:{forbidden}')
+if name in {'missing_qemu','missing_kvm','stale_bundle','verifier_register_failure','forced_timeout','lost_runtime_stream','malformed_event','tui_quit_crash','rollback_failure','cleanup_residue','zero_exit_incomplete','live_progression_order'} and rc == 0:
     passed = False
     checks.append('failure_scenario_returned_zero')
+if name == 'live_progression_order':
+    ordered = ['[queued] VM run queued', '[booting]', '[attached]', '[observing]', '[rollback ready]', '[cleaned]']
+    cursor = -1
+    for marker in ordered:
+        pos = plain.find(marker, cursor + 1)
+        if pos == -1:
+            passed = False
+            checks.append(f'missing_ordered_marker:{marker}')
+            break
+        cursor = pos
 if name in {'duplicate_action_id','stale_rollback_id'} and rc != 0:
     passed = False
     checks.append(f'daemon_matrix_rc:{rc}')
@@ -124,22 +162,33 @@ PY
 
 run_fixture_scenario() {
   local name="$1" class="$2" behavior="$3" expected="$4" timeout_value="${5:-8}"
+  local keys_value="${6:-mq}"
   local out="$matrix_root/$name" log="$matrix_root/$name/output.txt"
   mkdir -p "$out"
-  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior bash qa/tui_live_lab_e2e.sh --out $out/run --mode self-test-launch-live-vm --self-test-daemon-bin $fake_daemon --timeout-seconds $timeout_value --keys mq"
+  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior bash qa/tui_live_lab_e2e.sh --out $out/run --mode self-test-launch-live-vm --self-test-daemon-bin $fake_daemon --timeout-seconds $timeout_value --keys $keys_value"
   set +e
-  T26_FAKE_DAEMON_BEHAVIOR="$behavior" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode self-test-launch-live-vm --self-test-daemon-bin "$fake_daemon" --timeout-seconds "$timeout_value" --keys mq > "$log" 2>&1
+  T26_FAKE_DAEMON_BEHAVIOR="$behavior" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode self-test-launch-live-vm --self-test-daemon-bin "$fake_daemon" --timeout-seconds "$timeout_value" --keys "$keys_value" > "$log" 2>&1
   local rc=$?
   set -e
+  {
+    printf '\n--- tui transcript ---\n'
+    cat "$out/run/tui-transcript.txt" 2>/dev/null || true
+    printf '\n--- pty driver ---\n'
+    cat "$out/run/pty-driver.log" 2>/dev/null || true
+  } >> "$log"
   record_result "$name" "$class" "$cmd" "$rc" "$log" "$expected"
 }
 
-run_fixture_scenario missing_qemu prerequisite_refusal qemu_refuse 'REFUSE:'
-run_fixture_scenario missing_kvm prerequisite_refusal kvm_skip 'SKIP:'
-run_fixture_scenario verifier_register_failure verifier_fixture verifier_register_failure 'REFUSE:'
-run_fixture_scenario lost_runtime_stream hung_commands lost_runtime_stream lost_runtime_stream
-run_fixture_scenario malformed_event malformed_input malformed_event 'REFUSE: TUI did not generate live bundle'
-run_fixture_scenario forced_timeout hung_commands hung_stream 'TUI e2e driver failed' 2
+run_fixture_scenario missing_qemu prerequisite_refusal qemu_refuse 'INCIDENT qemu_unavailable'
+run_fixture_scenario missing_kvm prerequisite_refusal kvm_skip 'INCIDENT qemu_unavailable'
+run_fixture_scenario verifier_register_failure verifier_fixture verifier_register_failure 'INCIDENT verifier_reject'
+run_fixture_scenario lost_runtime_stream hung_commands lost_runtime_stream 'INCIDENT lost_stream'
+run_fixture_scenario malformed_event malformed_input malformed_event 'INCIDENT malformed_line'
+run_fixture_scenario forced_timeout hung_commands hung_stream 'INCIDENT timeout' 12 m
+run_fixture_scenario zero_exit_incomplete lost_stream zero_exit_incomplete 'INCIDENT lost_stream' 8 m
+run_fixture_scenario rollback_failure rollback_drill rollback_failure 'INCIDENT rollback_failure'
+run_fixture_scenario cleanup_residue cleanup_scan cleanup_residue 'INCIDENT cleanup_residue'
+run_fixture_scenario live_progression_order live_progression live_progression_no_bundle '[cleaned] cleanup receipt PASS'
 run_fixture_scenario tui_quit_crash repeated_interruption daemon_crash_after_active 'TUI did not generate live bundle'
 
 stale_dir="$matrix_root/stale_bundle"
@@ -170,6 +219,7 @@ stale_cmd="printf stale rollback payload | ./zig-out/bin/zig-scheduler-daemon --
 printf '%s' "$stale_payload" | ./zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$stale_state" > "$matrix_root/daemon_matrix/stale-rollback/output.txt" 2>&1
 record_result stale_rollback_id malformed_input "$stale_cmd" "$?" "$matrix_root/daemon_matrix/stale-rollback/output.txt" stale_rollback_id
 
+python3 tools/tui_live_vm_cleanup.py --cleanup-owned-lab-tmpdirs > "$matrix_root/cleanup-owned-lab-tmpdirs.txt" 2>&1 || true
 cleanup_log="$matrix_root/cleanup-scan.txt"
 {
   printf 'qemu_scan:\n'

@@ -228,6 +228,12 @@ bundle = sys.argv[2]
 bundle_dir = str(Path(bundle).parent)
 needles = [
     "lab-only vm guest",
+    "[queued] VM run queued",
+    "[booting]",
+    "[attached]",
+    "[observing]",
+    "[rollback ready]",
+    "[cleaned]",
     "runtime samples accepted",
     "ops recorded",
     "zigsched_minimal",
@@ -245,7 +251,22 @@ for stale in ("runtime_sample │ not-started", "ops │ not-attached", "bundle 
 if missing:
     print("missing transcript live state: " + ", ".join(missing))
     raise SystemExit(1)
-print("PASS: transcript-visible live VM state includes daemon-derived bundle/runtime/rollback/cleanup/validation fields")
+ordered = [
+    "[queued] VM run queued",
+    "[booting]",
+    "[attached]",
+    "[observing]",
+    "[rollback ready]",
+    "[cleaned]",
+]
+cursor = -1
+for marker in ordered:
+    pos = text.find(marker, cursor + 1)
+    if pos == -1:
+        print("missing ordered intermediate frame marker: " + marker)
+        raise SystemExit(1)
+    cursor = pos
+print("PASS: transcript-visible live VM state includes ordered intermediate frames and daemon-derived bundle/runtime/rollback/cleanup/validation fields")
 PY
 }
 

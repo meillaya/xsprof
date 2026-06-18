@@ -47,7 +47,7 @@ The TUI-driven workflow introduces an operator action queue and daemon stdin bou
 - the TUI emits typed `operator-action/v1` JSON only;
 - the daemon maps actions to fixed argv entries, not shell-concatenated commands;
 - `m` requests a disposable microVM run through the trusted registry entry that launches `qa/vm/run_microvm_live_lab.sh`;
-- `s` requests a safe stop; `b` confirms rollback; stale or duplicate target ids refuse instead of mutating host state;
+- `s` requests a safe stop; `b` confirms rollback outside an active live run, while the active live event-loop path sends the current VM target rollback immediately; stale or duplicate target ids refuse instead of mutating host state;
 - hazardous actions on ordinary hosts refuse with `host_mutation=false`;
 - incident and rollback paths preserve audit ids, rollback ids, event journals, and cleanup receipts;
 - live bundles, runtime samples, and daemon events are verification artifacts only and must not be treated as proof of deployment, arbitrary-host safety, or release approval;

@@ -7,6 +7,7 @@ pub const daemon_model = @import("daemon_model.zig");
 const fixture = @import("fixture.zig");
 pub const interaction = @import("interaction.zig");
 const layout = @import("layout.zig");
+pub const live_store = @import("live_store.zig");
 const ui_model = @import("model.zig");
 const render = @import("render.zig");
 const screens = @import("screens.zig");
@@ -107,6 +108,24 @@ pub fn renderInteractiveDaemonOutput(
     return interactiveAnsiFrame(allocator, plain);
 }
 
+pub fn renderInteractiveLiveStore(
+    allocator: std.mem.Allocator,
+    options: Options,
+    store: *const live_store.Store,
+    action_status: []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);
+    var render_options = options;
+    render_options.screen = .vm_lab;
+    try renderFrame(&writer.writer, render_options, store.toModel(), action_status);
+    out = writer.toArrayList();
+    const plain = try out.toOwnedSlice(allocator);
+    defer allocator.free(plain);
+    return interactiveAnsiFrame(allocator, plain);
+}
+
 pub fn renderInteractiveDaemonQueued(
     allocator: std.mem.Allocator,
     options: Options,
@@ -130,7 +149,7 @@ pub fn interactiveActionForKey(key: u8) ?linux.control.protocol.OperatorAction {
 
 fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, action_status: []const u8) !void {
     const width = @max(options.width, 80);
-    const mode_label = if (options.interactive) "INTERACTIVE test queue" else if (model.fixture_warning.len == 0) "SNAPSHOT read-only" else "FIXTURE read-only";
+    const mode_label = if (options.interactive and model.footer_mode.len != 0) model.footer_mode else if (options.interactive) "INTERACTIVE test queue" else if (model.fixture_warning.len == 0) "SNAPSHOT read-only" else "FIXTURE read-only";
     try line(writer, width, "╭", "─", "╮");
     try render.renderHeader(writer, width, args.screenTitle(options.screen), mode_label);
     try line(writer, width, "├", "─", "┤");
@@ -150,8 +169,9 @@ fn renderFrame(writer: anytype, options: Options, model: fixture.SnapshotModel, 
         try row(writer, width, "", "", "");
     }
     try line(writer, width, "├", "─", "┤");
-    if (action_status.len != 0) try row(writer, width, action_status, "typed only", "no shell execution");
-    try render.renderStatusBar(writer, width, "");
+    if (action_status.len != 0) try row(writer, width, action_status, "typed only", "host unchanged");
+    const footer_status = if (options.interactive and action_status.len == 0) model.footer_mode else action_status;
+    try render.renderStatusBar(writer, width, footer_status);
     try line(writer, width, "╰", "─", "╯");
 }
 

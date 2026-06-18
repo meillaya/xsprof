@@ -35,6 +35,9 @@ pub const SnapshotModel = struct {
     bundle_path: []const u8 = "none",
     cleanup_status: []const u8 = "not-started",
     lab_scope: []const u8 = "host fail-closed",
+    event_cursor: []const u8 = "cursor none",
+    event_latest: []const u8 = "event list empty",
+    footer_mode: []const u8 = "SAFE",
     fixture_warning: []const u8 = "",
 };
 

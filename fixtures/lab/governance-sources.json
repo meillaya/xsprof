@@ -96,7 +96,7 @@
       "path": "docs/runbooks/sched-ext-fallback.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "7c800a96e7c06a7c8249cf83fced78206d020a65481f84765abcdd14a647d12a"
+      "sha256": "0feb11b61c3b68100465960ea82d9678e16a590c4f780246c261741d58f2c3ce"
     },
     {
       "path": "docs/runbooks/verifier-and-incident.md",
@@ -120,7 +120,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "4168f0e44146e3a50354c5c443969e6c2b55679dccfb7523ee3de868c6e609f6"
+      "sha256": "e0ae42ef2ece7f6e56a46783bf374b7da7d2a6e823142cb70c9f6d517bafdf69"
     },
     {
       "path": "qa/vm/execution_contract.json",

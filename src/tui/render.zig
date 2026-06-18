@@ -62,16 +62,29 @@ pub fn renderPane(writer: anytype, width: usize, title: []const u8, left: []cons
 }
 
 pub fn renderStatusBar(writer: anytype, width: usize, action_status: []const u8) !void {
-    _ = action_status;
-    const theme = Theme{};
+    const mode = footerMode(action_status);
     try writer.writeAll("│ ");
-    try writer.writeAll(theme.mode);
+    try writer.writeAll(mode);
     try writer.writeAll("     ");
     const status_cells = try actions.writeFooter(writer, width);
     try writer.writeAll("     FAIL-CLOSED");
-    var cells = layout.displayCells(theme.mode) + layout.displayCells("     ") + status_cells + layout.displayCells("     FAIL-CLOSED");
+    var cells = layout.displayCells(mode) + layout.displayCells("     ") + status_cells + layout.displayCells("     FAIL-CLOSED");
     while (cells + 4 < width) : (cells += 1) try writer.writeByte(' ');
     try writer.writeAll(" │\n");
+}
+
+fn footerMode(action_status: []const u8) []const u8 {
+    if (std.mem.indexOf(u8, action_status, "INCIDENT") != null or std.mem.indexOf(u8, action_status, "incident") != null) return "INCIDENT";
+    if (std.mem.indexOf(u8, action_status, "ROLLBACK") != null or std.mem.indexOf(u8, action_status, "rollback") != null) return "ROLLBACK";
+    if (std.mem.indexOf(u8, action_status, "CLEANUP") != null or std.mem.indexOf(u8, action_status, "cleanup") != null) return "CLEANUP";
+    if (std.mem.indexOf(u8, action_status, "SAFE") != null or std.mem.indexOf(u8, action_status, "validated") != null) return "SAFE";
+    if (std.mem.indexOf(u8, action_status, "RUNNING") != null or std.mem.indexOf(u8, action_status, "active") != null or std.mem.indexOf(u8, action_status, "queued") != null) return "RUNNING";
+    return themeDefaultMode();
+}
+
+fn themeDefaultMode() []const u8 {
+    const theme = Theme{};
+    return theme.mode;
 }
 
 const SemanticToken = struct {
@@ -122,6 +135,12 @@ const semantic_tokens = [_]SemanticToken{
     .{ .text = "sched_ext", .style = .accent },
     .{ .text = "zigsched_minimal", .style = .accent },
     .{ .text = "NORMAL", .style = .accent },
+    .{ .text = "RUNNING", .style = .accent },
+    .{ .text = "ROLLBACK", .style = .warning },
+    .{ .text = "CLEANUP", .style = .warning },
+    .{ .text = "SAFE", .style = .success },
+    .{ .text = "REFUSED", .style = .danger },
+    .{ .text = "INCIDENT", .style = .danger },
     .{ .text = "↵", .style = .accent },
 
     .{ .text = "╭", .style = .border },

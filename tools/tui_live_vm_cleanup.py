@@ -26,6 +26,10 @@ LAB_ARTIFACT_PREFIX: Final[str] = "evidence/lab/run-all/"
 
 def cleanup_launched_live_processes(state_dir: str) -> None:
     terminate_matching_processes("zig-scheduler-daemon", state_dir)
+    cleanup_live_artifacts_without_daemon_kill(state_dir)
+
+
+def cleanup_live_artifacts_without_daemon_kill(state_dir: str) -> None:
     owned_scratch_dirs = owned_microvm_scratch_dirs(state_dir)
     terminate_owned_microvm_processes(owned_scratch_dirs)
     remove_owned_scratch_dirs(owned_scratch_dirs)

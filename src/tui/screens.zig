@@ -60,12 +60,12 @@ pub fn renderVmLab(writer: anytype, width: usize, model: fixture.SnapshotModel) 
     try row(writer, width, "preflight build boot", model.lab_status, model.incident_status);
     try row(writer, width, "marker verifier attach", model.verifier_status, model.runtime_ops);
     try row(writer, width, "observe rollback audit cleanup", model.runtime_samples, model.cleanup_status);
-    try row(writer, width, "progress", "▰▰▰▰▰▰▰▰▰▱", "VM-only attach path");
+    try row(writer, width, "footer modes", "RUNNING ROLLBACK CLEANUP", "SAFE INCIDENT");
     try row(writer, width, "lab scope", model.lab_scope, "host fail-closed");
     try row(writer, width, "vm marker", model.vm_marker, model.evidence_mode);
     try row(writer, width, "bundle", model.bundle_path, model.cleanup_status);
-    try section(writer, width, "event stream", "current stage");
-    try row(writer, width, "microvm_boot", model.current_stage, "guest-only");
+    try section(writer, width, "event stream", model.event_cursor);
+    try row(writer, width, "microvm_boot", model.current_stage, model.event_latest);
     try row(writer, width, "bpf_register", model.runtime_ops, "no host load");
     try row(writer, width, "runtime_sample", model.runtime_samples, model.runtime_counters);
     try row(writer, width, "rollback", model.rollback_status, model.rollback_id);
@@ -78,7 +78,7 @@ pub fn renderVmLab(writer: anytype, width: usize, model: fixture.SnapshotModel) 
     try row(writer, width, "rollback id", model.rollback_id, model.rollback_status);
     try section(writer, width, "safety contract", "not release proof");
     try row(writer, width, "release eligible", model.release_eligibility, "signed live proof withheld");
-    try row(writer, width, "cleanup", model.cleanup_status, "process scan required");
+    try row(writer, width, "incident/refusal", model.incident_status, "REFUSED/INCIDENT explicit");
 }
 
 pub fn renderController(writer: anytype, width: usize, model: fixture.SnapshotModel) !void {
