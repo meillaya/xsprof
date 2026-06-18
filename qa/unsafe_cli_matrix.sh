@@ -9,6 +9,27 @@ fail() {
   exit 1
 }
 
+cleanup_unsafe_matrix_residue() {
+  [ -d evidence/lab/run-all ] || return 0
+  find evidence/lab/run-all -maxdepth 1 -type d -name 'unsafe-matrix-*' -exec rm -rf {} +
+}
+
+cleanup_unsafe_matrix_artifact() {
+  local artifact="$1"
+  case "$artifact" in
+    evidence/lab/run-all/unsafe-matrix-*)
+      if [ -d "$artifact" ]; then
+        rm -rf "$artifact"
+      elif [ "$(basename -- "$artifact")" = summary.json ]; then
+        rm -rf "$(dirname -- "$artifact")"
+      fi
+      ;;
+  esac
+}
+
+cleanup_unsafe_matrix_residue
+trap cleanup_unsafe_matrix_residue EXIT
+
 check_refusal() {
   local label="$1"
   shift
@@ -125,9 +146,7 @@ check_live_microvm_refusal() {
         ;;
     esac
     artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-    case "$artifact" in
-      evidence/lab/run-all/unsafe-matrix-*) rm -rf "$artifact" ;;
-    esac
+    cleanup_unsafe_matrix_artifact "$artifact"
     if [ "$before" != "$after" ]; then
       cat "$out" >&2 || true
       rm -rf "$state_dir" "$out"
@@ -149,9 +168,7 @@ check_live_microvm_refusal() {
   fi
   reason="live_bundle_rejected"
   artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-  case "$artifact" in
-    evidence/lab/run-all/unsafe-matrix-*) rm -rf "$artifact" ;;
-  esac
+  cleanup_unsafe_matrix_artifact "$artifact"
   if [ "$before" != "$after" ]; then
     cat "$out" >&2 || true
     rm -rf "$state_dir" "$out"
