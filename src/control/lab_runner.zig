@@ -10,6 +10,13 @@ const summary = @import("lab_runner/summary.zig");
 
 pub const RunError = errors.RunError;
 
+pub const MicrovmLiveResult = struct {
+    lifecycle_events: usize = 0,
+    rollback_seen: bool = false,
+    cleanup_seen: bool = false,
+    incident_seen: bool = false,
+};
+
 pub fn runHostSafe(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -82,7 +89,7 @@ pub fn runMicrovmLive(
     seq: *usize,
     start_events_already_emitted: bool,
     follow_flush: ?*daemon_support.FollowFlush,
-) RunError!void {
+) RunError!MicrovmLiveResult {
     var plan = try commands.buildLabCommand(allocator, action);
     defer plan.deinit(allocator);
     if (!start_events_already_emitted) {
@@ -100,29 +107,71 @@ pub fn runMicrovmLive(
     });
     defer child.kill(io);
 
+    var live_result = MicrovmLiveResult{};
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_reader = child.stdout.?.readerStreaming(io, &stdout_buffer);
     while (try stdout_reader.interface.takeDelimiter('\n')) |line| {
-        if (try live_summary.appendRunnerLifecycleLine(allocator, output, seq, action, line)) {
+        const line_info = live_summary.appendRunnerLifecycleLine(allocator, output, seq, action, line) catch {
+            try events.appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "unsafe_to_assume", "unsafe_to_assume", "malformed_runner_event", plan.out_dir);
+            live_result.lifecycle_events += 1;
+            live_result.incident_seen = true;
             if (follow_flush) |flush| try flush.flush(output.items);
+            continue;
+        };
+        switch (line_info.kind) {
+            .ignored => {},
+            .rollback => {
+                live_result.lifecycle_events += 1;
+                live_result.rollback_seen = live_result.rollback_seen or line_info.clears_active;
+                live_result.incident_seen = live_result.incident_seen or line_info.incident_terminal;
+                if (follow_flush) |flush| try flush.flush(output.items);
+            },
+            .cleanup => {
+                live_result.lifecycle_events += 1;
+                live_result.cleanup_seen = live_result.cleanup_seen or line_info.clears_active;
+                live_result.incident_seen = live_result.incident_seen or line_info.incident_terminal;
+                if (follow_flush) |flush| try flush.flush(output.items);
+            },
+            .incident => {
+                live_result.lifecycle_events += 1;
+                live_result.incident_seen = true;
+                if (follow_flush) |flush| try flush.flush(output.items);
+            },
+            else => {
+                live_result.lifecycle_events += 1;
+                live_result.incident_seen = live_result.incident_seen or line_info.incident_terminal;
+                if (follow_flush) |flush| try flush.flush(output.items);
+            },
         }
     }
     const term = try child.wait(io);
 
     const summary_path = try std.fmt.allocPrint(allocator, "{s}/summary.json", .{plan.out_dir});
     defer allocator.free(summary_path);
+    if (live_result.lifecycle_events == 0) {
+        try events.appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "unsafe_to_assume", "unsafe_to_assume", "lost_stream", plan.out_dir);
+        live_result.incident_seen = true;
+        if (follow_flush) |flush| try flush.flush(output.items);
+    }
     if (term != .exited or term.exited != 0) {
         try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "REFUSE", "refused_host", "microvm_runner_refused", plan.out_dir);
-        return;
+        return live_result;
+    }
+    if (live_result.incident_seen) {
+        try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "INCIDENT", "unsafe_to_assume", "microvm_runner_incident", plan.out_dir);
+        return live_result;
     }
 
     const git_sha = try live_summary.readGitSha(allocator, io);
     defer allocator.free(git_sha);
     live_summary.validateLiveBundle(allocator, io, summary_path, git_sha) catch {
         try events.appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "unsafe_to_assume", "unsafe_to_assume", "live_bundle_rejected", summary_path);
-        return;
+        live_result.incident_seen = true;
+        try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "INCIDENT", "unsafe_to_assume", "live_bundle_rejected", summary_path);
+        return live_result;
     };
     try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "PASS", "vm_live_complete", "microvm live bundle accepted", summary_path);
+    return live_result;
 }
 
 pub fn appendMicrovmLiveStartEvents(
@@ -205,27 +254,12 @@ pub fn runIncidentDrill(
         return error.InvalidSummary;
     }
     try events.appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "INCIDENT", "incident", "verifier_rejection scheduler_exit lost_stream", summary_path);
-    try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "PASS", "rolled_back", "incident rollback/fallback summary captured", summary_path);
+    try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "INCIDENT", "incident", "incident rollback/fallback summary captured", summary_path);
     return summary_path;
 }
 
-test "live microvm start events publish active rollback target before runner blocks" {
-    var output: std.ArrayList(u8) = .empty;
-    defer output.deinit(std.testing.allocator);
-    var seq: usize = 1;
-    try appendMicrovmLiveStartEvents(std.testing.allocator, &output, .{
-        .kind = .run_lab_microvm_live,
-        .action_id = "live-active",
-        .run_id = "live-active",
-        .target_id = "target-live-active",
-        .rollback_id = "RB-live-active",
-    }, &seq);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"lab_run_active\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"action_id\":\"live-active\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"rollback_id\":\"RB-live-active\"") != null);
-}
-
-test "lab runner split helper modules are linked" {
+test "lab runner behavior tests are linked" {
+    std.testing.refAllDecls(@import("lab_runner_tests.zig"));
     std.testing.refAllDecls(summary);
     std.testing.refAllDecls(live_summary);
 }

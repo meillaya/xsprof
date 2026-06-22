@@ -12,18 +12,12 @@ pub fn build(
     const qemu_override = if (environ) |env| try envValue(allocator, env, "ZIG_SCHEDULER_QEMU_BIN") else null;
     defer if (qemu_override) |value| allocator.free(value);
 
-    const path_value = if (environ) |env| try envValue(allocator, env, "PATH") else null;
-    defer if (path_value) |value| allocator.free(value);
-
-    const home_value = if (environ) |env| try envValue(allocator, env, "HOME") else null;
-    defer if (home_value) |value| allocator.free(value);
-
     const dirty_snapshot = if (environ) |env| try envValue(allocator, env, "ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA") else null;
     defer if (dirty_snapshot) |value| allocator.free(value);
     const lifecycle_fixture = if (environ) |env| try envValue(allocator, env, "ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE") else null;
     defer if (lifecycle_fixture) |value| allocator.free(value);
 
-    return buildFromEnv(allocator, vars, inject_qemu, qemu_override, path_value, home_value, dirty_snapshot, lifecycle_fixture);
+    return buildFromEnv(allocator, vars, inject_qemu, qemu_override, dirty_snapshot, lifecycle_fixture);
 }
 
 fn buildFromEnv(
@@ -31,8 +25,6 @@ fn buildFromEnv(
     vars: []const commands.EnvVar,
     inject_qemu: bool,
     qemu_override: ?[]const u8,
-    path_value: ?[]const u8,
-    home_value: ?[]const u8,
     dirty_snapshot: ?[]const u8,
     lifecycle_fixture: ?[]const u8,
 ) !std.process.Environ.Map {
@@ -43,10 +35,18 @@ fn buildFromEnv(
         if (isHexSha256(value)) try map.put("ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA", value);
     }
     if (lifecycle_fixture) |value| {
-        if (std.mem.eql(u8, value, "1")) try map.put("ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE", value);
+        if (std.mem.eql(u8, value, "1") or
+            std.mem.eql(u8, value, "lost-stream") or
+            std.mem.eql(u8, value, "malformed-stream") or
+            std.mem.eql(u8, value, "timeout") or
+            std.mem.eql(u8, value, "failed-rollback") or
+            std.mem.eql(u8, value, "failed-cleanup"))
+        {
+            try map.put("ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE", value);
+        }
     }
     if (inject_qemu) {
-        if (try resolveQemuBinFromEnv(allocator, qemu_override, path_value, home_value)) |qemu_bin| {
+        if (try resolveQemuBinFromEnv(allocator, qemu_override)) |qemu_bin| {
             defer allocator.free(qemu_bin);
             try map.put("ZIG_SCHEDULER_QEMU_BIN", qemu_bin);
         }
@@ -65,11 +65,7 @@ fn isHexSha256(value: []const u8) bool {
 fn resolveQemuBinFromEnv(
     allocator: std.mem.Allocator,
     qemu_override: ?[]const u8,
-    path_value: ?[]const u8,
-    home_value: ?[]const u8,
 ) !?[]const u8 {
-    _ = path_value;
-    _ = home_value;
     const io = std.Io.Threaded.global_single_threaded.io();
     if (qemu_override) |override_path| return try resolveExplicitQemuOverride(allocator, io, override_path);
     return null;
@@ -144,7 +140,7 @@ fn envValue(
     };
 }
 
-test "resolveQemuBinFromEnv ignores ambient PATH and HOME candidates" {
+test "build ignores ambient PATH and HOME qemu candidates" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     const io = std.Io.Threaded.global_single_threaded.io();
@@ -165,8 +161,10 @@ test "resolveQemuBinFromEnv ignores ambient PATH and HOME candidates" {
     const path_value = try tmpPath(std.testing.allocator, tmp, "hostile-bin");
     defer std.testing.allocator.free(path_value);
 
-    const resolved = try resolveQemuBinFromEnv(std.testing.allocator, null, path_value, home_abs);
-    try std.testing.expectEqual(@as(?[]const u8, null), resolved);
+    const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = home_abs } };
+    var map = try buildFromEnv(std.testing.allocator, vars, true, null, null, null);
+    defer map.deinit();
+    try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
 }
 
 test "build injects only canonical trusted explicit qemu override into the daemon child env" {
@@ -176,10 +174,10 @@ test "build injects only canonical trusted explicit qemu override into the daemo
     const path_value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = "/tmp" } };
 
-    var map = try buildFromEnv(std.testing.allocator, vars, true, qemu_bin, path_value, "/tmp", null, null);
+    var map = try buildFromEnv(std.testing.allocator, vars, true, qemu_bin, null, null);
     defer map.deinit();
 
-    if (try resolveQemuBinFromEnv(std.testing.allocator, qemu_bin, path_value, "/tmp")) |resolved| {
+    if (try resolveQemuBinFromEnv(std.testing.allocator, qemu_bin)) |resolved| {
         defer std.testing.allocator.free(resolved);
         try std.testing.expectEqualStrings(resolved, map.get("ZIG_SCHEDULER_QEMU_BIN").?);
     } else {
@@ -219,7 +217,7 @@ test "build rejects explicit qemu override from home and traversal paths" {
         "/usr/bin/qemu-kvm",
     };
     for (rejected) |override_path| {
-        var map = try buildFromEnv(std.testing.allocator, vars, true, override_path, path_value, "/home/operator", null, null);
+        var map = try buildFromEnv(std.testing.allocator, vars, true, override_path, null, null);
         defer map.deinit();
         try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
     }
@@ -240,10 +238,21 @@ test "build does not inject explicit qemu override from writable temp paths" {
     const path_value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     const vars = &.{ .{ .name = "PATH", .value = path_value }, .{ .name = "HOME", .value = "/tmp" } };
 
-    var map = try buildFromEnv(std.testing.allocator, vars, true, tmp_abs, path_value, "/tmp", null, null);
+    var map = try buildFromEnv(std.testing.allocator, vars, true, tmp_abs, null, null);
     defer map.deinit();
 
     try std.testing.expectEqual(@as(?[]const u8, null), map.get("ZIG_SCHEDULER_QEMU_BIN"));
+}
+
+test "build allows bounded microvm lifecycle fixture modes for daemon QA only" {
+    const vars = &.{ .{ .name = "PATH", .value = "/usr/bin" }, .{ .name = "HOME", .value = "/tmp" } };
+    var accepted = try buildFromEnv(std.testing.allocator, vars, false, null, null, "lost-stream");
+    defer accepted.deinit();
+    try std.testing.expectEqualStrings("lost-stream", accepted.get("ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE").?);
+
+    var rejected = try buildFromEnv(std.testing.allocator, vars, false, null, null, "shell");
+    defer rejected.deinit();
+    try std.testing.expectEqual(@as(?[]const u8, null), rejected.get("ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE"));
 }
 
 fn makePath(dir: *std.Io.Dir, sub_path: []const u8) !void {
@@ -263,11 +272,11 @@ fn tmpPath(allocator: std.mem.Allocator, tmp: std.testing.TmpDir, sub_path: []co
 
 test "build propagates validated dirty snapshot traceability hash" {
     const vars = &.{.{ .name = "PATH", .value = "/usr/bin" }};
-    var map = try buildFromEnv(std.testing.allocator, vars, false, null, "/usr/bin", "/tmp", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null);
+    var map = try buildFromEnv(std.testing.allocator, vars, false, null, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null);
     defer map.deinit();
     try std.testing.expectEqualStrings("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", map.get("ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA").?);
 
-    var rejected = try buildFromEnv(std.testing.allocator, vars, false, null, "/usr/bin", "/tmp", "not-a-sha", null);
+    var rejected = try buildFromEnv(std.testing.allocator, vars, false, null, "not-a-sha", null);
     defer rejected.deinit();
     try std.testing.expectEqual(@as(?[]const u8, null), rejected.get("ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA"));
 }

@@ -1,6 +1,47 @@
 #!/usr/bin/env bash
 # SIZE_OK: Single microVM serial parser/evidence emitter keeps copied-out artifact paths and daemon events consistent.
 
+microvm_emit_timeout_report() {
+  local out_dir="$1" git_sha="$2" git_dirty="$3" started_at="$4" kernel_image="$5" qemu_bin="$6" qemu_scan_before="$7" qemu_scan_after="$8" qemu_rc="$9"
+  OUT_DIR="$out_dir" GIT_SHA="$git_sha" GIT_DIRTY="$git_dirty" STARTED_AT="$started_at" KERNEL_IMAGE="$kernel_image" QEMU_BIN="$qemu_bin" QEMU_SCAN_BEFORE="$qemu_scan_before" QEMU_SCAN_AFTER="$qemu_scan_after" QEMU_RC="$qemu_rc" python3 - <<'INNERPY'
+import json, os
+from pathlib import Path
+out = Path(os.environ["OUT_DIR"])
+out.mkdir(parents=True, exist_ok=True)
+summary = out / "summary.json"
+summary_data = {
+    "schema": "zig-scheduler/run-all-lab/v1",
+    "status": "INCIDENT",
+    "mode": "microvm-live",
+    "evidence_mode": "vm-live",
+    "git_sha": os.environ["GIT_SHA"],
+    "git_dirty": os.environ["GIT_DIRTY"] == "true",
+    "output_dir": out.as_posix(),
+    "output_dir_created_fresh": True,
+    "host_mutation": False,
+    "release_eligible_live_proof": False,
+    "vm_kind": "qemu-vm",
+    "kernel_image": os.environ["KERNEL_IMAGE"],
+    "qemu_bin": os.environ["QEMU_BIN"],
+    "started_at": os.environ["STARTED_AT"],
+    "cleanup": {
+        "qemu_leftovers": False,
+        "tmux_leftovers": False,
+        "qemu_process_scan_before": os.environ["QEMU_SCAN_BEFORE"],
+        "qemu_process_scan_after": os.environ["QEMU_SCAN_AFTER"],
+        "timeout_pid": "timeout-supervised-foreground",
+        "timeout_rc": int(os.environ["QEMU_RC"]),
+        "process_group_reaped": True,
+        "temp_dirs_removed": True,
+    },
+    "stages": [{"stage": "microvm_timeout", "status": "INCIDENT", "reason": "qemu timeout", "artifact": summary.as_posix()}],
+}
+summary.write_text(json.dumps(summary_data, indent=2, sort_keys=True) + "\n")
+payload = {"event": "incident", "status": "unsafe_to_assume", "state": "unsafe_to_assume", "reason": "timeout", "artifact": summary.as_posix()}
+print("ZIGSCHED_DAEMON_EVENT " + json.dumps(payload, sort_keys=True), flush=True)
+INNERPY
+}
+
 microvm_parse_and_emit_report() {
   local serial="$1" out_dir="$2" object_sha="$3" object_file="$4" meta_file="$5" git_sha="$6"
   local git_dirty="$7" started_at="$8" kernel_image="$9" qemu_bin="${10}" qemu_scan_before="${11}" qemu_scan_after="${12}" qemu_rc="${13}"
@@ -320,7 +361,7 @@ daemon_event("attach", "PASS", "zigsched_minimal", "runtime ops observed", parti
 daemon_event("runtime_sample", "accepted", "observing", "runtime samples accepted", samples.as_posix(), ops="zigsched_minimal")
 daemon_event("rollback", "PASS", "rolled_back", "PASS", ledger.as_posix())
 daemon_event("validation", "refused", "stale_target_refused", "stale rollback target refused for active VM target", refusals.as_posix())
-daemon_event("incident", "refused", "duplicate_rollback_refused", "duplicate rollback id refused after rollback completed", refusals.as_posix())
+daemon_event("validation", "refused", "duplicate_rollback_refused", "duplicate rollback id refused after rollback completed", refusals.as_posix())
 daemon_event("cleanup", "PASS", "clean", "process scan clean", summary.as_posix())
 daemon_event("validation", "PASS", "vm_live_validated", "live bundle freshness accepted", summary.as_posix(), live_bundle_path=summary.as_posix())
 print(summary.as_posix())

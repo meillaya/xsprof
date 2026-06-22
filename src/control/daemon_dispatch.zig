@@ -181,7 +181,7 @@ fn dispatchLiveMicrovmAction(
     };
     try follow_flush.flush(output.items);
     try state_dir.writeFile(io, .{ .sub_path = "events.jsonl", .data = output.items });
-    lab_runner.runMicrovmLive(allocator, io, environ, output, action, seq, true, follow_flush) catch |err| switch (err) {
+    const live_result = lab_runner.runMicrovmLive(allocator, io, environ, output, action, seq, true, follow_flush) catch |err| switch (err) {
         error.InvalidField, error.InvalidAction => {
             try daemon_events.appendInvalidField(allocator, output, action, seq.*);
             seq.* += 1;
@@ -189,5 +189,8 @@ fn dispatchLiveMicrovmAction(
         },
         else => |e| return e,
     };
+    if (live_result.rollback_seen or live_result.cleanup_seen) {
+        try tracker.markRolledBack(allocator, action.action_id, live_plan.out_dir);
+    }
     try follow_flush.flush(output.items);
 }

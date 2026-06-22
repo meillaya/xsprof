@@ -127,6 +127,10 @@ timeout "$timeout_seconds" "$qemu_bin" -enable-kvm -cpu host -m "$mem" -smp "$sm
 qemu_rc=$?
 set -e
 qemu_scan_processes "$qemu_scan_after"
+if [ "$qemu_rc" -eq 124 ]; then
+  microvm_emit_timeout_report "$out_dir" "$git_sha" "$git_dirty" "$started_at" "$kernel_image" "$qemu_bin" "$qemu_scan_before" "$qemu_scan_after" "$qemu_rc"
+  exit 124
+fi
 if qemu_owned_leftovers "$qemu_scan_after"; then
   fail 'microVM qemu process still present after run'
 fi

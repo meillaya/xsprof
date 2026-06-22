@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
 microvm_fixture_enabled() {
-  [ "${ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE:-0}" = 1 ]
+  case "${ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE:-0}" in
+    1|lost-stream|malformed-stream|timeout|failed-rollback|failed-cleanup) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 microvm_fixture_event() {
@@ -11,6 +14,26 @@ microvm_fixture_event() {
 
 microvm_write_lifecycle_fixture() {
   local out_dir="$1" git_sha runtime_samples daemon_events partial_evidence verifier_log audit_ledger
+  case "${ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE:-0}" in
+    lost-stream)
+      printf 'REFUSE: lifecycle fixture intentionally emitted no daemon events\n' >&2
+      return 23
+      ;;
+    malformed-stream)
+      microvm_fixture_event 'not-json'
+      printf 'REFUSE: lifecycle fixture intentionally emitted malformed daemon event\n' >&2
+      return 24
+      ;;
+    timeout)
+      mkdir -p "$out_dir"
+      cat > "$out_dir/summary.json" <<JSON
+{"schema":"zig-scheduler/run-all-lab/v1","status":"INCIDENT","mode":"microvm-live-fixture","evidence_mode":"vm-live","output_dir":"$out_dir","host_mutation":false,"cleanup":{"qemu_leftovers":false,"tmux_leftovers":false,"timeout_rc":124,"process_group_reaped":true,"temp_dirs_removed":true}}
+JSON
+      microvm_fixture_event "{\"event\":\"incident\",\"status\":\"unsafe_to_assume\",\"state\":\"unsafe_to_assume\",\"reason\":\"timeout\",\"artifact\":\"$out_dir/summary.json\"}"
+      printf 'REFUSE: lifecycle fixture intentionally timed out summary=%s\n' "$out_dir/summary.json" >&2
+      return 124
+      ;;
+  esac
   git_sha="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   runtime_samples="$out_dir/runtime-samples.jsonl"
   daemon_events="$out_dir/daemon-runtime-events.jsonl"
@@ -49,6 +72,20 @@ JSONL
   "stages": [{"stage":"partial_attach","status":"PASS","reason":"fixture attach event stream","artifact":"$partial_evidence"}]
 }
 JSON
+  case "${ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE:-0}" in
+    failed-rollback)
+      microvm_fixture_event "{\"event\":\"boot\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"fixture boot observed\",\"artifact\":\"$out_dir/summary.json\"}"
+      microvm_fixture_event "{\"event\":\"rollback\",\"status\":\"FAIL\",\"state\":\"incident\",\"reason\":\"fixture rollback failed\",\"artifact\":\"$audit_ledger\"}"
+      printf 'INCIDENT: microVM lifecycle fixture failed rollback summary=%s\n' "$out_dir/summary.json"
+      return 0
+      ;;
+    failed-cleanup)
+      microvm_fixture_event "{\"event\":\"boot\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"fixture boot observed\",\"artifact\":\"$out_dir/summary.json\"}"
+      microvm_fixture_event "{\"event\":\"cleanup\",\"status\":\"FAIL\",\"state\":\"incident\",\"reason\":\"fixture cleanup failed\",\"artifact\":\"$out_dir/summary.json\"}"
+      printf 'INCIDENT: microVM lifecycle fixture failed cleanup summary=%s\n' "$out_dir/summary.json"
+      return 0
+      ;;
+  esac
   microvm_fixture_event "{\"event\":\"boot\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"fixture boot observed\",\"artifact\":\"$out_dir/summary.json\"}"
   microvm_fixture_event "{\"event\":\"marker\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"/run/zig-scheduler-vm-lab.marker\",\"artifact\":\"$out_dir/summary.json\"}"
   microvm_fixture_event "{\"event\":\"verifier\",\"status\":\"PASS\",\"state\":\"verified\",\"reason\":\"BPF verifier fixture accepted\",\"artifact\":\"$verifier_log\"}"
@@ -57,6 +94,5 @@ JSON
   microvm_fixture_event "{\"event\":\"rollback\",\"status\":\"PASS\",\"state\":\"rolled_back\",\"reason\":\"fixture rollback complete\",\"artifact\":\"$audit_ledger\"}"
   microvm_fixture_event "{\"event\":\"cleanup\",\"status\":\"PASS\",\"state\":\"clean\",\"reason\":\"fixture process scan clean\",\"artifact\":\"$out_dir/summary.json\"}"
   microvm_fixture_event "{\"event\":\"validation\",\"status\":\"PASS\",\"state\":\"vm_live_validated\",\"reason\":\"fixture live bundle accepted\",\"artifact\":\"$out_dir/summary.json\",\"live_bundle_path\":\"$out_dir/summary.json\"}"
-  microvm_fixture_event "{\"event\":\"incident\",\"status\":\"unsafe_to_assume\",\"state\":\"unsafe_to_assume\",\"reason\":\"fixture_incident_contract\",\"artifact\":\"$out_dir/summary.json\"}"
   printf 'PASS: microVM lifecycle fixture summary=%s\n' "$out_dir/summary.json"
 }

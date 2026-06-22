@@ -65,8 +65,10 @@ pub const Tracker = struct {
                 if (parsed.value.action_id) |action_id| try self.remember(allocator, action_id);
             } else if (std.mem.eql(u8, parsed.value.event orelse "", "lab_run_active")) {
                 try self.recordLab(allocator, parsed.value.action_id orelse "", parsed.value.target_id orelse "", parsed.value.rollback_id orelse "", parsed.value.artifact orelse "");
-            } else if (std.mem.eql(u8, parsed.value.event orelse "", "rollback_completed")) {
-                try self.markRolledBack(allocator, parsed.value.target_action_id orelse "", parsed.value.artifact orelse "");
+            } else if (shouldClearActiveState(parsed.value.event orelse "", parsed.value.status orelse "", parsed.value.state orelse "")) {
+                const target_action_id = parsed.value.target_action_id orelse "";
+                const active_action_id = if (target_action_id.len != 0) target_action_id else parsed.value.action_id orelse "";
+                try self.markRolledBack(allocator, active_action_id, parsed.value.artifact orelse "");
             }
         }
         return .{ .count = count, .next_seq = expected_seq };
@@ -119,6 +121,7 @@ const RawEvent = struct {
     seq: usize,
     event: ?[]const u8 = null,
     status: ?[]const u8 = null,
+    state: ?[]const u8 = null,
     action: ?[]const u8 = null,
     action_id: ?[]const u8 = null,
     target_action_id: ?[]const u8 = null,
@@ -186,6 +189,23 @@ pub fn writeRollbackCompleted(writer: anytype, seq: usize, action: protocol.Oper
     try writer.print(",\"state\":\"rolled_back\",\"status\":\"{s}\",\"host_mutation\":false}}\n", .{if (idempotent) "already_rolled_back" else "PASS"});
 }
 
+pub fn writeCleanupCompleted(writer: anytype, seq: usize, action: protocol.OperatorAction, artifact: []const u8, idempotent: bool) !void {
+    try writer.print(
+        "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"cleanup\",\"action\":\"{s}\",\"action_id\":",
+        .{ protocol.event_schema, seq, @tagName(action.kind) },
+    );
+    try format.writeJsonString(writer, action.action_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
+    try writer.writeAll(",\"target_action_id\":");
+    try format.writeJsonString(writer, action.target_action_id);
+    try writer.writeAll(",\"rollback_id\":");
+    try format.writeJsonString(writer, action.rollback_id);
+    try writer.writeAll(",\"artifact\":");
+    try format.writeJsonString(writer, artifact);
+    try writer.print(",\"state\":\"clean\",\"status\":\"{s}\",\"reason\":\"stop_cleanup_requested\",\"host_mutation\":false}}\n", .{if (idempotent) "already_clean" else "PASS"});
+}
+
 pub fn writeTargetRefusal(writer: anytype, seq: usize, action: protocol.OperatorAction, reason: []const u8) !void {
     try writer.print(
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"action_id\":",
@@ -230,41 +250,24 @@ fn writeActionIdRefusal(writer: anytype, seq: usize, action: protocol.OperatorAc
     try writer.writeAll(",\"host_mutation\":false}\n");
 }
 
-test "daemon journal tracker rejects duplicate action ids" {
-    var tracker = Tracker{};
-    defer tracker.deinit(std.testing.allocator);
-    try tracker.remember(std.testing.allocator, "act-1");
-    try std.testing.expectError(error.DuplicateActionId, tracker.remember(std.testing.allocator, "act-1"));
-    try std.testing.expectError(error.InvalidActionId, tracker.remember(std.testing.allocator, "bad id"));
+fn shouldClearActiveState(event: []const u8, status: []const u8, state: []const u8) bool {
+    if (std.mem.eql(u8, event, "rollback_completed") or std.mem.eql(u8, event, "rollback")) {
+        return successfulRollbackStatus(status) and std.mem.eql(u8, state, "rolled_back");
+    }
+    if (std.mem.eql(u8, event, "cleanup")) {
+        return successfulCleanupStatus(status) and std.mem.eql(u8, state, "clean");
+    }
+    return false;
 }
 
-test "daemon journal tracker loads existing action ids" {
-    var tracker = Tracker{};
-    defer tracker.deinit(std.testing.allocator);
-    const raw =
-        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":1,\"event\":\"journal_record\",\"status\":\"accepted\",\"action_id\":\"act-1\",\"host_mutation\":false}\n" ++
-        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":2,\"event\":\"journal_record\",\"status\":\"accepted\",\"action_id\":\"act-2\",\"host_mutation\":false}\n";
-    const loaded = try tracker.loadExisting(std.testing.allocator, raw);
-    try std.testing.expectEqual(@as(usize, 2), loaded.count);
-    try std.testing.expectEqual(@as(usize, 3), loaded.next_seq);
-    try std.testing.expectError(error.DuplicateActionId, tracker.remember(std.testing.allocator, "act-2"));
+fn successfulRollbackStatus(status: []const u8) bool {
+    return std.mem.eql(u8, status, "PASS") or std.mem.eql(u8, status, "already_rolled_back");
 }
 
-test "daemon journal tracker rejects nonmonotonic existing sequence" {
-    var tracker = Tracker{};
-    defer tracker.deinit(std.testing.allocator);
-    const raw =
-        "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":99,\"event\":\"journal_record\",\"status\":\"accepted\",\"action_id\":\"act-1\",\"host_mutation\":false}\n";
-    try std.testing.expectError(error.InvalidJournal, tracker.loadExisting(std.testing.allocator, raw));
+fn successfulCleanupStatus(status: []const u8) bool {
+    return std.mem.eql(u8, status, "PASS") or std.mem.eql(u8, status, "already_clean");
 }
 
-test "daemon journal tracker refuses duplicate active target ids" {
-    var tracker = Tracker{};
-    defer tracker.deinit(std.testing.allocator);
-    try std.testing.expectError(error.InvalidActionId, tracker.recordLab(std.testing.allocator, "act-empty", "", "RB-empty", "evidence/lab/empty"));
-    try tracker.recordLab(std.testing.allocator, "act-1", "target-1", "RB-1", "evidence/lab/one");
-    try std.testing.expect(tracker.activeTarget("target-1"));
-    try std.testing.expectError(error.DuplicateTargetId, tracker.recordLab(std.testing.allocator, "act-2", "target-1", "RB-2", "evidence/lab/two"));
-    try tracker.markRolledBack(std.testing.allocator, "act-1", "evidence/lab/one/rolled-back");
-    try tracker.recordLab(std.testing.allocator, "act-2", "target-1", "RB-2", "evidence/lab/two");
+test "daemon journal behavior tests are linked" {
+    std.testing.refAllDecls(@import("journal_tests.zig"));
 }

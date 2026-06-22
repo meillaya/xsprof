@@ -1,11 +1,14 @@
 const std = @import("std");
 const errors = @import("errors.zig");
-const events = @import("events.zig");
 const summary_mod = @import("summary.zig");
 const daemon_support = @import("../daemon_support.zig");
 const protocol = @import("../protocol.zig");
+const lifecycle_stream = @import("lifecycle_stream.zig");
 
 pub const readGitSha = daemon_support.readGitSha;
+pub const RunnerLifecycleKind = lifecycle_stream.RunnerLifecycleKind;
+pub const RunnerLifecycleLine = lifecycle_stream.RunnerLifecycleLine;
+pub const appendRunnerLifecycleLine = lifecycle_stream.appendRunnerLifecycleLine;
 
 const line_trim_chars = [_]u8{ ' ', 9, 13 };
 const CleanupSummary = struct {
@@ -13,6 +16,7 @@ const CleanupSummary = struct {
     tmux_leftovers: bool = true,
     process_group_reaped: bool = false,
     temp_dirs_removed: bool = false,
+    timeout_rc: ?i64 = null,
 };
 
 const LiveSummary = struct {
@@ -55,18 +59,6 @@ const DaemonRuntimeEvent = struct {
     host_mutation: bool,
 };
 
-const RunnerLifecycleEvent = struct {
-    event: []const u8,
-    status: []const u8,
-    state: []const u8,
-    reason: ?[]const u8 = null,
-    artifact: ?[]const u8 = null,
-    ops: ?[]const u8 = null,
-    live_bundle_path: ?[]const u8 = null,
-};
-
-const runner_event_prefix = "ZIGSCHED_DAEMON_EVENT ";
-
 pub fn validateLiveBundle(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -83,37 +75,6 @@ pub fn validateLiveBundle(
     try validateLiveSummary(parsed.value, current_git_sha);
     try validateLiveArtifacts(allocator, io, parsed.value);
     try validateLiveStages(parsed.value);
-}
-
-pub fn appendRunnerLifecycleLine(
-    allocator: std.mem.Allocator,
-    output: *std.ArrayList(u8),
-    seq: *usize,
-    action: protocol.OperatorAction,
-    raw_line: []const u8,
-) errors.RunError!bool {
-    const line = std.mem.trim(u8, raw_line, &line_trim_chars);
-    if (!std.mem.startsWith(u8, line, runner_event_prefix)) return false;
-    const payload = line[runner_event_prefix.len..];
-    var parsed = std.json.parseFromSlice(RunnerLifecycleEvent, allocator, payload, .{
-        .allocate = .alloc_always,
-        .ignore_unknown_fields = false,
-    }) catch return error.InvalidSummary;
-    defer parsed.deinit();
-    try events.appendActionEvent(
-        allocator,
-        output,
-        seq,
-        action,
-        parsed.value.event,
-        parsed.value.status,
-        parsed.value.state,
-        parsed.value.reason orelse "",
-        parsed.value.artifact orelse "",
-        parsed.value.ops orelse "",
-        parsed.value.live_bundle_path orelse "",
-    );
-    return true;
 }
 
 fn validateLiveStages(summary: LiveSummary) errors.RunError!void {
@@ -141,6 +102,7 @@ fn validateLiveSummary(summary: LiveSummary, current_git_sha: []const u8) errors
     if (summary.cleanup) |cleanup| {
         if (cleanup.qemu_leftovers or cleanup.tmux_leftovers) return error.InvalidSummary;
         if (!cleanup.process_group_reaped or !cleanup.temp_dirs_removed) return error.InvalidSummary;
+        if ((cleanup.timeout_rc orelse 0) == 124) return error.InvalidSummary;
     } else return error.InvalidSummary;
 }
 
@@ -213,6 +175,6 @@ fn validSha256(value: []const u8) bool {
     return true;
 }
 
-test "live summary behavior tests are linked" {
-    std.testing.refAllDecls(@import("live_summary_tests.zig"));
+test "lifecycle stream split remains linked through live summary" {
+    std.testing.refAllDecls(lifecycle_stream);
 }

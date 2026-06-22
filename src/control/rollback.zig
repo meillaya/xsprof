@@ -57,7 +57,17 @@ pub fn handleRollback(
         return;
     }
     if (lab.status == .rolled_back) {
-        try appendRollbackCompleted(allocator, output, action, lab.artifact, true, seq.*);
+        if (isStopAction(action.kind)) {
+            try appendCleanupCompleted(allocator, output, action, lab.artifact, true, seq.*);
+        } else {
+            try appendRollbackCompleted(allocator, output, action, lab.artifact, true, seq.*);
+        }
+        seq.* += 1;
+        return;
+    }
+    if (isStopAction(action.kind)) {
+        try tracker.markRolledBack(allocator, action.target_action_id, lab.artifact);
+        try appendCleanupCompleted(allocator, output, action, lab.artifact, false, seq.*);
         seq.* += 1;
         return;
     }
@@ -66,6 +76,10 @@ pub fn handleRollback(
     try tracker.markRolledBack(allocator, action.target_action_id, summary_path);
     try appendRollbackCompleted(allocator, output, action, summary_path, false, seq.*);
     seq.* += 1;
+}
+
+fn isStopAction(kind: protocol.ActionKind) bool {
+    return kind == .stop_lab_run or kind == .stop;
 }
 
 fn appendLabActive(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: protocol.OperatorAction, artifact: []const u8, seq: usize) !void {
@@ -82,6 +96,15 @@ fn appendRollbackCompleted(allocator: std.mem.Allocator, output: *std.ArrayList(
     defer event.deinit(allocator);
     var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
     try journal.writeRollbackCompleted(&writer.writer, seq, action, artifact, idempotent);
+    event = writer.toArrayList();
+    try appendEvent(allocator, output, event.items);
+}
+
+fn appendCleanupCompleted(allocator: std.mem.Allocator, output: *std.ArrayList(u8), action: protocol.OperatorAction, artifact: []const u8, idempotent: bool, seq: usize) !void {
+    var event: std.ArrayList(u8) = .empty;
+    defer event.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &event);
+    try journal.writeCleanupCompleted(&writer.writer, seq, action, artifact, idempotent);
     event = writer.toArrayList();
     try appendEvent(allocator, output, event.items);
 }

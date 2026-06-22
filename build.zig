@@ -49,6 +49,7 @@ fn addDaemonStdioStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     if (b.args) |args| {
         daemon_stdio_test.addArgs(args);
     }
+    daemon_stdio_test.step.dependOn(b.getInstallStep());
 
     const daemon_stdio_step = b.step("daemon-stdio", "Run foreground daemon stdin/stdout smoke test");
     daemon_stdio_step.dependOn(&daemon_stdio_test.step);
