@@ -6,7 +6,7 @@
     "evidence/lab/vm-live-ui/rollback-drill/audit-ledger.jsonl"
   ],
   "audit_id": "AUD-vmlive-ui-20990101T000000Z",
-  "bundle_path": "evidence/lab/run-all/microvm-live-tui-demo/summary.json",
+  "bundle_path": "evidence/lab/run-all/microvm-live-demo/summary.json",
   "cleanup": {
     "qemu_leftovers": false,
     "tmux_leftovers": false

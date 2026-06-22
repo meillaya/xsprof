@@ -173,6 +173,6 @@ test "help identifies Linux scheduler operator surface" {
     buffer = writer.toArrayList();
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Linux scheduler") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "simulator/") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig build tui-live-vm") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "zig build linux-preflight") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "unsafe host mutation is refused") != null);
 }

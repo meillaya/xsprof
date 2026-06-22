@@ -11,9 +11,6 @@ zig build test --summary all
 zig build bpf --summary all
 zig build linux-preflight -- --json
 zig build run -- --help
-zig build tui-live-vm -- --help
-zig build tui -- --snapshot --screen preflight --width 100 --height 30
-zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 bash qa/cli_help_contract.sh
 bash qa/wording_audit.sh
 bash qa/no_host_mutation.sh
@@ -29,7 +26,6 @@ Required properties:
 - `qa/restructure_check.sh` remains the integration smoke that proves the simulator package stays separate and the root operator remains fail-closed.
 - `zig build bpf` may compile an object or emit a clean SKIP, but it must not load or attach anything.
 - `zig build run -- --help` remains the fail-closed CLI boundary; it does not launch QEMU.
-- `zig build tui-live-vm -- --help` is a host-safe help/smoke check, not a VM boot.
 - VM scripts may run only in host-refusal mode unless the privileged VM gate is explicitly selected.
 
 ## Opt-in privileged-vm lane
@@ -50,12 +46,6 @@ After the gate is enabled, it may run VM-only commands such as:
 ```bash
 bash qa/vm/run_lab.sh --mode read-only-smoke --out evidence/lab/dev-smoke
 bash qa/vm/verifier_only.sh --object zig-out/bpf/zigsched_minimal.bpf.o --out evidence/lab/verifier-dev
-```
-
-The interactive live VM operator smoke is a separate, manual-quality check:
-
-```bash
-zig build tui -- --interactive --screen vm-lab --width 120 --height 30 --daemon-state-dir ".omo/evidence/tui-live-vm" --daemon-bin "./zig-out/bin/zig-scheduler-daemon"
 ```
 
 Required properties:

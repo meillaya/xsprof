@@ -25,7 +25,6 @@ TRANSCRIPT_SCHEMA: Final[str] = "zig-scheduler/vm-transcript-index/v1"
 ATTACH_SCHEMA: Final[str] = "zig-scheduler/live-attach-proof/v1"
 BEHAVIOR_SCHEMA: Final[str] = "zig-scheduler/live-behavior-proof/v1"
 ROLLBACK_SCHEMA: Final[str] = "zig-scheduler/rollback-result/v1"
-TUI_SCHEMA: Final[str] = "zig-scheduler/tui-session-transcript/v1"
 VM_MARKER: Final[str] = "/run/zig-scheduler-vm-lab.marker"
 LIVE_MODE: Final[str] = "vm-live"
 LIVE_VM_KIND: Final[str] = "qemu-vm"
@@ -35,7 +34,7 @@ FORBIDDEN_TEXT: Final[tuple[str, ...]] = ("--token", "password=", "api_key=", "A
 
 
 class LiveEvidenceError(Exception):
-    """Raised when TUI-driven live-lab evidence is malformed or unsafe."""
+    """Raised when live-lab evidence is malformed or unsafe."""
 
 
 def parse_args(argv: list[str]) -> tuple[Path | None, bool]:
@@ -182,8 +181,6 @@ def validate_file(path: Path) -> None:
             validate_behavior(data)
         case "zig-scheduler/rollback-result/v1":
             validate_rollback(data)
-        case "zig-scheduler/tui-session-transcript/v1":
-            validate_tui_session(data)
         case _:
             raise LiveEvidenceError(f"unsupported evidence schema: {schema}")
 
@@ -229,11 +226,6 @@ def validate_rollback(data: JsonObject) -> None:
         raise LiveEvidenceError("rollback must be idempotent")
 
 
-def validate_tui_session(data: JsonObject) -> None:
-    validate_checked_common(data, "tui_session"); transcript = require_string(data, "transcript", "tui_session"); require_safe_relative_path(transcript, "tui_session.transcript"); require_string(data, "visible_action", "tui_session")
-    if not require_bool(data, "fail_closed_visible", "tui_session"):
-        raise LiveEvidenceError("TUI transcript must show FAIL-CLOSED")
-
 
 def good_base(schema: str, git_sha: str) -> JsonObject:
     return {"schema": schema, "action_id": "act-live", "evidence_mode": LIVE_MODE, "git_sha": git_sha, "host_mutation": False, "private_logs": False}
@@ -266,7 +258,6 @@ def self_test() -> None:
         add_live({**good_base(ATTACH_SCHEMA, git_sha), "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope", "registered_ops": "zigsched_minimal_ops"}),
         add_live({**good_base(BEHAVIOR_SCHEMA, git_sha), "scheduler_state": "enabled", "registered_ops": "zigsched_minimal_ops", "runtime_events": 3, "workload_alive": True}),
         add_live({**good_base(ROLLBACK_SCHEMA, git_sha), "rollback_id": "RB-demo", "result": "PASS", "idempotent": True}),
-        {**good_base(TUI_SCHEMA, git_sha), "evidence_mode": "host-safe-surrogate", "transcript": str(root / "transcript.txt"), "visible_action": "ACTION queued run_lab_host_safe", "fail_closed_visible": True},
     ]
     for index, case in enumerate(cases):
         path = root / f"good-{index}.json"

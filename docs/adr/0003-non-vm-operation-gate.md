@@ -19,9 +19,7 @@ The current implementation is intentionally split into two safety domains:
    `sched_ext` behavior only when VM evidence, rollback evidence, and audit
    identity are captured.
 
-TUI-driven live lab work is meant to prove operator flow, observability, and
-rollback behavior in a disposable lab. It is not permission to run the scheduler
-against a non-VM host. A later non-VM path would carry a different risk profile:
+Disposable VM lab work is meant to prove observability and rollback behavior in a disposable lab. It is not permission to run the scheduler against a non-VM host. A later non-VM path would carry a different risk profile:
 it can affect the operator's real host scheduler, cgroups, and workloads, and
 therefore needs its own approval record and evidence package.
 
@@ -36,7 +34,7 @@ The only acceptable current non-VM behavior is:
 
 - read-only preflight and facts collection;
 - dry-run planning;
-- daemon/TUI dispatch that refuses hazardous actions on the host;
+- daemon dispatch that refuses hazardous actions on the host;
 - package install/upgrade/uninstall checks that do not enable services or start
   mutation-capable units; and
 - evidence validation of disposable VM lab artifacts.
@@ -66,7 +64,7 @@ before implementation can be enabled outside the disposable VM lab:
 | Audit ledger | Append-only action ledger with audit id, rollback id, git SHA, command argv hash, artifact hashes, and cleanup receipt. |
 | Security review | Signoff for privilege boundaries, shell/argv handling, config parsing, systemd defaults, and no secret leakage. |
 | Packaging safety | Install, upgrade, uninstall, no-auto-start, no service enablement, config preservation, and evidence archive preservation. |
-| Operator controls | TUI/daemon stop and rollback controls with visible state, refusal reasons, and stale-target handling. |
+| Operator controls | Daemon stop and rollback controls with visible state, refusal reasons, and stale-target handling. |
 | Wording and governance | Wording audit, governance manifest update, release gate approval, and explicit scope statement for the target host class. |
 
 ## Required implementation changes in a future ADR
@@ -87,7 +85,7 @@ refusing non-VM mutation:
 
 ## Consequences
 
-- The current daemon, TUI, and package surfaces should keep showing refusal or
+- The current daemon and package surfaces should keep showing refusal or
   controlled-lab states for host mutation actions.
 - VM-live artifacts can graduate controlled lab confidence only; they cannot be
   relabeled as non-VM evidence.

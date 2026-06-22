@@ -6,7 +6,6 @@ pub const vm_transcript_index_schema = "zig-scheduler/vm-transcript-index/v1";
 pub const live_attach_proof_schema = "zig-scheduler/live-attach-proof/v1";
 pub const live_behavior_proof_schema = "zig-scheduler/live-behavior-proof/v1";
 pub const rollback_result_schema = "zig-scheduler/rollback-result/v1";
-pub const tui_session_transcript_schema = "zig-scheduler/tui-session-transcript/v1";
 pub const vm_marker_path = "/run/zig-scheduler-vm-lab.marker";
 
 pub const EvidenceMode = enum {

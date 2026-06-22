@@ -29,8 +29,6 @@ set -euo pipefail
 cd "$repo_root"
 zig build run -- --help
 zig build linux-preflight -- --json
-zig build tui -- --snapshot --screen preflight --width 100 --height 30
-zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 bash qa/no_host_mutation.sh
 bash qa/wording_audit.sh
 bash qa/restructure_check.sh

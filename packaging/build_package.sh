@@ -31,7 +31,7 @@ zig_out_real="$(realpath zig-out)"
 out_parent_real="$(realpath "$out_parent")"
 case "$out_parent_real" in "$zig_out_real"|"$zig_out_real"/*) ;; *) fail 'package output parent escapes zig-out' ;; esac
 if [ -e "$out_dir" ] && [ -L "$out_dir" ]; then fail 'package output path must not be a symlink'; fi
-if [ ! -x zig-out/bin/zig-scheduler ] || [ ! -x zig-out/bin/zig-scheduler-linux-preflight ] || [ ! -x zig-out/bin/zig-scheduler-tui ] || [ ! -x zig-out/bin/zig-scheduler-daemon ]; then
+if [ ! -x zig-out/bin/zig-scheduler ] || [ ! -x zig-out/bin/zig-scheduler-linux-preflight ] || [ ! -x zig-out/bin/zig-scheduler-daemon ]; then
   zig build install --summary all >/dev/null
 fi
 
@@ -48,7 +48,6 @@ install_file() {
 
 install_file zig-out/bin/zig-scheduler usr/bin/zig-scheduler
 install_file zig-out/bin/zig-scheduler-linux-preflight usr/bin/zig-scheduler-linux-preflight
-install_file zig-out/bin/zig-scheduler-tui usr/bin/zig-scheduler-tui
 install_file zig-out/bin/zig-scheduler-daemon usr/bin/zig-scheduler-daemon
 install_file packaging/config/default.toml etc/zig-scheduler/default.toml
 install_file packaging/systemd/zig-scheduler-preflight.service usr/lib/systemd/system/zig-scheduler-preflight.service
@@ -77,9 +76,6 @@ manifest = {
     'schema': 'zig-scheduler/package-manifest/v1',
     'git_sha': git_sha,
     'install_root': staging.as_posix(),
-    'desktop_executable_included': False,
-    'desktop_executable_path': 'usr/bin/zig-scheduler-live-vm-desktop',
-    'desktop_executable_reason': 'excluded: VM-lab-only system WebView shell requires host GUI dependencies and remains outside the read-only package surface',
     'no_auto_start': True,
     'services_not_enabled': True,
     'mutation_service_gated': all(token in mutation_text for token in [
@@ -99,6 +95,5 @@ manifest = {
 (out / 'manifest.json.tmp').replace(out / 'manifest.json')
 PY
 
-printf 'desktop_executable=excluded reason=%s\n' 'VM-lab-only system WebView shell requires host GUI dependencies and remains outside the read-only package surface'
 printf 'manifest=%s\n' "$out_dir/manifest.json"
 printf 'PASS: package artifact staged without install/enable\n'

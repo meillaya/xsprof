@@ -29,7 +29,6 @@ required = {
     'usr/bin/zig-scheduler',
     'usr/bin/zig-scheduler-daemon',
     'usr/bin/zig-scheduler-linux-preflight',
-    'usr/bin/zig-scheduler-tui',
     'etc/zig-scheduler/default.toml',
     'usr/lib/systemd/system/zig-scheduler-daemon.service',
     'usr/lib/systemd/system/zig-scheduler-preflight.service',

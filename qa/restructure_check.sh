@@ -49,30 +49,16 @@ fi
 if grep -RInE 'kernel-equivalent|kernel equivalent|Linux fidelity|production proof' src README.md docs 2>/dev/null; then
   fail "root fidelity-proof wording leaked into root"
 fi
-if zig build tui -- --snapshot --screen preflight --width 100 --height 30 | grep -E 'completion_order|Gantt|Task Metrics|simulator metrics' >/dev/null; then
-  fail "root rendered TUI leaked simulator labels"
+[ ! -d src/tui ] || fail "root TUI implementation directory still exists"
+[ ! -d src/desktop ] || fail "root desktop implementation directory still exists"
+[ ! -d web ] || fail "root WebView/browser implementation directory still exists"
+if zig build --help | grep -E 'tui|TUI|webview|WebView|desktop' >/dev/null; then
+  fail "root build graph still advertises removed UI surfaces"
 fi
 bash qa/wording_audit.sh --self-test >/dev/null
 bash qa/wording_audit.sh --scan-simulator simulator/README.md README.md docs >/dev/null
 if ! grep -RInE 'offline|teaching|deterministic' simulator/README.md 2>/dev/null | grep -Eiq 'offline|teaching|deterministic'; then
   fail "simulator educational/offline boundary wording missing"
 fi
-
-preflight_screen="$(zig build tui -- --snapshot --screen preflight --width 100 --height 30)"
-printf '%s' "$preflight_screen" | grep -F '╭' >/dev/null || fail "root preflight TUI missing rounded box language"
-printf '%s' "$preflight_screen" | grep -F '▚ zig-scheduler' >/dev/null || fail "root preflight TUI missing simulator-family zig-scheduler header"
-printf '%s' "$preflight_screen" | grep -F 'operator dashboard home' >/dev/null || fail "root preflight TUI missing operator dashboard home title"
-printf '%s' "$preflight_screen" | grep -F 'SNAPSHOT read-only' >/dev/null || fail "root preflight TUI missing read-only snapshot mode"
-printf '%s' "$preflight_screen" | grep -F 'sched_ext' >/dev/null || fail "root preflight TUI missing sched_ext content"
-printf '%s' "$preflight_screen" | grep -F 'refuse' >/dev/null || fail "root preflight TUI missing refusal/safety language"
-if printf '%s' "$preflight_screen" | grep -E 'completion_order|Gantt|Task Metrics|simulator metrics' >/dev/null; then
-  fail "root preflight TUI leaked simulator labels"
-fi
-
-sched_screen="$(zig build tui -- --snapshot --screen sched-ext --width 100 --height 30)"
-printf '%s' "$sched_screen" | grep -F '▚ zig-scheduler' >/dev/null || fail "root sched-ext TUI missing simulator-family zig-scheduler header"
-printf '%s' "$sched_screen" | grep -F 'SNAPSHOT read-only' >/dev/null || fail "root sched-ext TUI missing read-only snapshot mode"
-printf '%s' "$sched_screen" | grep -F 'sched_ext Readiness' >/dev/null || fail "root sched-ext TUI missing readiness screen"
-printf '%s' "$sched_screen" | grep -F 'fallback' >/dev/null || fail "root sched-ext TUI missing fallback language"
 
 printf 'PASS: restructure checks\n'

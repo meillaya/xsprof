@@ -6,19 +6,19 @@
       "path": "AGENTS.md",
       "purpose": "future-agent operator guidance and fail-closed invariants",
       "required": true,
-      "sha256": "aed6e229950d4afd0d5c69c3defd8c8044f25dc729f96e85b9a5fc8ddcd158f6"
+      "sha256": "21706fe391d07fd2f3d65f1c4e74c08ef44c19a08fdbad46a6356875d0778ff1"
     },
     {
       "path": "README.md",
       "purpose": "tracked project overview and governance entrypoint",
       "required": true,
-      "sha256": "82192bcda500affb24fc9a3f9c99bb3b2414bb4ced39e8efdc609fb4387c072c"
+      "sha256": "c3571bb4b190376276bdcbbf2967ca8c0e90b5b6ddc6d3113ebd2a2637ca1ddb"
     },
     {
       "path": "WORKLOG.md",
       "purpose": "historical checkpoints and current project posture",
       "required": true,
-      "sha256": "002214d72e7abbb6b855a8c9529595d190aac5e7f7dfb0f7998276f812007606"
+      "sha256": "1f73103468e536989823a95c7cb57ae413e41c27216efe4c78c00437b96737ac"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -66,19 +66,19 @@
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "81fb9f83d2e1cdf1720f3f7180823986fbaf8e0de8a2ea9b99a2f36fb18c7133"
+      "sha256": "e1c71765b8c7cd70a7fed11382a748dcddbe855ba1dcbe9cccd673be4460154f"
     },
     {
       "path": "docs/adr/0002-loader-architecture.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "32cd41df68f96c7546415795ee234faa1400323d3753bc517dd4eb170ed6aea5"
+      "sha256": "c1319b6898c00e0d5460a1aa14427792c9ca5ec9a445088a9ccf16b7db084d0a"
     },
     {
       "path": "docs/ci.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "bcffbf991ef46ed5aff5bc0c6102ab53aad985f64a5c38680113d34dd77dc6fe"
+      "sha256": "dbae1c21a1ea9142f196a1f9558848ff16a63961927563737e42469346eb2620"
     },
     {
       "path": "docs/releases/governance-gate.md",
@@ -96,19 +96,19 @@
       "path": "docs/runbooks/sched-ext-fallback.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "0feb11b61c3b68100465960ea82d9678e16a590c4f780246c261741d58f2c3ce"
+      "sha256": "db10e71b8baa4beecacf94108db9b5021522c19d243667c3851cb315b9cd08b4"
     },
     {
       "path": "docs/runbooks/verifier-and-incident.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "9d3ddf4574ccb7e2f9674e5f56b0253f9e332b926c50fad63e9209a8cc115f37"
+      "sha256": "daaef551f896ed3d0d88000f679fcce5ec82df56fdd39407e338f424e6395c93"
     },
     {
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "39412d65294a793332f572207e5f8074758c881f47b7ab27715c7084b0cbf78b"
+      "sha256": "63937e4edb74af930ae1392aea097dc7a2604ba6fb8c291eee41ba60ba47323f"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -120,7 +120,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "tracked governance documentation source",
       "required": true,
-      "sha256": "e0ae42ef2ece7f6e56a46783bf374b7da7d2a6e823142cb70c9f6d517bafdf69"
+      "sha256": "437a6a4578926f4faf48aee023ab7381ef0b53bc27001719ec19be0a15edd5b0"
     },
     {
       "path": "qa/vm/execution_contract.json",
@@ -138,7 +138,7 @@
       "path": "docs/adr/0003-non-vm-operation-gate.md",
       "purpose": "tracked non-VM operation governance design gate",
       "required": true,
-      "sha256": "c430243f0d6743f1e0b04fb5349eefa033bc1a4216393de9f0f316b2ef11462e"
+      "sha256": "0d954bb4679a378ad7a04060b05896794471cda85685f3679a205ef4a201c33b"
     }
   ]
 }

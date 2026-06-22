@@ -10,7 +10,7 @@
 - Root code is Linux-scheduler-facing preflight, dry-run planning, and lab-gated `sched_ext` readiness work.
 - Root must not claim production readiness.
 - Root must not load BPF programs or mutate cgroups, cpusets, affinities, priorities, or scheduler state in the initial implementation.
-- Root operator TUI preserves the simulator TUI visual language while displaying Linux/preflight concepts only.
+- Root UI surfaces have been removed by request; do not restore TUI/WebView code without explicit new scope.
 
 ## STRUCTURE
 ```text
@@ -21,7 +21,6 @@
 ├── src/controller/              # dry-run-only control-plan contracts
 ├── src/sched_ext/               # sched_ext fact/readiness helpers; no load path
 ├── src/observability/           # read-only host fact collection
-├── src/tui/                     # Linux operator TUI snapshots
 ├── qa/                          # external restructuring acceptance checks
 ├── tools/                       # root QA helpers
 └── simulator/                   # archived deterministic simulator package
@@ -39,8 +38,6 @@
 zig build test --summary all
 zig build linux-preflight -- --json
 zig build run -- --help
-zig build tui -- --snapshot --screen preflight --width 100 --height 30
-zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 zig fmt --check build.zig build.zig.zon $(find src -name '*.zig' -print)
 git diff --check
 ```
@@ -54,5 +51,5 @@ Simulator commands must be run from `simulator/`.
 - Unsafe verbs (`load`, `attach`, `enable`, `mutate`, `apply`) must refuse with non-zero exit.
 
 ## UI RULES
-- Keep root TUI in the same product family as the simulator TUI: dense terminal dashboard, box-drawing panes, compact header/status bars, glyph-rich labels, deterministic snapshots.
-- Do not reuse simulator semantics in root TUI. Avoid simulator metrics, Gantt/task labels, or Linux performance/fidelity claims.
+- No root TUI/WebView surface exists after the removal milestone.
+- Do not reintroduce root UI code, build steps, fixtures, or package artifacts without explicit user direction.

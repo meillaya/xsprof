@@ -4,7 +4,7 @@
 Accepted for the path-to-production roadmap.
 
 ## Context
-`zig-scheduler` is being re-chartered from a deterministic simulator into a Linux `sched_ext` scheduler project. The repository root is intentionally fail-closed today: it performs read-only preflight, dry-run planning, and Linux operator TUI rendering, while the simulator remains archived under `simulator/`.
+`zig-scheduler` is being re-chartered from a deterministic simulator into a Linux `sched_ext` scheduler project. The repository root is intentionally fail-closed today: it performs read-only preflight and dry-run planning, while the simulator remains archived under `simulator/`.
 
 Upstream `sched_ext` is a Linux scheduler class implemented with BPF `struct_ops`. The kernel can revert to the default fair scheduler when a BPF scheduler exits, errors, stalls, or an operator invokes SysRq-S. That fallback behavior is a safety feature, not permission to claim arbitrary production safety.
 

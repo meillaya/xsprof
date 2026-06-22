@@ -92,9 +92,7 @@ readable sched_ext-capable kernel image, Nix, and host `bpftool`, run:
 
 ```bash
 bash qa/vm/run_microvm_live_lab.sh --out evidence/lab/run-all/microvm-live-manual
-bash qa/tui_live_lab_e2e.sh \
-  --out evidence/lab/tui-e2e/microvm-live-manual \
-  --live-bundle evidence/lab/run-all/microvm-live-manual/summary.json
+python3 qa/live_behavior_check.py --bundle evidence/lab/run-all/microvm-live-manual/summary.json
 ```
 
 The microVM runner boots a disposable initramfs with the configured kernel,

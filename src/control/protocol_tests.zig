@@ -8,7 +8,7 @@ const event_schema = protocol.event_schema;
 const parseActionJson = protocol.parseActionJson;
 
 test "operator action protocol rejects shell strings and unknown actions" {
-    // Given: untrusted TUI/daemon action JSON containing an unknown action and shell-shaped text.
+    // Given: untrusted operator/daemon action JSON containing an unknown action and shell-shaped text.
     // When: the boundary parser receives it.
     // Then: it must reject before any command registry can observe it.
     try std.testing.expectError(error.UnknownAction, parseActionJson(std.testing.allocator,
@@ -20,7 +20,7 @@ test "operator action protocol rejects shell strings and unknown actions" {
 }
 
 test "operator action protocol rejects forbidden command fields" {
-    // Given: untrusted TUI input tries to smuggle execution authority through JSON fields.
+    // Given: untrusted operator input tries to smuggle execution authority through JSON fields.
     // When: the boundary parser receives command, shell, or argv keys.
     // Then: the typed protocol rejects them before any daemon action can be created.
     try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
@@ -73,7 +73,7 @@ test "operator action protocol rejects target cgroup traversal" {
 
 test "operator action protocol preserves partial attach gates when rendering" {
     // Given: a valid partial attach action with cgroup, audit id, and rollback id gates.
-    // When: it is parsed and rendered for daemon/TUI journaling.
+    // When: it is parsed and rendered for daemon/operator journaling.
     // Then: every gate survives the roundtrip and no shell command fields appear.
     const parsed = try parseActionJson(std.testing.allocator,
         \\{"schema":"zig-scheduler/operator-action/v1","action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}
@@ -169,10 +169,10 @@ test "daemon event protocol exposes live bundle path for validation events" {
         .kind = .validation,
         .action_id = "live-1",
         .status = "PASS",
-        .live_bundle_path = "evidence/lab/run-all/microvm-live-tui-demo/summary.json",
+        .live_bundle_path = "evidence/lab/run-all/microvm-live-demo/summary.json",
     }).toJson(std.testing.allocator);
     defer std.testing.allocator.free(rendered);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"live_bundle_path\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, rendered, "microvm-live-tui-demo") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "microvm-live-demo") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "host_mutation\":false") != null);
 }

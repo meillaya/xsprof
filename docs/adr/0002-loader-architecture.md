@@ -79,7 +79,7 @@ possible without claiming drop-in compatibility.
 - Any optional integration must be explicit in config and in command output.
 - State names must distinguish `read_only`, `verifier_only`, `partial_switch_lab`,
   `rollback_pending`, `rolled_back`, and `refused_host`.
-- ADR, runbook, and TUI wording must keep saying path-to-production, not
+- ADR and runbook wording must keep saying path-to-production, not
   ready for production use.
 
 ## Verification
