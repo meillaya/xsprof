@@ -33,7 +33,7 @@ write_cleanup() {
   CLEANUP_FILE="$cleanup_file" STATUS="$status" QEMU_BEFORE_FILE="$qemu_before" QEMU_AFTER_FILE="$qemu_after" TEMP_REMOVED="$temp_removed" QEMU_LEFTOVERS="$leftovers" python3 - <<'PY'
 import json, os
 from pathlib import Path
-receipt = {"schema":"zig-scheduler/vm-cleanup-receipt/v1","status":os.environ["STATUS"],"qemu_process_scan_method":"pgrep -af -- (^|[[:space:]])(/[^[:space:]]*/)?qemu-system-x86_64([[:space:]]|$)","qemu_process_scan_before":os.environ["QEMU_BEFORE_FILE"],"qemu_process_scan_after":os.environ["QEMU_AFTER_FILE"],"qemu_leftovers":os.environ["QEMU_LEFTOVERS"] == "true","temp_dirs_removed":os.environ["TEMP_REMOVED"] == "true","process_group_reaped":True,"host_mutation":False}
+receipt = {"schema":"zig-scheduler/vm-cleanup-receipt/v1","status":os.environ["STATUS"],"qemu_process_scan_method":"ps -eo pid=,comm=,args= filtered to qemu-system-x86_64 argv0 basename","qemu_process_scan_before":os.environ["QEMU_BEFORE_FILE"],"qemu_process_scan_after":os.environ["QEMU_AFTER_FILE"],"qemu_leftovers":os.environ["QEMU_LEFTOVERS"] == "true","temp_dirs_removed":os.environ["TEMP_REMOVED"] == "true","process_group_reaped":True,"host_mutation":False}
 Path(os.environ["CLEANUP_FILE"]).write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 }
@@ -58,6 +58,18 @@ for line in Path(os.environ["RUNNER_STDOUT"]).read_text(errors="replace").splitl
     if marker not in line: continue
     payload = json.loads(line.split(marker, 1)[1])
     row = {"schema":"zig-scheduler/daemon-event/v1","seq":seq,"event":str(payload.get("event", "incident")),"action":"vm_lab_backend","action_id":os.environ["ACTION_ID"],"run_id":os.environ["RUN_ID"],"target_id":"target-"+os.environ["RUN_ID"][:48],"rollback_id":os.environ["ROLLBACK_ID"],"state":str(payload.get("state", "unknown")),"status":str(payload.get("status", "unknown")),"reason":str(payload.get("reason", "runner_event")),"artifact":str(payload.get("artifact", "")),"host_mutation":False,"lifecycle_source":"run_microvm_live_lab"}
+    artifact = Path(row["artifact"])
+    if row["event"] == "rollback" and artifact.is_file():
+        ledger = json.loads(artifact.read_text().splitlines()[0])
+        row["rollback_id"] = str(ledger.get("rollback_id") or row["rollback_id"])
+        if ledger.get("audit_id"): row["audit_id"] = str(ledger["audit_id"])
+    if row["state"] in {"stale_target_refused", "duplicate_rollback_refused"} and artifact.is_file():
+        for raw_refusal in artifact.read_text().splitlines():
+            refusal = json.loads(raw_refusal)
+            if refusal.get("state") == row["state"]:
+                row["rollback_id"] = str(refusal.get("rollback_id") or row["rollback_id"])
+                if refusal.get("audit_id"): row["audit_id"] = str(refusal["audit_id"])
+                break
     if payload.get("ops"): row["ops"] = str(payload["ops"])
     if payload.get("live_bundle_path"): row["live_bundle_path"] = str(payload["live_bundle_path"])
     rows.append(row); seq += 1

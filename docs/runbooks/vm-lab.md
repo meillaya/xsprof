@@ -83,7 +83,7 @@ The backend operator surface is `zig build vm-lab-backend`. It is a fail-closed 
 
 ```bash
 zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>
-python3 qa/daemon_event_contract_check.py --input evidence/lab/<run-id>/daemon-events.jsonl --require-lifecycle
+python3 qa/daemon_event_contract_check.py --input evidence/lab/<run-id>/daemon-events.jsonl --require-lifecycle --require-task9-lifecycle
 ```
 
 The target is wired through `build.zig` and remains fail-closed on the host: any attach/register/unregister work must occur only after the disposable VM marker and tuple gates are observed inside the VM. The default release evidence directory for the final backend run is `evidence/lab/vm-backend-final`; run-all summaries belong under `evidence/lab/run-all/vm-backend-final/summary.json`; release current-run gate evidence belongs under `evidence/releases/0.2.0-lab-runall/current`.
@@ -104,6 +104,8 @@ Every VM backend evidence bundle must preserve `host_mutation=false` and copy ou
 - `zig-scheduler/runtime-sample/v1`
 - `zig-scheduler/audit-ledger/v1`
 - `zig-scheduler/run-all-lab/v1`
+
+Task 9 VM-required evidence additionally requires a real `qemu-vm` run with `boot`, `marker`, `verifier`, `attach`, `runtime_sample`, `rollback`, `cleanup`, `validation`, and `incident` daemon events. The verifier event must point at copied-out verifier evidence from the VM, the runtime sample must show `zigsched_minimal`, rollback must restore the VM scheduler to disabled/previous state, and validation/incident events must visibly refuse stale target and duplicate rollback IDs with `host_mutation=false`.
 
 ### BPF ownership boundary
 

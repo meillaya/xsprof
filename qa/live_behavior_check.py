@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run --script
+# noqa: SIZE_OK - standalone Task 9 VM-live behavior validator keeps bundle parsing, artifact checks, and adversarial self-tests together.
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
@@ -15,6 +16,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import json
 import re
@@ -37,6 +39,7 @@ VM_MARKER: Final[str] = "/run/zig-scheduler-vm-lab.marker"
 TARGET_PREFIX: Final[str] = "/sys/fs/cgroup/zig-scheduler-lab.slice/"
 COUNTER_RE: Final[re.Pattern[str]] = re.compile(r"(nr_rejected|dispatch_failed|fallbacks?|fatal)[:=]\s*([0-9]+)")
 COUNTER_NAMES: Final[tuple[str, ...]] = ("nr_rejected", "dispatch_failed", "fallback", "fatal")
+UNAVAILABLE_VALUES: Final[frozenset[str]] = frozenset({"", "missing", "none", "null", "unavailable", "unknown"})
 SHA256_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 SELF_ROOT: Final[Path] = Path("evidence/lab/run-all/live-behavior-check-self-test")
 
@@ -197,19 +200,63 @@ def validate_samples(rows: list[JsonObject]) -> None:
         raise LiveBehaviorError("last sample does not prove rollback-restored state")
     if not all(row.get("workload_alive") is True for row in rows):
         raise LiveBehaviorError("workload is not alive in every sample")
-    if not all(isinstance(row.get("cgroup_membership_digest"), str) and row["cgroup_membership_digest"] != "" for row in rows):
-        raise LiveBehaviorError("samples lack cgroup membership digest")
+    for index, row in enumerate(rows):
+        validate_cgroup_membership(row, index)
     validate_counter_growth(rows)
 
 
 def validate_counter_growth(rows: list[JsonObject]) -> None:
+    for index, row in enumerate(rows):
+        validate_required_counter_fact(row, index, "nr_rejected")
+    first_fact = validate_required_counter_fact(rows[0], 0, "nr_rejected")
+    last_fact = validate_required_counter_fact(rows[-1], len(rows) - 1, "nr_rejected")
+    if first_fact is not None and last_fact is not None and last_fact > first_fact:
+        raise LiveBehaviorError("fatal/reject/fallback counter grew: nr_rejected")
     first = parse_counters(rows[0])
     last = parse_counters(rows[-1])
     for name in COUNTER_NAMES:
-        if name not in first or name not in last:
-            raise LiveBehaviorError(f"samples must expose counter: {name}")
-        if last[name] > first[name]:
+        if name in first and name in last and last[name] > first[name]:
             raise LiveBehaviorError(f"fatal/reject/fallback counter grew: {name}")
+
+
+def validate_required_counter_fact(row: JsonObject, index: int, name: str) -> int | None:
+    counter = row.get(name)
+    if not isinstance(counter, dict):
+        raise LiveBehaviorError(f"sample {index} must expose counter fact: {name}")
+    status = counter.get("status")
+    value = counter.get("value")
+    if not isinstance(status, str) or not isinstance(value, str):
+        raise LiveBehaviorError(f"sample {index} counter {name} must have explicit status/value")
+    events_known = sample_events_known(row)
+    if status == "present":
+        if not value.isdigit():
+            raise LiveBehaviorError(f"sample {index} counter {name} present value must be numeric")
+        if not events_known:
+            raise LiveBehaviorError(f"sample {index} counter {name} claims numeric value while events are unavailable")
+        return int(value)
+    if status not in {"unknown", "missing", "unreadable"}:
+        raise LiveBehaviorError(f"sample {index} counter {name} has unsupported status: {status}")
+    if value.lower() not in UNAVAILABLE_VALUES:
+        raise LiveBehaviorError(f"sample {index} counter {name} unavailable value is not explicit")
+    return None
+
+
+def sample_events_known(row: JsonObject) -> bool:
+    events = row.get("events")
+    if not isinstance(events, dict):
+        return False
+    status = events.get("status")
+    value = events.get("value")
+    return status == "present" and isinstance(value, str) and value.lower() not in UNAVAILABLE_VALUES
+
+
+def validate_cgroup_membership(row: JsonObject, index: int) -> None:
+    digest = row.get("cgroup_membership_digest")
+    if not isinstance(digest, str) or not SHA256_RE.match(digest) or digest == "0" * 64 or digest.lower() in UNAVAILABLE_VALUES:
+        raise LiveBehaviorError(f"sample {index} cgroup membership digest is not an observed sha256")
+    status = row.get("cgroup_membership_status")
+    if not isinstance(status, dict) or status.get("status") != "present" or status.get("value") != "present":
+        raise LiveBehaviorError(f"sample {index} cgroup membership status is not observed present")
 
 
 def sample_ops(row: JsonObject) -> str:
@@ -257,7 +304,8 @@ def self_test() -> None:
     reject(write_bundle(SELF_ROOT / "counter-growth", counter_growth=True), "counter growth")
     reject(write_bundle(SELF_ROOT / "host-mutation", host_mutation=True), "host mutation")
     reject(write_bundle(SELF_ROOT / "all-during", all_during=True), "missing before/after phases")
-    reject(write_bundle(SELF_ROOT / "missing-counters", missing_counters=True), "missing counter families")
+    reject(write_bundle(SELF_ROOT / "missing-counters", missing_counters=True), "missing counter fact")
+    reject(write_bundle(SELF_ROOT / "fake-unavailable-counter", fake_unavailable_counter=True), "fake unavailable counter")
     reject(write_bundle(SELF_ROOT / "bad-object-sha", bad_object_sha=True), "bad object sha")
     reject(write_bundle(SELF_ROOT / "missing-daemon-host-mutation", missing_daemon_host_mutation=True), "missing daemon host mutation")
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
@@ -272,6 +320,7 @@ def write_bundle(
     host_mutation: bool = False,
     all_during: bool = False,
     missing_counters: bool = False,
+    fake_unavailable_counter: bool = False,
     bad_object_sha: bool = False,
     missing_daemon_host_mutation: bool = False,
 ) -> Path:
@@ -291,7 +340,7 @@ def write_bundle(
     artifacts = [partial.as_posix(), ledger.as_posix()]
     if include_observe:
         samples = observe_dir / "runtime-samples.jsonl"
-        samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in sample_rows(counter_growth, all_during, missing_counters)))
+        samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in sample_rows(counter_growth, all_during, missing_counters, fake_unavailable_counter)))
         daemon = observe_dir / "daemon-runtime-events.jsonl"
         daemon_event: JsonObject = {"schema": "zig-scheduler/daemon-event/v1", "event": "runtime_sample", "ops": "zigsched_minimal", "host_mutation": False}
         if missing_daemon_host_mutation:
@@ -311,15 +360,22 @@ def partial_evidence(transcript: Path) -> JsonObject:
     return {"attach_command": "bpftool struct_ops register", "host_mutation": False, "object": "zig-out/bpf/zigsched_minimal.bpf.o", "object_sha256": "a" * 64, "ops_during_attach": "zigsched_minimal", "post_state": "disabled", "release_eligible_live_proof": False, "rollback_id": "RB-live", "rollback_status": "PASS", "schema": "zig-scheduler/partial-attach-evidence/v1", "switch_mode": "SCX_OPS_SWITCH_PARTIAL", "target_cgroup": f"{TARGET_PREFIX}demo.scope", "transcript_path": transcript.as_posix()}
 
 
-def sample_rows(counter_growth: bool, all_during: bool, missing_counters: bool) -> list[JsonObject]:
+def sample_rows(counter_growth: bool, all_during: bool, missing_counters: bool, fake_unavailable_counter: bool) -> list[JsonObject]:
     rows: list[JsonObject] = []
     ops_values = ("zigsched_minimal", "zigsched_minimal", "zigsched_minimal") if all_during else ("none", "zigsched_minimal", "none")
+    digest = hashlib.sha256(b"live-behavior-self-test-cgroup").hexdigest()
     for sequence, ops in enumerate(ops_values):
         row = good_sample()
-        counters = f"nr_rejected: {1 if counter_growth and sequence == 2 else 0}"
-        if not missing_counters:
-            counters = f"{counters} dispatch_failed: 0 fallback: 0 fatal: 0"
-        row.update({"sequence": sequence, "ops": {"status": "present", "value": ops}, "state": {"status": "present", "value": "enabled" if sequence < 2 or all_during else "disabled"}, "events": {"status": "present", "value": counters}, "cgroup_membership_digest": f"digest-{sequence}"})
+        if fake_unavailable_counter:
+            row["events"] = {"status": "unknown", "value": "unavailable"}
+            row["nr_rejected"] = {"status": "present", "value": "0"}
+        else:
+            counters = f"nr_rejected: {1 if counter_growth and sequence == 2 else 0} dispatch_failed: 0 fallback: 0 fatal: 0"
+            row["events"] = {"status": "present", "value": counters}
+            row["nr_rejected"] = {"status": "present", "value": "1" if counter_growth and sequence == 2 else "0"}
+        if missing_counters:
+            del row["nr_rejected"]
+        row.update({"sequence": sequence, "ops": {"status": "present", "value": ops}, "state": {"status": "present", "value": "enabled" if sequence < 2 or all_during else "disabled"}, "cgroup_membership_digest": digest, "cgroup_membership_status": {"status": "present", "value": "present"}})
         rows.append(row)
     return rows
 

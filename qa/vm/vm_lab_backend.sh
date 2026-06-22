@@ -106,6 +106,10 @@ record_refusal() {
 }
 
 prepare_owned_out_dir
+cat > "$out_dir/.gitignore" <<'EOF'
+*
+!.gitignore
+EOF
 safe_base="$(basename -- "$out_dir" | tr -c 'A-Za-z0-9_.-' '-' | cut -c 1-40)"
 [ -n "$safe_base" ] || safe_base="vm-backend"
 run_id="$safe_base"; action_id="act-$safe_base"; rollback_id="RB-$safe_base"

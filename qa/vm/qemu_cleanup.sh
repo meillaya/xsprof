@@ -6,13 +6,23 @@ qemu_cleanup_owned_marker='zig-scheduler-microvm-live-lab'
 qemu_scan_processes() {
   local output_file="$1"
   {
-    printf 'method=pgrep -af -- %s\n' "$qemu_cleanup_pattern"
-    printf 'owned_marker=%s\n' "$qemu_cleanup_owned_marker"
-    pgrep -af -- "$qemu_cleanup_pattern" 2>/dev/null || true
+    printf 'method=ps -eo pid=,comm=,args= filtered to qemu-system-x86_64 argv0 basename\n'
+    ps -eo pid=,comm=,args= 2>/dev/null | awk '
+      {
+        args = $0
+        sub(/^[[:space:]]*[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]*/, "", args)
+        split(args, argv, /[[:space:]]+/)
+        argv0 = argv[1]
+        sub(/^.*\//, "", argv0)
+        if (argv0 == "qemu-system-x86_64") {
+          sub(/^[[:space:]]*/, "")
+          print
+        }
+      }'
   } > "$output_file"
 }
 
 qemu_owned_leftovers() {
   local scan_file="$1"
-  awk -v marker="$qemu_cleanup_owned_marker" 'index($0, marker) && $0 !~ /^owned_marker=/ { found=1 } END { exit(found ? 0 : 1) }' "$scan_file"
+  awk -v marker="$qemu_cleanup_owned_marker" 'index($0, marker) { found=1 } END { exit(found ? 0 : 1) }' "$scan_file"
 }

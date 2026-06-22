@@ -43,6 +43,15 @@ case "$timeout_seconds" in ''|*[!0-9]*) fail 'timeout must be a positive integer
 [ ! -e "$out_dir" ] || fail '--out must name a new output directory'
 prepare_evidence_dir evidence/lab "$out_dir"
 mkdir -p "$out_dir"
+case "$out_dir" in
+  evidence/lab/run-all/unsafe-matrix-*) ;;
+  *)
+    cat > "$out_dir/.gitignore" <<'EOF'
+*
+!.gitignore
+EOF
+    ;;
+esac
 
 if microvm_fixture_enabled; then
   microvm_write_lifecycle_fixture "$out_dir"
@@ -65,6 +74,33 @@ object_sha="$(microvm_build_bpf_metadata "$out_dir" "$object_file")"
 git_sha="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
 git_dirty=false
 if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then git_dirty=true; fi
+dirty_snapshot_sha=""
+if [ "$git_dirty" = true ]; then
+  dirty_snapshot_sha="$(python3 - <<'PY'
+import hashlib
+import subprocess
+from pathlib import Path
+
+h = hashlib.sha256()
+for cmd in (("git", "status", "--porcelain=v1", "-z"), ("git", "diff", "--binary", "HEAD", "--")):
+    result = subprocess.run(cmd, check=False, capture_output=True)
+    if result.returncode != 0:
+        raise SystemExit(f"snapshot command failed: {' '.join(cmd)}")
+    h.update(b"\0CMD\0" + " ".join(cmd).encode() + b"\0")
+    h.update(result.stdout)
+other = subprocess.run(("git", "ls-files", "--others", "--exclude-standard", "-z"), check=False, capture_output=True)
+if other.returncode != 0:
+    raise SystemExit("git ls-files --others failed")
+for raw in sorted(item for item in other.stdout.split(b"\0") if item):
+    path = Path(raw.decode())
+    if not path.is_file():
+        continue
+    h.update(b"\0UNTRACKED\0" + raw + b"\0")
+    h.update(hashlib.sha256(path.read_bytes()).hexdigest().encode())
+print(h.hexdigest())
+PY
+)"
+fi
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 busybox_bin="$(microvm_fetch_busybox "$nix_bin")"
 
@@ -98,5 +134,5 @@ if [ "$qemu_rc" -ne 0 ] && [ "$qemu_rc" -ne 124 ]; then
   printf 'WARN: qemu exited rc=%s; continuing to parse serial\n' "$qemu_rc" >> "$out_dir/build-bpf.txt"
 fi
 
-microvm_parse_and_emit_report "$serial" "$out_dir" "$object_sha" "$object_file" "$meta_file" "$git_sha" "$git_dirty" "$started_at" "$kernel_image" "$qemu_bin" "$qemu_scan_before" "$qemu_scan_after" "$qemu_rc"
+ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA="$dirty_snapshot_sha" microvm_parse_and_emit_report "$serial" "$out_dir" "$object_sha" "$object_file" "$meta_file" "$git_sha" "$git_dirty" "$started_at" "$kernel_image" "$qemu_bin" "$qemu_scan_before" "$qemu_scan_after" "$qemu_rc"
 printf 'PASS: microVM live sched_ext lab bundle summary=%s\n' "$out_dir/summary.json"
