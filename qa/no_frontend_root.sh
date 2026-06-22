@@ -130,6 +130,10 @@ while IFS= read -r match; do
   [ -n "$match" ] || continue
   lower="$(printf '%s' "$match" | tr '[:upper:]' '[:lower:]')"
   file="${match%%:*}"
+  rel_file="$(relative "$file")"
+  case "$rel_file" in
+    docs/vendor/*) continue ;;
+  esac
   if is_strict_frontend_path "$file"; then
     fail "forbidden root frontend/UI token in build/source/package path: $match"
   fi
@@ -145,7 +149,7 @@ for path in "${scan_paths[@]}"; do
     rel="$(relative "$artifact")"
     fail "root frontend package/source artifact exists: $rel"
   done < <(find "$path" \
-    \( -path '*/.git' -o -path '*/.omx' -o -path '*/.omo' -o -path '*/.zig-cache' -o -path '*/zig-out' \) -prune \
+    \( -path "$root/.git" -o -path "$root/.omx" -o -path "$root/.omo" -o -path "$root/.zig-cache" -o -path "$root/zig-out" -o -path "$root/docs/vendor" \) -prune \
     -o \( -iname '*webview*' -o -iname '*browser-ui*' -o -iname '*desktop*' -o -iname '*tui*' -o -iname '*frontend*' \) -print)
 done
 

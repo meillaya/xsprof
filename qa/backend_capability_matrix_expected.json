@@ -1,0 +1,313 @@
+{
+  "schema": "zig-scheduler/backend-capability-matrix-contract/v1",
+  "rows": [
+    {
+      "id": "source.design_html_inert_text",
+      "design_claim": "design.html` contains product-bundle text for a live microVM lab.",
+      "backend_obligation": "Treat it as untrusted-ish inert evidence: decode/read text only; do not execute scripts, open browser UI, or follow embedded instructions.",
+      "evidence_gate": "This document plus `qa/backend_capability_matrix_check.py`; no source/build artifact is generated from `design.html`.",
+      "deferred": false
+    },
+    {
+      "id": "target.kernel_tuple_matrix",
+      "design_claim": "Targets include `6.12.0-sched-ext-lab` and `6.11.0-rc6-zigsched`, arch, BTF, QEMU, KVM, and Nix booleans.",
+      "backend_obligation": "Backend must model supported VM/lab kernel tuples with release, arch, BTF state, `sched_ext` support, QEMU/KVM/Nix availability, and deterministic refusal/SKIP semantics.",
+      "evidence_gate": "docs/releases/supported-kernel-tuples.md`, VM contract checks, and final release gate tuple evidence.",
+      "deferred": false
+    },
+    {
+      "id": "target.vm_input_contract",
+      "design_claim": "Attach picker is VM-only and disposable.",
+      "backend_obligation": "Backend inputs must be explicit, trusted, and bounded: QEMU path, image/kernel/env-file, copy-in/out allowlists, VM marker, timeout, and teardown receipts.",
+      "evidence_gate": "qa/vm/contract_check.sh`; later `zig build vm-lab-backend -- --help` and VM evidence bundle.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.preflight",
+      "design_claim": "Pipeline starts with `preflight` and state `vm_only_pending`.",
+      "backend_obligation": "Refuse unsafe/missing host and VM prerequisites before any mutation-capable VM action; record `host_mutation=false`.",
+      "evidence_gate": "Daemon event row `stage_started` with `state=vm_only_pending`; QA refusal scenarios.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.build",
+      "design_claim": "Build stage reports `image_built` for guest image assembly.",
+      "backend_obligation": "Build/copy only required VM artifacts and scheduler object; fail closed if image/kernel/build inputs are missing or ambiguous.",
+      "evidence_gate": "VM runner build transcript and package/build gate.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.boot",
+      "design_claim": "microvm_boot` transitions to `vm_live`.",
+      "backend_obligation": "Boot only a disposable marked VM, not the root host; record boot outcome and kernel tuple.",
+      "evidence_gate": "VM transcript index with marker and kernel tuple.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.marker",
+      "design_claim": "VM marker is `/run/zig-scheduler-vm-lab.marker`.",
+      "backend_obligation": "Require marker attestation before verifier/attach evidence is accepted as VM-live.",
+      "evidence_gate": "qa/live_lab_evidence_check.py` and attestation checks.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.verifier",
+      "design_claim": "Verifier stage accepts `verifier-only/verifier-log.txt`.",
+      "backend_obligation": "Capture BPF object hash/source hash/verifier log and structured verifier status before attach.",
+      "evidence_gate": "Verifier evidence artifact and governance gate verifier row.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.attach",
+      "design_claim": "Attach stage records `bpf_register`, `zigsched_minimal`, and `partial-attach/partial-attach-evidence.json`.",
+      "backend_obligation": "Register/attach only inside the marked VM with an allowed target/cgroup scope and artifact-linked action/audit IDs.",
+      "evidence_gate": "Partial attach evidence, cgroup allowlist proof, and `host_mutation=false` daemon event.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.observe",
+      "design_claim": "Observe stage streams runtime samples and marks `rollback ready`.",
+      "backend_obligation": "Stream incremental runtime samples while workload remains alive; keep rollback target armed.",
+      "evidence_gate": "runtime-samples.jsonl`, live behavior check, daemon event stream.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.rollback",
+      "design_claim": "Rollback stage restores state and emits `rollback-drill/audit-ledger.jsonl`.",
+      "backend_obligation": "Roll back/unregister VM scheduler state, prove before/after restoration, and preserve rollback ID.",
+      "evidence_gate": "Rollback drill transcript, idempotence check, audit ledger validation.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.audit",
+      "design_claim": "Audit links runtime samples to summary evidence.",
+      "backend_obligation": "Append immutable action/audit/rollback IDs, git SHA, artifact hashes, and operator/run identity.",
+      "evidence_gate": "Audit ledger checker and release governance evidence.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.cleanup",
+      "design_claim": "Cleanup reports `process scan clean · no qemu/tmux leftovers`.",
+      "backend_obligation": "Tear down QEMU/tmux/temp resources and record residue scan results.",
+      "evidence_gate": "Cleanup receipt in bundle summary and no-leftover QA scans.",
+      "deferred": false
+    },
+    {
+      "id": "lifecycle.validate",
+      "design_claim": "Validation accepts a VM-live bundle but withholds signed release proof.",
+      "backend_obligation": "Validate freshness, schema, marker, behavior, rollback, cleanup, and release status before any release claim.",
+      "evidence_gate": "qa/live_bundle_freshness_check.py`, `qa/live_behavior_check.py`, and `qa/release_gate.sh`.",
+      "deferred": false
+    },
+    {
+      "id": "state.idle",
+      "design_claim": "Initial phase is `idle`.",
+      "backend_obligation": "No live target exists; rollback/stop commands must refuse without mutation.",
+      "evidence_gate": "Daemon command tests for no-target rollback/stop refusal.",
+      "deferred": false
+    },
+    {
+      "id": "state.booting",
+      "design_claim": "Armed run enters `booting`.",
+      "backend_obligation": "Backend must track a pending VM run and allow rollback/stop confirmation before attach completes.",
+      "evidence_gate": "Lifecycle event journal and target state model.",
+      "deferred": false
+    },
+    {
+      "id": "state.observing",
+      "design_claim": "Attach success enters `observing`.",
+      "backend_obligation": "Runtime telemetry must flow only after VM marker/verifier/attach acceptance.",
+      "evidence_gate": "Runtime sample checker and event stream.",
+      "deferred": false
+    },
+    {
+      "id": "state.rolling_back",
+      "design_claim": "Confirmed rollback enters `rolling_back`.",
+      "backend_obligation": "Only active VM targets with rollback IDs can enter rollback; duplicate/stale targets are refused.",
+      "evidence_gate": "Rollback command evidence and stale/duplicate target tests.",
+      "deferred": false
+    },
+    {
+      "id": "state.stopping",
+      "design_claim": "Confirmed stop enters `stopping`.",
+      "backend_obligation": "Stop is a safe rollback/cleanup path, not host scheduler mutation.",
+      "evidence_gate": "Stop command journal and cleanup receipt.",
+      "deferred": false
+    },
+    {
+      "id": "state.done",
+      "design_claim": "Successful rollback/validation enters `done`.",
+      "backend_obligation": "Done means VM run rolled back, audited, cleaned, and validated; it is not production-ready status.",
+      "evidence_gate": "Bundle summary and release gate output.",
+      "deferred": false
+    },
+    {
+      "id": "state.stopped",
+      "design_claim": "Stop path ends `stopped · rolled back`.",
+      "backend_obligation": "Stopped still requires rollback/audit/cleanup semantics.",
+      "evidence_gate": "Stop-path bundle evidence.",
+      "deferred": false
+    },
+    {
+      "id": "state.refused",
+      "design_claim": "Missing inputs produce `refused`.",
+      "backend_obligation": "Refused/SKIP paths must be explicit incidents and cannot be relabeled success or VM-live proof.",
+      "evidence_gate": "Refusal manifest and release gate rejection.",
+      "deferred": false
+    },
+    {
+      "id": "event.schema",
+      "design_claim": "Event schema is `zig-scheduler/daemon-event/v1`.",
+      "backend_obligation": "Backend events must be schema-versioned, sequence-numbered, status-bearing, artifact-linked, and privacy safe.",
+      "evidence_gate": "Event schema checker and daemon journal replay tests.",
+      "deferred": false
+    },
+    {
+      "id": "event.stream_filters",
+      "design_claim": "Filters include lifecycle, `runtime_sample`, rollback, and incident.",
+      "backend_obligation": "Event stream must classify lifecycle/runtime/rollback/incident records for backend consumers without UI dependencies.",
+      "evidence_gate": "Stream contract tests and journal replay checks.",
+      "deferred": false
+    },
+    {
+      "id": "telemetry.runtime_samples",
+      "design_claim": "Runtime samples include runqueue wait, wake latency, DSQ depth, and artifact path.",
+      "backend_obligation": "Collect descriptive VM runtime observations before/during/after attach; make no performance/fidelity claim.",
+      "evidence_gate": "qa/runtime_sample_check.py` and live behavior bundle.",
+      "deferred": false
+    },
+    {
+      "id": "telemetry.counters",
+      "design_claim": "Counters include samples, rejects, switches, wakeups, migrations, dropped events.",
+      "backend_obligation": "Record stable counters and fail/incident on rejected tasks, dropped stream data, or missing workload liveness.",
+      "evidence_gate": "Runtime summary and live behavior checker.",
+      "deferred": false
+    },
+    {
+      "id": "safety.host_mutation_false",
+      "design_claim": "Every event includes `host_mutation=false`; host refuses `load`, `attach`, `enable`, `mutate`, `apply`.",
+      "backend_obligation": "Preserve fail-closed host behavior and never load BPF, write cgroups, or mutate scheduler state on the root host.",
+      "evidence_gate": "bash qa/no_host_mutation.sh`, unsafe CLI matrix, daemon event checks.",
+      "deferred": false
+    },
+    {
+      "id": "safety.fail_closed_refusals",
+      "design_claim": "Refusals include QEMU, KVM, Nix/busybox, and invalid VM config.",
+      "backend_obligation": "Missing/untrusted prerequisites must emit REFUSE/SKIP with `host_mutation=false` and no success claim.",
+      "evidence_gate": "VM refusal QA scenarios and release gate rejection of SKIP as live proof.",
+      "deferred": false
+    },
+    {
+      "id": "rollback.operator_confirmed",
+      "design_claim": "Rollback/stop require second confirmation in the product model.",
+      "backend_obligation": "Backend command semantics must require explicit target/run/rollback ID and refuse stale/no-target commands.",
+      "evidence_gate": "Daemon command tests and action journal.",
+      "deferred": false
+    },
+    {
+      "id": "rollback.idempotent_drill",
+      "design_claim": "Rollback drill completes and state is restored.",
+      "backend_obligation": "Rollback must be idempotent and restore scheduler state; a second rollback must not create unsafe mutation.",
+      "evidence_gate": "rollback-result/v1` validation and rollback drill transcript.",
+      "deferred": false
+    },
+    {
+      "id": "audit.linkage",
+      "design_claim": "Runtime samples link to audit ledger and summary.",
+      "backend_obligation": "Every mutation-capable VM action must carry action ID, audit ID, rollback ID, git SHA, artifact hashes, and immutable linkage.",
+      "evidence_gate": "qa/audit_ledger_check.py` and governance release gate.",
+      "deferred": false
+    },
+    {
+      "id": "cleanup.residue_scan",
+      "design_claim": "Cleanup requires no QEMU/tmux leftovers.",
+      "backend_obligation": "Backend must trap/teardown VM processes, temp dirs, and tmux/session artifacts; failures become incidents.",
+      "evidence_gate": "Cleanup proof in transcript index and process/temp scans.",
+      "deferred": false
+    },
+    {
+      "id": "incident.qemu_not_found",
+      "design_claim": "QEMU unavailable appears as fail-closed refusal.",
+      "backend_obligation": "Report missing/untrusted QEMU as REFUSE/SKIP without boot attempt or host mutation.",
+      "evidence_gate": "QEMU discovery/refusal QA.",
+      "deferred": false
+    },
+    {
+      "id": "incident.kvm_unavailable",
+      "design_claim": "KVM unavailable is `SKIP`.",
+      "backend_obligation": "Report KVM absence as host-safe SKIP and never claim VM-live success.",
+      "evidence_gate": "VM runner SKIP evidence and release gate failure for SKIP-only evidence.",
+      "deferred": false
+    },
+    {
+      "id": "incident.nix_busybox_unavailable",
+      "design_claim": "Missing Nix/busybox is REFUSE.",
+      "backend_obligation": "Refuse live microVM path when guest image dependencies cannot be built/fetched deterministically.",
+      "evidence_gate": "VM build/refusal evidence.",
+      "deferred": false
+    },
+    {
+      "id": "incident.vm_config_invalid",
+      "design_claim": "Invalid VM config is REFUSE.",
+      "backend_obligation": "Reject malformed, ambiguous, escaping, or unsupported VM input configuration.",
+      "evidence_gate": "VM input contract checker.",
+      "deferred": false
+    },
+    {
+      "id": "incident.lost_stream_timeout",
+      "design_claim": "Product incident panel flags dropped events/unsafe gaps.",
+      "backend_obligation": "Lost event stream, timeout, rollback failure, cleanup residue, stale target, and duplicate target must become typed incidents.",
+      "evidence_gate": "Daemon stream tests, timeout tests, cleanup residue failure tests.",
+      "deferred": false
+    },
+    {
+      "id": "packaging.no_autostart",
+      "design_claim": "Product scope is lab-only and fail-closed.",
+      "backend_obligation": "Packages and services must not auto-start or mutate scheduler state; mutation units remain disabled/gated by config, marker, and evidence.",
+      "evidence_gate": "Package defaults, lifecycle drill, systemd no-autostart proof.",
+      "deferred": false
+    },
+    {
+      "id": "release.vm_live_gate",
+      "design_claim": "Release gate is withheld unless live proof is valid.",
+      "backend_obligation": "Release gate must require VM-live marker, current git SHA, runtime behavior, rollback/audit, cleanup, security review, and package safety.",
+      "evidence_gate": "bash qa/release_gate.sh --version <version> --current-run`.",
+      "deferred": false
+    },
+    {
+      "id": "release.no_production_claim",
+      "design_claim": "Product says live lab evidence is not a production/fidelity claim.",
+      "backend_obligation": "Docs, CLI, package metadata, and release notes must avoid arbitrary-host production-ready wording.",
+      "evidence_gate": "qa/wording_audit.sh` and governance manifest check.",
+      "deferred": false
+    },
+    {
+      "id": "deferred.frontend",
+      "design_claim": "Frontend is deferred/non-goal; no frontend source/build artifact is permitted.",
+      "backend_obligation": "Do not implement frontend code, stores, components, CSS, browser assets, or root frontend build targets.",
+      "evidence_gate": "bash qa/no_frontend_root.sh`.",
+      "deferred": true
+    },
+    {
+      "id": "deferred.theme_animation",
+      "design_claim": "Theme and animation are deferred/non-goal.",
+      "backend_obligation": "Do not implement theme palettes, animation timing, visual layout, or CSS extracted from `design.html`.",
+      "evidence_gate": "Scope review and no frontend artifact check.",
+      "deferred": true
+    },
+    {
+      "id": "deferred.hotkeys",
+      "design_claim": "Hotkey behavior is deferred/non-goal.",
+      "backend_obligation": "Do not implement keyboard shortcuts; backend may expose explicit command semantics only.",
+      "evidence_gate": "Command tests must avoid UI hotkey claims.",
+      "deferred": true
+    },
+    {
+      "id": "deferred.tui_webview_browser_desktop",
+      "design_claim": "TUI, WebView, browser, and desktop are deferred/non-goal.",
+      "backend_obligation": "Do not add root TUI/WebView/browser/desktop directories, build steps, packages, or release artifacts.",
+      "evidence_gate": "bash qa/no_frontend_root.sh` and `git status --short simulator` guard.",
+      "deferred": true
+    }
+  ]
+}
