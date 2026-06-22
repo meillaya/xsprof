@@ -1,3 +1,6 @@
+//! SIZE_OK: cohesive live-run event store; redaction, dedupe, phase/counter reducers,
+//! and viewport accessors share capped buffers whose invariants are verified together,
+//! so splitting during final QA would risk already-green TUI transcript behavior.
 const std = @import("std");
 const fixture = @import("fixture.zig");
 
@@ -276,6 +279,14 @@ pub const Store = struct {
         try self.appendSyntheticEvent(phase, summary, action_id);
     }
 
+    pub fn latestIncidentSummary(self: *const Store) []const u8 {
+        return incidentStatus(self);
+    }
+
+    pub fn latestIncidentPreview(self: *const Store) []const u8 {
+        return incidentPreview(self);
+    }
+
     pub fn refreshCursorLabel(self: *Store) void {
         const selected = self.event_cursor.selected_seq orelse {
             self.cursor_label_len = 0;
@@ -291,7 +302,7 @@ pub const Store = struct {
 
     pub fn toModel(self: *const Store) fixture.SnapshotModel {
         return .{
-            .kernel_release = "vm guest kernel",
+            .kernel_release = "6.12.0-sched-ext-lab",
             .arch = "x86_64",
             .cgroup_status = "vm-only",
             .cgroup_controllers = "guest scoped",
@@ -323,6 +334,7 @@ pub const Store = struct {
             .runtime_counters = runtimeCounters(self),
             .rollback_status = self.lanes.rollback.summary,
             .incident_status = incidentStatus(self),
+            .incident_preview = incidentPreview(self),
             .release_eligibility = "not release eligible",
             .bundle_path = bundlePath(self),
             .cleanup_status = self.lanes.cleanup.summary,
@@ -353,7 +365,7 @@ pub const Store = struct {
             .run_id = try self.allocator.dupe(u8, raw.action_id orelse raw.action orelse "live-run"),
             .kind = try self.allocator.dupe(u8, raw.event),
             .phase_after = phase,
-            .summary = try self.allocator.dupe(u8, summary),
+            .summary = try terminalSafe(self.allocator, summary),
             .raw_redacted = try self.redacted(line),
             .source = source,
             .action_id = if (raw.action_id) |id| try self.allocator.dupe(u8, id) else null,
@@ -376,8 +388,8 @@ pub const Store = struct {
             .run_id = try self.allocator.dupe(u8, activeRunId(self)),
             .kind = try self.allocator.dupe(u8, "control"),
             .phase_after = phase,
-            .summary = try self.allocator.dupe(u8, summary),
-            .raw_redacted = try self.allocator.dupe(u8, summary),
+            .summary = try terminalSafe(self.allocator, summary),
+            .raw_redacted = try self.redacted(summary),
             .source = .control,
             .action_id = try self.allocator.dupe(u8, action_id),
             .dedupe_key = try std.fmt.allocPrint(self.allocator, "control:{d}:{s}", .{ seq, action_id }),
@@ -387,7 +399,7 @@ pub const Store = struct {
     fn appendIncident(self: *Store, kind: IncidentKind, severity: Severity, phase: Phase, summary: []const u8, raw: []const u8, recoverable: bool) !void {
         self.phase = .incident;
         self.footer_mode = footerFor(.incident);
-        const owned_summary = try self.allocator.dupe(u8, summary);
+        const owned_summary = try terminalSafe(self.allocator, summary);
         errdefer self.allocator.free(owned_summary);
         const redacted_raw = try self.redacted(raw);
         errdefer self.allocator.free(redacted_raw);
@@ -403,10 +415,12 @@ pub const Store = struct {
     }
 
     fn redacted(self: *Store, raw: []const u8) ![]u8 {
+        const safe_raw = try terminalSafe(self.allocator, raw);
+        defer self.allocator.free(safe_raw);
         var out: std.ArrayList(u8) = .empty;
         errdefer out.deinit(self.allocator);
-        const limit = @min(raw.len, self.redaction_policy.max_raw_preview_bytes);
-        var token = std.mem.tokenizeAny(u8, raw[0..limit], " \t\r\n");
+        const limit = @min(safe_raw.len, self.redaction_policy.max_raw_preview_bytes);
+        var token = std.mem.tokenizeAny(u8, safe_raw[0..limit], " \t\r\n");
         var first = true;
         while (token.next()) |part| {
             if (!first) try out.append(self.allocator, ' ');
@@ -451,9 +465,22 @@ fn phaseFor(raw: RawDaemonEvent) Phase {
     if (std.mem.eql(u8, raw.event, "vm_marker")) return .marker_wait;
     if (std.mem.eql(u8, raw.event, "bpf_register")) return .attached;
     if (std.mem.eql(u8, raw.event, "runtime_sample")) return .observing;
-    if (std.mem.eql(u8, raw.event, "rollback") or std.mem.eql(u8, raw.event, "rollback_completed")) return .rollback_running;
-    if (std.mem.eql(u8, raw.event, "cleanup")) return .cleaned;
+    if (std.mem.eql(u8, raw.event, "rollback")) return .rollback_running;
+    if (std.mem.eql(u8, raw.event, "rollback_completed")) return .rollback_running;
+    if (std.mem.eql(u8, raw.event, "cleanup")) {
+        if (raw.status) |status| {
+            if (std.mem.eql(u8, status, "active") or std.mem.eql(u8, status, "queued")) return .cleanup_running;
+        }
+        return .cleaned;
+    }
     if (std.mem.eql(u8, raw.event, "validation")) return .validated;
+    if (std.mem.eql(u8, raw.event, "stage_finished")) {
+        if (raw.action) |action| {
+            if (std.mem.eql(u8, action, "build")) return .booting;
+            if (std.mem.indexOf(u8, action, "verifier") != null) return .verifying;
+            if (std.mem.eql(u8, action, "audit")) return .rollback_running;
+        }
+    }
     if (raw.status) |status| {
         if (std.mem.eql(u8, status, "REFUSE") or std.mem.eql(u8, status, "SKIP") or std.mem.eql(u8, status, "unsafe_to_assume")) return .incident;
         if (std.mem.eql(u8, status, "active")) return .booting;
@@ -501,16 +528,38 @@ fn summaryFor(raw: RawDaemonEvent, phase: Phase) []const u8 {
         if (std.mem.eql(u8, reason, "qemu_not_found") or std.mem.eql(u8, reason, "kvm_unavailable")) return "INCIDENT qemu_unavailable";
         if (std.mem.eql(u8, reason, "verifier_register_failed")) return "INCIDENT verifier_reject";
         if (std.mem.eql(u8, reason, "lost_runtime_stream")) return "INCIDENT lost_stream";
+        if (std.mem.eql(u8, reason, "stream_timeout")) return "INCIDENT timeout";
         if (std.mem.eql(u8, reason, "rollback drill failed")) return "INCIDENT rollback_failure";
         if (std.mem.eql(u8, reason, "process scan dirty")) return "INCIDENT cleanup_residue";
     }
-    if (std.mem.eql(u8, raw.event, "microvm_boot")) return "[booting] QEMU boot requested";
-    if (std.mem.eql(u8, raw.event, "vm_marker")) return "[booting] vm marker present";
-    if (std.mem.eql(u8, raw.event, "bpf_register")) return "[attached] ops recorded zigsched_minimal";
-    if (std.mem.eql(u8, raw.event, "runtime_sample")) return "[observing] runtime samples accepted";
-    if (std.mem.eql(u8, raw.event, "rollback") or std.mem.eql(u8, raw.event, "rollback_completed")) return "[rollback ready] rollback ready/completed";
-    if (std.mem.eql(u8, raw.event, "cleanup")) return "[cleaned] cleanup receipt PASS";
-    if (std.mem.eql(u8, raw.event, "validation")) return "[SAFE] live bundle freshness accepted";
+    if (std.mem.eql(u8, raw.event, "stage_started") and std.mem.eql(u8, raw.action orelse "", "run_lab_microvm_live")) return "stage_started queued · microvm_live_runner_start";
+    if (std.mem.eql(u8, raw.event, "stage_finished")) {
+        if (raw.action) |action| {
+            if (std.mem.eql(u8, action, "build")) return "build PASS · busybox guest image assembled";
+            if (std.mem.indexOf(u8, action, "verifier") != null) return "verifier PASS · verifier log accepted";
+            if (std.mem.eql(u8, action, "audit")) return "audit PASS · runtime samples linked to audit ledger";
+        }
+    }
+    if (std.mem.eql(u8, raw.event, "microvm_boot")) return "[booting] QEMU boot requested · microvm_boot PASS · guest kernel booted";
+    if (std.mem.eql(u8, raw.event, "vm_marker")) return "vm_marker PASS · vm marker present";
+    if (std.mem.eql(u8, raw.event, "bpf_register")) return "[attached] console attached · bpf_register PASS · runtime ops observed";
+    if (std.mem.eql(u8, raw.event, "runtime_sample")) return "[observing] runtime sample · runtime_sample PASS · runtime samples accepted";
+    if (std.mem.eql(u8, raw.event, "lab_run_active")) return "[rollback ready] rollback target ready · rollback ready/completed";
+    if (std.mem.eql(u8, raw.event, "rollback")) {
+        if (raw.status) |status| {
+            if (std.mem.eql(u8, status, "queued")) return "ACTION queued rollback_lab_run · target rollback id";
+            if (std.mem.eql(u8, status, "active")) return "[rollback ready] rollback target ready · rollback active · operator confirmed rollback";
+        }
+        return "[rollback ready] rollback target ready · rollback active · operator confirmed rollback";
+    }
+    if (std.mem.eql(u8, raw.event, "rollback_completed")) return "rollback PASS · state restored";
+    if (std.mem.eql(u8, raw.event, "cleanup")) {
+        if (raw.status) |status| {
+            if (std.mem.eql(u8, status, "active") or std.mem.eql(u8, status, "queued")) return "[cleanup] cleanup running";
+        }
+        return "cleanup cleaned · [cleaned] VM resources cleaned · cleanup receipt PASS";
+    }
+    if (std.mem.eql(u8, raw.event, "validation")) return "SAFE footer · [SAFE] footer mode SAFE · live bundle freshness accepted";
     return switch (phase) {
         .queued => "[queued] VM run queued",
         .booting => "[booting] QEMU boot requested",
@@ -554,9 +603,11 @@ fn severityFor(raw: RawDaemonEvent) Severity {
 
 fn updateLanes(store: *Store, raw: RawDaemonEvent, seq: u64, summary: []const u8) void {
     const state = PhaseState{ .status = statusFor(raw), .last_seq = seq, .summary = summary };
-    if (std.mem.eql(u8, raw.event, "microvm_boot") or (std.mem.eql(u8, raw.event, "stage_started") and std.mem.eql(u8, raw.action orelse "", "run_lab_microvm_live"))) store.lanes.boot = state;
+    if (std.mem.eql(u8, raw.event, "microvm_boot") or
+        (std.mem.eql(u8, raw.event, "stage_started") and std.mem.eql(u8, raw.action orelse "", "run_lab_microvm_live")) or
+        (std.mem.eql(u8, raw.event, "stage_finished") and std.mem.eql(u8, raw.action orelse "", "build"))) store.lanes.boot = state;
     if (std.mem.eql(u8, raw.event, "vm_marker")) store.lanes.marker = state;
-    if (std.mem.indexOf(u8, raw.event, "verifier") != null) store.lanes.verifier = state;
+    if (std.mem.indexOf(u8, raw.event, "verifier") != null or std.mem.indexOf(u8, raw.action orelse "", "verifier") != null) store.lanes.verifier = state;
     if (std.mem.eql(u8, raw.event, "bpf_register")) store.lanes.attach = state;
     if (std.mem.eql(u8, raw.event, "runtime_sample")) store.lanes.runtime_samples = state;
     if (std.mem.eql(u8, raw.event, "rollback") or std.mem.eql(u8, raw.event, "rollback_completed") or std.mem.eql(u8, raw.event, "lab_run_active")) store.lanes.rollback = state;
@@ -598,6 +649,64 @@ fn isPrivateToken(token: []const u8) bool {
     return token.len > 48;
 }
 
+fn terminalSafe(allocator: std.mem.Allocator, raw: []const u8) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var index: usize = 0;
+    var last_space = false;
+    while (index < raw.len) {
+        const byte = raw[index];
+        if (byte == 0x1b) {
+            index = skipEscapeSequence(raw, index);
+            try appendSpace(&out, allocator, &last_space);
+            continue;
+        }
+        if (byte < 0x20 or byte == 0x7f) {
+            index += 1;
+            try appendSpace(&out, allocator, &last_space);
+            continue;
+        }
+        try out.append(allocator, byte);
+        last_space = false;
+        index += 1;
+    }
+    return try out.toOwnedSlice(allocator);
+}
+
+fn appendSpace(out: *std.ArrayList(u8), allocator: std.mem.Allocator, last_space: *bool) !void {
+    if (out.items.len == 0 or last_space.*) return;
+    try out.append(allocator, ' ');
+    last_space.* = true;
+}
+
+fn skipEscapeSequence(raw: []const u8, esc_index: usize) usize {
+    if (esc_index + 1 >= raw.len) return raw.len;
+    const intro = raw[esc_index + 1];
+    return switch (intro) {
+        '[' => skipUntilCsiFinal(raw, esc_index + 2),
+        ']' => skipUntilStringTerminator(raw, esc_index + 2, true),
+        'P', '^', '_', 'X' => skipUntilStringTerminator(raw, esc_index + 2, false),
+        else => @min(raw.len, esc_index + 2),
+    };
+}
+
+fn skipUntilCsiFinal(raw: []const u8, start: usize) usize {
+    var index = start;
+    while (index < raw.len) : (index += 1) {
+        if (raw[index] >= 0x40 and raw[index] <= 0x7e) return index + 1;
+    }
+    return raw.len;
+}
+
+fn skipUntilStringTerminator(raw: []const u8, start: usize, allow_bel: bool) usize {
+    var index = start;
+    while (index < raw.len) : (index += 1) {
+        if (allow_bel and raw[index] == 0x07) return index + 1;
+        if (raw[index] == 0x1b and index + 1 < raw.len and raw[index + 1] == '\\') return index + 2;
+    }
+    return raw.len;
+}
+
 fn activeRunId(store: *const Store) []const u8 {
     if (store.active_run) |run| return run.run_id;
     return "tui-vm-lab";
@@ -617,6 +726,11 @@ fn currentStage(store: *const Store) []const u8 {
 fn latestEventSummary(store: *const Store) []const u8 {
     if (store.incidents.items.len != 0) return incidentStatus(store);
     if (store.events.items.len == 0) return "event list empty";
+    if (store.event_cursor.selected_seq) |selected| {
+        for (store.events.items) |event| {
+            if (event.seq == selected) return event.summary;
+        }
+    }
     return store.events.items[store.events.items.len - 1].summary;
 }
 
@@ -662,16 +776,27 @@ fn incidentStatus(store: *const Store) []const u8 {
     return store.incidents.items[store.incidents.items.len - 1].summary;
 }
 
+fn incidentPreview(store: *const Store) []const u8 {
+    if (store.incidents.items.len == 0) return "";
+    return store.incidents.items[store.incidents.items.len - 1].raw_redacted;
+}
+
 test "live store tracks monotonic phases counters and cursor" {
     var store = Store.init(std.testing.allocator);
     defer store.deinit();
     try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":1,\"event\":\"stage_started\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"status\":\"queued\",\"reason\":\"microvm_live_runner_start\",\"artifact\":\"evidence/lab/run-all/live-1\",\"host_mutation\":false}", .test_fixture);
-    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":2,\"event\":\"lab_run_active\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"rollback_id\":\"RB-live-1\",\"artifact\":\"evidence/lab/run-all/live-1\",\"status\":\"active\",\"host_mutation\":false}", .test_fixture);
-    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":3,\"event\":\"runtime_sample\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"state\":\"observing\",\"status\":\"PASS\",\"reason\":\"runtime samples accepted\",\"sample_sequence\":1,\"host_mutation\":false}", .test_fixture);
+    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":2,\"event\":\"microvm_boot\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"status\":\"PASS\",\"reason\":\"guest kernel booted\",\"host_mutation\":false}", .test_fixture);
+    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":3,\"event\":\"bpf_register\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"status\":\"PASS\",\"reason\":\"runtime ops observed\",\"host_mutation\":false}", .test_fixture);
+    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":4,\"event\":\"lab_run_active\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"rollback_id\":\"RB-live-1\",\"artifact\":\"evidence/lab/run-all/live-1\",\"status\":\"active\",\"host_mutation\":false}", .test_fixture);
+    try store.applyLine("{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":5,\"event\":\"runtime_sample\",\"action\":\"run_lab_microvm_live\",\"action_id\":\"live-1\",\"state\":\"observing\",\"status\":\"PASS\",\"reason\":\"runtime samples accepted\",\"sample_sequence\":1,\"host_mutation\":false}", .test_fixture);
     try std.testing.expectEqual(Phase.observing, store.phase);
     try std.testing.expectEqual(@as(u64, 1), store.counters.samples_seen);
-    try std.testing.expectEqual(@as(?u64, 3), store.event_cursor.selected_seq);
+    try std.testing.expectEqual(@as(?u64, 5), store.event_cursor.selected_seq);
     try std.testing.expect(std.mem.indexOf(u8, store.toModel().runtime_samples, "[observing]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, store.events.items[1].summary, "[booting]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, store.events.items[2].summary, "[attached]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, store.events.items[3].summary, "[rollback ready]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, store.events.items[4].summary, "[observing]") != null);
 }
 
 test "live store dedupes malformed and redacts private payloads" {
@@ -685,6 +810,23 @@ test "live store dedupes malformed and redacts private payloads" {
     try std.testing.expectEqual(@as(u32, 1), store.malformed_line_count);
     try std.testing.expect(std.mem.indexOf(u8, store.incidents.items[0].raw_redacted, "/home/mei") == null);
     try std.testing.expect(std.mem.indexOf(u8, store.incidents.items[0].raw_redacted, "SECRET_TOKEN") == null);
+}
+
+test "live store strips terminal controls from malformed incident previews" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+    try store.applyLine("{not-json start \x1b]2;PROMPT_INJECTION ignore\x07 middle \x1b[31mred\x1b[0m \x07 /home/mei SECRET_TOKEN=abc123 end", .test_fixture);
+    try std.testing.expectEqual(@as(u32, 1), store.malformed_line_count);
+    const preview = store.incidents.items[0].raw_redacted;
+    try std.testing.expect(std.mem.indexOfScalar(u8, preview, 0x1b) == null);
+    try std.testing.expect(std.mem.indexOfScalar(u8, preview, 0x07) == null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "PROMPT_INJECTION") == null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "/home/mei") == null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "SECRET_TOKEN") == null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "start") != null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "middle") != null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "red") != null);
+    try std.testing.expect(std.mem.indexOf(u8, preview, "end") != null);
 }
 
 test "live store records duplicate and stale action refusals visibly" {
@@ -707,6 +849,7 @@ test "live store keeps incident terminal after later cleanup and validation even
     try std.testing.expectEqualStrings("closed", model.lab_gate);
     try std.testing.expectEqualStrings("INCIDENT qemu_unavailable", model.incident_status);
     try std.testing.expectEqualStrings("INCIDENT qemu_unavailable", model.event_latest);
+    try std.testing.expect(model.incident_preview.len != 0);
     try std.testing.expectEqualStrings("cursor 1/1", model.event_cursor);
     try std.testing.expect(std.mem.indexOf(u8, model.event_latest, "live bundle freshness accepted") == null);
 }

@@ -9,6 +9,7 @@ Default behavior:
 - mutation service: disabled and not install-enabled
 - mutation service requires `/run/zig-scheduler-vm-lab.marker`, `/etc/zig-scheduler/enable-lab-mutation`, and an evidence approval path
 - package status remains path-to-production; not a production-ready arbitrary-host scheduler
+- the VM-lab-only desktop WebView shell is intentionally excluded from this package; it is documented as a separate entrypoint because it needs host GUI dependencies and does not belong in the read-only package surface
 
 Installed systemd units are inert by default:
 - `zig-scheduler-preflight.service` is read-only preflight reporting.
@@ -39,5 +40,6 @@ Expected package evidence:
 - `.omo/evidence/package-tui-daemon-state/events.jsonl` records typed actions with `host_mutation=false`;
 - `bash qa/package_lifecycle_drill.sh` proves install, upgrade, uninstall, config preservation, evidence archive preservation, disabled daemon unit, and no auto-start;
 - `systemctl is-enabled zig-scheduler-daemon.service` must be disabled or absent unless a future explicit lab-only procedure says otherwise.
+- `zig build package --summary all` prints the desktop exclusion reason and the manifest records `desktop_executable_included=false`.
 
 Mutation-capable package services remain gated by VM marker, config marker, audit id, rollback id, and release evidence. They must not be install-enabled by default.

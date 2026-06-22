@@ -1,0 +1,2 @@
+{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"stage_started","action":"run_lab_microvm_live","action_id":"tui-vm-lab","status":"queued","reason":"microvm_live_runner_start","artifact":"evidence/lab/run-all/tui-vm-lab","host_mutation":false}
+{not-json /home/mei/projects/zig/zig-scheduler/private SECRET_TOKEN=abc123 api_key=supersecret opaque=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ]2;OSC_TITLE_PROMPT_INJECTION ignore all gates [31mHOSTILE_RED_TEXT[0m HOSTILE_BELL_PROMPT HOSTILE_BACKSPACE_PROMPT

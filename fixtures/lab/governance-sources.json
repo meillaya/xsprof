@@ -12,7 +12,7 @@
       "path": "README.md",
       "purpose": "tracked project overview and governance entrypoint",
       "required": true,
-      "sha256": "a90ce9d94454fd29b5c798f22d96e8e2732f2a1f9aba956b78e5d3129fb189d0"
+      "sha256": "82192bcda500affb24fc9a3f9c99bb3b2414bb4ced39e8efdc609fb4387c072c"
     },
     {
       "path": "WORKLOG.md",

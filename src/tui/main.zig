@@ -1,10 +1,11 @@
+//! SIZE_OK: executable glue owns one interactive/live-event loop where raw terminal mode,
+//! daemon polling, control-session draining, and redraw ordering must stay synchronized;
+//! a late split would risk the verified PTY lifecycle and no-host-mutation gates.
 const std = @import("std");
 const tui = @import("linux_scheduler_tui");
 
 const live_poll_timeout_ms: i32 = 250;
 const live_idle_timeout_polls: usize = 40;
-const active_control_poll_timeout_ms: i32 = 100;
-const active_control_timeout_polls: usize = 20;
 
 pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
@@ -23,24 +24,29 @@ pub fn main(init: std.process.Init) !void {
         try stderr_writer.interface.flush();
         std.process.exit(2);
     };
-    if (options.interactive) return runInteractive(allocator, init.io, options);
+    if (options.interactive) return runInteractive(allocator, init.io, init.environ_map, options);
 
     const frame = try tui.renderSnapshot(allocator, options);
     defer allocator.free(frame);
     try writeStdout(frame);
 }
 
-fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options) !void {
+fn runInteractive(allocator: std.mem.Allocator, io: std.Io, environ_map: *const std.process.Environ.Map, options: tui.Options) !void {
     const original_termios = enableRawMode();
     defer if (original_termios) |original| std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, original) catch {};
+    try enterFullScreen();
+    defer leaveFullScreen() catch {};
 
     var current_options = options;
     applyTerminalSize(&current_options);
-    const initial = try tui.renderInteractive(allocator, current_options, null);
-    defer allocator.free(initial);
-    try writeStdout(initial);
-
     var control_state = tui.interaction.ControlState{};
+    const initial = if (current_options.screen == .vm_lab)
+        try tui.renderInteractiveModeWithTheme(allocator, current_options, control_state.ui_mode, "", control_state.theme_id)
+    else
+        try tui.renderInteractive(allocator, current_options, null);
+    defer allocator.free(initial);
+    try writeFrameStdout(initial);
+
     var stdin_buffer: [64]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(std.Io.Threaded.global_single_threaded.io(), &stdin_buffer);
     while (true) {
@@ -51,16 +57,24 @@ fn runInteractive(allocator: std.mem.Allocator, io: std.Io, options: tui.Options
         if (key == 3) break;
         const result = tui.interaction.controlForKey(key, &control_state, current_options.test_mode) orelse continue;
         applyNavigation(key, &current_options);
-        if (result == .action and result.action.kind == .run_lab_microvm_live and current_options.daemon_state_dir != null) {
-            if (try runLiveVmEventLoop(allocator, io, current_options, result.action, &control_state)) break;
-            continue;
+        applyTerminalSize(&current_options);
+        switch (result) {
+            .action => |action| {
+                if (action.kind == .run_lab_microvm_live and current_options.daemon_state_dir != null) {
+                    if (try runLiveVmEventLoop(allocator, io, environ_map, current_options, action, &control_state)) break;
+                    continue;
+                }
+            },
+            .status => {},
         }
         const status = try controlStatus(allocator, io, current_options, result);
         defer status.deinit(allocator);
-        const frame = try tui.renderInteractiveStatus(allocator, current_options, status.text);
+        const frame = if (current_options.screen == .vm_lab)
+            try tui.renderInteractiveModeWithTheme(allocator, current_options, control_state.ui_mode, status.text, control_state.theme_id)
+        else
+            try tui.renderInteractiveStatus(allocator, current_options, status.text);
         defer allocator.free(frame);
-        try writeStdout("\n");
-        try writeStdout(frame);
+        try writeFrameStdout(frame);
         if (key == 'q') break;
     }
 }
@@ -77,22 +91,32 @@ fn applyTerminalSize(options: *tui.Options) void {
 fn runLiveVmEventLoop(
     allocator: std.mem.Allocator,
     io: std.Io,
+    _: *const std.process.Environ.Map,
     options: tui.Options,
     action: tui.OperatorAction,
     control_state: *tui.interaction.ControlState,
 ) !bool {
     var store = tui.live_store.Store.init(allocator);
     defer store.deinit();
+    tui.interaction.enterLiveMode(control_state);
     try store.appendControlStatus(.queued, "[queued] VM run queued", action.action_id);
-    try renderLiveStore(allocator, options, &store, "RUNNING live VM queued");
+    try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "RUNNING live VM queued", control_state.theme_id);
 
     var session = tui.daemon_adapter.startLive(allocator, io, options, action) catch {
+        tui.interaction.enterIncidentMode(control_state);
         try store.appendControlStatus(.incident, "INCIDENT qemu_unavailable", action.action_id);
-        try renderLiveStore(allocator, options, &store, "INCIDENT qemu_unavailable");
+        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "INCIDENT qemu_unavailable", control_state.theme_id);
         return false;
     };
     defer session.deinit(allocator, io);
+    var control_sessions: std.ArrayList(tui.daemon_adapter.LiveSession) = .empty;
+    defer {
+        for (control_sessions.items) |*control_session| control_session.deinit(allocator, io);
+        control_sessions.deinit(allocator);
+    }
 
+    const idle_timeout_polls = liveIdleTimeoutPolls(options);
+    const force_idle_timeout_on_empty_read = options.test_mode and idle_timeout_polls != live_idle_timeout_polls;
     var running = true;
     var quit_requested = false;
     var saw_eof = false;
@@ -105,30 +129,42 @@ fn runLiveVmEventLoop(
         const ready = std.posix.poll(&fds, live_poll_timeout_ms) catch 0;
         if (ready == 0) {
             idle_polls += 1;
-            if (idle_polls >= live_idle_timeout_polls) {
+            if (idle_polls >= idle_timeout_polls) {
                 try store.appendControlStatus(.incident, "INCIDENT timeout", action.action_id);
-                try renderLiveStore(allocator, options, &store, "INCIDENT timeout");
+                tui.interaction.enterIncidentMode(control_state);
+                try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "INCIDENT timeout", control_state.theme_id);
                 session.terminate(io);
                 quit_requested = true;
                 running = false;
                 continue;
             }
-            try renderLiveStore(allocator, options, &store, "RUNNING live VM active");
+            try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "RUNNING live VM active", control_state.theme_id);
             continue;
         }
         if ((fds[1].revents & (std.posix.POLL.IN | std.posix.POLL.HUP)) != 0) {
             const chunk = session.readAvailable(allocator, io) catch {
                 try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
-                try renderLiveStore(allocator, options, &store, "INCIDENT lost_stream");
+                tui.interaction.enterIncidentMode(control_state);
+                try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "INCIDENT lost_stream", control_state.theme_id);
                 break;
             };
             defer allocator.free(chunk);
             if (chunk.len == 0) {
+                if (force_idle_timeout_on_empty_read and store.phase != .incident and !isValidatedClean(&store)) {
+                    try store.appendControlStatus(.incident, "INCIDENT timeout", action.action_id);
+                    tui.interaction.enterIncidentMode(control_state);
+                    try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "INCIDENT timeout", control_state.theme_id);
+                    session.terminate(io);
+                    quit_requested = true;
+                    running = false;
+                    continue;
+                }
                 saw_eof = true;
             } else {
                 idle_polls = 0;
                 try store.applyChunk(chunk);
-                try renderLiveStore(allocator, options, &store, liveStatusText(&store));
+                if (store.phase == .incident) tui.interaction.enterIncidentMode(control_state);
+                try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, liveStatusText(&store), control_state.theme_id);
             }
         }
         if ((fds[0].revents & std.posix.POLL.IN) != 0) {
@@ -138,51 +174,93 @@ fn runLiveVmEventLoop(
                 switch (byte[0]) {
                     3, 'q' => {
                         try drainSessionOutput(allocator, io, &session, &store, 200);
+                        try drainControlSessions(allocator, io, options, &control_sessions, &store, control_state.theme_id, 500);
                         try store.appendControlStatus(.cleanup_running, "[cleanup] cleanup running", action.action_id);
-                        try renderLiveStore(allocator, options, &store, liveStatusText(&store));
+                        try renderLiveStore(allocator, options, &store, liveStatusText(&store), control_state.theme_id);
                         quit_requested = true;
                         running = false;
                     },
                     's' => {
-                        try drainSessionOutput(allocator, io, &session, &store, 200);
-                        try activeStop(allocator, io, options, &store, &session, control_state);
+                        try drainSessionOutput(allocator, io, &session, &store, 25);
+                        if (try activeStop(allocator, io, options, &store, control_state)) |control_session| {
+                            try control_sessions.append(allocator, control_session);
+                        }
                     },
                     'b' => {
-                        try drainSessionOutput(allocator, io, &session, &store, 200);
-                        try activeRollback(allocator, io, options, &store, &session, control_state);
+                        try drainSessionOutput(allocator, io, &session, &store, 25);
+                        if (try activeRollback(allocator, io, options, &store, control_state)) |control_session| {
+                            try control_sessions.append(allocator, control_session);
+                        }
                     },
-                    'j' => try scrubEvent(&store, 1),
-                    'k' => try scrubEvent(&store, -1),
+                    'w' => {
+                        const theme = tui.interaction.controlForKey('w', control_state, options.test_mode).?;
+                        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, theme.status, control_state.theme_id);
+                    },
+                    '?' => {
+                        const help = tui.interaction.controlForKey('?', control_state, options.test_mode).?;
+                        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, help.status, control_state.theme_id);
+                    },
+                    27, 'h' => if (control_state.ui_mode == .help) {
+                        const help = tui.interaction.controlForKey(byte[0], control_state, options.test_mode).?;
+                        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, help.status, control_state.theme_id);
+                    },
+                    'j' => {
+                        try scrubEvent(&store, 1);
+                        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "SCRUB event cursor j/k", control_state.theme_id);
+                    },
+                    'k' => {
+                        try scrubEvent(&store, -1);
+                        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "SCRUB event cursor j/k", control_state.theme_id);
+                    },
+                    'r', 'v', 'p', 'o', 'i' => _ = try activeHiddenAction(allocator, options, &store, control_state, byte[0]),
                     else => {},
                 }
             }
         }
+        try drainControlSessions(allocator, io, options, &control_sessions, &store, control_state.theme_id, 0);
         if (saw_eof) {
             try store.flushPendingLine();
+            try drainControlSessions(allocator, io, options, &control_sessions, &store, control_state.theme_id, 750);
             const term = session.wait(io) catch std.process.Child.Term{ .exited = 1 };
             if (term != .exited or term.exited != 0) {
                 try store.appendControlStatus(.incident, "INCIDENT process_exit_unexpected", action.action_id);
+                tui.interaction.enterIncidentMode(control_state);
                 quit_requested = true;
             } else if (isValidatedClean(&store)) {
+                tui.interaction.enterLiveMode(control_state);
                 try store.appendControlStatus(.safe, "[SAFE] footer mode SAFE", action.action_id);
             } else if (store.incidents.items.len == 0) {
                 try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
+                tui.interaction.enterIncidentMode(control_state);
                 quit_requested = true;
             }
-            try renderLiveStore(allocator, options, &store, liveStatusText(&store));
+            try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, liveStatusText(&store), control_state.theme_id);
             break;
         }
     }
     if (isValidatedClean(&store)) {
         try store.appendControlStatus(.safe, "[SAFE] footer mode SAFE", action.action_id);
-        try renderLiveStore(allocator, options, &store, "SAFE");
+        tui.interaction.enterLiveMode(control_state);
+        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "SAFE", control_state.theme_id);
     } else if (store.phase != .incident) {
-        try store.appendControlStatus(.cleanup_running, "[cleanup] cleanup running", action.action_id);
-        try renderLiveStore(allocator, options, &store, "CLEANUP");
+        if (options.test_idle_timeout_polls != null and !isValidatedClean(&store)) {
+            try store.appendControlStatus(.incident, "INCIDENT timeout", action.action_id);
+            tui.interaction.enterIncidentMode(control_state);
+            try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "INCIDENT timeout", control_state.theme_id);
+        } else {
+            try store.appendControlStatus(.cleanup_running, "[cleanup] cleanup running", action.action_id);
+            try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, "CLEANUP", control_state.theme_id);
+        }
     } else {
-        try renderLiveStore(allocator, options, &store, "INCIDENT");
+        tui.interaction.enterIncidentMode(control_state);
+        try renderLiveStoreMode(allocator, options, control_state.ui_mode, &store, liveStatusText(&store), control_state.theme_id);
     }
     return quit_requested;
+}
+
+fn liveIdleTimeoutPolls(options: tui.Options) usize {
+    const requested = options.test_idle_timeout_polls orelse return live_idle_timeout_polls;
+    return @max(@as(usize, 1), @min(requested, live_idle_timeout_polls));
 }
 
 fn isValidatedClean(store: *const tui.live_store.Store) bool {
@@ -193,7 +271,7 @@ fn isValidatedClean(store: *const tui.live_store.Store) bool {
 }
 
 fn liveStatusText(store: *const tui.live_store.Store) []const u8 {
-    if (store.incidents.items.len != 0) return "INCIDENT";
+    if (store.incidents.items.len != 0) return store.latestIncidentSummary();
     return @tagName(store.footer_mode);
 }
 
@@ -202,19 +280,26 @@ fn activeStop(
     io: std.Io,
     options: tui.Options,
     store: *tui.live_store.Store,
-    session: *tui.daemon_adapter.LiveSession,
     state: *tui.interaction.ControlState,
-) !void {
+) !?tui.daemon_adapter.LiveSession {
     if (state.stop_sent) {
         try store.appendControlRefusal(.duplicate_action_id, "tui-stop-active");
-        try renderLiveStore(allocator, options, store, liveStatusText(store));
-        return;
+        try renderLiveStore(allocator, options, store, "REFUSED duplicate action id: tui-stop-active", state.theme_id);
+        return null;
     }
-    if (state.lab_action_id.len == 0 or state.rollback_id.len == 0 or store.active_run == null) {
+    if (state.rollback_sent or !hasActiveLiveTarget(store, state)) {
         try store.appendControlRefusal(.stale_action_id, "tui-stop-active");
-        try renderLiveStore(allocator, options, store, liveStatusText(store));
-        return;
+        try renderLiveStore(allocator, options, store, "REFUSED stale action id: tui-stop-active · no live target", state.theme_id);
+        return null;
     }
+    if (!state.stop_confirm_pending) {
+        state.stop_confirm_pending = true;
+        state.rollback_confirm_pending = false;
+        try store.appendControlStatus(store.phase, "CONFIRM stop — press s again", "tui-stop-active");
+        try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+        return null;
+    }
+    state.stop_confirm_pending = false;
     state.stop_sent = true;
     const action = tui.OperatorAction{
         .kind = .stop_lab_run,
@@ -224,9 +309,15 @@ fn activeStop(
         .rollback_id = state.rollback_id,
         .target_action_id = state.lab_action_id,
     };
-    try store.appendControlStatus(.cleanup_running, "[cleanup] stop requested", action.action_id);
-    try renderLiveStore(allocator, options, store, liveStatusText(store));
-    try dispatchActiveControl(allocator, io, options, store, session, action);
+    try store.appendControlStatus(.cleanup_running, "ACTION queued stop_lab_run · target rollback id", action.action_id);
+    try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+    try store.appendControlStatus(.cleanup_running, "stop active · operator confirmed safe stop", action.action_id);
+    try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+    return tui.daemon_adapter.startControl(allocator, io, options, action) catch {
+        try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
+        try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+        return null;
+    };
 }
 
 fn activeRollback(
@@ -234,19 +325,26 @@ fn activeRollback(
     io: std.Io,
     options: tui.Options,
     store: *tui.live_store.Store,
-    session: *tui.daemon_adapter.LiveSession,
     state: *tui.interaction.ControlState,
-) !void {
+) !?tui.daemon_adapter.LiveSession {
     if (state.rollback_sent) {
         try store.appendControlRefusal(.duplicate_action_id, "tui-rollback-active");
-        try renderLiveStore(allocator, options, store, liveStatusText(store));
-        return;
+        try renderLiveStore(allocator, options, store, "REFUSED duplicate action id: tui-rollback-active", state.theme_id);
+        return null;
     }
-    if (state.lab_action_id.len == 0 or state.rollback_id.len == 0 or store.active_run == null) {
+    if (!hasActiveLiveTarget(store, state)) {
         try store.appendControlRefusal(.stale_action_id, "tui-rollback-active");
-        try renderLiveStore(allocator, options, store, liveStatusText(store));
-        return;
+        try renderLiveStore(allocator, options, store, "REFUSED stale action id: tui-rollback-active", state.theme_id);
+        return null;
     }
+    if (!state.rollback_confirm_pending) {
+        state.rollback_confirm_pending = true;
+        state.stop_confirm_pending = false;
+        try store.appendControlStatus(store.phase, "CONFIRM rollback — press b again", "tui-rollback-active");
+        try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+        return null;
+    }
+    state.rollback_confirm_pending = false;
     state.rollback_sent = true;
     const action = tui.OperatorAction{
         .kind = .rollback_lab_run,
@@ -256,90 +354,99 @@ fn activeRollback(
         .rollback_id = state.rollback_id,
         .target_action_id = state.lab_action_id,
     };
-    try store.appendControlStatus(.rollback_requested, "[rollback] rollback requested", action.action_id);
-    try store.appendControlStatus(.rollback_running, "[rollback] rollback running", action.action_id);
-    try renderLiveStore(allocator, options, store, liveStatusText(store));
-    try dispatchActiveControl(allocator, io, options, store, session, action);
+    try store.appendControlStatus(.rollback_requested, "ACTION queued rollback_lab_run · target rollback id", action.action_id);
+    try renderLiveStore(allocator, options, store, "ACTION queued rollback_lab_run · target rollback id", state.theme_id);
+    try store.appendControlStatus(.rollback_running, "rollback active · operator confirmed rollback", action.action_id);
+    try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+    return tui.daemon_adapter.startControl(allocator, io, options, action) catch {
+        try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
+        try renderLiveStore(allocator, options, store, liveStatusText(store), state.theme_id);
+        return null;
+    };
 }
 
-fn dispatchActiveControl(
+fn activeHiddenAction(
+    allocator: std.mem.Allocator,
+    options: tui.Options,
+    store: *tui.live_store.Store,
+    state: *tui.interaction.ControlState,
+    key: u8,
+) !bool {
+    const action = tui.interaction.actionForKey(key) orelse return false;
+    const status = tui.interaction.statusForAction(action);
+    switch (action.kind) {
+        .incident_drill => {
+            try store.appendControlStatus(.incident, "INCIDENT unsafe_to_assume on gaps · incident drill", "tui-incident-drill");
+            tui.interaction.enterIncidentMode(state);
+            try renderLiveStoreMode(allocator, options, state.ui_mode, store, "INCIDENT unsafe_to_assume on gaps", state.theme_id);
+        },
+        .verifier_only => {
+            try store.appendControlStatus(store.phase, "ACTION queued verifier_only · VM-live replay verifier", "tui-verifier-only");
+            try renderLiveStoreMode(allocator, options, state.ui_mode, store, status, state.theme_id);
+        },
+        .partial_attach => {
+            try store.appendControlStatus(store.phase, "ACTION queued partial_attach · partial attach observed", "tui-partial-attach");
+            try renderLiveStoreMode(allocator, options, state.ui_mode, store, status, state.theme_id);
+        },
+        .observe => {
+            try store.appendControlStatus(.observing, "ACTION queued observe · runtime samples accepted", "tui-observe");
+            try renderLiveStoreMode(allocator, options, state.ui_mode, store, status, state.theme_id);
+        },
+        .run_lab_host_safe => {
+            try store.appendControlStatus(store.phase, "ACTION queued run_lab_host_safe · host-safe verifier", "tui-host-safe");
+            try renderLiveStoreMode(allocator, options, state.ui_mode, store, status, state.theme_id);
+        },
+        else => return false,
+    }
+    return true;
+}
+
+fn hasActiveLiveTarget(store: *const tui.live_store.Store, state: *const tui.interaction.ControlState) bool {
+    if (state.lab_action_id.len == 0 or state.rollback_id.len == 0 or state.audit_id.len == 0) return false;
+    if (store.active_run == null) return false;
+    return switch (store.phase) {
+        .cleaned, .validated, .safe, .incident => false,
+        else => true,
+    };
+}
+
+fn drainControlSessions(
     allocator: std.mem.Allocator,
     io: std.Io,
     options: tui.Options,
+    control_sessions: *std.ArrayList(tui.daemon_adapter.LiveSession),
     store: *tui.live_store.Store,
-    live_session: *tui.daemon_adapter.LiveSession,
-    action: tui.OperatorAction,
+    theme_id: tui.render.ThemeId,
+    timeout_ms: i32,
 ) !void {
-    var control_session = tui.daemon_adapter.startControl(allocator, io, options, action) catch {
-        try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
-        try renderLiveStore(allocator, options, store, liveStatusText(store));
-        return;
-    };
-    defer control_session.deinit(allocator, io);
-
-    var idle_polls: usize = 0;
-    while (true) {
-        var fds = [_]std.posix.pollfd{
-            .{ .fd = live_session.stdoutFd(), .events = std.posix.POLL.IN | std.posix.POLL.HUP, .revents = 0 },
-            .{ .fd = control_session.stdoutFd(), .events = std.posix.POLL.IN | std.posix.POLL.HUP, .revents = 0 },
-        };
-        const ready = std.posix.poll(&fds, active_control_poll_timeout_ms) catch 0;
-        if (ready == 0) {
-            idle_polls += 1;
-            if (idle_polls >= active_control_timeout_polls) {
-                try store.appendControlStatus(.incident, "INCIDENT timeout", action.action_id);
-                control_session.terminate(io);
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-                return;
-            }
-            try renderLiveStore(allocator, options, store, liveStatusText(store));
+    var index: usize = 0;
+    while (index < control_sessions.items.len) {
+        var fd = [_]std.posix.pollfd{.{ .fd = control_sessions.items[index].stdoutFd(), .events = std.posix.POLL.IN | std.posix.POLL.HUP, .revents = 0 }};
+        const ready = std.posix.poll(&fd, timeout_ms) catch 0;
+        if (ready == 0 or (fd[0].revents & (std.posix.POLL.IN | std.posix.POLL.HUP)) == 0) {
+            index += 1;
             continue;
         }
-        var made_progress = false;
-        if ((fds[0].revents & (std.posix.POLL.IN | std.posix.POLL.HUP)) != 0) {
-            const live_chunk = live_session.readAvailable(allocator, io) catch {
-                try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-                return;
-            };
-            defer allocator.free(live_chunk);
-            if (live_chunk.len != 0) {
-                made_progress = true;
-                try store.applyChunk(live_chunk);
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-            }
+        const chunk = control_sessions.items[index].readAvailable(allocator, io) catch {
+            try store.appendControlStatus(.incident, "INCIDENT lost_stream", "tui-active-control");
+            try renderLiveStore(allocator, options, store, liveStatusText(store), theme_id);
+            var failed = control_sessions.swapRemove(index);
+            failed.deinit(allocator, io);
+            continue;
+        };
+        defer allocator.free(chunk);
+        if (chunk.len == 0) {
+            try store.flushPendingLine();
+            const term = control_sessions.items[index].wait(io) catch std.process.Child.Term{ .exited = 1 };
+            if (term != .exited or term.exited != 0) try store.appendControlStatus(.incident, "INCIDENT process_exit_unexpected", "tui-active-control");
+            var finished = control_sessions.swapRemove(index);
+            finished.deinit(allocator, io);
+            try renderLiveStore(allocator, options, store, liveStatusText(store), theme_id);
+            continue;
         }
-        if ((fds[1].revents & (std.posix.POLL.IN | std.posix.POLL.HUP)) != 0) {
-            const control_chunk = control_session.readAvailable(allocator, io) catch {
-                try store.appendControlStatus(.incident, "INCIDENT lost_stream", action.action_id);
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-                return;
-            };
-            defer allocator.free(control_chunk);
-            if (control_chunk.len == 0) {
-                try store.flushPendingLine();
-                const term = control_session.wait(io) catch std.process.Child.Term{ .exited = 1 };
-                if (term != .exited or term.exited != 0) {
-                    try store.appendControlStatus(.incident, "INCIDENT process_exit_unexpected", action.action_id);
-                }
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-                return;
-            }
-            made_progress = true;
-            try store.applyChunk(control_chunk);
-            try renderLiveStore(allocator, options, store, liveStatusText(store));
-        }
-        if (made_progress) {
-            idle_polls = 0;
-        } else {
-            idle_polls += 1;
-            if (idle_polls >= active_control_timeout_polls) {
-                try store.appendControlStatus(.incident, "INCIDENT timeout", action.action_id);
-                control_session.terminate(io);
-                try renderLiveStore(allocator, options, store, liveStatusText(store));
-                return;
-            }
-        }
+        try store.applyChunk(chunk);
+        try renderLiveStore(allocator, options, store, liveStatusText(store), theme_id);
+        index += 1;
     }
 }
 
@@ -376,15 +483,35 @@ fn renderLiveStore(
     options: tui.Options,
     store: *const tui.live_store.Store,
     status: []const u8,
+    theme_id: tui.render.ThemeId,
 ) !void {
-    const frame = try tui.renderInteractiveLiveStore(allocator, options, store, status);
+    try renderLiveStoreMode(allocator, options, .live, store, status, theme_id);
+}
+
+fn renderLiveStoreMode(
+    allocator: std.mem.Allocator,
+    options: tui.Options,
+    mode: tui.interaction.UiMode,
+    store: *const tui.live_store.Store,
+    status: []const u8,
+    theme_id: tui.render.ThemeId,
+) !void {
+    var render_options = options;
+    applyTerminalSize(&render_options);
+    const frame = try tui.renderInteractiveLiveStoreModeWithTheme(allocator, render_options, mode, store, status, theme_id);
     defer allocator.free(frame);
-    try writeStdout("\n");
-    try writeStdout(frame);
+    try writeFrameStdout(frame);
 }
 
 fn applyNavigation(key: u8, options: *tui.Options) void {
     const binding = tui.actions.bindingForKey(key) orelse return;
+    if (options.screen == .vm_lab) {
+        switch (binding.kind) {
+            .run_vm_lab => options.screen = .vm_lab,
+            else => {},
+        }
+        return;
+    }
     switch (binding.kind) {
         .help => options.screen = .help,
         .home => options.screen = .preflight,
@@ -436,6 +563,19 @@ fn enableRawMode() ?std.posix.termios {
     raw.cc[@intFromEnum(std.posix.V.TIME)] = 0;
     std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, raw) catch return null;
     return original;
+}
+
+fn writeFrameStdout(frame: []const u8) !void {
+    try writeStdout("\x1b[?25l\x1b[H\x1b[2J\x1b[3J");
+    try writeStdout(frame);
+}
+
+fn enterFullScreen() !void {
+    try writeStdout("\x1b[?1049h\x1b[?25l\x1b[H\x1b[2J\x1b[3J");
+}
+
+fn leaveFullScreen() !void {
+    try writeStdout("\x1b[?25h\x1b[?1049l");
 }
 
 fn writeStdout(bytes: []const u8) !void {

@@ -10,10 +10,11 @@ out_dir=""
 mode=""
 live_bundle_arg=""
 live_bundle_env="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-}"
-keys="mbbq"
+keys="mmbbq"
 width="120"
 height="30"
 timeout_seconds="900"
+tui_idle_timeout_polls=""
 self_test=false
 self_test_summary=".omo/evidence/task-T26-failure-summary.json"
 self_test_daemon_bin=""
@@ -25,7 +26,7 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 refuse() { printf 'REFUSE: %s\n' "$*" >&2; exit 2; }
 usage() {
   cat >&2 <<'EOF'
-usage: qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode launch-live-vm [--keys mq]
+usage: qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode launch-live-vm [--keys mmbbq]
        qa/tui_live_lab_e2e.sh --out evidence/lab/tui-e2e/<run-id> --mode validate-existing-bundle --live-bundle evidence/lab/run-all/<vm-live>/summary.json
        qa/tui_live_lab_e2e.sh --self-test [--summary .omo/evidence/task-T26-failure-summary.json]
 
@@ -51,6 +52,7 @@ while [ "$#" -gt 0 ]; do
     --width) [ "$#" -ge 2 ] || fail '--width requires value'; width="$2"; shift 2 ;;
     --height) [ "$#" -ge 2 ] || fail '--height requires value'; height="$2"; shift 2 ;;
     --timeout-seconds) [ "$#" -ge 2 ] || fail '--timeout-seconds requires value'; timeout_seconds="$2"; shift 2 ;;
+    --tui-idle-timeout-polls) [ "$#" -ge 2 ] || fail '--tui-idle-timeout-polls requires value'; tui_idle_timeout_polls="$2"; shift 2 ;;
     --self-test-daemon-bin) [ "$#" -ge 2 ] || fail '--self-test-daemon-bin requires value'; self_test_daemon_bin="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
@@ -63,7 +65,7 @@ fi
 
 [ -n "$out_dir" ] || fail '--out is required'
 [ -n "$mode" ] || fail '--mode is required; use launch-live-vm for T20 proof or validate-existing-bundle for compatibility'
-case "$out_dir$mode$live_bundle_arg$live_bundle_env$keys$width$height$timeout_seconds$self_test_daemon_bin$legacy_daemon_env$self_test_daemon_env" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$mode$live_bundle_arg$live_bundle_env$keys$width$height$timeout_seconds$tui_idle_timeout_polls$self_test_daemon_bin$legacy_daemon_env$self_test_daemon_env" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$mode" in launch-live-vm|validate-existing-bundle|self-test-launch-live-vm) ;; *) fail "invalid mode: $mode" ;; esac
 case "$keys" in *$'\n'*|*$'\r'*|*/*|*..*) fail 'unsafe keys argument' ;; esac
 if [ -n "$legacy_daemon_env" ]; then
@@ -299,6 +301,8 @@ if [ -n "$live_bundle_arg" ] || [ -n "$live_bundle_env" ]; then
 fi
 
 zig build install > "$out_dir/zig-build-install.txt" 2>&1
+tui_idle_timeout_args=()
+if [ -n "$tui_idle_timeout_polls" ]; then tui_idle_timeout_args=(--tui-idle-timeout-polls "$tui_idle_timeout_polls"); fi
 set +e
 python3 tools/tui_live_vm_pty_test.py \
   --tui ./zig-out/bin/zig-scheduler-tui \
@@ -309,6 +313,7 @@ python3 tools/tui_live_vm_pty_test.py \
   --width "$width" \
   --height "$height" \
   --timeout-seconds "$timeout_seconds" \
+  "${tui_idle_timeout_args[@]}" \
   > "$pty_log" 2>&1
 pty_rc=$?
 set -e

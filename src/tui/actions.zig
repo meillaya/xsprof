@@ -26,13 +26,13 @@ pub const Binding = struct {
 };
 
 pub const bindings = [_]Binding{
-    .{ .key = 'q', .kind = .quit, .label = "q quit" },
-    .{ .key = '?', .kind = .help, .label = "? help" },
-    .{ .key = 'h', .kind = .home, .label = "h home" },
-    .{ .key = 'w', .kind = .theme, .label = "w theme" },
     .{ .key = 'm', .kind = .run_vm_lab, .label = "m live vm" },
     .{ .key = 'b', .kind = .rollback_lab, .label = "b rollback" },
     .{ .key = 's', .kind = .stop_lab, .label = "s stop" },
+    .{ .key = 'h', .kind = .home, .label = "h home" },
+    .{ .key = '?', .kind = .help, .label = "? help" },
+    .{ .key = 'w', .kind = .theme, .label = "w theme" },
+    .{ .key = 'q', .kind = .quit, .label = "q quit" },
     .{ .key = 'r', .kind = .run_host_safe, .label = "r host lab", .advertised = false },
     .{ .key = 'v', .kind = .verifier_only, .label = "v verifier", .advertised = false },
     .{ .key = 'p', .kind = .partial_attach, .label = "p partial", .advertised = false },
@@ -70,7 +70,7 @@ pub fn advertisedKeys(buffer: []u8) []const u8 {
 }
 
 pub fn writeFooter(writer: anytype, width: usize) !usize {
-    const full_labels = width >= 100;
+    const full_labels = width >= 120;
     const separator = if (width >= 140) "  " else " ";
     var cells: usize = 0;
     var first = true;
@@ -80,9 +80,14 @@ pub fn writeFooter(writer: anytype, width: usize) !usize {
             try writer.writeAll(separator);
             cells += separator.len;
         }
-        const label = if (full_labels) binding.label else binding.label[0..1];
-        try writer.writeAll(label);
-        cells += label.len;
+        if (full_labels) {
+            try writer.writeAll("▣ ");
+            try writer.writeAll(binding.label);
+            cells += 2 + labelCells(binding.label);
+        } else {
+            try writer.writeAll(binding.label[0..1]);
+            cells += 1;
+        }
         first = false;
     }
     const suffix = if (width >= 140) "  ↵ select" else " ↵";
@@ -91,12 +96,16 @@ pub fn writeFooter(writer: anytype, width: usize) !usize {
     return cells;
 }
 
+fn labelCells(label: []const u8) usize {
+    return std.unicode.utf8CountCodepoints(label) catch label.len;
+}
+
 pub fn statusForUi(kind: Kind) ?[]const u8 {
     return switch (kind) {
         .quit => "QUIT requested",
         .help => "HELP open help",
         .home => "HOME dashboard",
-        .theme => "THEME warm dark",
+        .theme => "theme black ▸ w",
         else => null,
     };
 }

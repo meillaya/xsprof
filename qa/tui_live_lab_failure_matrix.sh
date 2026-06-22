@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# noqa: SIZE_OK - one atomic live-TUI failure matrix keeps ordered fixtures, shared evidence setup, and summary assertions together; splitting would weaken scenario drift detection.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -50,8 +51,8 @@ event_line() {
 }
 case "$behavior" in
   hung_stream)
-    event_line 1 stage_started active fixture_hung_stream | tee "$state_dir/events.jsonl"
-    sleep 30
+    event_line 1 stage_started active fixture_hung_stream > "$state_dir/events.jsonl"
+    exec python3 -c 'import time; time.sleep(30)'
     ;;
   malformed_event)
     emit $'{not-json\n'
@@ -70,9 +71,10 @@ case "$behavior" in
       event_line 2 microvm_boot PASS "vm marker present"
       event_line 3 bpf_register PASS "runtime ops observed"
       event_line 4 runtime_sample PASS "runtime samples accepted"
-      event_line 5 rollback PASS PASS
-      event_line 6 cleanup PASS "process scan clean"
-      event_line 7 validation PASS "live bundle freshness accepted"
+      printf '{"schema":"zig-scheduler/daemon-event/v1","seq":5,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"tui-vm-lab","rollback_id":"RB-tui-vm-lab","artifact":"","state":"partial_switch_lab","status":"active","host_mutation":false}\n'
+      event_line 6 rollback PASS PASS
+      event_line 7 cleanup PASS "process scan clean"
+      event_line 8 validation PASS "live bundle freshness accepted"
     } | tee "$state_dir/events.jsonl"
     exit 0
     ;;
@@ -118,7 +120,7 @@ if expected not in plain:
     passed = False
     checks.append(f'missing_expected:{expected}')
 if expected.startswith('INCIDENT '):
-    incident_at = plain.find(expected)
+    incident_at = plain.rfind(expected)
     if incident_at >= 0:
         suffix = plain[incident_at:]
         for forbidden in ('[SAFE] footer mode SAFE', 'live bundle freshness accepted', '\n│ NORMAL     ', '\n│ RUNNING     ', '\n│ ROLLBACK     ', '\n│ CLEANUP     '):
@@ -138,6 +140,15 @@ if name == 'live_progression_order':
             checks.append(f'missing_ordered_marker:{marker}')
             break
         cursor = pos
+if name == 'forced_timeout':
+    if 'stream_timeout' in text:
+        passed = False
+        checks.append('forced_timeout_used_stream_timeout_event')
+    if 'current incident: INCIDENT timeout' not in plain and '│ INCIDENT' not in plain:
+        passed = False
+        checks.append('forced_timeout_missing_tui_incident_frame')
+    if passed:
+        checks.append('forced_timeout_real_tui_idle_timeout_path')
 if name in {'duplicate_action_id','stale_rollback_id'} and rc != 0:
     passed = False
     checks.append(f'daemon_matrix_rc:{rc}')
@@ -162,12 +173,14 @@ PY
 
 run_fixture_scenario() {
   local name="$1" class="$2" behavior="$3" expected="$4" timeout_value="${5:-8}"
-  local keys_value="${6:-mq}"
+  local keys_value="${6:-mmq}"
   local out="$matrix_root/$name" log="$matrix_root/$name/output.txt"
   mkdir -p "$out"
-  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior bash qa/tui_live_lab_e2e.sh --out $out/run --mode self-test-launch-live-vm --self-test-daemon-bin $fake_daemon --timeout-seconds $timeout_value --keys $keys_value"
+  local tui_idle_timeout_args=()
+  if [ "$behavior" = hung_stream ]; then tui_idle_timeout_args=(--tui-idle-timeout-polls 1); fi
+  local cmd="T26_FAKE_DAEMON_BEHAVIOR=$behavior bash qa/tui_live_lab_e2e.sh --out $out/run --mode self-test-launch-live-vm --self-test-daemon-bin $fake_daemon --timeout-seconds $timeout_value --keys $keys_value --width 197 --height 62 ${tui_idle_timeout_args[*]}"
   set +e
-  T26_FAKE_DAEMON_BEHAVIOR="$behavior" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode self-test-launch-live-vm --self-test-daemon-bin "$fake_daemon" --timeout-seconds "$timeout_value" --keys "$keys_value" > "$log" 2>&1
+  T26_FAKE_DAEMON_BEHAVIOR="$behavior" bash qa/tui_live_lab_e2e.sh --out "$out/run" --mode self-test-launch-live-vm --self-test-daemon-bin "$fake_daemon" --timeout-seconds "$timeout_value" --keys "$keys_value" --width 197 --height 62 "${tui_idle_timeout_args[@]}" > "$log" 2>&1
   local rc=$?
   set -e
   {
@@ -184,11 +197,11 @@ run_fixture_scenario missing_kvm prerequisite_refusal kvm_skip 'INCIDENT qemu_un
 run_fixture_scenario verifier_register_failure verifier_fixture verifier_register_failure 'INCIDENT verifier_reject'
 run_fixture_scenario lost_runtime_stream hung_commands lost_runtime_stream 'INCIDENT lost_stream'
 run_fixture_scenario malformed_event malformed_input malformed_event 'INCIDENT malformed_line'
-run_fixture_scenario forced_timeout hung_commands hung_stream 'INCIDENT timeout' 12 m
-run_fixture_scenario zero_exit_incomplete lost_stream zero_exit_incomplete 'INCIDENT lost_stream' 8 m
+run_fixture_scenario forced_timeout hung_commands hung_stream 'INCIDENT timeout' 12 m@
+run_fixture_scenario zero_exit_incomplete lost_stream zero_exit_incomplete 'INCIDENT lost_stream' 8 mm
 run_fixture_scenario rollback_failure rollback_drill rollback_failure 'INCIDENT rollback_failure'
 run_fixture_scenario cleanup_residue cleanup_scan cleanup_residue 'INCIDENT cleanup_residue'
-run_fixture_scenario live_progression_order live_progression live_progression_no_bundle '[cleaned] cleanup receipt PASS'
+run_fixture_scenario live_progression_order live_progression live_progression_no_bundle '[cleaned] VM resources cleaned'
 run_fixture_scenario tui_quit_crash repeated_interruption daemon_crash_after_active 'TUI did not generate live bundle'
 
 stale_dir="$matrix_root/stale_bundle"
@@ -227,29 +240,90 @@ cleanup_log="$matrix_root/cleanup-scan.txt"
   printf 'tmux_scan:\n'
   if command -v tmux >/dev/null 2>&1; then tmux list-sessions 2>/dev/null | grep -E 'zig-scheduler-t26|tui-live-lab-e2e' || true; else printf 'tmux not installed\n'; fi
   printf 'temp_scan:\n'
-  find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name 'zigsched-microvm-live.*' -print 2>/dev/null || true
+  TMPDIR="${TMPDIR:-/tmp}" python3 - <<'PY'
+import os
+from pathlib import Path
+
+tmp = Path(os.environ.get("TMPDIR", "/tmp"))
+for candidate in sorted(tmp.glob("zigsched-microvm-live.*")):
+    marker = candidate / "zig-scheduler-owner-out-dir"
+    try:
+        owner = marker.read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, OSError, UnicodeDecodeError):
+        continue
+    if owner.startswith("evidence/lab/") and "/../" not in owner and not owner.endswith("/summary.json"):
+        print(candidate)
+PY
 } > "$cleanup_log"
 
 CLEANUP_LOG="$cleanup_log" RESULTS_JSONL="$results_jsonl" SUMMARY="$summary" MATRIX_ROOT="$matrix_root" python3 - <<'PY'
 import json
 import os
+import re
 from pathlib import Path
 rows = [json.loads(line) for line in Path(os.environ['RESULTS_JSONL']).read_text(encoding='utf-8').splitlines() if line.strip()]
 cleanup_lines = Path(os.environ['CLEANUP_LOG']).read_text(encoding='utf-8', errors='replace').splitlines()
 hits = [line for line in cleanup_lines if line and not line.endswith(':') and line != 'tmux not installed']
 cleanup_status = 'PASS' if not hits else 'FAIL'
+visibility_path = Path('.omo/evidence/task-8-authoritative-tui-live-vm-redesign-visibility.md')
+ansi_or_control = re.compile(
+    r'\x1b\][^\x07\x1b]*(?:\x07|\x1b\\|$)'
+    r'|\x1b\[[0-9;?]*[ -/]*[@-~]'
+    r'|\x1b[P^_X].*?(?:\x1b\\|$)'
+    r'|\x1b.'
+    r'|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]',
+    re.DOTALL,
+)
+visibility_rows = []
+for row in rows:
+    marker = row['expected_marker']
+    if not marker.startswith('INCIDENT '):
+        continue
+    text = Path(row['output']).read_text(encoding='utf-8', errors='replace')
+    plain = ansi_or_control.sub('', text)
+    lines = plain.splitlines()
+    checks = {
+        'header/status': any('│ INCIDENT' in line and marker in line for line in lines),
+        'alert strip': any(f'• incident          {marker}' in line for line in lines),
+        'event stream': any(f'latest · {marker}' in line for line in lines),
+        'transcript/current incident': any(f'current incident: {marker}' in line for line in lines),
+    }
+    visibility_rows.append({
+        'scenario': row['scenario'],
+        'marker': marker,
+        'output': row['output'],
+        'checks': checks,
+        'status': 'PASS' if all(checks.values()) else 'FAIL',
+    })
+visibility_status = 'PASS' if visibility_rows and all(row['status'] == 'PASS' for row in visibility_rows) else 'FAIL'
+visibility_lines = [
+    '# Todo 8 incident visibility proof',
+    '',
+    'Capture geometry: failure matrix self-test TUI runs at width=197 height=62 so alert/current-incident rows are not hidden by the default 30-row viewport.',
+    '',
+    '| scenario | marker | header/status | alert strip | event stream | transcript/current incident | artifact |',
+    '|---|---|---:|---:|---:|---:|---|',
+]
+for row in visibility_rows:
+    checks = row['checks']
+    visibility_lines.append(
+        f"| {row['scenario']} | {row['marker']} | {checks['header/status']} | {checks['alert strip']} | {checks['event stream']} | {checks['transcript/current incident']} | {row['output']} |"
+    )
+visibility_lines.extend(('', f'status={visibility_status}', ''))
+visibility_path.write_text('\n'.join(visibility_lines), encoding='utf-8')
 summary = {
     'schema': 'zig-scheduler/t26-failure-matrix/v1',
-    'status': 'PASS' if rows and all(row['status'] == 'PASS' for row in rows) and cleanup_status == 'PASS' else 'FAIL',
+    'status': 'PASS' if rows and all(row['status'] == 'PASS' for row in rows) and cleanup_status == 'PASS' and visibility_status == 'PASS' else 'FAIL',
     'host_mutation': False,
     'false_lab_complete': False,
     'scenario_count': len(rows),
     'pass_count': sum(1 for row in rows if row['status'] == 'PASS'),
     'scenarios': rows,
+    'visibility': {'status': visibility_status, 'artifact': str(visibility_path), 'rows': visibility_rows},
     'cleanup': {'status': cleanup_status, 'log': os.environ['CLEANUP_LOG'], 'hits': hits},
     'matrix_root': os.environ['MATRIX_ROOT'],
 }
 Path(os.environ['SUMMARY']).write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-print(json.dumps({'status': summary['status'], 'summary': os.environ['SUMMARY'], 'scenario_count': len(rows), 'cleanup': cleanup_status}, sort_keys=True))
+print(json.dumps({'status': summary['status'], 'summary': os.environ['SUMMARY'], 'scenario_count': len(rows), 'cleanup': cleanup_status, 'visibility': str(visibility_path)}, sort_keys=True))
 raise SystemExit(0 if summary['status'] == 'PASS' else 1)
 PY

@@ -75,10 +75,13 @@ case "$target" in "$allow_prefix"*) ;; *) fail 'target cgroup is outside /sys/fs
 transcript="$out_dir/dsq-policy-transcript.txt"
 summary="$out_dir/summary.json"
 series="$out_dir/fairness-series.jsonl"
+artifact_bpf_meta="$out_dir/bpf-object-metadata.json"
 : > "$series"
 
 bash qa/bpf_static_check.sh > "$out_dir/bpf-static-check.txt"
 [ -f "$bpf_meta" ] || fail 'BPF object metadata missing after static check'
+cp "$bpf_meta" "$artifact_bpf_meta"
+bpf_meta="$artifact_bpf_meta"
 
 grep -q 'ZIGSCHED_DSQ_FIFO' bpf/include/zigsched_common.h || fail 'FIFO DSQ missing from header'
 grep -q 'ZIGSCHED_DSQ_VTIME' bpf/include/zigsched_common.h || fail 'vtime DSQ missing from header'

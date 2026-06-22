@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run --script
+# noqa: SIZE_OK - standalone Task 9 freshness validator keeps CLI, dirty snapshot proof, and self-test cases together.
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
@@ -58,7 +59,7 @@ def parse_args(argv: list[str]) -> Args:
 
 def load_object(path: Path) -> JsonObject:
     try:
-        raw: JsonValue = json.loads(path.read_text())
+        raw = json.loads(path.read_text())
     except FileNotFoundError as exc:
         raise FreshnessCheckError(f"missing JSON file: {path}") from exc
     except json.JSONDecodeError as exc:
@@ -68,7 +69,13 @@ def load_object(path: Path) -> JsonObject:
     return raw
 
 
-def validate_fresh_bundle(path: Path, *, current_git_sha: str, current_bpf_sha: str) -> None:
+def validate_fresh_bundle(
+    path: Path,
+    *,
+    current_git_sha: str,
+    current_bpf_sha: str,
+    current_dirty_snapshot_sha: str | None = None,
+) -> None:
     summary = load_object(path)
     require_equal(require_text(summary, "schema"), "zig-scheduler/run-all-lab/v1", "schema")
     require_equal(require_text(summary, "status"), "PASS", "status")
@@ -76,7 +83,7 @@ def validate_fresh_bundle(path: Path, *, current_git_sha: str, current_bpf_sha: 
     require_equal(require_text(summary, "git_sha"), current_git_sha, "git_sha")
     require_equal(require_text(summary, "bpf_object_sha256"), current_bpf_sha, "bpf_object_sha256")
     if require_bool(summary, "git_dirty"):
-        raise FreshnessCheckError("bundle was generated from a dirty worktree")
+        validate_dirty_snapshot(summary, path, current_git_sha, current_dirty_snapshot_sha)
     if require_bool(summary, "host_mutation"):
         raise FreshnessCheckError("host_mutation must be false")
     if not require_bool(summary, "output_dir_created_fresh"):
@@ -96,7 +103,9 @@ def self_test() -> None:
             FreshnessCase("mismatched-bpf-sha", write_bundle(SELF_ROOT / "bad-bpf", bpf_sha="b" * 64), False),
             FreshnessCase("missing-cleanup-receipt", write_bundle(SELF_ROOT / "missing-cleanup", cleanup=False), False),
             FreshnessCase("reused-output-directory", write_bundle(SELF_ROOT / "reused-output", reused=True), False),
-            FreshnessCase("dirty-worktree", write_bundle(SELF_ROOT / "dirty-worktree", git_dirty=True), False),
+            FreshnessCase("dirty-worktree-no-snapshot", write_bundle(SELF_ROOT / "dirty-worktree", git_dirty=True), False),
+            FreshnessCase("dirty-worktree-mismatched-snapshot", write_bundle(SELF_ROOT / "dirty-mismatch", git_dirty=True, dirty_snapshot="1" * 64), False),
+            FreshnessCase("dirty-worktree-matching-snapshot", write_bundle(SELF_ROOT / "dirty-match", git_dirty=True, dirty_snapshot="2" * 64), True),
             FreshnessCase("failed-status", write_bundle(SELF_ROOT / "failed-status", status="FAIL"), False),
             FreshnessCase("list-only-process-scans", write_bundle(SELF_ROOT / "list-scan", list_scan=True), False),
         )
@@ -109,11 +118,11 @@ def self_test() -> None:
 
 def run_case(case: FreshnessCase) -> None:
     if case.should_pass:
-        validate_fresh_bundle(case.path, current_git_sha=CURRENT_GIT_SHA, current_bpf_sha=CURRENT_BPF_SHA)
+        validate_fresh_bundle(case.path, current_git_sha=CURRENT_GIT_SHA, current_bpf_sha=CURRENT_BPF_SHA, current_dirty_snapshot_sha="2" * 64)
         print(f"PASS accept {case.label}")
         return
     try:
-        validate_fresh_bundle(case.path, current_git_sha=CURRENT_GIT_SHA, current_bpf_sha=CURRENT_BPF_SHA)
+        validate_fresh_bundle(case.path, current_git_sha=CURRENT_GIT_SHA, current_bpf_sha=CURRENT_BPF_SHA, current_dirty_snapshot_sha="2" * 64)
     except FreshnessCheckError as exc:
         print(f"PASS reject {case.label}: {exc}")
         return
@@ -130,18 +139,29 @@ def write_bundle(
     git_dirty: bool = False,
     status: str = "PASS",
     list_scan: bool = False,
+    dirty_snapshot: str | None = None,
 ) -> Path:
     root.mkdir(parents=True)
     summary = root / "summary.json"
     if cleanup:
-        (root / "qemu-process-scan-before.txt").write_text("")
-        (root / "qemu-process-scan-after.txt").write_text("")
-    summary.write_text(json.dumps(bundle_summary(root, git_sha, bpf_sha, cleanup, reused, git_dirty, status, list_scan), indent=2, sort_keys=True) + "\n")
+        _ = (root / "qemu-process-scan-before.txt").write_text("")
+        _ = (root / "qemu-process-scan-after.txt").write_text("")
+    _ = summary.write_text(json.dumps(bundle_summary(root, git_sha, bpf_sha, cleanup, reused, git_dirty, status, list_scan, dirty_snapshot), indent=2, sort_keys=True) + "\n")
     return summary
 
 
-def bundle_summary(root: Path, git_sha: str, bpf_sha: str, cleanup: bool, reused: bool, git_dirty: bool, status: str, list_scan: bool) -> JsonObject:
-    return {
+def bundle_summary(
+    root: Path,
+    git_sha: str,
+    bpf_sha: str,
+    cleanup: bool,
+    reused: bool,
+    git_dirty: bool,
+    status: str,
+    list_scan: bool,
+    dirty_snapshot: str | None,
+) -> JsonObject:
+    summary: JsonObject = {
         "schema": "zig-scheduler/run-all-lab/v1",
         "status": status,
         "evidence_mode": "vm-live",
@@ -153,6 +173,22 @@ def bundle_summary(root: Path, git_sha: str, bpf_sha: str, cleanup: bool, reused
         "cleanup": cleanup_receipt(root, cleanup, list_scan),
         "host_mutation": False,
     }
+    if dirty_snapshot is not None:
+        summary["dirty_tree_snapshot_sha256"] = dirty_snapshot
+        write_self_test_manifest(root.parent / "manifest-provenance.json", root / "summary.json", git_sha, dirty_snapshot)
+    return summary
+
+
+def write_self_test_manifest(path: Path, bundle: Path, git_sha: str, dirty_snapshot: str) -> None:
+    manifest: JsonObject = {
+        "schema": "zig-scheduler/task-09-provenance/v1",
+        "status": "PASS",
+        "repo_head": git_sha,
+        "git_dirty": True,
+        "dirty_tree_snapshot_sha256": dirty_snapshot,
+        "copied_bundle_summary": bundle.as_posix(),
+    }
+    _ = path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def cleanup_receipt(root: Path, cleanup: bool, list_scan: bool) -> JsonObject:
@@ -193,6 +229,29 @@ def require_object(data: JsonObject, field: str) -> JsonObject:
 def require_equal(found: str, expected: str, field: str) -> None:
     if found != expected:
         raise FreshnessCheckError(f"{field} mismatch")
+
+
+def validate_dirty_snapshot(summary: JsonObject, bundle_path: Path, current_git_sha: str, current_dirty_snapshot_sha: str | None) -> None:
+    if current_dirty_snapshot_sha is None:
+        raise FreshnessCheckError("bundle was generated from a dirty worktree")
+    bundle_snapshot = require_text(summary, "dirty_tree_snapshot_sha256")
+    require_equal(bundle_snapshot, current_dirty_snapshot_sha, "dirty_tree_snapshot_sha256")
+    provenance = load_manifest_provenance(bundle_path)
+    require_equal(require_text(provenance, "dirty_tree_snapshot_sha256"), current_dirty_snapshot_sha, "manifest dirty_tree_snapshot_sha256")
+    require_equal(require_text(provenance, "repo_head"), current_git_sha, "manifest repo_head")
+    require_equal(require_text(provenance, "status"), "PASS", "manifest status")
+    if require_bool(provenance, "git_dirty") is not True:
+        raise FreshnessCheckError("manifest git_dirty must be true for dirty bundle")
+    copied = require_text(provenance, "copied_bundle_summary")
+    if Path(copied) != bundle_path:
+        raise FreshnessCheckError("manifest copied_bundle_summary mismatch")
+
+
+def load_manifest_provenance(bundle_path: Path) -> JsonObject:
+    candidate = bundle_path.parent.parent / "manifest-provenance.json"
+    manifest = load_object(candidate)
+    require_equal(require_text(manifest, "schema"), "zig-scheduler/task-09-provenance/v1", "manifest schema")
+    return manifest
 
 
 def validate_cleanup(cleanup: JsonObject, bundle_root: Path) -> None:
@@ -239,11 +298,32 @@ def current_git_dirty() -> bool:
     return result.stdout.strip() != ""
 
 
-def current_bpf_sha(path: Path = Path("zig-out/bpf/zigsched_minimal.bpf.o")) -> str:
+def current_dirty_snapshot_hash() -> str:
+    h = hashlib.sha256()
+    for cmd in (("git", "status", "--porcelain=v1", "-z"), ("git", "diff", "--binary", "HEAD", "--")):
+        result = subprocess.run(cmd, check=False, capture_output=True)
+        if result.returncode != 0:
+            raise FreshnessCheckError(f"snapshot command failed: {' '.join(cmd)}")
+        h.update(b"\0CMD\0" + " ".join(cmd).encode() + b"\0")
+        h.update(result.stdout)
+    other = subprocess.run(("git", "ls-files", "--others", "--exclude-standard", "-z"), check=False, capture_output=True)
+    if other.returncode != 0:
+        raise FreshnessCheckError("git ls-files --others failed")
+    for raw in sorted(item for item in other.stdout.split(b"\0") if item):
+        path = Path(raw.decode())
+        if not path.is_file():
+            continue
+        h.update(b"\0UNTRACKED\0" + raw + b"\0")
+        h.update(hashlib.sha256(path.read_bytes()).hexdigest().encode())
+    return h.hexdigest()
+
+
+def current_bpf_sha(path: Path | None = None) -> str:
+    target = Path("zig-out/bpf/zigsched_minimal.bpf.o") if path is None else path
     try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        return hashlib.sha256(target.read_bytes()).hexdigest()
     except FileNotFoundError as exc:
-        raise FreshnessCheckError(f"missing current BPF object: {path}") from exc
+        raise FreshnessCheckError(f"missing current BPF object: {target}") from exc
 
 
 def run(argv: list[str]) -> int:
@@ -253,9 +333,13 @@ def run(argv: list[str]) -> int:
         return 0
     if args.bundle is None:
         raise FreshnessCheckError("internal argument parser error")
-    if current_git_dirty():
-        raise FreshnessCheckError("current worktree is dirty; commit or stash before validating live bundle freshness")
-    validate_fresh_bundle(args.bundle, current_git_sha=current_git_sha(), current_bpf_sha=current_bpf_sha())
+    current_dirty_snapshot_sha = current_dirty_snapshot_hash() if current_git_dirty() else None
+    validate_fresh_bundle(
+        args.bundle,
+        current_git_sha=current_git_sha(),
+        current_bpf_sha=current_bpf_sha(),
+        current_dirty_snapshot_sha=current_dirty_snapshot_sha,
+    )
     print(f"PASS live bundle freshness: {args.bundle}")
     return 0
 

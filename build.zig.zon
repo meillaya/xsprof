@@ -12,6 +12,7 @@
         "qa",
         "src",
         "tools",
+        "web",
         "simulator",
     },
 }

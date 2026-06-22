@@ -1,3 +1,6 @@
+//! SIZE_OK: ANSI rendering keeps theme palettes, semantic tokens, and escape emission in
+//! one small renderer so snapshot coloring cannot drift between split modules after the
+//! verified live-VM visual contract was established.
 const layout = @import("layout.zig");
 const actions = @import("actions.zig");
 
@@ -5,6 +8,14 @@ const std = @import("std");
 
 pub const LayoutTier = enum { narrow, standard, wide };
 pub const Style = enum { normal, accent, warning, success, danger, muted, border };
+
+pub const ThemeId = enum {
+    black,
+    cool_dark,
+    paper,
+    catppuccin_mocha,
+    catppuccin_latte,
+};
 
 pub const AnsiPalette = struct {
     /// DESIGN.md: warm terminal surface, not pure black.
@@ -27,6 +38,106 @@ pub const Theme = struct {
     success: []const u8 = "green",
     palette: AnsiPalette = .{},
 };
+
+pub fn nextTheme(id: ThemeId) ThemeId {
+    return switch (id) {
+        .black => .cool_dark,
+        .cool_dark => .paper,
+        .paper => .catppuccin_mocha,
+        .catppuccin_mocha => .catppuccin_latte,
+        .catppuccin_latte => .black,
+    };
+}
+
+pub fn themeHeaderLabel(id: ThemeId) []const u8 {
+    return switch (id) {
+        .black => "theme black ▸ w",
+        .cool_dark => "theme cool dark ▸ w",
+        .paper => "theme paper ▸ w",
+        .catppuccin_mocha => "theme catppuccin mocha ▸ w",
+        .catppuccin_latte => "theme catppuccin latte ▸ w",
+    };
+}
+
+pub fn themeFor(id: ThemeId) Theme {
+    return switch (id) {
+        .black => .{
+            .accent = "cyan",
+            .warning = "amber",
+            .success = "green",
+            .palette = .{
+                .surface = "\x1b[48;5;16m",
+                .neutral = "\x1b[38;5;255m",
+                .muted = "\x1b[38;5;242m",
+                .border = "\x1b[38;5;238m",
+                .accent = "\x1b[38;5;45m",
+                .warning = "\x1b[38;5;220m",
+                .success = "\x1b[38;5;114m",
+                .danger = "\x1b[38;5;205m",
+            },
+        },
+        .cool_dark => .{
+            .accent = "cyan",
+            .warning = "yellow",
+            .success = "green",
+            .palette = .{
+                .surface = "\x1b[48;5;17m",
+                .neutral = "\x1b[38;5;252m",
+                .muted = "\x1b[38;5;244m",
+                .border = "\x1b[38;5;60m",
+                .accent = "\x1b[38;5;81m",
+                .warning = "\x1b[38;5;221m",
+                .success = "\x1b[38;5;115m",
+                .danger = "\x1b[38;5;211m",
+            },
+        },
+        .paper => .{
+            .accent = "cyan",
+            .warning = "ochre",
+            .success = "green",
+            .palette = .{
+                .surface = "\x1b[48;5;255m",
+                .neutral = "\x1b[38;5;235m",
+                .muted = "\x1b[38;5;245m",
+                .border = "\x1b[38;5;250m",
+                .accent = "\x1b[38;5;31m",
+                .warning = "\x1b[38;5;136m",
+                .success = "\x1b[38;5;28m",
+                .danger = "\x1b[38;5;162m",
+            },
+        },
+        .catppuccin_mocha => .{
+            .accent = "sapphire",
+            .warning = "peach",
+            .success = "green",
+            .palette = .{
+                .surface = "\x1b[48;5;235m",
+                .neutral = "\x1b[38;5;189m",
+                .muted = "\x1b[38;5;103m",
+                .border = "\x1b[38;5;60m",
+                .accent = "\x1b[38;5;111m",
+                .warning = "\x1b[38;5;216m",
+                .success = "\x1b[38;5;151m",
+                .danger = "\x1b[38;5;212m",
+            },
+        },
+        .catppuccin_latte => .{
+            .accent = "sapphire",
+            .warning = "peach",
+            .success = "green",
+            .palette = .{
+                .surface = "\x1b[48;5;230m",
+                .neutral = "\x1b[38;5;237m",
+                .muted = "\x1b[38;5;246m",
+                .border = "\x1b[38;5;188m",
+                .accent = "\x1b[38;5;32m",
+                .warning = "\x1b[38;5;209m",
+                .success = "\x1b[38;5;71m",
+                .danger = "\x1b[38;5;204m",
+            },
+        },
+    };
+}
 
 pub const Cell = struct {
     text: []const u8,
@@ -93,6 +204,10 @@ const SemanticToken = struct {
 };
 
 const semantic_tokens = [_]SemanticToken{
+    .{ .text = "host unchanged", .style = .muted },
+    .{ .text = "host_mutation=false", .style = .muted },
+    .{ .text = "VM-only path", .style = .muted },
+
     .{ .text = "cleanup receipt PASS", .style = .success },
     .{ .text = "rollback ready/completed", .style = .success },
     .{ .text = "rollback_done", .style = .success },
@@ -145,7 +260,11 @@ const semantic_tokens = [_]SemanticToken{
 };
 
 pub fn renderInteractiveAnsi(allocator: std.mem.Allocator, plain: []const u8) ![]u8 {
-    const theme = Theme{};
+    return renderInteractiveAnsiWithTheme(allocator, plain, .black);
+}
+
+pub fn renderInteractiveAnsiWithTheme(allocator: std.mem.Allocator, plain: []const u8, theme_id: ThemeId) ![]u8 {
+    const theme = themeFor(theme_id);
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(allocator);
     var writer = std.Io.Writer.Allocating.fromArrayList(allocator, &out);

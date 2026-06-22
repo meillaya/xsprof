@@ -117,12 +117,12 @@ test "operator_tui_interactive_ansi_uses_semantic_palette" {
     defer std.testing.allocator.free(frame);
 
     for ([_][]const u8{
-        "\x1b[48;5;235m",
+        "\x1b[48;5;16m",
         "\x1b[38;5;45m",
         "\x1b[38;5;220m",
         "\x1b[38;5;114m",
         "\x1b[38;5;205m",
-        "\x1b[38;5;245m",
+        "\x1b[38;5;242m",
     }) |code| try expectContains(frame, code);
     try expectContains(frame, "cleanup receipt PASS");
     try expectContains(frame, "unsafe_to_assume");

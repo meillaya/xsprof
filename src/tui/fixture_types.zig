@@ -31,6 +31,7 @@ pub const SnapshotModel = struct {
     runtime_counters: []const u8 = "nr_rejected=unknown",
     rollback_status: []const u8 = "rollback required",
     incident_status: []const u8 = "none",
+    incident_preview: []const u8 = "",
     release_eligibility: []const u8 = "not release eligible",
     bundle_path: []const u8 = "none",
     cleanup_status: []const u8 = "not-started",

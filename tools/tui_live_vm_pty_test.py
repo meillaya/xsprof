@@ -29,6 +29,7 @@ from tools.tui_live_vm_cleanup import (
     run_self_test,
     wait_for_event_journal,
 )
+from tools.tui_pty_io import strip_ansi
 
 DEFAULT_WIDTH: Final[str] = "120"
 DEFAULT_HEIGHT: Final[str] = "30"
@@ -45,6 +46,7 @@ class Args:
     width: str
     height: str
     timeout_seconds: float
+    tui_idle_timeout_polls: str
 
 
 class DriverError(Exception):
@@ -56,7 +58,7 @@ def parse_args(argv: list[str]) -> Args:
     index = 0
     while index < len(argv):
         option = argv[index]
-        if option not in {"--tui", "--daemon", "--state-dir", "--transcript", "--keys", "--width", "--height", "--timeout-seconds"}:
+        if option not in {"--tui", "--daemon", "--state-dir", "--transcript", "--keys", "--width", "--height", "--timeout-seconds", "--tui-idle-timeout-polls"}:
             raise DriverError(usage())
         index += 1
         if index >= len(argv):
@@ -66,9 +68,10 @@ def parse_args(argv: list[str]) -> Args:
     missing = [name for name in ("--tui", "--daemon", "--state-dir", "--transcript", "--keys") if name not in values]
     if missing:
         raise DriverError(f"missing required option(s): {', '.join(missing)}")
-    keys = values["--keys"].encode("ascii", errors="strict")
-    if not keys or any(byte in (10, 13, 0) for byte in keys):
-        raise DriverError("keys must be non-empty ASCII without control delimiters")
+    key_text = values["--keys"]
+    keys = b"".join(b"\r" if char == "@" else char.encode("ascii", errors="strict") for char in key_text)
+    if not keys or any(byte in (10, 0) for byte in keys):
+        raise DriverError("keys must be non-empty ASCII without NUL/newline delimiters; use @ for Enter")
     return Args(
         tui=values["--tui"],
         daemon=values["--daemon"],
@@ -78,6 +81,7 @@ def parse_args(argv: list[str]) -> Args:
         width=values.get("--width", DEFAULT_WIDTH),
         height=values.get("--height", DEFAULT_HEIGHT),
         timeout_seconds=float(values.get("--timeout-seconds", str(DEFAULT_TIMEOUT_SECONDS))),
+        tui_idle_timeout_polls=values.get("--tui-idle-timeout-polls", ""),
     )
 
 
@@ -92,11 +96,13 @@ def run_tui(args: Args) -> int:
     proc: subprocess.Popen[bytes] | None = None
     output = ""
     force_cleanup = False
+    incident_quit_sent = False
     try:
         proc = subprocess.Popen(  # noqa: S603
             [
                 args.tui,
                 "--interactive",
+                *( ["--test-mode"] if args.tui_idle_timeout_polls else [] ),
                 "--screen",
                 "vm-lab",
                 "--width",
@@ -107,6 +113,7 @@ def run_tui(args: Args) -> int:
                 args.state_dir,
                 "--daemon-bin",
                 args.daemon,
+                *( ["--test-idle-timeout-polls", args.tui_idle_timeout_polls] if args.tui_idle_timeout_polls else [] ),
             ],
             stdin=slave_fd,
             stdout=slave_fd,
@@ -118,10 +125,13 @@ def run_tui(args: Args) -> int:
         deadline = time.monotonic() + args.timeout_seconds
         time.sleep(0.25)
         output += read_available(master_fd)
-        for key in args.keys:
+        for index, key in enumerate(args.keys):
             _ = os.write(master_fd, bytes((key,)))
-            time.sleep(0.10)
-            output += read_available(master_fd)
+            if index == 0 and key == ord("m"):
+                output = collect_until_marker(master_fd, output, "ATTACH TARGET", 2.0)
+            else:
+                time.sleep(0.35)
+                output += read_available(master_fd)
         while proc.poll() is None:
             if time.monotonic() >= deadline:
                 force_cleanup = True
@@ -130,6 +140,10 @@ def run_tui(args: Args) -> int:
                 raise DriverError(f"TUI live VM PTY run timed out after {args.timeout_seconds:.0f}s")
             time.sleep(0.25)
             output += read_available(master_fd)
+            plain = strip_ansi(output)
+            if not incident_quit_sent and ("current incident: INCIDENT" in plain or ("│ INCIDENT" in plain and "host_mutation=false" in plain)):
+                _ = os.write(master_fd, b"q")
+                incident_quit_sent = True
         output += read_available(master_fd)
         force_cleanup = proc.returncode != 0
         return proc.returncode
@@ -143,6 +157,16 @@ def run_tui(args: Args) -> int:
             os.close(slave_fd)
         os.close(master_fd)
         _ = args.transcript.write_text(output, encoding="utf-8")
+
+
+def collect_until_marker(fd: int, output: str, marker: str, timeout_seconds: float) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        time.sleep(0.05)
+        output += read_available(fd)
+        if marker in strip_ansi(output):
+            return output
+    return output
 
 
 def terminate_process_group(proc: subprocess.Popen[bytes]) -> None:

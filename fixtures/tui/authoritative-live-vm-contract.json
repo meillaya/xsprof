@@ -1,0 +1,255 @@
+{
+  "after_continue_screen": {
+    "required_markers": [
+      "theme black ▸ w",
+      "press m to request a fresh disposable microVM lab run",
+      "ATTACH TARGET",
+      "disposable microVM · VM-only path",
+      "PICK A TUPLE",
+      "6.12.0-sched-ext-lab · x86_64",
+      "READY",
+      "PREFLIGHT",
+      "read-only host facts",
+      "FAIL-CLOSED OUTCOMES",
+      "m ▸ request live microVM run",
+      "host_mutation=false"
+    ],
+    "source": ".omo/evidence/authoritative-design-review/deep/01-after-enter-queued.txt"
+  },
+  "controls_help": {
+    "required_markers": [
+      "CONFIRM rollback — press b again",
+      "ACTION queued rollback_lab_run · target rollback id",
+      "rollback active · operator confirmed rollback",
+      "rollback PASS · state restored",
+      "stop refused · no live target",
+      "CONFIRM stop — press s again",
+      "ACTION queued stop_lab_run · target rollback id",
+      "stop active · operator confirmed safe stop",
+      "live VM already armed · rollback ready",
+      "KEY MAP",
+      "fail-closed operator · ? or esc to close",
+      "rollback — confirm with a second b",
+      "safe stop — confirm with a second s",
+      "toggle this help",
+      "v verifier only",
+      "i incident drill",
+      "cursor",
+      "scrub",
+      "event list"
+    ],
+    "sources": [
+      ".omo/evidence/authoritative-design-review/deep/09-press-b-rollback.txt",
+      ".omo/evidence/authoritative-design-review/deep/10-press-b-again.txt",
+      ".omo/evidence/authoritative-design-review/deep/11-press-s-stop.txt",
+      ".omo/evidence/authoritative-design-review/deep/12-help-overlay.txt",
+      ".omo/evidence/authoritative-design-review/state-key-.txt"
+    ]
+  },
+  "dashboard_screen": {
+    "required_markers": [
+      "LIFECYCLE",
+      "GATE LEDGER",
+      "ALERT STRIP",
+      "VCPU RUNTIME",
+      "PER-VCPU UTILIZATION",
+      "RUNQUEUE LATENCY",
+      "RUNTIME COUNTERS",
+      "DAEMON EVENT STREAM",
+      "all lifecycle runtime_sample rollback incident",
+      "host_mutation=false",
+      "journal → .omo/evidence/tui-live-vm"
+    ],
+    "source": ".omo/evidence/authoritative-design-review/deep/08-wait-4000.txt"
+  },
+  "derived_from": [
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/00-home.txt",
+      "sha256": "ca2bc9ce9ba64d67a9fc2bf67eeab4c58c232b0ecdd5f20c09da70277a86088d"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/01-after-enter-queued.txt",
+      "sha256": "c9dd8b442d9a706158191389b86c10b12a572ca755f38b768583a950b9e38b8c"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/02-wait-1000.txt",
+      "sha256": "f2e33c5c6b6088fe5c222397e363b69d47f9239775fe4acb2d6ddde5e7c0a26d"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/03-wait-1000.txt",
+      "sha256": "bb2f16f8eec3b6a21a6929bb0832fca8733ca9b3c7e01479592f3d66b457084a"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/04-wait-1000.txt",
+      "sha256": "56b89ce0142d33d37fa44f208985fab6a46fc20138cfd37ce47efdb769663f8c"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/05-wait-1000.txt",
+      "sha256": "f5017cb6b6a09a8bc4d89bbaabb13da94368ffeb55600bfc1928a2fb8a0c7069"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/08-wait-4000.txt",
+      "sha256": "7bd21204771e07323b0306c4a92737c922d72e88620e98089e03f9c7eab235c5"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/09-press-b-rollback.txt",
+      "sha256": "f34463c448848180ffa00fbbe24246d2dafc13f8a016268c143d71e36ea2d03f"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/10-press-b-again.txt",
+      "sha256": "de597578e2becaa7253123b31e54d2b1061ad9cb1a4f5fc374c1debd45f24175"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/11-press-s-stop.txt",
+      "sha256": "b391f603e6641b994baa034f31da1e2965634f04b88e4be7be0ce8928a5f798a"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/deep/12-help-overlay.txt",
+      "sha256": "e7e9f25c59767e0b39b1684a293c0db7cfe55359fd02969d36e937c3b4b9414a"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/state-key-.txt",
+      "sha256": "71c10db4174fa001059bb7f3ee907790ee657cd7a6f49b2a7c0c74712c81ef2a"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/incidents/run-key-i-incident.txt",
+      "sha256": "39946d022c1b8178b31a04e758e61ee59ac4b74cc2178d2d33f81d2701093e6d"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/incidents/run-key-s-stop-confirm.txt",
+      "sha256": "0c6db02743c857a9602960fb7aac097feb07fc047c9d78267ac1fb0d95436700"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/incidents/run-key-s-stop-confirmed.txt",
+      "sha256": "1285cfa64fe943a89fe15ae46a349b6bb3597d6863297e861bb3576dff05e374"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/00-dashboard-theme.txt",
+      "sha256": "7be468a0312bb82ecbac937d1771e302e5efa9371003ba5b8d368da28a5caa42"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/01-dashboard-theme.txt",
+      "sha256": "6a4d21b07b4c6e07dbd2829afc24e6b2b9e18fed8a74a0879f18bb890ea063a4"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/02-dashboard-theme.txt",
+      "sha256": "27b7560b93aacbd719cfdb8f3678e5fcc6f03907992110244aecccfa9daf62d2"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/03-dashboard-theme.txt",
+      "sha256": "78949dfed1740070f97ef522d496997d194254e6f56de74a040a2f39fe60fb8c"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/04-dashboard-theme.txt",
+      "sha256": "fee760769f57fb51c55ba6090a4c27044f1a4781d13ad7b8019d79b4eb54a59c"
+    },
+    {
+      "path": ".omo/evidence/authoritative-design-review/theme-cycle/05-dashboard-theme.txt",
+      "sha256": "c9ab3af908a8ecaa7d3b7ed566bb3806fee92aa8549784a6b775ce4125da631b"
+    }
+  ],
+  "description": "Text-visible authoritative contract for zig build tui-live-vm. This fixture embeds browser-capture-derived markers so the checker never reads ignored .omo evidence at runtime.",
+  "incident_failure_markers": {
+    "any_of": [
+      {
+        "markers": [
+          "qemu_unavailable",
+          "qemu unavailable",
+          "qemu_not_found"
+        ],
+        "name": "qemu_unavailable alias"
+      },
+      {
+        "markers": [
+          "KVM unavailable",
+          "kvm unavailable",
+          "kvm_unavailable"
+        ],
+        "name": "KVM unavailable alias"
+      }
+    ],
+    "required_markers": [
+      "qemu unavailable",
+      "kvm unavailable",
+      "VM_CONFIG_INVALID",
+      "nix_busybox_unavailable",
+      "verifier_reject",
+      "lost_stream",
+      "timeout",
+      "rollback_failure",
+      "cleanup_residue",
+      "unsafe_to_assume on gaps",
+      "malformed",
+      "redaction"
+    ],
+    "sources": [
+      ".omo/evidence/authoritative-design-review/deep/01-after-enter-queued.txt",
+      ".omo/evidence/authoritative-design-review/incidents/run-key-i-incident.txt"
+    ]
+  },
+  "initial_screen": {
+    "forbidden_before_continue": [
+      "ATTACH TARGET",
+      "PICK A TUPLE",
+      "m ▸ request live microVM run"
+    ],
+    "required_markers": [
+      "▚ zig-scheduler",
+      "live microVM lab",
+      "fail-closed Linux scheduler operator",
+      "LIVE ATTACH",
+      "RUNTIME TELEMETRY",
+      "DAEMON EVENT STREAM",
+      "FAIL-CLOSED",
+      "$ zig build tui-live-vm",
+      "target · 6.12.0-sched-ext-lab · x86_64",
+      "enter ▸ launch live run",
+      "press ⏎ or m to continue",
+      "? key map · w theme"
+    ],
+    "source": ".omo/evidence/authoritative-design-review/deep/00-home.txt"
+  },
+  "ordered_groups": [
+    {
+      "markers": [
+        "stage_started queued · microvm_live_runner_start",
+        "build PASS · busybox guest image assembled",
+        "microvm_boot PASS · guest kernel booted",
+        "vm_marker PASS · vm marker present",
+        "verifier PASS · verifier log accepted",
+        "bpf_register PASS · runtime ops observed",
+        "attach active · live attach · streaming runtime samples",
+        "runtime_sample PASS · runtime samples accepted",
+        "rollback ready/completed",
+        "rollback active · operator confirmed rollback",
+        "rollback PASS · state restored",
+        "audit PASS · runtime samples linked to audit ledger",
+        "cleanup cleaned",
+        "SAFE footer"
+      ],
+      "name": "lifecycle_intermediate_states"
+    },
+    {
+      "markers": [
+        "all lifecycle runtime_sample rollback incident"
+      ],
+      "name": "dashboard_tabs"
+    },
+    {
+      "markers": [
+        "theme black ▸ w",
+        "theme cool dark ▸ w",
+        "theme paper ▸ w",
+        "theme catppuccin mocha ▸ w",
+        "theme catppuccin latte ▸ w",
+        "theme black ▸ w"
+      ],
+      "name": "theme_cycle"
+    }
+  ],
+  "schema": "zig-scheduler/tui-authoritative-live-vm-contract/v1",
+  "viewport": {
+    "columns": 197,
+    "rows": 62
+  }
+}

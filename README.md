@@ -28,6 +28,8 @@ The first-class live lab entrypoints are separate:
 
 - `zig build tui-live-vm` opens the live VM lab TUI with the daemon wired to `.omo/evidence/tui-live-vm`.
 - `zig build tui -- --interactive --screen vm-lab --width 120 --height 30 --daemon-state-dir ".omo/evidence/tui-live-vm" --daemon-bin "./zig-out/bin/zig-scheduler-daemon"` is the lower-level interactive form.
+- `zig build live-vm-web` serves the browser-only reference UI for the VM-gated live microVM lab.
+- `zig build live-vm-desktop` opens the VM-lab-only system WebView desktop shell. It is not a production install and it does not repoint `zig build run`.
 
 Current root smoke commands:
 
@@ -36,6 +38,7 @@ zig build test --summary all
 zig build linux-preflight -- --json
 zig build run -- --help
 zig build tui-live-vm -- --help
+zig build live-vm-desktop -- --smoke
 zig build tui -- --snapshot --screen preflight --width 100 --height 30
 zig build tui -- --snapshot --screen sched-ext --width 100 --height 30
 ```
@@ -58,7 +61,7 @@ The intended operator path is TUI-driven through the local disabled-safe daemon.
 
 ### Live VM prerequisites
 
-An actual live VM run needs a disposable VM host with:
+An actual live VM run, including the desktop WebView shell, needs a disposable VM host with:
 
 - QEMU/KVM available on the host;
 - `nix` available for the busybox fetch used by the live runner;
@@ -67,6 +70,14 @@ An actual live VM run needs a disposable VM host with:
 - a disposable VM bundle or kernel/image inputs for the VM harness.
 
 When any of those prerequisites are missing, the live VM path must fail closed. Expected outcomes include `SKIP: qemu unavailable`, `SKIP: kvm unavailable`, `REFUSE: VM_CONFIG_INVALID`, `REFUSE: VM_CONFIG_AMBIGUOUS`, and `REFUSE: nix_busybox_unavailable`. Every refusal keeps `host_mutation=false`.
+
+The system WebView desktop shell adds host UI prerequisites on top of that VM tuple:
+
+- Linux: GTK plus WebKitGTK packages, typically `libgtk-3-dev libwebkit2gtk-4.1-dev` on Debian/Ubuntu, `gtk3-devel webkit2gtk4.1-devel` on Fedora, or the matching distro WebKitGTK package on Arch;
+- macOS: the system WebKit framework from the platform SDK;
+- Windows: the Microsoft Edge WebView2 runtime/SDK.
+
+If those UI dependencies are missing, `zig build desktop-webview-probe --summary all` must print `SKIP webview dependency unavailable` and keep the build fail closed.
 
 ### Live VM launch commands
 
@@ -86,6 +97,12 @@ Open the first-class live VM TUI:
 
 ```bash
 zig build tui-live-vm
+```
+
+Launch the desktop shell in its lab-only smoke mode:
+
+```bash
+zig build live-vm-desktop -- --smoke
 ```
 
 Or launch the lower-level interactive screen directly:
@@ -114,3 +131,13 @@ That bundle records the freshness and cleanup evidence used by the live checks:
 - `cleanup` data showing QEMU and tmux leftovers were absent and the process group/temp roots were reaped.
 
 These are verification artifacts, not host deployment evidence. Ordinary host commands must still refuse load, attach, enable, mutate, apply, cgroup writes, affinity/priority changes, and scheduler-state writes.
+
+### Cleanup receipts
+
+Every live VM or desktop run should end with a cleanup receipt that confirms the host is still clean:
+
+```bash
+pgrep -af 'zig-scheduler-live-vm-desktop|zig-scheduler-daemon|qemu|Xvfb|zigsched-microvm-live' || true
+```
+
+The expected result is either no matching process or only the `pgrep`/`grep` command itself. The live VM evidence bundle must still report `host_mutation=false`, and no current-run `zigsched-microvm-live.*` residue should remain after cleanup.

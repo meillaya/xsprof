@@ -20,6 +20,7 @@ const LiveSummary = struct {
     evidence_mode: []const u8,
     git_sha: ?[]const u8 = null,
     git_dirty: ?bool = null,
+    dirty_tree_snapshot_sha256: ?[]const u8 = null,
     bpf_object_sha256: ?[]const u8 = null,
     output_dir: ?[]const u8 = null,
     output_dir_created_fresh: ?bool = null,
@@ -95,7 +96,9 @@ fn validateLiveSummary(summary: LiveSummary, current_git_sha: []const u8) errors
     if (summary.git_sha) |git_sha| {
         if (!std.mem.eql(u8, git_sha, current_git_sha)) return error.InvalidSummary;
     } else return error.InvalidSummary;
-    if (summary.git_dirty orelse true) return error.InvalidSummary;
+    if (summary.git_dirty orelse true) {
+        if (!validSha256(summary.dirty_tree_snapshot_sha256 orelse "")) return error.InvalidSummary;
+    }
     if (!validSha256(summary.bpf_object_sha256 orelse "")) return error.InvalidSummary;
     if (!(summary.output_dir_created_fresh orelse false)) return error.InvalidSummary;
     if (!(summary.vm_marker_present orelse false)) return error.InvalidSummary;

@@ -135,11 +135,12 @@ busybox_store="$("$nix_bin" build nixpkgs#pkgsStatic.busybox --no-link --print-o
 busybox_bin="$busybox_store/bin/busybox"
 [ -x "$busybox_bin" ] || fail "busybox not executable: $busybox_bin"
 
+scratch=""
+cleanup() { [ -z "$scratch" ] || rm -rf "$scratch"; }
+trap cleanup EXIT INT TERM HUP
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-microvm-live.XXXXXX")"
 printf '%s\n' "$out_dir" > "$scratch/zig-scheduler-owner-out-dir"
 printf '%s\n' "$$" > "$scratch/zig-scheduler-owner-pid"
-cleanup() { rm -rf "$scratch"; }
-trap cleanup EXIT INT TERM HUP
 root="$scratch/root"
 mkdir -p "$root/bin" "$root/usr/bin" "$root/usr/lib" "$root/usr/lib64" "$root/lib64" "$root/proc" "$root/sys" "$root/dev" "$root/run" "$root/tmp" "$root/sys/fs/bpf" "$root/sys/fs/cgroup"
 cp "$busybox_bin" "$root/bin/busybox"
@@ -398,6 +399,7 @@ summary.write_text(json.dumps({
     "evidence_mode": "vm-live",
     "git_sha": os.environ["GIT_SHA"],
     "git_dirty": os.environ["GIT_DIRTY"] == "true",
+    "dirty_tree_snapshot_sha256": os.environ.get("ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA", ""),
     "bpf_object_sha256": object_sha,
     "output_dir": out.as_posix(),
     "output_dir_created_fresh": True,

@@ -1,0 +1,8 @@
+▚ zig-scheduler
+live microVM lab
+ATTACH TARGET
+PICK A TUPLE
+m ▸ request live microVM run
+[queued] VM run queued
+[SAFE] footer mode SAFE
+theme black ▸ w

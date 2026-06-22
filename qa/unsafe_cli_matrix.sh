@@ -28,6 +28,18 @@ cleanup_unsafe_matrix_artifact() {
   esac
 }
 
+cleanup_unsafe_matrix_zigout_bpf() {
+  # VM-lab live-run refusal can compile/cache the guest BPF bundle while
+  # remaining host-safe. Scrub only those known generated BPF cache artifacts
+  # around VM-lab scenarios; generic unsafe CLI checks still compare zig-out
+  # file lists without this allowlist.
+  rm -f \
+    zig-out/bpf/zigsched_minimal.bpf.o \
+    zig-out/bpf/zigsched_minimal.bpf.log \
+    zig-out/bpf/zigsched_minimal.bpf.meta.json \
+    zig-out/bpf/zigsched_minimal.bpf-*.o.tmp
+}
+
 cleanup_unsafe_matrix_residue
 trap cleanup_unsafe_matrix_residue EXIT
 
@@ -110,11 +122,13 @@ check_live_microvm_refusal() {
   local out rc before after reason artifact
   out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
   rm -rf "$state_dir"
+  cleanup_unsafe_matrix_zigout_bpf
   before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
   set +e
   printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
   rc=$?
   set -e
+  cleanup_unsafe_matrix_zigout_bpf
   after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
   if [ "$rc" -ne 0 ]; then
     cat "$out" >&2 || true
@@ -261,6 +275,7 @@ check_tui_key_flow() {
   local out rc before after journal
   out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
   rm -rf "$state_dir" "$transcript"
+  cleanup_unsafe_matrix_zigout_bpf
   before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
   set +e
   python3 tools/tui_live_vm_pty_test.py \
@@ -272,6 +287,7 @@ check_tui_key_flow() {
     --timeout-seconds 60 >"$out" 2>&1
   rc=$?
   set -e
+  cleanup_unsafe_matrix_zigout_bpf
   after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
   if [ "$rc" -ne 0 ]; then
     cat "$out" >&2 || true
@@ -347,9 +363,9 @@ check_malformed_live_action_refusal malformed-live-audit '{"schema":"zig-schedul
 check_malformed_live_action_refusal malformed-live-rollback '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-rollback","run_id":"unsafe-matrix-bad-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB;bad"}' 'malformed_action'
 check_state_dir_rejected state-dir-absolute "/tmp/zig-scheduler-unsafe-absolute-$$"
 check_state_dir_rejected state-dir-traversal ".zig-cache/tmp/../zig-scheduler-unsafe-traversal"
-check_tui_key_flow tui-mq mq
-check_tui_key_flow tui-mbbq mbbq rollback_lab_run
-check_tui_key_flow tui-mssq mssq stop_lab_run
+check_tui_key_flow tui-mmq mmq
+check_tui_key_flow tui-mmbbq mmbbq rollback_lab_run
+check_tui_key_flow tui-mmssq mmssq stop_lab_run
 
 hostile_bin="$repo_root/.omo/evidence/task-T21-hostile-bin"
 hostile_qemu_sentinel="$repo_root/.omo/evidence/task-T21-hostile-qemu-sentinel.txt"

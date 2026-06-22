@@ -14,6 +14,7 @@ pub const Options = struct {
     fixture_path: ?[]const u8 = null,
     daemon_state_dir: ?[]const u8 = null,
     daemon_bin: []const u8 = "zig-out/bin/zig-scheduler-daemon",
+    test_idle_timeout_polls: ?usize = null,
 };
 
 pub fn parse(args: []const []const u8) !Options {
@@ -41,6 +42,8 @@ pub fn parse(args: []const []const u8) !Options {
             options.daemon_state_dir = try nextArg(args, &index);
         } else if (std.mem.eql(u8, arg, "--daemon-bin")) {
             options.daemon_bin = try nextArg(args, &index);
+        } else if (std.mem.eql(u8, arg, "--test-idle-timeout-polls")) {
+            options.test_idle_timeout_polls = try std.fmt.parseUnsigned(usize, try nextArg(args, &index), 10);
         } else if (std.mem.eql(u8, arg, "--help")) {
             return error.InvalidArguments;
         } else {
@@ -49,6 +52,7 @@ pub fn parse(args: []const []const u8) !Options {
     }
     if (options.snapshot == options.interactive) return error.InvalidArguments;
     if (options.test_mode and !options.interactive) return error.InvalidArguments;
+    if (options.test_idle_timeout_polls != null and !options.test_mode) return error.InvalidArguments;
     if (options.daemon_state_dir != null and !options.interactive) return error.InvalidArguments;
     if (options.width < 80 or options.height < 8) return error.InvalidArguments;
     return options;

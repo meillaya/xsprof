@@ -53,6 +53,17 @@ def run(argv: list[str]) -> int:
     manifest_path = parse_manifest_arg(argv)
     data = json.loads(manifest_path.read_text())
     require(data.get("schema") == "zig-scheduler/package-manifest/v1", "bad schema")
+    require(data.get("desktop_executable_included") is False, "desktop executable must be excluded")
+    require(
+        data.get("desktop_executable_path") == "usr/bin/zig-scheduler-live-vm-desktop",
+        "desktop executable path mismatch",
+    )
+    desktop_reason = str(data.get("desktop_executable_reason", "")).strip()
+    require(desktop_reason != "", "desktop executable exclusion reason missing")
+    lowered_reason = desktop_reason.lower()
+    require("vm-lab-only" in lowered_reason, "desktop executable reason must mention VM-lab-only")
+    require("system webview" in lowered_reason, "desktop executable reason must mention system WebView")
+    require("excluded" in lowered_reason, "desktop executable reason must mention exclusion")
     require(data.get("no_auto_start") is True, "package may auto-start")
     require(data.get("services_not_enabled") is True, "services may be enabled")
     require(data.get("mutation_service_gated") is True, "mutation service is not gated")

@@ -6,10 +6,14 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 microvm_tmp_before=""
+nohost_tmp_root=""
 
-cleanup_microvm_tmp_before() {
+cleanup_nohost_tmp() {
   if [ -n "${microvm_tmp_before:-}" ]; then
     rm -f -- "$microvm_tmp_before" || true
+  fi
+  if [ -n "${nohost_tmp_root:-}" ]; then
+    rm -rf -- "$nohost_tmp_root" || true
   fi
   return 0
 }
@@ -121,6 +125,22 @@ run_refusal_command() {
   rm -f "$out"
 }
 
+
+assert_required_output_patterns_in_file() {
+  local label="$1"
+  local required_patterns="$2"
+  local out_file="$3"
+  local required_pattern_line
+  while IFS= read -r required_pattern_line; do
+    [ -n "$required_pattern_line" ] || continue
+    grep -Eiq "$required_pattern_line" "$out_file" || {
+      cat "$out_file" >&2 || true
+      printf 'FAIL: %s output missing required safety marker: %s\n' "$label" "$required_pattern_line" >&2
+      return 1
+    }
+  done <<< "$required_patterns"
+}
+
 run_checked_output_command() {
   local label="$1"
   local required_pattern="$2"
@@ -153,11 +173,10 @@ run_checked_output_command() {
       fail "$label command failed"
     }
   fi
-  grep -Eiq "$required_pattern" "$out_file" || {
-    cat "$out_file" >&2 || true
+  if ! assert_required_output_patterns_in_file "$label" "$required_pattern" "$out_file"; then
     rm -f "$out_file"
     fail "$label output missing required safety marker"
-  }
+  fi
   grep -q 'host_mutation":true' "$out_file" && {
     cat "$out_file" >&2 || true
     rm -f "$out_file"
@@ -212,6 +231,17 @@ openat(AT_FDCWD, "/sys/fs/cgroup/cgroup.procs", O_WRONLY|O_CLOEXEC) = 3
 TRACE
   assert_trace_rejected self-test-denied-host-cgroup "$tmp/denied-host-cgroup.trace"
 
+  cat >"$tmp/denied-host-cgroup-thread-subtree.trace" <<'TRACE'
+openat(AT_FDCWD, "/sys/fs/cgroup/cgroup.threads", O_RDWR|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/sys/fs/cgroup/cgroup.subtree_control", O_WRONLY|O_APPEND|O_CLOEXEC) = 4
+TRACE
+  assert_trace_rejected self-test-denied-host-cgroup-thread-subtree "$tmp/denied-host-cgroup-thread-subtree.trace"
+
+  cat >"$tmp/denied-host-cpuset.trace" <<'TRACE'
+openat(AT_FDCWD, "/sys/fs/cgroup/cpuset.cpus", O_WRONLY|O_TRUNC|O_CLOEXEC) = 3
+TRACE
+  assert_trace_rejected self-test-denied-host-cpuset "$tmp/denied-host-cpuset.trace"
+
   cat >"$tmp/surrogate-cgroup.trace" <<'TRACE'
 openat(AT_FDCWD, "/tmp/zigsched-rollback.abc/sys/fs/cgroup/cgroup.procs", O_WRONLY|O_CLOEXEC) = 3
 unlinkat(9</tmp/zigsched-cgroup-race.abc/sys/fs/cgroup>, "cgroup.procs", 0) = 0
@@ -252,6 +282,37 @@ TRACE
     rm -f /tmp/zig-scheduler-nohost.self-strace.out
   fi
 
+  local output_fixture
+  output_fixture="$tmp/desktop-output.txt"
+  printf 'bridge_test method=run controller_status=accepted host_mutation=false\n' >"$output_fixture"
+  if ( assert_required_output_patterns_in_file self-test-desktop-run $'bridge_test method=run controller_status=(accepted|running).*host_mutation=false\n"event":"runtime_sample"' "$output_fixture" ) >/"$tmp/desktop-run-selftest.out" 2>&1; then
+    cat "$tmp/desktop-run-selftest.out" >&2 || true
+    rm -rf "$tmp"
+    fail 'self-test desktop run fixture unexpectedly passed without runtime_sample marker'
+  fi
+  if ( assert_required_output_patterns_in_file self-test-desktop-duplicate $'bridge_test method=duplicate-run controller_status=refused.*host_mutation=false\nduplicate_action_id' "$output_fixture" ) >/"$tmp/desktop-duplicate-selftest.out" 2>&1; then
+    cat "$tmp/desktop-duplicate-selftest.out" >&2 || true
+    rm -rf "$tmp"
+    fail 'self-test desktop duplicate fixture unexpectedly passed without duplicate marker'
+  fi
+  if ( assert_required_output_patterns_in_file self-test-desktop-stale $'bridge_test method=stale-rollback controller_status=refused.*host_mutation=false\nstale_or_unknown_target_action_id' "$output_fixture" ) >/"$tmp/desktop-stale-selftest.out" 2>&1; then
+    cat "$tmp/desktop-stale-selftest.out" >&2 || true
+    rm -rf "$tmp"
+    fail 'self-test desktop stale fixture unexpectedly passed without stale marker'
+  fi
+
+  local cleanup_scan_root cleanup_before
+  cleanup_scan_root="$tmp/microvm-scan"
+  mkdir -p "$cleanup_scan_root"
+  cleanup_before="$tmp/microvm-before.txt"
+  ( TMPDIR="$cleanup_scan_root"; scan_microvm_tmpdirs > "$cleanup_before" )
+  mkdir -p "$cleanup_scan_root/zigsched-microvm-live.selftest"
+  if ( TMPDIR="$cleanup_scan_root"; assert_no_new_microvm_tmpdirs "$cleanup_before" ) >/"$tmp/cleanup-selftest.out" 2>&1; then
+    cat "$tmp/cleanup-selftest.out" >&2 || true
+    rm -rf "$tmp"
+    fail 'self-test cleanup residue fixture unexpectedly passed'
+  fi
+
   rm -rf "$tmp"
   printf 'PASS: no-host-mutation self-test\n'
 }
@@ -272,6 +333,7 @@ run_live_daemon_json_checked() {
   local state_dir="$2"
   local action_json="$3"
   rm -rf "$state_dir"
+  mkdir -p "$state_dir"
   run_checked_output_command "$label" '("action":"run_lab_microvm_live".*"status":"(REFUSE|PASS)".*"host_mutation":false|"event":"incident".*"action":"run_lab_microvm_live".*"reason":"live_bundle_rejected".*"host_mutation":false)' \
     bash -c 'printf "%s\n" "$1" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$2"' _ "$action_json" "$state_dir"
 }
@@ -283,9 +345,95 @@ run_tui_live_key_flow() {
   local transcript=".omo/evidence/task-T21-no-host-${label}-transcript.txt"
   rm -rf "$state_dir" "$transcript"
   run_checked_output_command "tui-live-${label}" 'run_lab_microvm_live.*host_mutation=false|host_mutation=false.*run_lab_microvm_live' \
-    bash -c 'python3 tools/tui_live_vm_pty_test.py --tui zig-out/bin/zig-scheduler-tui --daemon zig-out/bin/zig-scheduler-daemon --state-dir "$1" --transcript "$2" --keys "$3" --timeout-seconds 60 >/dev/null && test -f "$1/events.jsonl" && grep -q run_lab_microvm_live "$1/events.jsonl" && ! grep -q host_mutation.:true "$1/events.jsonl" "$2" && printf "run_lab_microvm_live keys=%s host_mutation=false\n" "$3"' _ "$state_dir" "$transcript" "$keys"
+    bash -c 'python3 tools/tui_live_vm_pty_test.py --tui zig-out/bin/zig-scheduler-tui --daemon zig-out/bin/zig-scheduler-daemon --state-dir "$1" --transcript "$2" --keys "$3" --timeout-seconds 60 >/dev/null && test -f "$1/events.jsonl" && grep -q run_lab_microvm_live "$1/events.jsonl" && ! grep -Eq '"'"'host_mutation[\":= ]*:?[ ]*true'"'"' "$1/events.jsonl" "$2" && printf "run_lab_microvm_live keys=%s host_mutation=false\n" "$3"' _ "$state_dir" "$transcript" "$keys"
   printf 'PASS: tui-live-%s action=run_lab_microvm_live keys=%s host_mutation=false\n' "$label" "$keys"
   rm -rf "$state_dir"
+}
+
+assert_no_host_mutation_true_in_paths() {
+  local label="$1"
+  shift
+  local found=false
+  local path
+  for path in "$@"; do
+    if [ -e "$path" ] && grep -R -n -E 'host_mutation[":= ]*:?[ ]*true' "$path" >&2; then
+      found=true
+    fi
+  done
+  if [ "$found" = true ]; then
+    fail "$label journal/action log reported host_mutation=true"
+  fi
+  printf 'CHECK: %s journal/action logs host_mutation_true absent\n' "$label"
+}
+
+run_desktop_bridge_fake_checked() {
+  local label="$1"
+  local method="$2"
+  local required_pattern="$3"
+  local state_dir="evidence/lab/run-all/no-host-mutation-desktop-${label}-$$"
+  rm -rf "$state_dir"
+  mkdir -p "$(dirname "$state_dir")"
+  run_checked_output_command "desktop-fake-${label}" "$required_pattern" \
+    timeout 45s zig-out/bin/zig-scheduler-live-vm-desktop \
+      --state-dir "$state_dir" \
+      --fake-daemon tools/tui_pty_authoritative_daemon.py \
+      --bridge-test "$method"
+  assert_no_host_mutation_true_in_paths "desktop-fake-${label}" "$state_dir"
+  rm -rf "$state_dir"
+  printf 'PASS: desktop-fake-%s method=%s host_mutation=false\n' "$label" "$method"
+}
+
+run_desktop_real_preflight_checked() {
+  local state_dir="evidence/lab/run-all/no-host-mutation-desktop-real-preflight-$$"
+  rm -rf "$state_dir" .omo/evidence/task-09-qemu-missing
+  mkdir -p "$(dirname "$state_dir")"
+  run_checked_output_command desktop-real-preflight 'bridge_test=real-lab-preflight.*host_mutation=false|SKIP.*host_mutation=false|PASS.*host_mutation=false' \
+    timeout 45s zig-out/bin/zig-scheduler-live-vm-desktop \
+      --state-dir "$state_dir" \
+      --bridge-test real-lab-preflight \
+      --force-qemu-missing
+  assert_no_host_mutation_true_in_paths desktop-real-preflight "$state_dir" .omo/evidence/task-09-qemu-missing
+  rm -rf "$state_dir" .omo/evidence/task-09-qemu-missing
+  printf 'PASS: desktop-real-preflight force-qemu-missing host_mutation=false\n'
+}
+
+run_desktop_real_e2e_checked() {
+  local state_dir="evidence/lab/run-all/no-host-mutation-desktop-real-e2e-$$"
+  rm -rf "$state_dir" .omo/evidence/task-09-qemu-missing
+  mkdir -p "$(dirname "$state_dir")"
+  run_checked_output_command desktop-real-e2e-forced-skip 'SKIP forced qemu missing.*host_mutation=false' \
+    timeout 60s python3 tools/live_vm_desktop_e2e.py \
+      --app zig-out/bin/zig-scheduler-live-vm-desktop \
+      --state-dir "$state_dir" \
+      --force-qemu-missing
+  assert_no_host_mutation_true_in_paths desktop-real-e2e-forced-skip "$state_dir" .omo/evidence/task-09-qemu-missing
+  rm -rf "$state_dir" .omo/evidence/task-09-qemu-missing
+  printf 'PASS: desktop-real-e2e forced-qemu-missing host_mutation=false\n'
+}
+
+cleanup_owned_live_lab_processes() {
+  local scan_file pid_file term_file
+  scan_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.owned-process-scan.XXXXXX")"
+  pid_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.owned-process-pids.XXXXXX")"
+  term_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.owned-process-term.XXXXXX")"
+  ps -eo pid=,ppid=,comm=,args= >"$scan_file"
+  awk '
+    /zig-scheduler-microvm-live-lab/ && /qemu-system-/ { print $1 }
+  ' "$scan_file" | sort -u >"$pid_file" || true
+  if [ -s "$pid_file" ]; then
+    printf 'CHECK: terminating tagged live-lab processes owned by no-host audit\n'
+    xargs -r kill -TERM <"$pid_file" >"$term_file" 2>&1 || true
+    sleep 2
+    ps -eo pid=,ppid=,comm=,args= >"$scan_file"
+    awk '
+      /zig-scheduler-microvm-live-lab/ && /qemu-system-/ { print $1 }
+    ' "$scan_file" | sort -u >"$pid_file" || true
+    if [ -s "$pid_file" ]; then
+      xargs -r kill -KILL <"$pid_file" >"$term_file" 2>&1 || true
+      sleep 1
+    fi
+  fi
+  rm -f "$scan_file" "$pid_file" "$term_file"
 }
 
 
@@ -295,18 +443,21 @@ scan_microvm_tmpdirs() {
 
 assert_no_new_microvm_tmpdirs() {
   local before_file="$1"
-  local after_file new_file
-  python3 tools/tui_live_vm_cleanup.py --cleanup-owned-lab-tmpdirs
+  local after_file new_file residue_found=false
   after_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-scan.XXXXXX")"
   new_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-new.XXXXXX")"
   scan_microvm_tmpdirs > "$after_file"
   comm -13 "$before_file" "$after_file" > "$new_file" || true
   if [ -s "$new_file" ]; then
+    residue_found=true
+    printf 'FAIL: current no-host run left new zigsched-microvm-live temp directories:\n' >&2
     cat "$new_file" >&2
-    rm -f "$after_file" "$new_file"
-    fail 'current no-host run left zigsched-microvm-live temp directories'
+    python3 tools/tui_live_vm_cleanup.py --cleanup-owned-lab-tmpdirs >/dev/null 2>&1 || true
   fi
   rm -f "$after_file" "$new_file"
+  if [ "$residue_found" = true ]; then
+    fail 'current no-host run left zigsched-microvm-live temp directories'
+  fi
   printf 'CHECK: temp-cleanup no current-run zigsched-microvm-live residue\n'
 }
 
@@ -314,7 +465,7 @@ assert_no_lingering_processes() {
   local scan_file
   scan_file="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.process-scan.XXXXXX")"
   ps -eo pid=,ppid=,comm=,args= >"$scan_file"
-  if grep -E 'zig-scheduler-(daemon|tui)|qemu-system-' "$scan_file" | grep -F "$repo_root" | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
+  if grep -E 'zig-scheduler-(daemon|tui|live-vm-desktop|live-vm-webview-host)|qemu-system-|tui_pty_authoritative_daemon.py|live_vm_desktop_failure_daemon.py' "$scan_file" | grep -F "$repo_root" | grep -Ev 'grep|no_host_mutation|unsafe_cli_matrix' >&2; then
     rm -f "$scan_file"
     fail 'lingering repo-local daemon/TUI/QEMU process detected'
   fi
@@ -345,8 +496,10 @@ main() {
   printf 'worktree_status_all<<STATUS\n'
   git status --short --untracked-files=all
   printf 'STATUS\n'
-  microvm_tmp_before="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-nohost.tmp-before.XXXXXX")"
-  trap cleanup_microvm_tmp_before EXIT
+  nohost_tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-nohost.audit.XXXXXX")"
+  export TMPDIR="$nohost_tmp_root"
+  microvm_tmp_before="$(mktemp "$TMPDIR/zig-scheduler-nohost.tmp-before.XXXXXX")"
+  trap cleanup_nohost_tmp EXIT
   scan_microvm_tmpdirs > "$microvm_tmp_before"
 
   run_command linux-preflight-json zig build linux-preflight -- --json
@@ -386,14 +539,27 @@ PY
   printf 'PASS: daemon-live-microvm action=run_lab_microvm_live host_mutation=false\n'
   rm -rf evidence/lab/run-all/no-host-live
   run_checked_output_command tui-daemon-verifier 'dispatched verifier action through daemon'     python3 tools/tui_pty_exit_test.py zig-out/bin/zig-scheduler-tui zig-out/bin/zig-scheduler-daemon
-  run_tui_live_key_flow m-q mq
-  run_tui_live_key_flow m-b-b-q mbbq
-  run_tui_live_key_flow m-s-s-q mssq
+  run_tui_live_key_flow m-m-q mmq
+  run_tui_live_key_flow m-m-b-b-q mmbbq
+  run_tui_live_key_flow m-m-s-s-q mmssq
+  run_desktop_bridge_fake_checked run run $'bridge_test method=run controller_status=(accepted|running).*host_mutation=false
+"event":"runtime_sample"'
+  run_desktop_bridge_fake_checked duplicate-run duplicate-run $'bridge_test method=duplicate-run controller_status=refused.*host_mutation=false
+duplicate_action_id'
+  run_desktop_bridge_fake_checked stale-rollback stale-rollback $'bridge_test method=stale-rollback controller_status=refused.*host_mutation=false
+stale_or_unknown_target_action_id'
+  run_desktop_bridge_fake_checked stop stop $'bridge_test method=stop controller_status=accepted bridge_mode=webkitgtk-script-message host_mutation=false target_action_id=desktop-run-1 dispatched=stop_lab_run action_id_prefix=desktop-stop rollback_id=RB-desktop-run-1
+stop_lab_run
+desktop-stop-
+host_mutation=false'
+  run_desktop_real_preflight_checked
+  run_desktop_real_e2e_checked
   rm -rf .zig-cache/tmp/no-host-daemon-partial .zig-cache/tmp/no-host-daemon-rollback .zig-cache/tmp/no-host-daemon-live .omo/evidence/tui-pty-daemon-test
+  cleanup_owned_live_lab_processes
   assert_no_lingering_processes
   assert_no_new_microvm_tmpdirs "$microvm_tmp_before"
 
-  printf 'PASS: no host mutation observed for root commands and live VM TUI keys\n'
+  printf 'PASS: no host mutation observed for root commands, live VM TUI keys, and desktop WebView live-VM bridge paths\n'
 }
 
 main "$@"

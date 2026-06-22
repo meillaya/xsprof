@@ -77,6 +77,9 @@ manifest = {
     'schema': 'zig-scheduler/package-manifest/v1',
     'git_sha': git_sha,
     'install_root': staging.as_posix(),
+    'desktop_executable_included': False,
+    'desktop_executable_path': 'usr/bin/zig-scheduler-live-vm-desktop',
+    'desktop_executable_reason': 'excluded: VM-lab-only system WebView shell requires host GUI dependencies and remains outside the read-only package surface',
     'no_auto_start': True,
     'services_not_enabled': True,
     'mutation_service_gated': all(token in mutation_text for token in [
@@ -96,5 +99,6 @@ manifest = {
 (out / 'manifest.json.tmp').replace(out / 'manifest.json')
 PY
 
+printf 'desktop_executable=excluded reason=%s\n' 'VM-lab-only system WebView shell requires host GUI dependencies and remains outside the read-only package surface'
 printf 'manifest=%s\n' "$out_dir/manifest.json"
 printf 'PASS: package artifact staged without install/enable\n'
