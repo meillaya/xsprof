@@ -1,5 +1,6 @@
 const std = @import("std");
 const commands = @import("commands.zig");
+const daemon_support = @import("daemon_support.zig");
 const env_builder = @import("env_builder.zig");
 const protocol = @import("protocol.zig");
 const errors = @import("lab_runner/errors.zig");
@@ -80,6 +81,7 @@ pub fn runMicrovmLive(
     action: protocol.OperatorAction,
     seq: *usize,
     start_events_already_emitted: bool,
+    follow_flush: ?*daemon_support.FollowFlush,
 ) RunError!void {
     var plan = try commands.buildLabCommand(allocator, action);
     defer plan.deinit(allocator);
@@ -89,25 +91,34 @@ pub fn runMicrovmLive(
 
     var env_map = try env_builder.build(allocator, plan.env, true, environ);
     defer env_map.deinit();
-    const result = try std.process.run(allocator, io, .{
+    var child = try std.process.spawn(io, .{
         .argv = plan.args(),
         .environ_map = &env_map,
-        .stdout_limit = .limited(1024 * 1024),
-        .stderr_limit = .limited(256 * 1024),
+        .stdin = .ignore,
+        .stdout = .pipe,
+        .stderr = .ignore,
     });
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer child.kill(io);
+
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_reader = child.stdout.?.readerStreaming(io, &stdout_buffer);
+    while (try stdout_reader.interface.takeDelimiter('\n')) |line| {
+        if (try live_summary.appendRunnerLifecycleLine(allocator, output, seq, action, line)) {
+            if (follow_flush) |flush| try flush.flush(output.items);
+        }
+    }
+    const term = try child.wait(io);
 
     const summary_path = try std.fmt.allocPrint(allocator, "{s}/summary.json", .{plan.out_dir});
     defer allocator.free(summary_path);
-    if (result.term != .exited or result.term.exited != 0) {
-        try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "REFUSE", "refused_host", live_summary.runnerFailureReason(result.stderr), plan.out_dir);
+    if (term != .exited or term.exited != 0) {
+        try events.appendEvent(allocator, output, seq, "stage_finished", @tagName(action.kind), "REFUSE", "refused_host", "microvm_runner_refused", plan.out_dir);
         return;
     }
 
     const git_sha = try live_summary.readGitSha(allocator, io);
     defer allocator.free(git_sha);
-    live_summary.appendLiveSummaryEvents(allocator, io, output, seq, summary_path, git_sha) catch {
+    live_summary.validateLiveBundle(allocator, io, summary_path, git_sha) catch {
         try events.appendEvent(allocator, output, seq, "incident", @tagName(action.kind), "unsafe_to_assume", "unsafe_to_assume", "live_bundle_rejected", summary_path);
         return;
     };
@@ -206,6 +217,7 @@ test "live microvm start events publish active rollback target before runner blo
         .kind = .run_lab_microvm_live,
         .action_id = "live-active",
         .run_id = "live-active",
+        .target_id = "target-live-active",
         .rollback_id = "RB-live-active",
     }, &seq);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"lab_run_active\"") != null);

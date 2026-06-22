@@ -21,9 +21,14 @@ pub fn handleRunLabVm(
         seq.* += 1;
         return;
     }
+    if (action.target_id.len == 0) {
+        try appendTargetRefusal(allocator, output, action, seq.*, "target_id_required");
+        seq.* += 1;
+        return;
+    }
     const summary_path = try lab_runner.runVmFixture(allocator, io, output, action, seq);
     defer allocator.free(summary_path);
-    try tracker.recordLab(allocator, action.action_id, action.rollback_id, summary_path);
+    try tracker.recordLab(allocator, action.action_id, action.target_id, action.rollback_id, summary_path);
     try appendLabActive(allocator, output, action, summary_path, seq.*);
     seq.* += 1;
 }
@@ -42,7 +47,7 @@ pub fn handleRollback(
         return;
     }
     const lab = tracker.findLab(action.target_action_id) orelse {
-        try appendTargetRefusal(allocator, output, action, seq.*, "stale_or_unknown_target_action_id");
+        try appendTargetRefusal(allocator, output, action, seq.*, "stale_target");
         seq.* += 1;
         return;
     };

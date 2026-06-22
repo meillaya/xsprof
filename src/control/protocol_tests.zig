@@ -104,7 +104,7 @@ test "operator action protocol accepts rollback lab targets" {
 
 test "operator action protocol accepts live microvm action without execution fields" {
     const parsed = try parseActionJson(std.testing.allocator,
-        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-1","run_id":"live-demo","audit_id":"AUD-live-demo","rollback_id":"RB-live-demo"}
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-1","run_id":"live-demo","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-live-demo"}
     );
     defer parsed.deinit();
     try std.testing.expectEqual(ActionKind.run_lab_microvm_live, parsed.value.kind);
@@ -175,4 +175,55 @@ test "daemon event protocol exposes live bundle path for validation events" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "\"live_bundle_path\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "microvm-live-demo") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "host_mutation\":false") != null);
+}
+
+test "operator action protocol models strict lifecycle ids and target id" {
+    const parsed = try parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"act-live-1","run_id":"run-live-1","target_id":"target-demo-1","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-live-1"}
+    );
+    defer parsed.deinit();
+    try std.testing.expectEqualStrings("target-demo-1", parsed.value.target_id);
+
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad action","run_id":"run-live-1","target_id":"target-demo-1","rollback_id":"RB-live-1"}
+    ));
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"act-live-2","run_id":"run-live-1","target_id":"bad target","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-live-1"}
+    ));
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"act-live-3","run_id":"run-live-1","target_id":"target-demo-1","audit_id":"AUD-bad","rollback_id":"RB-live-1"}
+    ));
+}
+
+test "daemon event protocol exposes required lifecycle contract names and ids" {
+    const lifecycle = [_]EventKind{
+        .boot,
+        .marker,
+        .verifier,
+        .attach,
+        .runtime_sample,
+        .rollback,
+        .cleanup,
+        .validation,
+        .incident,
+    };
+    inline for (lifecycle) |kind| {
+        const rendered = try (DaemonEvent{
+            .kind = kind,
+            .action_id = "act-live-1",
+            .run_id = "run-live-1",
+            .target_id = "target-demo-1",
+            .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
+            .rollback_id = "RB-live-1",
+            .status = "PASS",
+            .live_bundle_path = if (kind == .validation) "evidence/lab/run-all/live/summary.json" else "",
+        }).toJson(std.testing.allocator);
+        defer std.testing.allocator.free(rendered);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, @tagName(kind)) != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "\"run_id\":\"run-live-1\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "\"target_id\":\"target-demo-1\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "\"audit_id\":\"AUD-20990101T000000Z-deadbee-abc123\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "\"rollback_id\":\"RB-live-1\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, rendered, "host_mutation\":false") != null);
+    }
 }

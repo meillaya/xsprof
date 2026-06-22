@@ -3,6 +3,7 @@ pub const state = @import("state.zig");
 pub const commands = @import("commands.zig");
 pub const daemon = @import("daemon.zig");
 pub const daemon_dispatch = @import("daemon_dispatch.zig");
+pub const daemon_events = @import("daemon_events.zig");
 pub const daemon_support = @import("daemon_support.zig");
 pub const lab_runner = @import("lab_runner.zig");
 pub const journal = @import("journal.zig");

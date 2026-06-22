@@ -2,11 +2,12 @@ const std = @import("std");
 const errors = @import("errors.zig");
 const events = @import("events.zig");
 const summary_mod = @import("summary.zig");
+const daemon_support = @import("../daemon_support.zig");
 const protocol = @import("../protocol.zig");
 
-const line_trim_chars = [_]u8{ ' ', 9, 13 };
-const git_trim_chars = [_]u8{ ' ', 9, 10, 13 };
+pub const readGitSha = daemon_support.readGitSha;
 
+const line_trim_chars = [_]u8{ ' ', 9, 13 };
 const CleanupSummary = struct {
     qemu_leftovers: bool = true,
     tmux_leftovers: bool = true,
@@ -54,11 +55,21 @@ const DaemonRuntimeEvent = struct {
     host_mutation: bool,
 };
 
-pub fn appendLiveSummaryEvents(
+const RunnerLifecycleEvent = struct {
+    event: []const u8,
+    status: []const u8,
+    state: []const u8,
+    reason: ?[]const u8 = null,
+    artifact: ?[]const u8 = null,
+    ops: ?[]const u8 = null,
+    live_bundle_path: ?[]const u8 = null,
+};
+
+const runner_event_prefix = "ZIGSCHED_DAEMON_EVENT ";
+
+pub fn validateLiveBundle(
     allocator: std.mem.Allocator,
     io: std.Io,
-    output: *std.ArrayList(u8),
-    seq: *usize,
     summary_path: []const u8,
     current_git_sha: []const u8,
 ) errors.RunError!void {
@@ -69,23 +80,46 @@ pub fn appendLiveSummaryEvents(
         .ignore_unknown_fields = true,
     }) catch return error.InvalidSummary;
     defer parsed.deinit();
-    const summary = parsed.value;
-    try validateLiveSummary(summary, current_git_sha);
-    try validateLiveArtifacts(allocator, io, summary);
+    try validateLiveSummary(parsed.value, current_git_sha);
+    try validateLiveArtifacts(allocator, io, parsed.value);
+    try validateLiveStages(parsed.value);
+}
+
+pub fn appendRunnerLifecycleLine(
+    allocator: std.mem.Allocator,
+    output: *std.ArrayList(u8),
+    seq: *usize,
+    action: protocol.OperatorAction,
+    raw_line: []const u8,
+) errors.RunError!bool {
+    const line = std.mem.trim(u8, raw_line, &line_trim_chars);
+    if (!std.mem.startsWith(u8, line, runner_event_prefix)) return false;
+    const payload = line[runner_event_prefix.len..];
+    var parsed = std.json.parseFromSlice(RunnerLifecycleEvent, allocator, payload, .{
+        .allocate = .alloc_always,
+        .ignore_unknown_fields = false,
+    }) catch return error.InvalidSummary;
+    defer parsed.deinit();
+    try events.appendActionEvent(
+        allocator,
+        output,
+        seq,
+        action,
+        parsed.value.event,
+        parsed.value.status,
+        parsed.value.state,
+        parsed.value.reason orelse "",
+        parsed.value.artifact orelse "",
+        parsed.value.ops orelse "",
+        parsed.value.live_bundle_path orelse "",
+    );
+    return true;
+}
+
+fn validateLiveStages(summary: LiveSummary) errors.RunError!void {
     for (summary.stages) |stage| {
         if (!summary_mod.validStageStatus(stage.status)) return error.InvalidSummary;
     }
-
-    try events.appendEvent(allocator, output, seq, "microvm_boot", "run_lab_microvm_live", "PASS", "vm_live", "vm marker present", summary_path);
-    try events.appendEvent(allocator, output, seq, "vm_marker", "run_lab_microvm_live", "PASS", "vm_live", summary.vm_marker_path orelse "/run/zig-scheduler-vm-lab.marker", summary_path);
-    for (summary.stages) |stage| {
-        try events.appendEvent(allocator, output, seq, "stage_finished", stage.stage, stage.status, "vm_live", stage.reason, stage.artifact);
-    }
-    try events.appendEvent(allocator, output, seq, "bpf_register", "run_lab_microvm_live", "PASS", "zigsched_minimal", "runtime ops observed", artifactContaining(summary, "partial-attach") orelse summary_path);
-    try events.appendEvent(allocator, output, seq, "runtime_sample", "run_lab_microvm_live", "PASS", "observing", "runtime samples accepted", artifactContaining(summary, "runtime-samples") orelse summary_path);
-    try events.appendEvent(allocator, output, seq, "rollback", "run_lab_microvm_live", "PASS", "rolled_back", summary.rollback_result orelse "PASS", artifactContaining(summary, "audit-ledger") orelse summary_path);
-    try events.appendEvent(allocator, output, seq, "cleanup", "run_lab_microvm_live", "PASS", "clean", "process scan clean", summary_path);
-    try events.appendEvent(allocator, output, seq, "validation", "run_lab_microvm_live", "PASS", "vm_live_validated", "live bundle freshness accepted", summary_path);
 }
 
 fn validateLiveSummary(summary: LiveSummary, current_git_sha: []const u8) errors.RunError!void {
@@ -177,32 +211,6 @@ fn validSha256(value: []const u8) bool {
         if (!std.ascii.isHex(byte)) return false;
     }
     return true;
-}
-
-pub fn runnerFailureReason(stderr: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, stderr, "qemu-system-x86_64 not found") != null) return "qemu_not_found";
-    if (std.mem.indexOf(u8, stderr, "/dev/kvm") != null) return "kvm_unavailable";
-    if (std.mem.indexOf(u8, stderr, "kernel image") != null) return "kernel_unavailable";
-    if (std.mem.indexOf(u8, stderr, "busybox") != null or std.mem.indexOf(u8, stderr, "nix") != null) return "nix_busybox_unavailable";
-    return "microvm_runner_refused";
-}
-
-pub fn readGitSha(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
-    const head = std.Io.Dir.cwd().readFileAlloc(io, ".git/HEAD", allocator, .limited(1024)) catch {
-        return allocator.dupe(u8, "unknown");
-    };
-    defer allocator.free(head);
-    const trimmed = std.mem.trim(u8, head, &git_trim_chars);
-    if (std.mem.startsWith(u8, trimmed, "ref: ")) {
-        const ref_path = try std.fmt.allocPrint(allocator, ".git/{s}", .{std.mem.trim(u8, trimmed[5..], &git_trim_chars)});
-        defer allocator.free(ref_path);
-        const ref_value = std.Io.Dir.cwd().readFileAlloc(io, ref_path, allocator, .limited(128)) catch {
-            return allocator.dupe(u8, "unknown");
-        };
-        defer allocator.free(ref_value);
-        return allocator.dupe(u8, std.mem.trim(u8, ref_value, &git_trim_chars));
-    }
-    return allocator.dupe(u8, trimmed);
 }
 
 test "live summary behavior tests are linked" {

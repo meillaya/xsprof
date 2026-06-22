@@ -33,6 +33,70 @@ case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$timeout_seconds" in *$'\n'*|*
 [ ! -e "$out_dir" ] || fail '--out must name a new output directory'
 prepare_evidence_dir evidence/lab "$out_dir"
 mkdir -p "$out_dir"
+
+if [ "${ZIG_SCHEDULER_MICROVM_LIFECYCLE_FIXTURE:-0}" = 1 ]; then
+  git_sha="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
+  runtime_samples="$out_dir/runtime-samples.jsonl"
+  daemon_events="$out_dir/daemon-runtime-events.jsonl"
+  partial_evidence="$out_dir/partial-attach-evidence.json"
+  verifier_log="$out_dir/bpf-verifier.log"
+  audit_ledger="$out_dir/audit-ledger.jsonl"
+  printf '%s\n' 'verifier fixture accepted host_mutation=false' > "$verifier_log"
+  printf '%s\n' '{}' > "$partial_evidence"
+  cat > "$runtime_samples" <<'JSONL'
+{"schema":"zig-scheduler/runtime-sample/v1","sequence":0,"state":{"status":"present","value":"disabled"},"ops":{"status":"present","value":"none"},"private_command_lines_sampled":false,"workload_alive":true}
+{"schema":"zig-scheduler/runtime-sample/v1","sequence":1,"state":{"status":"present","value":"enabled"},"ops":{"status":"present","value":"zigsched_minimal"},"private_command_lines_sampled":false,"workload_alive":true}
+{"schema":"zig-scheduler/runtime-sample/v1","sequence":2,"state":{"status":"present","value":"disabled"},"ops":{"status":"present","value":"none"},"private_command_lines_sampled":false,"workload_alive":true}
+JSONL
+  cat > "$daemon_events" <<'JSONL'
+{"schema":"zig-scheduler/daemon-event/v1","event":"runtime_sample","ops":"zigsched_minimal","host_mutation":false}
+JSONL
+  printf '%s\n' '{"schema":"zig-scheduler/audit-ledger/v1","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-microvm-live","host_mutation":false}' > "$audit_ledger"
+  cat > "$out_dir/summary.json" <<JSON
+{
+  "schema": "zig-scheduler/run-all-lab/v1",
+  "status": "PASS",
+  "mode": "microvm-live-fixture",
+  "evidence_mode": "vm-live",
+  "git_sha": "$git_sha",
+  "git_dirty": false,
+  "bpf_object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "output_dir": "$out_dir",
+  "output_dir_created_fresh": true,
+  "host_mutation": false,
+  "vm_kind": "qemu-vm-fixture",
+  "vm_marker_present": true,
+  "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+  "rollback_result": "PASS",
+  "artifact_paths": ["$runtime_samples", "$daemon_events", "$partial_evidence", "$verifier_log", "$audit_ledger"],
+  "cleanup": {
+    "qemu_leftovers": false,
+    "tmux_leftovers": false,
+    "process_group_reaped": true,
+    "temp_dirs_removed": true
+  },
+  "stages": [
+    {"stage":"partial_attach","status":"PASS","reason":"fixture attach event stream","artifact":"$partial_evidence"}
+  ]
+}
+JSON
+  emit_daemon_event() {
+    printf 'ZIGSCHED_DAEMON_EVENT %s\n' "$1"
+    sleep 0.1
+  }
+  emit_daemon_event "{\"event\":\"boot\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"fixture boot observed\",\"artifact\":\"$out_dir/summary.json\"}"
+  emit_daemon_event "{\"event\":\"marker\",\"status\":\"PASS\",\"state\":\"vm_live\",\"reason\":\"/run/zig-scheduler-vm-lab.marker\",\"artifact\":\"$out_dir/summary.json\"}"
+  emit_daemon_event "{\"event\":\"verifier\",\"status\":\"PASS\",\"state\":\"verified\",\"reason\":\"BPF verifier fixture accepted\",\"artifact\":\"$verifier_log\"}"
+  emit_daemon_event "{\"event\":\"attach\",\"status\":\"PASS\",\"state\":\"zigsched_minimal\",\"reason\":\"fixture runtime ops observed\",\"artifact\":\"$partial_evidence\"}"
+  emit_daemon_event "{\"event\":\"runtime_sample\",\"status\":\"accepted\",\"state\":\"observing\",\"reason\":\"runtime samples fixture accepted\",\"artifact\":\"$runtime_samples\",\"ops\":\"zigsched_minimal\"}"
+  emit_daemon_event "{\"event\":\"rollback\",\"status\":\"PASS\",\"state\":\"rolled_back\",\"reason\":\"fixture rollback complete\",\"artifact\":\"$audit_ledger\"}"
+  emit_daemon_event "{\"event\":\"cleanup\",\"status\":\"PASS\",\"state\":\"clean\",\"reason\":\"fixture process scan clean\",\"artifact\":\"$out_dir/summary.json\"}"
+  emit_daemon_event "{\"event\":\"validation\",\"status\":\"PASS\",\"state\":\"vm_live_validated\",\"reason\":\"fixture live bundle accepted\",\"artifact\":\"$out_dir/summary.json\",\"live_bundle_path\":\"$out_dir/summary.json\"}"
+  emit_daemon_event "{\"event\":\"incident\",\"status\":\"unsafe_to_assume\",\"state\":\"unsafe_to_assume\",\"reason\":\"fixture_incident_contract\",\"artifact\":\"$out_dir/summary.json\"}"
+  printf 'PASS: microVM lifecycle fixture summary=%s\n' "$out_dir/summary.json"
+  exit 0
+fi
+
 qemu_scan_before="$out_dir/qemu-process-scan-before.txt"
 qemu_scan_after="$out_dir/qemu-process-scan-after.txt"
 pgrep -a qemu-system-x86_64 > "$qemu_scan_before" 2>/dev/null || true
@@ -431,6 +495,19 @@ summary.write_text(json.dumps({
         "temp_dirs_removed": True,
     },
 }, indent=2, sort_keys=True) + "\n")
+def daemon_event(event, status, state, reason, artifact, **extra):
+    payload = {"event": event, "status": status, "state": state, "reason": reason, "artifact": artifact}
+    payload.update(extra)
+    print("ZIGSCHED_DAEMON_EVENT " + json.dumps(payload, sort_keys=True), flush=True)
+
+daemon_event("boot", "PASS", "vm_live", "microVM boot observed", summary.as_posix())
+daemon_event("marker", "PASS", "vm_live", "/run/zig-scheduler-vm-lab.marker", summary.as_posix())
+daemon_event("verifier", "PASS", "verified", "BPF verifier accepted", os.environ["OBJECT_FILE"])
+daemon_event("attach", "PASS", "zigsched_minimal", "runtime ops observed", partial_evidence.as_posix())
+daemon_event("runtime_sample", "accepted", "observing", "runtime samples accepted", samples.as_posix(), ops="zigsched_minimal")
+daemon_event("rollback", "PASS", "rolled_back", "PASS", ledger.as_posix())
+daemon_event("cleanup", "PASS", "clean", "process scan clean", summary.as_posix())
+daemon_event("validation", "PASS", "vm_live_validated", "live bundle freshness accepted", summary.as_posix(), live_bundle_path=summary.as_posix())
 print(summary.as_posix())
 PY
 

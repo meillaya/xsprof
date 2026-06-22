@@ -1,7 +1,8 @@
 const std = @import("std");
+const format = @import("journal_format.zig");
 const protocol = @import("protocol.zig");
 
-pub const JournalError = error{ DuplicateActionId, InvalidActionId, InvalidJournal, OutOfMemory } || std.Io.Writer.Error;
+pub const JournalError = error{ DuplicateActionId, DuplicateTargetId, InvalidActionId, InvalidJournal, OutOfMemory } || std.Io.Writer.Error;
 
 pub const LoadResult = struct {
     count: usize,
@@ -12,6 +13,7 @@ pub const LabStatus = enum { active, rolled_back };
 
 pub const LabRun = struct {
     action_id: []u8,
+    target_id: []u8,
     rollback_id: []u8,
     artifact: []u8,
     status: LabStatus,
@@ -26,6 +28,7 @@ pub const Tracker = struct {
         self.seen.deinit(allocator);
         for (self.labs.items) |item| {
             allocator.free(item.action_id);
+            allocator.free(item.target_id);
             allocator.free(item.rollback_id);
             allocator.free(item.artifact);
         }
@@ -61,7 +64,7 @@ pub const Tracker = struct {
                 if (!std.mem.eql(u8, parsed.value.status orelse "", "accepted")) return error.InvalidJournal;
                 if (parsed.value.action_id) |action_id| try self.remember(allocator, action_id);
             } else if (std.mem.eql(u8, parsed.value.event orelse "", "lab_run_active")) {
-                try self.recordLab(allocator, parsed.value.action_id orelse "", parsed.value.rollback_id orelse "", parsed.value.artifact orelse "");
+                try self.recordLab(allocator, parsed.value.action_id orelse "", parsed.value.target_id orelse "", parsed.value.rollback_id orelse "", parsed.value.artifact orelse "");
             } else if (std.mem.eql(u8, parsed.value.event orelse "", "rollback_completed")) {
                 try self.markRolledBack(allocator, parsed.value.target_action_id orelse "", parsed.value.artifact orelse "");
             }
@@ -69,13 +72,16 @@ pub const Tracker = struct {
         return .{ .count = count, .next_seq = expected_seq };
     }
 
-    pub fn recordLab(self: *Tracker, allocator: std.mem.Allocator, action_id: []const u8, rollback_id: []const u8, artifact: []const u8) JournalError!void {
+    pub fn recordLab(self: *Tracker, allocator: std.mem.Allocator, action_id: []const u8, target_id: []const u8, rollback_id: []const u8, artifact: []const u8) JournalError!void {
         try validateActionId(action_id);
+        try validateActionId(target_id);
         for (self.labs.items) |lab| {
             if (std.mem.eql(u8, lab.action_id, action_id)) return;
+            if (lab.status == .active and std.mem.eql(u8, lab.target_id, target_id)) return error.DuplicateTargetId;
         }
         try self.labs.append(allocator, .{
             .action_id = try allocator.dupe(u8, action_id),
+            .target_id = try allocator.dupe(u8, target_id),
             .rollback_id = try allocator.dupe(u8, rollback_id),
             .artifact = try allocator.dupe(u8, artifact),
             .status = .active,
@@ -87,6 +93,14 @@ pub const Tracker = struct {
             if (std.mem.eql(u8, lab.action_id, target_action_id)) return lab;
         }
         return null;
+    }
+
+    pub fn activeTarget(self: *const Tracker, target_id: []const u8) bool {
+        if (target_id.len == 0) return false;
+        for (self.labs.items) |lab| {
+            if (lab.status == .active and std.mem.eql(u8, lab.target_id, target_id)) return true;
+        }
+        return false;
     }
 
     pub fn markRolledBack(self: *Tracker, allocator: std.mem.Allocator, target_action_id: []const u8, artifact: []const u8) JournalError!void {
@@ -108,6 +122,7 @@ const RawEvent = struct {
     action: ?[]const u8 = null,
     action_id: ?[]const u8 = null,
     target_action_id: ?[]const u8 = null,
+    target_id: ?[]const u8 = null,
     rollback_id: ?[]const u8 = null,
     artifact: ?[]const u8 = null,
     host_mutation: bool,
@@ -125,15 +140,17 @@ pub fn writeRecord(writer: anytype, seq: usize, action: protocol.OperatorAction,
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"journal_record\",\"action\":\"{s}\",\"action_id\":",
         .{ protocol.event_schema, seq, @tagName(action.kind) },
     );
-    try writeJsonString(writer, action.action_id);
+    try format.writeJsonString(writer, action.action_id);
     try writer.writeAll(",\"audit_id\":");
-    try writeJsonString(writer, action.audit_id);
+    try format.writeJsonString(writer, action.audit_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
     try writer.writeAll(",\"rollback_id\":");
-    try writeJsonString(writer, action.rollback_id);
+    try format.writeJsonString(writer, action.rollback_id);
     try writer.writeAll(",\"target_action_id\":");
-    try writeJsonString(writer, action.target_action_id);
+    try format.writeJsonString(writer, action.target_action_id);
     try writer.writeAll(",\"git_sha\":");
-    try writeJsonString(writer, git_sha);
+    try format.writeJsonString(writer, git_sha);
     try writer.writeAll(",\"state\":\"read_only\",\"status\":\"accepted\",\"command_argv_hash\":\"none\",\"artifact_paths\":[],\"cleanup\":\"pending\",\"host_mutation\":false}\n");
 }
 
@@ -142,11 +159,13 @@ pub fn writeLabActive(writer: anytype, seq: usize, action: protocol.OperatorActi
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"lab_run_active\",\"action\":\"{s}\",\"action_id\":",
         .{ protocol.event_schema, seq, @tagName(action.kind) },
     );
-    try writeJsonString(writer, action.action_id);
+    try format.writeJsonString(writer, action.action_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
     try writer.writeAll(",\"rollback_id\":");
-    try writeJsonString(writer, action.rollback_id);
+    try format.writeJsonString(writer, action.rollback_id);
     try writer.writeAll(",\"artifact\":");
-    try writeJsonString(writer, artifact);
+    try format.writeJsonString(writer, artifact);
     try writer.writeAll(",\"state\":\"partial_switch_lab\",\"status\":\"active\",\"host_mutation\":false}\n");
 }
 
@@ -155,13 +174,15 @@ pub fn writeRollbackCompleted(writer: anytype, seq: usize, action: protocol.Oper
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"rollback_completed\",\"action\":\"{s}\",\"action_id\":",
         .{ protocol.event_schema, seq, @tagName(action.kind) },
     );
-    try writeJsonString(writer, action.action_id);
+    try format.writeJsonString(writer, action.action_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
     try writer.writeAll(",\"target_action_id\":");
-    try writeJsonString(writer, action.target_action_id);
+    try format.writeJsonString(writer, action.target_action_id);
     try writer.writeAll(",\"rollback_id\":");
-    try writeJsonString(writer, action.rollback_id);
+    try format.writeJsonString(writer, action.rollback_id);
     try writer.writeAll(",\"artifact\":");
-    try writeJsonString(writer, artifact);
+    try format.writeJsonString(writer, artifact);
     try writer.print(",\"state\":\"rolled_back\",\"status\":\"{s}\",\"host_mutation\":false}}\n", .{if (idempotent) "already_rolled_back" else "PASS"});
 }
 
@@ -170,16 +191,26 @@ pub fn writeTargetRefusal(writer: anytype, seq: usize, action: protocol.Operator
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"action_id\":",
         .{ protocol.event_schema, seq, @tagName(action.kind) },
     );
-    try writeJsonString(writer, action.action_id);
+    try format.writeJsonString(writer, action.action_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
     try writer.writeAll(",\"target_action_id\":");
-    try writeJsonString(writer, action.target_action_id);
-    try writer.writeAll(",\"state\":\"refused_host\",\"status\":\"refused\",\"reason\":");
-    try writeJsonString(writer, reason);
+    try format.writeJsonString(writer, action.target_action_id);
+    try writer.writeAll(",\"audit_id\":");
+    try format.writeJsonString(writer, action.audit_id);
+    try writer.writeAll(",\"rollback_id\":");
+    try format.writeJsonString(writer, action.rollback_id);
+    try writer.writeAll(",\"state\":\"refused_host\",\"status\":\"REFUSE\",\"reason\":");
+    try format.writeJsonString(writer, reason);
     try writer.writeAll(",\"host_mutation\":false}\n");
 }
 
 pub fn writeDuplicateRefusal(writer: anytype, seq: usize, action: protocol.OperatorAction) !void {
     try writeActionIdRefusal(writer, seq, action, "duplicate_action_id");
+}
+
+pub fn writeDuplicateTargetRefusal(writer: anytype, seq: usize, action: protocol.OperatorAction) !void {
+    try writeTargetRefusal(writer, seq, action, "duplicate_target_id");
 }
 
 pub fn writeInvalidActionIdRefusal(writer: anytype, seq: usize, action: protocol.OperatorAction) !void {
@@ -191,23 +222,12 @@ fn writeActionIdRefusal(writer: anytype, seq: usize, action: protocol.OperatorAc
         "{{\"schema\":\"{s}\",\"seq\":{d},\"event\":\"refusal\",\"action\":\"{s}\",\"action_id\":",
         .{ protocol.event_schema, seq, @tagName(action.kind) },
     );
-    try writeJsonString(writer, action.action_id);
+    try format.writeJsonString(writer, action.action_id);
+    try writer.writeAll(",\"target_id\":");
+    try format.writeJsonString(writer, action.target_id);
     try writer.writeAll(",\"state\":\"refused_host\",\"status\":\"refused\",\"reason\":");
-    try writeJsonString(writer, reason);
+    try format.writeJsonString(writer, reason);
     try writer.writeAll(",\"host_mutation\":false}\n");
-}
-
-fn writeJsonString(writer: anytype, value: []const u8) !void {
-    try writer.writeByte('"');
-    for (value) |byte| switch (byte) {
-        '"' => try writer.writeAll("\\\""),
-        '\\' => try writer.writeAll("\\\\"),
-        '\n' => try writer.writeAll("\\n"),
-        '\r' => try writer.writeAll("\\r"),
-        '\t' => try writer.writeAll("\\t"),
-        else => if (byte < 0x20) try writer.print("\\u{x:0>4}", .{byte}) else try writer.writeByte(byte),
-    };
-    try writer.writeByte('"');
 }
 
 test "daemon journal tracker rejects duplicate action ids" {
@@ -236,4 +256,15 @@ test "daemon journal tracker rejects nonmonotonic existing sequence" {
     const raw =
         "{\"schema\":\"zig-scheduler/daemon-event/v1\",\"seq\":99,\"event\":\"journal_record\",\"status\":\"accepted\",\"action_id\":\"act-1\",\"host_mutation\":false}\n";
     try std.testing.expectError(error.InvalidJournal, tracker.loadExisting(std.testing.allocator, raw));
+}
+
+test "daemon journal tracker refuses duplicate active target ids" {
+    var tracker = Tracker{};
+    defer tracker.deinit(std.testing.allocator);
+    try std.testing.expectError(error.InvalidActionId, tracker.recordLab(std.testing.allocator, "act-empty", "", "RB-empty", "evidence/lab/empty"));
+    try tracker.recordLab(std.testing.allocator, "act-1", "target-1", "RB-1", "evidence/lab/one");
+    try std.testing.expect(tracker.activeTarget("target-1"));
+    try std.testing.expectError(error.DuplicateTargetId, tracker.recordLab(std.testing.allocator, "act-2", "target-1", "RB-2", "evidence/lab/two"));
+    try tracker.markRolledBack(std.testing.allocator, "act-1", "evidence/lab/one/rolled-back");
+    try tracker.recordLab(std.testing.allocator, "act-2", "target-1", "RB-2", "evidence/lab/two");
 }

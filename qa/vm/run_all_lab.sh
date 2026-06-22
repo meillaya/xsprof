@@ -356,10 +356,21 @@ run_stage partial_attach "$partial_attach_command" "$out_dir/partial-attach" "${
 run_stage rollback_drill 'bash qa/vm/rollback_drill.sh' "$out_dir/rollback-drill" bash qa/vm/rollback_drill.sh --out "$out_dir/rollback-drill"
 run_stage cgroup_race 'bash qa/vm/cgroup_race.sh' "$out_dir/cgroup-race" bash qa/vm/cgroup_race.sh --out "$out_dir/cgroup-race"
 run_stage dsq_policy_smoke 'bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s' "$out_dir/dsq-policy" bash qa/vm/dsq_policy_smoke.sh --policy vtime --duration 1s --out "$out_dir/dsq-policy"
-run_stage observe_partial 'bash qa/vm/observe_partial.sh --samples 3' "$out_dir/observe-partial" bash qa/vm/observe_partial.sh --samples 3 --out "$out_dir/observe-partial"
+run_stage observe_partial 'bash qa/vm/observe_partial.sh --samples 3 --audit-ledger rollback-drill/audit-ledger.jsonl' "$out_dir/observe-partial" bash qa/vm/observe_partial.sh --samples 3 --out "$out_dir/observe-partial" --audit-ledger "$out_dir/rollback-drill/audit-ledger.jsonl"
 run_stage stress_chaos 'bash qa/vm/stress_chaos.sh --duration 1s --runtime-samples observe-partial/runtime-samples.jsonl' "$out_dir/stress-chaos" bash qa/vm/stress_chaos.sh --duration 1s --out "$out_dir/stress-chaos" --runtime-samples "$out_dir/observe-partial/runtime-samples.jsonl" --observe-summary "$out_dir/observe-partial/summary.json" --dsq-summary "$out_dir/dsq-policy/summary.json"
 release_evidence_dir="evidence/releases/$release_version"
-run_stage release_gate "bash qa/release_gate.sh --version $release_version --no-approval" "$out_dir/release-gate" bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir" --no-approval
+if [ "$mode" = host-safe ]; then
+  release_artifact="$out_dir/release-gate"
+  mkdir -p "$release_artifact"
+  printf 'SKIP: host-safe run-all does not assert release evidence
+host_mutation=false
+' > "$release_artifact/transcript.txt"
+  stage_files+=("$(stage_json release_gate SKIP 'host-safe release gate skipped' "bash qa/release_gate.sh --version $release_version --no-approval" "$release_artifact" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")")
+  printf 'STAGE release_gate status=SKIP reason=host-safe release gate skipped artifact=%s
+' "$release_artifact"
+else
+  run_stage release_gate "bash qa/release_gate.sh --version $release_version --no-approval" "$out_dir/release-gate" bash qa/release_gate.sh --version "$release_version" --evidence "$release_evidence_dir" --no-approval
+fi
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 qemu_leftovers=false

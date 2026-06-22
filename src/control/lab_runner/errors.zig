@@ -6,4 +6,8 @@ pub const RunError = error{
     InvalidSummary,
     OutOfMemory,
     StreamTooLong,
+    ReadFailed,
+    DiskQuota,
+    BrokenPipe,
+    NotOpenForWriting,
 } || std.process.SpawnError || std.Io.File.MultiReader.UnendingError || std.Io.Timeout.Error || std.Io.Dir.ReadFileAllocError || std.Io.Writer.Error;

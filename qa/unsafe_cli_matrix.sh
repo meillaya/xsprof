@@ -112,7 +112,7 @@ check_daemon_event_refusal() {
 
 live_microvm_action_json() {
   local token="unsafe-matrix-$1-$$"
-  printf '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"%s","run_id":"%s","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-%s"}' "$token" "$token" "$token"
+  printf '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"%s","run_id":"%s","target_id":"target-%s","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-%s"}' "$token" "$token" "$token" "$token"
 }
 
 check_live_microvm_refusal() {
@@ -279,10 +279,10 @@ check_refusal scheduler-enable zig-out/bin/zig-scheduler scheduler enable
 check_daemon_event_refusal daemon-partial-attach '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
 check_daemon_event_refusal daemon-rollback '{"action":"rollback","rollback_id":"RB-demo"}'
 check_live_microvm_refusal daemon-live-microvm "$(live_microvm_action_json daemon-live-microvm)"
-check_malformed_live_action_refusal malformed-live-action-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad;id","run_id":"unsafe-matrix-bad-action","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-action"}' 'malformed_action'
-check_malformed_live_action_refusal malformed-live-run-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-run-id","run_id":"../escape","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-run"}' 'invalid_field'
-check_malformed_live_action_refusal malformed-live-audit '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-audit","run_id":"unsafe-matrix-bad-audit","audit_id":"AUD;bad","rollback_id":"RB-bad-audit"}' 'malformed_action'
-check_malformed_live_action_refusal malformed-live-rollback '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-rollback","run_id":"unsafe-matrix-bad-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB;bad"}' 'malformed_action'
+check_malformed_live_action_refusal malformed-live-action-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad;id","run_id":"unsafe-matrix-bad-action","target_id":"target-bad-action","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-action"}' 'malformed_action'
+check_malformed_live_action_refusal malformed-live-run-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-run-id","run_id":"../escape","target_id":"target-bad-run","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-run"}' 'invalid_field'
+check_malformed_live_action_refusal malformed-live-audit '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-audit","run_id":"unsafe-matrix-bad-audit","target_id":"target-bad-audit","audit_id":"AUD;bad","rollback_id":"RB-bad-audit"}' 'malformed_action'
+check_malformed_live_action_refusal malformed-live-rollback '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-rollback","run_id":"unsafe-matrix-bad-rollback","target_id":"target-bad-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB;bad"}' 'malformed_action'
 check_state_dir_rejected state-dir-absolute "/tmp/zig-scheduler-unsafe-absolute-$$"
 check_state_dir_rejected state-dir-traversal ".zig-cache/tmp/../zig-scheduler-unsafe-traversal"
 
