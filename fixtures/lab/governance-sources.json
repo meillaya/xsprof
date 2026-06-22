@@ -90,7 +90,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "scheduler backend threat model",
       "required": true,
-      "sha256": "1d09152bb0741031f7fcd4399061785775fb0a5b0e8e6928a2d9b7f28b29d89f"
+      "sha256": "1e5482e3141b388737d0153e7c56d372071a17d047d27e9f32186324b47319c3"
     },
     {
       "path": "packaging/README.md",

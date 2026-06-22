@@ -8,6 +8,7 @@ Root `zig-scheduler` is fail-closed and path-to-production only. It must not pre
 - Disposable VM evidence: VM marker, kernel tuple, verifier logs, runtime samples, rollback ledgers, and cleanup receipts are lab evidence only.
 - Release scope evidence: no frontend/root UI artifacts, unchanged `simulator/`, package manifest fields, and current-run cleanup receipts are part of the VM/lab backend trust boundary.
 - Toolchain provenance: QEMU/KVM, `nix`-backed busybox fetches, and `bpftool`/`libbpf` are explicit host dependencies for the live VM flow; missing pieces must skip or refuse instead of masquerading as success.
+- Root privileges and Linux capabilities: CAP_BPF, CAP_SYS_ADMIN, and CAP_PERFMON are mutation-capable lab concerns only; package defaults and host-side orchestration must not grant or require them outside the disposable VM marker/evidence gates.
 - Logs and transcripts: no private command lines, credentials, cookies, tokens, hostnames beyond the lab tuple, or unbounded logs.
 
 ## Host-safe invariants
@@ -36,6 +37,8 @@ The disabled-safe daemon accepts typed operator action JSON and routes only thro
 - output is redacted and bounded before it becomes evidence.
 
 Security review for any future mutation-capable profile must include the daemon action parser, command registry, runtime stream privacy filters, rollback ledger validation, and packaging no-auto-start behavior.
+
+The mutation-capable lab profile specifically reviews config injection, cgroup escape, audit tampering, BPF verifier assumptions, Log privacy, and Packaging defaults before any controlled-lab candidate can be promoted.
 
 ## Packaging threat notes
 

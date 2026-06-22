@@ -43,6 +43,8 @@ tools/local-*.py
 # Local disposable VM/TUI live-run evidence. These can contain large initramfs
 # bundles and are reproducible with qa/vm/run_microvm_live_lab.sh.
 evidence/lab/run-all/microvm-live-*/
+evidence/lab/run-all/vm-backend-final/
+evidence/lab/run-all/manifest-provenance.json
 evidence/lab/run-all/desktop-run-*/
 evidence/lab/run-all/no-host-mutation-*/
 evidence/lab/tui-e2e/*/

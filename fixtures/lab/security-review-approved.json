@@ -19,9 +19,9 @@
     "kind": "content-bound-ancestor",
     "reason": "committed review artifacts cannot contain the SHA of the commit that contains themselves; stale ancestor SHA is accepted only while listed content hashes match",
     "sha256": {
-      "AGENTS.md": "aed6e229950d4afd0d5c69c3defd8c8044f25dc729f96e85b9a5fc8ddcd158f6",
-      "docs/security/review-checklist.md": "019950561ff0f5005bcb1c78c094b96981150603ab11b945f1557dc84abec93a",
-      "docs/security/threat-model.md": "4168f0e44146e3a50354c5c443969e6c2b55679dccfb7523ee3de868c6e609f6"
+      "AGENTS.md": "21706fe391d07fd2f3d65f1c4e74c08ef44c19a08fdbad46a6356875d0778ff1",
+      "docs/security/review-checklist.md": "cc45d0a01c6b1441d6ac500aa77cc8945598282d5f5cd636f6f1d71f16b3254f",
+      "docs/security/threat-model.md": "1e5482e3141b388737d0153e7c56d372071a17d047d27e9f32186324b47319c3"
     }
   },
   "historical": false,
