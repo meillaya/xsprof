@@ -243,5 +243,5 @@ printf 'PASS: foreground daemon journal limit is bounded\n'
 
 lifecycle_output="$($0 "$bin" --fixture lifecycle-contract)"
 printf '%s\n' "$lifecycle_output"
-assert_output lifecycle-success "$lifecycle_output"
-printf 'PASS: foreground daemon consumes incremental VM lifecycle stream\n'
+assert_output lifecycle-fixture-rejected "$lifecycle_output"
+printf 'PASS: foreground daemon rejects fixture VM-live lifecycle bundle without vm_live_complete PASS\n'

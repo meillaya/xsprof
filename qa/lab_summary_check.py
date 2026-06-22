@@ -16,13 +16,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import json
-import shutil
 import subprocess
 import sys
 from typing import Final
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
+from qa.lab_summary_backend import BackendSummaryError, VM_BACKEND_SCHEMA, is_backend_live_summary, validate_backend_live_summary, validate_backend_run_summary
 from qa.lab_summary_observe import ObserveSummaryError, validate_observe
 
 SUMMARY_SCHEMA: Final[str] = "zig-scheduler/run-all-lab/v1"
@@ -31,9 +31,6 @@ STATUSES: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE"})
 ROLLBACK_RESULTS: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "REFUSE", "N/A"})
 PARTIAL_REASON_CODES: Final[frozenset[str]] = frozenset({"HOST_REFUSED", "VM_MARKER_MISSING", "TARGET_NOT_ALLOWLISTED", "TARGET_SYMLINK_REJECTED", "VERIFIER_FAILED", "ROLLBACK_MISSING", "ATTACH_SKIPPED", "ATTACH_ATTEMPTED", "ROLLBACK_RESTORED", "REFUSED_STALE_SCOPE"})
 RUN_ALL_PREFIX: Final[Path] = Path("evidence/lab/run-all")
-MALFORMED_FIXTURE: Final[Path] = Path("fixtures/lab/run-all-summary-missing-host-mutation.json")
-
-
 @dataclass(frozen=True, slots=True)
 class Args:
     summary: Path | None
@@ -161,8 +158,15 @@ def git_tracked(path: Path) -> bool:
 
 def validate_summary(path: Path) -> None:
     summary = load_object(path)
-    if require_string(summary, "schema", "summary") != SUMMARY_SCHEMA:
+    schema = require_string(summary, "schema", "summary")
+    if schema == VM_BACKEND_SCHEMA:
+        validate_backend_run_summary(path, summary)
+        return
+    if schema != SUMMARY_SCHEMA:
         raise LabSummaryError("summary has unsupported schema")
+    if is_backend_live_summary(path, summary):
+        validate_backend_live_summary(path, summary)
+        return
     status = require_string(summary, "status", "summary")
     if status not in STATUSES:
         raise LabSummaryError(f"summary has invalid status: {status}")
@@ -201,79 +205,10 @@ def validate_partial(path: Path) -> None:
 
 
 
-def self_test() -> None:
-    root = Path("evidence/lab/run-all/self-test-lab-summary-check")
-    shutil.rmtree(root, ignore_errors=True)
-    (root / "stage").mkdir(parents=True)
-    (root / "stage" / "transcript.txt").write_text("self-test\n")
-    stage: JsonObject = {
-        "artifact_paths": [str(root / "stage"), str(root / "stage" / "transcript.txt")],
-        "command": "self-test",
-        "ended_at": "2026-06-11T00:00:01Z",
-        "git_sha": "self-test-sha",
-        "host_mutation": False,
-        "kernel_tuple": {"arch": "x86_64", "config_sha256": "self-test", "release": "6.12.0-lab"},
-        "mode": "host-safe",
-        "reason": "self-test stage",
-        "rollback_result": "N/A",
-        "schema": STAGE_SCHEMA,
-        "stage": "self_test",
-        "started_at": "2026-06-11T00:00:00Z",
-        "status": "PASS",
-        "vm_kind": "host-safe-surrogate",
-    }
-    summary: JsonObject = {
-        "artifact_paths": [str(root / "stage")],
-        "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False},
-        "ended_at": "2026-06-11T00:00:01Z",
-        "git_sha": "self-test-sha",
-        "host_mutation": False,
-        "kernel_tuple": {"arch": "x86_64", "config_sha256": "self-test", "release": "6.12.0-lab"},
-        "mode": "host-safe",
-        "release_status": "skipped_no_vm",
-        "release_use": False,
-        "rollback_result": "N/A",
-        "schema": SUMMARY_SCHEMA,
-        "stages": [stage],
-        "started_at": "2026-06-11T00:00:00Z",
-        "status": "PASS",
-        "vm_kind": "host-safe-surrogate",
-    }
-    good = root / "summary.json"
-    good.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    validate_summary(good)
-    reject(MALFORMED_FIXTURE, "fixture missing host_mutation")
-    partial = root / "partial-refusal.json"
-    partial.write_text(json.dumps({"schema": "zig-scheduler/partial-attach-refusal/v1", "status": "refused-host", "reason_code": "HOST_REFUSED", "reason": "marker missing", "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope", "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "host_mutation": False}, sort_keys=True) + "\n")
-    validate_partial(partial)
-    bad_partial = root / "bad-partial-refusal.json"
-    bad_partial.write_text(json.dumps({"schema": "zig-scheduler/partial-attach-refusal/v1", "status": "refused-host", "reason_code": "UNKNOWN", "reason": "marker missing", "target_cgroup": "/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope", "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "host_mutation": False}, sort_keys=True) + "\n")
-    reject_partial(bad_partial, "unknown partial reason_code")
-    bad_release = root / "release-use-untracked.json"
-    summary["release_use"] = True
-    bad_release.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    reject(bad_release, "release_use untracked generated path")
-    shutil.rmtree(root, ignore_errors=True)
-    print("PASS lab summary self-test: accepted valid summary and rejected malformed/release-use fixtures")
-
-
-def reject(path: Path, label: str) -> None:
-    try:
-        validate_summary(path)
-    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
-    raise LabSummaryError(f"expected rejection did not occur: {label}")
-
-
-def reject_partial(path: Path, label: str) -> None:
-    try:
-        validate_partial(path)
-    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
-    raise LabSummaryError(f"expected rejection did not occur: {label}")
-
-
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.self_test:
+        from qa.lab_summary_selftest import self_test
         self_test()
         return 0
     if args.summary is None:
@@ -297,7 +232,7 @@ def run(argv: list[str]) -> int:
 def main() -> int:
     try:
         return run(sys.argv[1:])
-    except (EvidenceSafetyError, LabSummaryError) as exc:
+    except (BackendSummaryError, EvidenceSafetyError, LabSummaryError) as exc:
         print(f"FAIL lab summary schema: {exc}", file=sys.stderr)
         return 1
 

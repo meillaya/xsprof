@@ -96,6 +96,7 @@ fn validateLiveSummary(summary: LiveSummary, current_git_sha: []const u8) errors
     }
     if (!validSha256(summary.bpf_object_sha256 orelse "")) return error.InvalidSummary;
     if (!(summary.output_dir_created_fresh orelse false)) return error.InvalidSummary;
+    if (!std.mem.eql(u8, summary.vm_kind orelse "", "qemu-vm")) return error.InvalidSummary;
     if (!(summary.vm_marker_present orelse false)) return error.InvalidSummary;
     if (!std.mem.eql(u8, summary.vm_marker_path orelse "", "/run/zig-scheduler-vm-lab.marker")) return error.InvalidSummary;
     if (!std.mem.eql(u8, summary.rollback_result orelse "", "PASS")) return error.InvalidSummary;
@@ -173,6 +174,44 @@ fn validSha256(value: []const u8) bool {
         if (!std.ascii.isHex(byte)) return false;
     }
     return true;
+}
+
+const accepted_test_git_sha = "0123456789abcdef0123456789abcdef01234567";
+const accepted_test_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+fn acceptedLiveSummaryForTest() LiveSummary {
+    return .{
+        .schema = "zig-scheduler/run-all-lab/v1",
+        .status = "PASS",
+        .evidence_mode = "vm-live",
+        .git_sha = accepted_test_git_sha,
+        .git_dirty = false,
+        .bpf_object_sha256 = accepted_test_sha256,
+        .output_dir = "evidence/lab/run-all/test",
+        .output_dir_created_fresh = true,
+        .host_mutation = false,
+        .vm_kind = "qemu-vm",
+        .vm_marker_present = true,
+        .vm_marker_path = "/run/zig-scheduler-vm-lab.marker",
+        .rollback_result = "PASS",
+        .cleanup = .{
+            .qemu_leftovers = false,
+            .tmux_leftovers = false,
+            .process_group_reaped = true,
+            .temp_dirs_removed = true,
+        },
+    };
+}
+
+test "live summary gate accepts only real qemu VM kind" {
+    var accepted = acceptedLiveSummaryForTest();
+    try validateLiveSummary(accepted, accepted_test_git_sha);
+
+    accepted.vm_kind = "qemu-vm-fixture";
+    try std.testing.expectError(error.InvalidSummary, validateLiveSummary(accepted, accepted_test_git_sha));
+
+    accepted.vm_kind = null;
+    try std.testing.expectError(error.InvalidSummary, validateLiveSummary(accepted, accepted_test_git_sha));
 }
 
 test "lifecycle stream split remains linked through live summary" {

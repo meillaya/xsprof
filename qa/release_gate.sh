@@ -10,7 +10,7 @@ evidence_dir=""
 self_test=false
 no_approval=false
 current_run=false
-live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/run-all/vm-backend-final/summary.json}"
+live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/vm-backend-final/live/summary.json}"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
@@ -319,6 +319,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
 from qa.live_behavior_check import LiveBehaviorError, validate_bundle
 out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3]); current_run = sys.argv[4] == 'true'
+if current_run:
+    for stale_name in ('release-approval.json', 'artifact-hashes.json', 'summary.json'):
+        stale_path = out / stale_name
+        if stale_path.exists() or stale_path.is_symlink():
+            stale_path.unlink()
 checks = {}
 checks['dsq'] = json.loads(Path('evidence/lab/dsq-vtime/summary.json').read_text())
 checks['rollback'] = json.loads(Path('evidence/lab/rollback-drill/summary.json').read_text())

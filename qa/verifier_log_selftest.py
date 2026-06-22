@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 import importlib
 from collections.abc import Mapping
+import hashlib
 from typing import TypeAlias
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
@@ -60,6 +61,21 @@ def run_self_test() -> None:
         "cgroup_membership_after": "abc",
     }) + "\n")
     assert_result(verifier.parse_evidence(evidence), "PASS", "VERIFIER_ACCEPTED")
+    vm_log = write_vm_log("vm-live.log")
+    assert_result(verifier.parse_log(vm_log), "PASS", "VM_VERIFIER_ACCEPTED")
+    vm_evidence = SELF_ROOT / "vm-verifier-evidence.json"
+    vm_evidence.write_text(json.dumps(vm_evidence_data(vm_log), sort_keys=True) + "\n")
+    assert_result(verifier.parse_evidence(vm_evidence), "PASS", "VM_VERIFIER_ACCEPTED")
+    bad_vm_evidence = SELF_ROOT / "vm-attach-only-evidence.json"
+    bad_data = vm_evidence_data(vm_log)
+    bad_data["rollback_status"] = "SKIP"
+    bad_vm_evidence.write_text(json.dumps(bad_data, sort_keys=True) + "\n")
+    try:
+        verifier.parse_evidence(bad_vm_evidence)
+    except verifier.VerifierLogError:
+        pass
+    else:
+        raise verifier.VerifierLogError("attach-only VM verifier evidence was accepted")
     refusal = SELF_ROOT / "host-refusal.json"
     refusal.write_text(json.dumps({"schema": REFUSAL_SCHEMA, "status": "refused-host", "reason": "marker required", "object": "obj.o", "host_mutation": False}) + "\n")
     assert_result(verifier.parse_refusal(refusal, allow_refusal=True), "REFUSE", "marker required")
@@ -89,6 +105,80 @@ def write_log(name: str, tail: str) -> Path:
     ))
     path.write_text(body + "\n")
     return path
+
+
+def write_vm_log(name: str) -> Path:
+    path = SELF_ROOT / name
+    object_path = write_object()
+    metadata_path = write_metadata(object_path)
+    object_sha = sha256_file(object_path)
+    body = "\n".join((
+        "verification time 233 usec",
+        "Registered sched_ext_ops zigsched_minima id 4",
+        "Unregistered sched_ext_ops zigsched_minima id 4",
+        "schema=zig-scheduler/bpf-verifier-log/v1",
+        "evidence_mode=vm-live",
+        "vm_kind=qemu-vm",
+        "vm_marker_present=true",
+        "vm_marker_path=/run/zig-scheduler-vm-lab.marker",
+        "kernel_release=7.0.12-lab",
+        "kernel_arch=x86_64",
+        "kernel_config_sha256=microvm-host-kernel",
+        "host_mutation=false",
+        "release_eligible_live_proof=true",
+        "verifier_result=accepted",
+        "attach_result=registered",
+        "rollback_status=PASS",
+        f"object={object_path.as_posix()}",
+        f"object_sha256={object_sha}",
+        f"bpf_metadata_path={metadata_path.as_posix()}",
+        f"bpf_metadata_object_sha256={object_sha}",
+        "bpftool_rc=0",
+    ))
+    path.write_text(body + "\n")
+    return path
+
+
+def vm_evidence_data(log_path: Path) -> JsonObject:
+    object_path = SELF_ROOT / "zigsched_minimal.bpf.o"
+    metadata_path = SELF_ROOT / "zigsched_minimal.bpf.meta.json"
+    object_sha = sha256_file(object_path)
+    return {
+        "schema": "zig-scheduler/vm-verifier-evidence/v1",
+        "status": "PASS",
+        "evidence_mode": "vm-live",
+        "vm_kind": "qemu-vm",
+        "vm_marker_present": True,
+        "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+        "kernel_tuple": {"release": "7.0.12-lab", "arch": "x86_64", "config_sha256": "microvm-host-kernel"},
+        "host_mutation": False,
+        "release_eligible_live_proof": True,
+        "verifier_result": "accepted",
+        "attach_result": "registered",
+        "rollback_status": "PASS",
+        "object": object_path.as_posix(),
+        "object_sha256": object_sha,
+        "bpf_metadata_path": metadata_path.as_posix(),
+        "bpf_metadata_object_sha256": object_sha,
+        "verifier_log": log_path.as_posix(),
+    }
+
+
+def write_object() -> Path:
+    path = SELF_ROOT / "zigsched_minimal.bpf.o"
+    path.write_bytes(b"self-test-bpf-object\n")
+    return path
+
+
+def write_metadata(object_path: Path) -> Path:
+    path = SELF_ROOT / "zigsched_minimal.bpf.meta.json"
+    object_sha = sha256_file(object_path)
+    path.write_text(json.dumps({"object": object_path.as_posix(), "object_sha256": object_sha}, sort_keys=True) + "\n")
+    return path
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def assert_result(result: Mapping[str, JsonValue], status: str, reason: str) -> None:

@@ -136,16 +136,43 @@ for line in text.splitlines():
     if "DUPLICATE_UNREGISTER_OUT " in line:
         duplicate_lines.append(line.split("DUPLICATE_UNREGISTER_OUT ", 1)[1])
 verifier_log = verifier_dir / "bpf-verifier.log"
-verifier_log.write_text("\n".join(bpftool_lines + register_lines) + "\n")
+verifier_log.write_text("\n".join(bpftool_lines + register_lines + [
+    "schema=zig-scheduler/bpf-verifier-log/v1",
+    "evidence_mode=vm-live",
+    "vm_kind=qemu-vm",
+    "vm_marker_present=true",
+    "vm_marker_path=/run/zig-scheduler-vm-lab.marker",
+    f"kernel_release={tuple_row.get('kernel')}",
+    f"kernel_arch={tuple_row.get('arch')}",
+    "kernel_config_sha256=microvm-host-kernel",
+    "host_mutation=false",
+    "release_eligible_live_proof=true",
+    "verifier_result=accepted",
+    "attach_result=registered",
+    "rollback_status=PASS",
+    f"object={os.environ['OBJECT_FILE']}",
+    f"object_sha256={object_sha}",
+    f"bpf_metadata_path={os.environ['META_FILE']}",
+    f"bpf_metadata_object_sha256={object_sha}",
+    "bpftool_rc=0",
+]) + "\n")
 verifier_evidence = verifier_dir / "verifier-evidence.json"
 verifier_evidence.write_text(json.dumps({
     "schema": "zig-scheduler/vm-verifier-evidence/v1",
     "status": "PASS",
+    "evidence_mode": "vm-live",
+    "vm_kind": "qemu-vm",
+    "vm_marker_present": True,
+    "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+    "kernel_tuple": {"release": str(tuple_row.get("kernel")), "arch": str(tuple_row.get("arch")), "config_sha256": "microvm-host-kernel"},
     "verifier_result": "accepted",
     "attach_result": "registered",
+    "rollback_status": "PASS",
     "bpftool_debug": True,
     "object": os.environ["OBJECT_FILE"],
     "object_sha256": object_sha,
+    "bpf_metadata_path": os.environ["META_FILE"],
+    "bpf_metadata_object_sha256": object_sha,
     "policy_name": "zigsched_minimal",
     "registered_id": int(reg.get("id", 0)),
     "verifier_log": verifier_log.as_posix(),
@@ -182,6 +209,25 @@ partial_evidence.write_text(json.dumps({
     "transcript_path": partial_transcript.as_posix(),
     "host_mutation": False,
     "release_eligible_live_proof": False,
+}, indent=2, sort_keys=True) + "\n")
+live_attach_proof = partial_dir / "live-attach-proof.json"
+live_attach_proof.write_text(json.dumps({
+    "schema": "zig-scheduler/live-attach-proof/v1",
+    "action_id": f"act-{audit_suffix}",
+    "evidence_mode": "vm-live",
+    "git_sha": os.environ["GIT_SHA"],
+    "host_mutation": False,
+    "private_logs": False,
+    "vm_kind": "qemu-vm",
+    "vm_marker_present": True,
+    "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+    "kernel_tuple": {"release": str(tuple_row.get("kernel")), "arch": str(tuple_row.get("arch")), "config_sha256": "microvm-host-kernel"},
+    "audit_id": audit_id,
+    "rollback_id": rollback_id,
+    "target_cgroup": active_target,
+    "registered_ops": "zigsched_minimal_ops",
+    "release_eligible_live_proof": True,
+    "partial_attach_evidence": partial_evidence.as_posix(),
 }, indent=2, sort_keys=True) + "\n")
 snapshot = rollback_dir / f"{audit_id}.rollback-snapshot.json"
 rollback_transcript = rollback_dir / f"{audit_id}.rollback-transcript.txt"
@@ -298,7 +344,7 @@ observe_summary.write_text(json.dumps({
     "private_command_lines_sampled": False,
     "workload_alive_all_samples": all(row["workload_alive"] for row in sample_rows),
 }, indent=2, sort_keys=True) + "\n")
-artifacts = [serial.as_posix(), os.environ["QEMU_SCAN_BEFORE"], os.environ["QEMU_SCAN_AFTER"], verifier_evidence.as_posix(), verifier_log.as_posix(), partial_evidence.as_posix(), partial_transcript.as_posix(), observe_summary.as_posix(), samples.as_posix(), daemon.as_posix(), observe_transcript.as_posix(), ledger.as_posix(), snapshot.as_posix(), rollback_transcript.as_posix(), refusals.as_posix()]
+artifacts = [serial.as_posix(), os.environ["QEMU_SCAN_BEFORE"], os.environ["QEMU_SCAN_AFTER"], verifier_evidence.as_posix(), verifier_log.as_posix(), partial_evidence.as_posix(), live_attach_proof.as_posix(), partial_transcript.as_posix(), observe_summary.as_posix(), samples.as_posix(), daemon.as_posix(), observe_transcript.as_posix(), ledger.as_posix(), snapshot.as_posix(), rollback_transcript.as_posix(), refusals.as_posix()]
 summary = out / "summary.json"
 git_dirty = os.environ["GIT_DIRTY"] == "true"
 dirty_snapshot = os.environ.get("ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA", "")

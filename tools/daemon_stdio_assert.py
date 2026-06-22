@@ -38,6 +38,7 @@ class Field(StrEnum):
 
 class Mode(StrEnum):
     LIFECYCLE_SUCCESS = "lifecycle-success"
+    LIFECYCLE_FIXTURE_REJECTED = "lifecycle-fixture-rejected"
     LOST_STREAM = "lost-stream"
     TIMEOUT = "timeout"
     INCIDENT_DRILL = "incident-drill"
@@ -237,6 +238,13 @@ def assert_mode(rows: list[DaemonRow], mode: Mode) -> None:
     match mode:
         case Mode.LIFECYCLE_SUCCESS:
             assert_lifecycle_success(rows)
+        case Mode.LIFECYCLE_FIXTURE_REJECTED:
+            if not has(rows, event="incident", reason="live_bundle_rejected"):
+                fail("fixture live bundle was not rejected")
+            if not has(rows, event="stage_finished", status="INCIDENT", state="unsafe_to_assume"):
+                fail("fixture live bundle did not terminate as INCIDENT")
+            if has(rows, event="stage_finished", status="PASS", state="vm_live_complete"):
+                fail("fixture live bundle emitted vm_live_complete PASS")
         case Mode.LOST_STREAM | Mode.TIMEOUT:
             assert_incident_terminal(rows)
         case Mode.INCIDENT_DRILL:

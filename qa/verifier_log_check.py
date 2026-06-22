@@ -22,6 +22,8 @@ from typing import Final, Literal, TypeAlias
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
+from qa.verifier_refusal_check import VerifierRefusalError, parse_refusal_evidence
+from qa.verifier_vm_check import VM_EVIDENCE_SCHEMA, VMVerifierError, parse_vm_evidence, parse_vm_live_log
 
 Status: TypeAlias = Literal["PASS", "SKIP", "FAIL", "REFUSE"]
 
@@ -161,7 +163,14 @@ def status_from(reason: str) -> Status:
 
 
 def parse_log(path: Path) -> JsonObject:
-    parsed = parse_lines(path.read_text())
+    text = path.read_text()
+    parsed = parse_lines(text)
+    try:
+        vm_live_result = parse_vm_live_log(path, parsed.values, text)
+    except VMVerifierError as exc:
+        raise VerifierLogError(str(exc)) from exc
+    if vm_live_result is not None:
+        return vm_live_result
     reason = reason_from(parsed)
     status = status_from(reason)
     verifier_errors: list[JsonValue] = [error for error in parsed.errors]
@@ -192,6 +201,11 @@ def parse_log(path: Path) -> JsonObject:
 
 def parse_evidence(path: Path) -> JsonObject:
     raw: JsonValue = json.loads(path.read_text())
+    if isinstance(raw, dict) and raw.get("schema") == VM_EVIDENCE_SCHEMA:
+        try:
+            return parse_vm_evidence(path, raw)
+        except VMVerifierError as exc:
+            raise VerifierLogError(str(exc)) from exc
     if not isinstance(raw, dict) or raw.get("schema") != EVIDENCE_SCHEMA:
         raise VerifierLogError("JSON input is not verifier-only evidence")
     if raw.get("host_mutation") is not False:
@@ -238,26 +252,10 @@ def require_text(data: JsonObject, field: str) -> str:
 
 
 def parse_refusal(path: Path, allow_refusal: bool) -> JsonObject:
-    raw: JsonValue = json.loads(path.read_text())
-    if not isinstance(raw, dict) or raw.get("schema") != REFUSAL_SCHEMA:
-        raise VerifierLogError("JSON input is not a verifier refusal")
-    if not allow_refusal:
-        raise VerifierLogError("host refusal evidence requires --allow-refusal")
-    if raw.get("host_mutation") is not False:
-        raise VerifierLogError("refusal evidence must have host_mutation=false")
-    return {
-        "schema": SCHEMA,
-        "status": "REFUSE",
-        "reason": str(raw.get("reason", "UNKNOWN_REFUSAL")),
-        "input": path.as_posix(),
-        "object": str(raw.get("object", "")),
-        "object_sha256": str(raw.get("object_sha256", "")),
-        "bpf_metadata_path": str(raw.get("bpf_metadata_path", "")),
-        "bpf_metadata_object_sha256": str(raw.get("bpf_metadata_object_sha256", "")),
-        "bpftool_rc": None,
-        "verifier_errors": [],
-        "host_mutation": False,
-    }
+    try:
+        return parse_refusal_evidence(path, allow_refusal)
+    except VerifierRefusalError as exc:
+        raise VerifierLogError(str(exc)) from exc
 
 
 def parse_input(path: Path, allow_refusal: bool) -> JsonObject:
