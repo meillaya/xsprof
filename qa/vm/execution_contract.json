@@ -1,10 +1,13 @@
 {
   "schema": "zig-scheduler/vm-execution-contract/v1",
-  "status": "implemented-fixture-gated",
+  "status": "implemented-disposable-vm-runner",
   "host_mutation": false,
   "modes": [
+    "auto",
+    "execute",
+    "host-safe",
     "read-only-smoke",
-    "execute"
+    "vm-required"
   ],
   "inputs": {
     "image": {
@@ -160,12 +163,13 @@
   "backend_entrypoint": {
     "build_target": "vm-lab-backend",
     "command": "zig build vm-lab-backend",
-    "implementation_status": "specified-not-implemented",
+    "implementation_status": "implemented-disposable-vm-runner",
     "implementation_task": "Task 8",
     "help_command": "zig build vm-lab-backend -- --help",
     "vm_required_command": "zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>",
     "default_out": "evidence/lab/vm-backend-final",
-    "host_default": "fail-closed-no-attach"
+    "host_default": "fail-closed-no-attach",
+    "event_jsonl": "daemon-events.jsonl"
   },
   "trusted_qemu_discovery": {
     "script": "qa/vm/qemu_discovery.sh",
@@ -247,7 +251,8 @@
       "summary.json"
     ],
     "host_mutation_required_value": false,
-    "fixture_release_eligible": false
+    "fixture_release_eligible": false,
+    "backend_event_jsonl": "evidence/lab/<run-id>/daemon-events.jsonl"
   },
   "event_schemas": {
     "transcript_index": "zig-scheduler/vm-transcript-index/v1",

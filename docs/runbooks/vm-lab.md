@@ -79,13 +79,14 @@ Task 3 fixes the contract before any downstream VM implementation depends on wor
 
 ### Backend entrypoint name
 
-The backend operator surface is named now but is implemented later: `zig build vm-lab-backend`. Its VM-required form is:
+The backend operator surface is `zig build vm-lab-backend`. It is a fail-closed disposable VM runner: host-side code stages the BPF object, metadata, and guest scripts, validates trusted QEMU/KVM/kernel prerequisites, emits `daemon-events.jsonl`, and refuses missing VM prerequisites without host mutation. Its VM-required form is:
 
 ```bash
 zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>
+python3 qa/daemon_event_contract_check.py --input evidence/lab/<run-id>/daemon-events.jsonl --require-lifecycle
 ```
 
-Until Task 8 wires that target into `build.zig`, any implementation must remain fail-closed and must not attach or load a scheduler on the host. The default release evidence directory for the final backend run is `evidence/lab/vm-backend-final`; run-all summaries belong under `evidence/lab/run-all/vm-backend-final/summary.json`; release current-run gate evidence belongs under `evidence/releases/0.2.0-lab-runall/current`.
+The target is wired through `build.zig` and remains fail-closed on the host: any attach/register/unregister work must occur only after the disposable VM marker and tuple gates are observed inside the VM. The default release evidence directory for the final backend run is `evidence/lab/vm-backend-final`; run-all summaries belong under `evidence/lab/run-all/vm-backend-final/summary.json`; release current-run gate evidence belongs under `evidence/releases/0.2.0-lab-runall/current`.
 
 ### Exact VM inputs and tuple gates
 

@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, daemon_exe, "daemon", "Run disabled-safe foreground scheduler daemon", .{});
     const daemon_stdio_step = addDaemonStdioStep(b, daemon_exe);
     addBpfStep(b);
+    addVmLabBackendStep(b);
     addPackageStep(b);
 
     const test_step = b.step("test", "Run root Linux scheduler safety tests");
@@ -56,10 +57,23 @@ fn addDaemonStdioStep(b: *Build, daemon_exe: *Compile) *Build.Step {
 
 fn addBpfStep(b: *Build) void {
     const bpf_build = b.addSystemCommand(&.{"bash"});
+    bpf_build.has_side_effects = true;
     bpf_build.addFileArg(b.path("tools/build_bpf.sh"));
 
     const bpf_step = b.step("bpf", "Build sched_ext BPF object skeleton or record explicit SKIP");
     bpf_step.dependOn(&bpf_build.step);
+}
+
+fn addVmLabBackendStep(b: *Build) void {
+    const vm_lab_backend = b.addSystemCommand(&.{"bash"});
+    vm_lab_backend.has_side_effects = true;
+    vm_lab_backend.addFileArg(b.path("qa/vm/vm_lab_backend.sh"));
+    if (b.args) |args| {
+        vm_lab_backend.addArgs(args);
+    }
+
+    const vm_lab_backend_step = b.step("vm-lab-backend", "Run fail-closed disposable VM backend lab harness");
+    vm_lab_backend_step.dependOn(&vm_lab_backend.step);
 }
 
 fn addPackageStep(b: *Build) void {

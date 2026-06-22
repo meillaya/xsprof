@@ -21,13 +21,15 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"FAIL contract: {message}")
 
 require(contract.get("schema") == "zig-scheduler/vm-execution-contract/v1", "schema mismatch")
-require(contract.get("status") in {"specified-not-implemented", "implemented-fixture-gated"}, "status must avoid production claim")
+require(contract.get("status") in {"specified-not-implemented", "implemented-fixture-gated", "implemented-disposable-vm-runner"}, "status must avoid production claim")
 require(contract.get("host_mutation") is False, "contract must be host_mutation=false")
 require("execute" in contract.get("modes", []), "execute mode missing from contract")
+for mode_name in ("host-safe", "auto", "vm-required"):
+    require(mode_name in contract.get("modes", []), f"backend mode missing {mode_name}")
 backend = contract.get("backend_entrypoint", {})
 require(backend.get("build_target") == "vm-lab-backend", "backend build target must be vm-lab-backend")
 require(backend.get("command") == "zig build vm-lab-backend", "backend command must be zig build vm-lab-backend")
-require(backend.get("implementation_status") == "specified-not-implemented", "backend target must be specified before implementation")
+require(backend.get("implementation_status") in {"specified-not-implemented", "implemented-disposable-vm-runner"}, "backend implementation status mismatch")
 require(backend.get("vm_required_command") == "zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>", "vm-required backend command shape mismatch")
 qemu = contract.get("trusted_qemu_discovery", {})
 require(qemu.get("script") == "qa/vm/qemu_discovery.sh", "trusted qemu discovery script mismatch")
@@ -82,6 +84,7 @@ required_fields = set(manifest.get("required_fields", []))
 for field in ("git_sha", "host_mutation", "vm_marker", "cleanup_receipt", "transcript_path"):
     require(field in required_fields, f"artifact manifest missing {field}")
 require(evidence.get("backend_default_out") == "evidence/lab/vm-backend-final", "backend default evidence path mismatch")
+require(evidence.get("backend_event_jsonl") == "evidence/lab/<run-id>/daemon-events.jsonl", "backend event JSONL path mismatch")
 require(evidence.get("fixture_release_eligible") is False, "fixture evidence must not be release eligible")
 events = contract.get("event_schemas", {})
 for name, schema in {
@@ -108,6 +111,9 @@ require(gate.get("execute_mode_before_t15") == "refuse" or gate.get("execute_mod
 run_lab = Path("qa/vm/run_lab.sh").read_text()
 require("execute" in run_lab, "run_lab.sh does not document/accept execute mode")
 require("VM_CONFIG_REQUIRED" in run_lab, "run_lab.sh does not require explicit execute config")
+backend_runner = Path("qa/vm/vm_lab_backend.sh").read_text()
+for required_text in ("daemon-events.jsonl", "vm-required", "qemu_discovery", "zig-out/bpf/zigsched_minimal.bpf.meta.json", "/run/zig-scheduler-vm-lab.marker"):
+    require(required_text in backend_runner, f"backend runner missing {required_text}")
 qemu_discovery = Path("qa/vm/qemu_discovery.sh").read_text()
 qemu_refuse_paths = set(qemu.get("refuse_paths", []))
 for refused in ("relative paths", "/home/*", "/tmp/*", "/var/tmp/*", "/dev/shm/*", "paths containing traversal components", "*/.zig-cache/*", "*/.omo/*", "*/.omx/*"):
