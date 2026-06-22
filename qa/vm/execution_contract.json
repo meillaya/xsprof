@@ -57,7 +57,21 @@
       "path": "zig-out/bpf/zigsched_minimal.bpf.o",
       "metadata": "zig-out/bpf/zigsched_minimal.bpf.meta.json",
       "build_command": "zig build bpf",
-      "skip_is_release_eligible": false
+      "skip_is_release_eligible": false,
+      "required_metadata_fields": [
+        "policy_name",
+        "object_hash",
+        "tuple",
+        "tool_versions",
+        "struct_ops",
+        "vm_only",
+        "vm_marker_required",
+        "host_mutation",
+        "host_attach_allowed"
+      ],
+      "metadata_schema": "zig-scheduler/bpf-object-metadata/v1",
+      "skip_schema": "zig-scheduler/bpf-build-skip/v1",
+      "vm_marker_required": "/run/zig-scheduler-vm-lab.marker"
     }
   },
   "guest_marker": {
@@ -67,6 +81,7 @@
   },
   "copy_in": [
     "zig-out/bpf/zigsched_minimal.bpf.o",
+    "zig-out/bpf/zigsched_minimal.bpf.meta.json",
     "qa/vm/verifier_only.sh",
     "qa/vm/partial_attach.sh",
     "qa/vm/observe_partial.sh",

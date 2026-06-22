@@ -14,6 +14,19 @@ cc="${CLANG:-clang}"
 
 mkdir -p "$out_dir"
 
+probe_c=""
+probe_o=""
+tmp_object=""
+tmp_meta=""
+cleanup_temps() {
+  rm -f \
+    ${probe_c:+"$probe_c"} \
+    ${probe_o:+"$probe_o"} \
+    ${tmp_object:+"$tmp_object"} \
+    ${tmp_meta:+"$tmp_meta"}
+}
+trap cleanup_temps EXIT
+
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'
@@ -24,60 +37,197 @@ sha256_file() {
   fi
 }
 
-clang_version() {
-  if command -v "$cc" >/dev/null 2>&1; then
-    "$cc" --version | head -n 1
-  else
+first_line_or_unavailable() {
+  if ! command -v "$1" >/dev/null 2>&1; then
     printf 'unavailable'
+    return
   fi
+  local output
+  output="$({ "$@"; } 2>&1 || true)"
+  printf '%s\n' "$output" | sed -n '1p'
+}
+
+clang_version() {
+  first_line_or_unavailable "$cc" --version
+}
+
+command_path_or_unavailable() {
+  command -v "$1" 2>/dev/null || printf 'unavailable'
+}
+
+bpftool_version() {
+  first_line_or_unavailable bpftool version
+}
+
+llvm_objdump_version() {
+  first_line_or_unavailable llvm-objdump --version
+}
+
+file_version() {
+  first_line_or_unavailable file --version
+}
+
+metadata_common_env() {
+  SOURCE_SHA="$(sha256_file "$source_file")" \
+  CLANG_VERSION="$(clang_version)" \
+  CLANG_PATH="$(command_path_or_unavailable "$cc")" \
+  LLVM_OBJDUMP_VERSION="$(llvm_objdump_version)" \
+  BPFT_VERSION="$(bpftool_version)" \
+  FILE_VERSION="$(file_version)" \
+  HOST_ARCH="$(uname -m 2>/dev/null || printf unavailable)" \
+  HOST_KERNEL_RELEASE="$(uname -r 2>/dev/null || printf unavailable)" \
+  ZIG_VERSION="$(zig version 2>/dev/null || printf unavailable)" \
+  VM_CONTRACT="qa/vm/execution_contract.json" \
+  VM_MARKER="/run/zig-scheduler-vm-lab.marker" \
+  SOURCE_FILE="bpf/zigsched_minimal.bpf.c" \
+  POLICY_NAME="zigsched_minimal" \
+  POLICY_SYMBOL="zigsched_minimal_ops" \
+  STRUCT_OPS_SWITCH_MODE="SCX_OPS_SWITCH_PARTIAL" \
+  TARGET_DEFINE="__TARGET_ARCH_x86" \
+  "$@"
 }
 
 write_skip_json() {
   local reason="$1"
-  REASON="$reason" SOURCE_FILE="bpf/zigsched_minimal.bpf.c" SOURCE_SHA="$(sha256_file "$source_file")" \
-  CLANG_VERSION="$(clang_version)" TARGET_ARCH="bpf" SKIP_FILE="zig-out/bpf/zigsched_minimal.bpf.skip.txt" python3 - <<'PY' > "$skip_json"
+  REASON="$reason" SKIP_FILE="zig-out/bpf/zigsched_minimal.bpf.skip.txt" \
+  metadata_common_env python3 - <<'PY' > "$skip_json"
 import json
 import os
 
+policy_name = os.environ["POLICY_NAME"]
+policy_symbol = os.environ["POLICY_SYMBOL"]
 print(json.dumps({
     "schema": "zig-scheduler/bpf-build-skip/v1",
     "status": "SKIP",
+    "artifact_kind": "sched_ext_struct_ops_policy_skip",
+    "policy_name": policy_name,
+    "policy_symbol": policy_symbol,
     "reason": os.environ["REASON"],
+    "object": None,
+    "object_hash": None,
+    "object_sha256": None,
     "source": os.environ["SOURCE_FILE"],
+    "source_hash": "sha256:" + os.environ["SOURCE_SHA"],
     "source_sha256": os.environ["SOURCE_SHA"],
-    "clang_version": os.environ["CLANG_VERSION"],
-    "target_arch": os.environ["TARGET_ARCH"],
+    "tuple": {
+        "target_arch": "bpf",
+        "target_define": os.environ["TARGET_DEFINE"],
+        "host_arch": os.environ["HOST_ARCH"],
+        "host_kernel_release": os.environ["HOST_KERNEL_RELEASE"],
+        "vm_required_for_attach": True,
+        "vm_contract": os.environ["VM_CONTRACT"],
+    },
+    "tool_versions": {
+        "clang": os.environ["CLANG_VERSION"],
+        "clang_path": os.environ["CLANG_PATH"],
+        "llvm_objdump": os.environ["LLVM_OBJDUMP_VERSION"],
+        "bpftool": os.environ["BPFT_VERSION"],
+        "file": os.environ["FILE_VERSION"],
+        "zig": os.environ["ZIG_VERSION"],
+    },
+    "target_arch": "bpf",
     "btf": "unavailable-build-skipped",
     "policy_mode": "minimal-partial-switch",
+    "struct_ops": {
+        "policy_name": policy_name,
+        "object_name": policy_symbol,
+        "scheduler_name": policy_name,
+        "object_section": ".struct_ops",
+        "program_sections": [
+            "struct_ops.s/zigsched_minimal_init",
+            "struct_ops/zigsched_minimal_enqueue",
+            "struct_ops/zigsched_minimal_dispatch",
+        ],
+        "expected_callbacks": ["init", "enqueue", "dispatch"],
+        "expected_switch_mode": os.environ["STRUCT_OPS_SWITCH_MODE"],
+        "prohibited_switch_modes": ["SCX_OPS_SWITCH_ALL"],
+    },
+    "sched_ext_switch_mode": os.environ["STRUCT_OPS_SWITCH_MODE"],
     "expected_verifier_object": None,
+    "vm_only": True,
+    "vm_marker_required": os.environ["VM_MARKER"],
+    "vm_contract": os.environ["VM_CONTRACT"],
+    "host_mutation": False,
+    "host_attach_allowed": False,
     "skip_text_path": os.environ["SKIP_FILE"],
+    "release_eligible": False,
+    "skip_is_release_eligible": False,
     "verification_claimed": False,
 }, indent=2, sort_keys=True))
 PY
 }
 
 write_meta_json() {
-  OBJECT_SHA="$(sha256_file "$object_file")" SOURCE_SHA="$(sha256_file "$source_file")" \
-  CLANG_VERSION="$(clang_version)" OBJECT_FILE="zig-out/bpf/zigsched_minimal.bpf.o" SOURCE_FILE="bpf/zigsched_minimal.bpf.c" python3 - <<'PY' > "$meta_file"
+  local object_input="${1:-$object_file}"
+  local meta_output="${2:-$meta_file}"
+  OBJECT_SHA="$(sha256_file "$object_input")" OBJECT_FILE="zig-out/bpf/zigsched_minimal.bpf.o" \
+  metadata_common_env python3 - <<'PY' > "$meta_output"
 import json
 import os
 
+object_sha = os.environ["OBJECT_SHA"]
+policy_name = os.environ["POLICY_NAME"]
+policy_symbol = os.environ["POLICY_SYMBOL"]
 print(json.dumps({
     "schema": "zig-scheduler/bpf-object-metadata/v1",
     "status": "built",
+    "artifact_kind": "sched_ext_struct_ops_policy_object",
+    "policy_name": policy_name,
+    "policy_symbol": policy_symbol,
     "object": os.environ["OBJECT_FILE"],
-    "object_sha256": os.environ["OBJECT_SHA"],
+    "object_hash": "sha256:" + object_sha,
+    "object_sha256": object_sha,
     "source": os.environ["SOURCE_FILE"],
+    "source_hash": "sha256:" + os.environ["SOURCE_SHA"],
     "source_sha256": os.environ["SOURCE_SHA"],
+    "tuple": {
+        "target_arch": "bpf",
+        "target_define": os.environ["TARGET_DEFINE"],
+        "host_arch": os.environ["HOST_ARCH"],
+        "host_kernel_release": os.environ["HOST_KERNEL_RELEASE"],
+        "vm_required_for_attach": True,
+        "vm_contract": os.environ["VM_CONTRACT"],
+    },
+    "tool_versions": {
+        "clang": os.environ["CLANG_VERSION"],
+        "clang_path": os.environ["CLANG_PATH"],
+        "llvm_objdump": os.environ["LLVM_OBJDUMP_VERSION"],
+        "bpftool": os.environ["BPFT_VERSION"],
+        "file": os.environ["FILE_VERSION"],
+        "zig": os.environ["ZIG_VERSION"],
+    },
     "clang_version": os.environ["CLANG_VERSION"],
     "target_arch": "bpf",
     "btf": "enabled",
     "policy_mode": "minimal-partial-switch",
-    "sched_ext_switch_mode": "SCX_OPS_SWITCH_PARTIAL",
+    "struct_ops": {
+        "policy_name": policy_name,
+        "object_name": policy_symbol,
+        "scheduler_name": policy_name,
+        "object_section": ".struct_ops",
+        "program_sections": [
+            "struct_ops.s/zigsched_minimal_init",
+            "struct_ops/zigsched_minimal_enqueue",
+            "struct_ops/zigsched_minimal_dispatch",
+        ],
+        "expected_callbacks": ["init", "enqueue", "dispatch"],
+        "expected_switch_mode": os.environ["STRUCT_OPS_SWITCH_MODE"],
+        "prohibited_switch_modes": ["SCX_OPS_SWITCH_ALL"],
+    },
+    "sched_ext_switch_mode": os.environ["STRUCT_OPS_SWITCH_MODE"],
     "expected_verifier_object": os.environ["OBJECT_FILE"],
+    "vm_only": True,
+    "vm_marker_required": os.environ["VM_MARKER"],
+    "vm_contract": os.environ["VM_CONTRACT"],
+    "host_mutation": False,
+    "host_attach_allowed": False,
     "verification_claimed": False,
 }, indent=2, sort_keys=True))
 PY
+}
+
+clean_canonical_outputs() {
+  rm -f "$object_file" "$meta_file" "$skip_file" "$skip_json"
 }
 
 skip() {
@@ -95,7 +245,6 @@ fi
 
 probe_c="$(mktemp "${TMPDIR:-/tmp}/zigsched-bpf-probe.XXXXXX.c")"
 probe_o="$(mktemp "${TMPDIR:-/tmp}/zigsched-bpf-probe.XXXXXX.o")"
-trap 'rm -f "$probe_c" "$probe_o"' EXIT
 cat >"$probe_c" <<'PROBE'
 char _license[] __attribute__((section("license"), used)) = "GPL";
 int zigsched_probe(void *ctx) { (void)ctx; return 0; }
@@ -105,14 +254,48 @@ if ! "$cc" -target bpf -O2 -c "$probe_c" -o "$probe_o" >"$log_file" 2>&1; then
   skip "clang cannot emit -target bpf objects; see $log_file"
 fi
 
-rm -f "$skip_file" "$skip_json" "$meta_file"
-"$cc" -target bpf -D__TARGET_ARCH_x86 -O2 -g -Wall -Wextra \
+tmp_object="$(mktemp "$out_dir/.zigsched_minimal.bpf.o.XXXXXX")"
+tmp_meta="$(mktemp "$out_dir/.zigsched_minimal.bpf.meta.json.XXXXXX")"
+
+if "$cc" -target bpf -D__TARGET_ARCH_x86 -O2 -g -Wall -Wextra \
   -ffile-prefix-map="$repo_root=." \
   -I "$repo_root/bpf/include" \
   -c "$source_file" \
-  -o "$object_file" >"$log_file" 2>&1
+  -o "$tmp_object" >"$log_file" 2>&1; then
+  :
+else
+  compile_rc=$?
+  clean_canonical_outputs
+  printf 'FAIL: BPF compile failed; canonical object/metadata/skip outputs removed; see %s\n' "$log_file" >&2
+  exit "$compile_rc"
+fi
 
-write_meta_json
+if write_meta_json "$tmp_object" "$tmp_meta"; then
+  :
+else
+  meta_rc=$?
+  clean_canonical_outputs
+  printf 'FAIL: BPF metadata generation failed; canonical outputs removed\n' >&2
+  exit "$meta_rc"
+fi
+
+rm -f "$skip_file" "$skip_json"
+if mv -f "$tmp_object" "$object_file"; then
+  tmp_object=""
+else
+  install_rc=$?
+  clean_canonical_outputs
+  printf 'FAIL: could not install BPF object; canonical outputs removed\n' >&2
+  exit "$install_rc"
+fi
+if mv -f "$tmp_meta" "$meta_file"; then
+  tmp_meta=""
+else
+  install_rc=$?
+  clean_canonical_outputs
+  printf 'FAIL: could not install BPF metadata; canonical outputs removed\n' >&2
+  exit "$install_rc"
+fi
 
 printf 'BPF object: %s\n' "$object_file"
 printf 'BPF metadata: %s\n' "$meta_file"

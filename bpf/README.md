@@ -40,6 +40,11 @@ eligibility require object metadata and verifier evidence in later lab tasks. Th
 repository still exposes no host command that attaches or registers the scheduler.
 Hazardous scheduler lifecycle work belongs in disposable VM lab steps, not in this
 host build target.
+
 ## Ownership boundary
 
 For the production-backend VM scheduler milestone, the kernel policy remains C/clang-owned. `bpf/zigsched_minimal.bpf.c` is compiled with clang for the `bpf` target because sched_ext `struct_ops`, verifier expectations, helper declarations, and kernel ABI compatibility are C/libbpf-shaped interfaces. Zig owns the orchestration around that artifact: `zig build bpf`, the future `zig build vm-lab-backend` entrypoint, metadata validation, VM evidence checks, packaging, and release gates. This boundary is intentional; do not rewrite the kernel BPF program in Zig or add a host attach path without a new explicit scope decision.
+
+## Build metadata contract
+
+`zig build bpf` emits `zig-out/bpf/zigsched_minimal.bpf.meta.json` for a built object, or `zig-out/bpf/zigsched_minimal.bpf.skip.json` when local clang/BPF prerequisites are absent. Both forms preserve the VM-only boundary with `host_mutation=false`, `host_attach_allowed=false`, and `vm_marker_required=/run/zig-scheduler-vm-lab.marker`. Built metadata includes `policy_name`, `object_hash`, `tuple`, `tool_versions`, and `struct_ops` fields so VM-only verifier stages can reject stale or mismatched artifacts before attempting any BPF verifier work.
