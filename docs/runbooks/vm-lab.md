@@ -1,6 +1,6 @@
 # Disposable VM Lab Runbook
 
-The VM lab is the only place where future sched_ext verifier and attach experiments may occur. The current root harness is fail-closed on ordinary developer hosts and may return `SKIP` or `REFUSE` instead of claiming success.
+The VM lab is the only place where sched_ext verifier and attach experiments may occur for the VM/lab backend milestone. The current root harness is fail-closed on ordinary developer hosts and may return `SKIP` or `REFUSE` instead of claiming success.
 
 ## Required properties
 
@@ -9,6 +9,11 @@ The VM lab is the only place where future sched_ext verifier and attach experime
 - QEMU is launched only through trusted fixed-argv lab scripts or daemon actions.
 - Read-only smoke manifests must include git SHA, Zig version, kernel release, arch, BTF status, mode, and `host_mutation=false`.
 - Missing QEMU/KVM/Nix/bpftool/kernel input is a fail-closed skip or refusal, not a success.
+- Package installs are inert: daemon and mutation-capable units are disabled or
+  condition-refusing by default and require VM marker, config marker, approval
+  evidence, audit id, rollback id, and security review before lab use.
+- Release evidence must include cleanup proof for QEMU/tmux/temp-root residue and
+  must not include frontend/root UI or simulator changes.
 
 ## Operator commands
 
@@ -119,4 +124,8 @@ For final verification after a live VM bundle has been produced from the current
 bash qa/release_gate.sh --version 0.2.0-lab --current-run
 ```
 
-Tracked `evidence/releases/<version>/` evidence remains a curated historical snapshot. Refresh and commit that snapshot only as an intentional release-history update, not as part of final live-bundle freshness proof.
+If the current-run VM-live bundle is missing or stale, the gate writes a SKIP
+summary and exits non-zero. Tracked `evidence/releases/<version>/` evidence
+remains a curated historical snapshot. Refresh and commit that snapshot only as
+an intentional release-history update, not as part of final live-bundle freshness
+proof.

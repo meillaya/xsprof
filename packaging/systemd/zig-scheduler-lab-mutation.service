@@ -9,6 +9,3 @@ ConditionPathExists=/var/lib/zig-scheduler/evidence/current/approval.json
 Type=oneshot
 ExecStart=/usr/bin/zig-scheduler sched-ext attach --lab --partial --target-cgroup /sys/fs/cgroup/zig-scheduler-lab.slice/package.scope --audit-id AUD-20990101T000000Z-deadbee-abc123 --rollback-id RB-package
 NoNewPrivileges=no
-
-[Install]
-# Intentionally no WantedBy: package must not auto-start or auto-enable mutation.

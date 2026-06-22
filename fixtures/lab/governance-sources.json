@@ -1,5 +1,5 @@
 {
-  "generated_for": "next-linux-scheduler-maturity T30",
+  "generated_for": "production-backend-scheduler task 11 VM/lab backend readiness",
   "schema_version": 1,
   "sources": [
     {
@@ -21,22 +21,172 @@
       "sha256": "1f73103468e536989823a95c7cb57ae413e41c27216efe4c78c00437b96737ac"
     },
     {
+      "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
+      "purpose": "sched_ext production claim boundary ADR",
+      "required": true,
+      "sha256": "7c26a0a99d9ece866f1f2741e293bb6f8b90579b84dfcf9d7a08fe3ba39a33c8"
+    },
+    {
+      "path": "docs/adr/0002-loader-architecture.md",
+      "purpose": "loader architecture ADR for lab-scoped backend readiness",
+      "required": true,
+      "sha256": "cfd7fdd3b2c5b55f3193b381a5d2c9dabed15931d6807607fa9dba4234138645"
+    },
+    {
+      "path": "docs/adr/0003-non-vm-operation-gate.md",
+      "purpose": "non-VM operation governance design gate",
+      "required": true,
+      "sha256": "2ab7886d76acc55f131b0d2a6e4cfb3b6c4344591279c6617832db5221ed58fd"
+    },
+    {
+      "path": "docs/backend-capability-matrix.md",
+      "purpose": "backend capability matrix and milestone boundaries",
+      "required": true,
+      "sha256": "7d35b4bdf98f50f47215035673baff06648f2013fd98d26f5a119a0701bd0d45"
+    },
+    {
+      "path": "docs/ci.md",
+      "purpose": "CI gate documentation for lab readiness checks",
+      "required": true,
+      "sha256": "dbae1c21a1ea9142f196a1f9558848ff16a63961927563737e42469346eb2620"
+    },
+    {
+      "path": "docs/releases/governance-gate.md",
+      "purpose": "release governance gate and evidence matrix",
+      "required": true,
+      "sha256": "9d4e1ffa4c9320e436ac1dcce10a269f44adddaad0f1c8399a96c18be872d6f5"
+    },
+    {
+      "path": "docs/releases/supported-kernel-tuples.md",
+      "purpose": "supported VM lab kernel tuple matrix",
+      "required": true,
+      "sha256": "5189dfa4f47507c927a0245ee2b21399a70903e0566ecb163fcfbb77c2e14164"
+    },
+    {
+      "path": "docs/runbooks/sched-ext-fallback.md",
+      "purpose": "sched_ext fallback and rollback runbook",
+      "required": true,
+      "sha256": "db10e71b8baa4beecacf94108db9b5021522c19d243667c3851cb315b9cd08b4"
+    },
+    {
+      "path": "docs/runbooks/verifier-and-incident.md",
+      "purpose": "verifier and incident response runbook",
+      "required": true,
+      "sha256": "daaef551f896ed3d0d88000f679fcce5ec82df56fdd39407e338f424e6395c93"
+    },
+    {
+      "path": "docs/runbooks/vm-lab.md",
+      "purpose": "VM lab runbook for backend readiness evidence",
+      "required": true,
+      "sha256": "720259a33ee44471da51c9f0ef801ac9456486142bca295491f686dab2e099c4"
+    },
+    {
+      "path": "docs/security/review-checklist.md",
+      "purpose": "security signoff and privacy review checklist",
+      "required": true,
+      "sha256": "cc45d0a01c6b1441d6ac500aa77cc8945598282d5f5cd636f6f1d71f16b3254f"
+    },
+    {
+      "path": "docs/security/threat-model.md",
+      "purpose": "scheduler backend threat model",
+      "required": true,
+      "sha256": "1d09152bb0741031f7fcd4399061785775fb0a5b0e8e6928a2d9b7f28b29d89f"
+    },
+    {
+      "path": "packaging/README.md",
+      "purpose": "package operator safety and install scope documentation",
+      "required": true,
+      "sha256": "7f335b6bbaf2782c6ce4e7249464c9c13dba9b9bf32a961102c45a8878a127b7"
+    },
+    {
+      "path": "packaging/build_package.sh",
+      "purpose": "package build source and manifest generator",
+      "required": true,
+      "sha256": "6e3585aac26da2154835aba572d083c029c337c57f7875be78e2d72c8be8c994"
+    },
+    {
+      "path": "packaging/config/default.toml",
+      "purpose": "default package configuration safety posture",
+      "required": true,
+      "sha256": "7101fae67755bb76d1c482f93f71d71e60cfc769fa7f3b6407af9b29a385359f"
+    },
+    {
+      "path": "packaging/systemd/zig-scheduler-daemon.service",
+      "purpose": "daemon systemd unit safety source",
+      "required": true,
+      "sha256": "afb719776ebfc7638f2d5b5515750d8a55e15b65163ebf58289d6366130b26fa"
+    },
+    {
+      "path": "packaging/systemd/zig-scheduler-lab-mutation.service",
+      "purpose": "lab mutation systemd unit safety source",
+      "required": true,
+      "sha256": "07335cc6a761c7a6e929d32ba0ea868e40131957181f94232d317fb4be2397ad"
+    },
+    {
+      "path": "packaging/systemd/zig-scheduler-preflight.service",
+      "purpose": "preflight systemd unit safety source",
+      "required": true,
+      "sha256": "33446da45600296f87ded85c89622fd0e6661766389010abd00aa07858a4ab22"
+    },
+    {
       "path": "qa/clean_archive_check.sh",
       "purpose": "clean archive and fresh clone reproducibility gate",
       "required": true,
       "sha256": "df252c2e5f80f8e9b403c0cc23c4de67b54989f0cfac22b0b4104be120efb3f3"
     },
     {
-      "path": "qa/governance_manifest_check.py",
-      "purpose": "governance manifest schema and tracked-source validator",
+      "path": "qa/backend_capability_matrix_check.py",
+      "purpose": "backend capability matrix contract validator",
       "required": true,
-      "sha256": "b4d38826342e307838c049ac643d6d1b02e2024e63a40b6e71841ff331f6e733"
+      "sha256": "43ad8f115ad978163870e457ed4ec26ded199ae3b0e293ed869c7e11678ab27d"
+    },
+    {
+      "path": "qa/backend_capability_matrix_expected.json",
+      "purpose": "backend capability matrix expected contract source",
+      "required": true,
+      "sha256": "d80dada2f6c861a329f600113c0bf0a8abdbe59dad77886b76d30bb5eb937311"
+    },
+    {
+      "path": "qa/governance_manifest_check.py",
+      "purpose": "governance manifest schema and exact Task 11 source validator",
+      "required": true,
+      "sha256": "4d25182f63da1f132a1d15db9db9ac5bc6e69e7091936695cb19715305f10bf3"
+    },
+    {
+      "path": "qa/no_frontend_root.sh",
+      "purpose": "root frontend and UI artifact exclusion gate",
+      "required": true,
+      "sha256": "db49b544f6a82c2a7f76f4e04e2a5da668bbbf6244f6099a81e1d2b839584373"
+    },
+    {
+      "path": "qa/no_host_mutation.sh",
+      "purpose": "host mutation denial gate",
+      "required": true,
+      "sha256": "07ec52e22f4ed66e5fa73d5d592bc315b57131d5baaba3751ecaa071278f0a93"
+    },
+    {
+      "path": "qa/package_defaults.sh",
+      "purpose": "package default safety inspection gate",
+      "required": true,
+      "sha256": "df82f2a24efbb05c2c5b29ea6e71ad29eac069257ec64fe48c8cdffaba40947c"
+    },
+    {
+      "path": "qa/package_lifecycle_drill.sh",
+      "purpose": "package install upgrade uninstall lifecycle drill",
+      "required": true,
+      "sha256": "40491069532e1a3c6e93d5ae36a324e01691a019a37b83a94d3e480f5254caea"
+    },
+    {
+      "path": "qa/package_manifest_check.py",
+      "purpose": "package manifest semantic safety validator",
+      "required": true,
+      "sha256": "40ab7f6c840e33cff844449528f6ae1d8f34c28c989764955e2532a3b70b82bf"
     },
     {
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "d5887baa9d091433184f2a1b86154882d401f382e98f49bc6edaec2d721f5b9a"
+      "sha256": "e47c9b52290996dcc7f27980963db36c77788cc0a2efafc042e006125ce43dca"
     },
     {
       "path": "qa/security_gate.sh",
@@ -45,100 +195,28 @@
       "sha256": "cec13dad605182429cbabfe695ad9956932792ab2d0b0d8d7dbbcbc232b704dd"
     },
     {
+      "path": "qa/unsafe_cli_matrix.sh",
+      "purpose": "unsafe CLI refusal matrix gate",
+      "required": true,
+      "sha256": "edd4e1d61fb6be9771ff87c77cff921352dcfc7508e14df781f2d7c87a0e7f10"
+    },
+    {
       "path": "qa/wording_audit.sh",
       "purpose": "wording, contradiction, and prompt-injection audit gate",
       "required": true,
       "sha256": "43c64b0d2c4ac551ce7cb6adcc194c2082933b3c4927f0039e97f7c18589bea3"
     },
     {
-      "path": "packaging/systemd/zig-scheduler-lab-mutation.service",
-      "purpose": "systemd packaging safety source",
+      "path": "qa/vm/contract_check.sh",
+      "purpose": "disposable VM execution contract validator",
       "required": true,
-      "sha256": "e406d966bd60080868412352d2d1005f31f29e92c107de6db172f075f109f102"
-    },
-    {
-      "path": "packaging/systemd/zig-scheduler-preflight.service",
-      "purpose": "systemd packaging safety source",
-      "required": true,
-      "sha256": "33446da45600296f87ded85c89622fd0e6661766389010abd00aa07858a4ab22"
-    },
-    {
-      "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "e1c71765b8c7cd70a7fed11382a748dcddbe855ba1dcbe9cccd673be4460154f"
-    },
-    {
-      "path": "docs/adr/0002-loader-architecture.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "c1319b6898c00e0d5460a1aa14427792c9ca5ec9a445088a9ccf16b7db084d0a"
-    },
-    {
-      "path": "docs/ci.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "dbae1c21a1ea9142f196a1f9558848ff16a63961927563737e42469346eb2620"
-    },
-    {
-      "path": "docs/releases/governance-gate.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "8c9813bab0b1d403513dfd988129a8edeb72a3142b2625f70816763f584ecf64"
-    },
-    {
-      "path": "docs/releases/supported-kernel-tuples.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "2021d536764c86de315bec8f1b530b4e25a282f69eb493d7399cdd06300cfec9"
-    },
-    {
-      "path": "docs/runbooks/sched-ext-fallback.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "db10e71b8baa4beecacf94108db9b5021522c19d243667c3851cb315b9cd08b4"
-    },
-    {
-      "path": "docs/runbooks/verifier-and-incident.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "daaef551f896ed3d0d88000f679fcce5ec82df56fdd39407e338f424e6395c93"
-    },
-    {
-      "path": "docs/runbooks/vm-lab.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "63937e4edb74af930ae1392aea097dc7a2604ba6fb8c291eee41ba60ba47323f"
-    },
-    {
-      "path": "docs/security/review-checklist.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "019950561ff0f5005bcb1c78c094b96981150603ab11b945f1557dc84abec93a"
-    },
-    {
-      "path": "docs/security/threat-model.md",
-      "purpose": "tracked governance documentation source",
-      "required": true,
-      "sha256": "437a6a4578926f4faf48aee023ab7381ef0b53bc27001719ec19be0a15edd5b0"
+      "sha256": "731cf16bc08f4090d4421c682decc1aacdb47ae2e9a261c9cae831e6c5e01acd"
     },
     {
       "path": "qa/vm/execution_contract.json",
       "purpose": "disposable VM execution contract source",
       "required": true,
-      "sha256": "28b8bd9b51f632ea1550ea333d275a79437ab1d9b54c6c1011f93bc659b35273"
-    },
-    {
-      "path": "qa/vm/contract_check.sh",
-      "purpose": "disposable VM execution contract validator",
-      "required": true,
-      "sha256": "aad4a8f960ceb8e9e978e6dcb1aca96cfaa39e3d75ad41471adf9ec5342935e0"
-    },
-    {
-      "path": "docs/adr/0003-non-vm-operation-gate.md",
-      "purpose": "tracked non-VM operation governance design gate",
-      "required": true,
-      "sha256": "0d954bb4679a378ad7a04060b05896794471cda85685f3679a205ef4a201c33b"
+      "sha256": "1096366fde8103f9fa38413d2eb77082867ee0b4669a2048071e8e60ba1973ae"
     }
   ]
 }

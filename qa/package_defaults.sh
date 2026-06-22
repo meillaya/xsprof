@@ -30,6 +30,9 @@ grep -q '^scheduler = "none"' "$config" || fail 'default scheduler must be none'
 grep -q '^auto_start_scheduler = false' "$config" || fail 'auto-start must be false'
 grep -q '^mutation_service_enabled = false' "$config" || fail 'mutation service default must be false'
 grep -q '^control_daemon_enabled = false' "$config" || fail 'daemon service default must be false'
+grep -q '^release_scope = "vm-lab-backend-only"' "$config" || fail 'release scope must be VM/lab backend only'
+grep -q '^production_ready = false' "$config" || fail 'package default must not claim production readiness'
+grep -q '^arbitrary_host_safe = false' "$config" || fail 'package default must not claim arbitrary-host safety'
 grep -q '^ExecStart=/usr/bin/zig-scheduler-daemon --foreground --state-dir daemon$' "$daemon" || fail 'daemon service must use foreground daemon command'
 grep -q '^NoNewPrivileges=yes$' "$daemon" || fail 'daemon service must keep NoNewPrivileges'
 grep -q '^CapabilityBoundingSet=$' "$daemon" || fail 'daemon service must have empty capabilities'
@@ -43,6 +46,8 @@ grep -q -- '--target-cgroup /sys/fs/cgroup/zig-scheduler-lab.slice/' "$mutation"
 grep -q -- '--audit-id AUD-' "$mutation" || fail 'mutation service ExecStart missing audit id argument'
 grep -q -- '--rollback-id RB-' "$mutation" || fail 'mutation service ExecStart missing rollback id argument'
 if grep -q -- '--config\|--evidence' "$mutation"; then fail 'mutation service ExecStart uses unsupported CLI arguments'; fi
+if grep -q '^\[Install\]' "$mutation"; then fail 'mutation service must not include an install section'; fi
 grep -qi 'must not auto-start' packaging/README.md || fail 'packaging docs missing no auto-start wording'
 grep -qi 'read-only' packaging/README.md || fail 'packaging docs missing read-only default'
+grep -qi 'VM/lab backend milestone defaults only' packaging/README.md || fail 'packaging docs missing VM/lab backend scope'
 printf 'PASS: package defaults are read-only; no auto-start/no mutation by default\n'

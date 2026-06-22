@@ -38,6 +38,8 @@ The only acceptable current non-VM behavior is:
 - package install/upgrade/uninstall checks that do not enable services or start
   mutation-capable units; and
 - evidence validation of disposable VM lab artifacts.
+- release/package gates that prove the VM/lab backend milestone only, with
+  no frontend/root UI artifacts and no simulator changes.
 
 The following are explicitly out of scope in this ADR:
 
@@ -89,6 +91,9 @@ refusing non-VM mutation:
   controlled-lab states for host mutation actions.
 - VM-live artifacts can graduate controlled lab confidence only; they cannot be
   relabeled as non-VM evidence.
+- VM/lab backend package artifacts must be inert outside the disposable lab:
+  mutation-capable systemd units stay disabled/refusing by default and require
+  VM marker, config marker, approval evidence, audit id, and rollback id.
 - Any future non-VM work must add tests that fail if host mutation becomes
   possible without the matrix above.
 - This ADR should be cited by future agents when they are asked to "just run it

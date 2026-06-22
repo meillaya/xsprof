@@ -277,7 +277,7 @@
     {
       "id": "release.no_production_claim",
       "design_claim": "Product says live lab evidence is not a production/fidelity claim.",
-      "backend_obligation": "Docs, CLI, package metadata, and release notes must avoid arbitrary-host production-ready wording.",
+      "backend_obligation": "Docs, CLI, package metadata, and release notes must carry no unguarded production-ready wording or arbitrary-host claims.",
       "evidence_gate": "qa/wording_audit.sh` and governance manifest check.",
       "deferred": false
     },

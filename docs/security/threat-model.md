@@ -6,6 +6,7 @@ Root `zig-scheduler` is fail-closed and path-to-production only. It must not pre
 
 - Host scheduler state: sched_ext state, BPF verifier/load paths, cgroups/cpusets, affinities, priorities, and scheduler state are protected host assets.
 - Disposable VM evidence: VM marker, kernel tuple, verifier logs, runtime samples, rollback ledgers, and cleanup receipts are lab evidence only.
+- Release scope evidence: no frontend/root UI artifacts, unchanged `simulator/`, package manifest fields, and current-run cleanup receipts are part of the VM/lab backend trust boundary.
 - Toolchain provenance: QEMU/KVM, `nix`-backed busybox fetches, and `bpftool`/`libbpf` are explicit host dependencies for the live VM flow; missing pieces must skip or refuse instead of masquerading as success.
 - Logs and transcripts: no private command lines, credentials, cookies, tokens, hostnames beyond the lab tuple, or unbounded logs.
 
@@ -20,6 +21,7 @@ Default root commands must remain safe for a developer laptop or ordinary CI run
 - no scheduler-state mutation;
 - no auto-started services from package install;
 - `host_mutation=false` for host-side lab orchestration.
+- no package or release gate may treat fixture, host-safe, root UI, or simulator evidence as VM-live backend proof.
 
 Unsafe verbs (`load`, `attach`, `enable`, `mutate`, `apply`) must refuse with a non-zero exit and a clear safety explanation.
 
@@ -37,4 +39,4 @@ Security review for any future mutation-capable profile must include the daemon 
 
 ## Packaging threat notes
 
-Packages install inert defaults. Services must not be enabled by installation or upgrade. Mutation-capable services must remain gated by VM marker, config marker, audit id, rollback id, approval evidence, and release gate proof.
+Packages install inert defaults. Services must not be enabled by installation or upgrade. Mutation-capable services must remain gated by VM marker, config marker, audit id, rollback id, approval evidence, and release gate proof. Package manifests must state VM/lab backend scope, `production_ready=false`, `arbitrary_host_safe=false`, and no frontend/simulator payloads.

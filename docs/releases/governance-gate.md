@@ -1,6 +1,6 @@
 # sched_ext Governance Gate
 
-This governance gate defines the evidence required before `zig-scheduler` may move beyond path-to-production language.
+This governance gate defines the evidence required before `zig-scheduler` may move beyond path-to-production language. The current VM/lab backend milestone can only claim disposable-VM backend readiness; it does not claim arbitrary-host readiness.
 
 ## Required status before any production claim
 The release status remains `path-to-production` until all checks below pass. A successful gate may at most authorize `controlled_lab_pilot_candidate` unless a future owner explicitly approves broader scope.
@@ -17,8 +17,10 @@ A candidate release must provide:
 7. Stress/chaos evidence for workload liveness and fallback behavior.
 8. VM-live scheduler behavior bundle validated by `qa/live_behavior_check.py`, proving the result is not attach-only success.
 9. Security threat model and completed security review checklist.
-10. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
-11. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
+10. Cleanup proof showing no QEMU, tmux, or VM-live temporary-resource residue from the release run.
+11. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
+12. Scope proof that root frontend/UI artifacts are absent and `simulator/` is unchanged.
+13. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
 
 ## Production evidence matrix
 The current release summary must keep `release_status=controlled_lab_pilot_candidate`,
@@ -40,11 +42,13 @@ to be complete, current for the release git SHA, reproducible, and reviewed.
 | Incident runbook | Incident runbook drill for verifier failure, fallback, rollback, and operator escalation. |
 | Privacy review | Privacy review proving runtime samples exclude raw command lines, environments, secrets, and PII. |
 | systemd no auto-start | systemd no auto-start proof for installed units; mutation service remains gated by config, marker, and evidence. |
+| Cleanup proof | Release-run summary with QEMU/tmux residue checks, VM-live temp-dir cleanup receipt, and no stale current-run evidence reuse. |
+| Scope fidelity | `qa/no_frontend_root.sh`, clean `git status --short simulator`, and release artifacts with no frontend or simulator payloads. |
 
 ## Pass/fail rule
-The gate fails if any required evidence is stale, unverifiable, contradictory, or collected outside a disposable VM/lab environment. If VM-live behavior proof is missing, the gate must write a `SKIP` summary and must not create a controlled-lab approval. The gate also fails if the root host path can load, attach, enable, mutate, apply, write cgroups, change affinities, change priorities, or call scheduler/BPF mutation APIs without the lab evidence bundle.
+The gate fails if any required evidence is stale, unverifiable, contradictory, or collected outside a disposable VM/lab environment. If VM-live behavior proof is missing, the gate must write a `SKIP` summary and must not create a controlled-lab approval; current-run release verification also exits non-zero so missing VM-live evidence cannot be mistaken for a passing release. The gate also fails if the root host path can load, attach, enable, mutate, apply, write cgroups, change affinities, change priorities, or call scheduler/BPF mutation APIs without the lab evidence bundle.
 
-A controlled-lab candidate requires a VM-live behavior bundle accepted by `qa/live_behavior_check.py` and freshness-validated by `qa/live_bundle_freshness_check.py` against the current git SHA and BPF object before approval. The bundle must include marker-attested VM evidence, partial-switch `zigsched_minimal` metadata, runtime samples before/during/after attach, stable fatal/reject/fallback counters, daemon runtime events with `host_mutation=false`, live workload evidence, rollback-restored state, and audit ledger validation. Host-safe or surrogate CI evidence may keep the gate green only as `SKIP`; it must not be relabeled as live proof.
+A controlled-lab candidate requires a VM-live behavior bundle accepted by `qa/live_behavior_check.py` and freshness-validated by `qa/live_bundle_freshness_check.py` against the current git SHA and BPF object before approval. The bundle must include marker-attested VM evidence, partial-switch `zigsched_minimal` metadata, runtime samples before/during/after attach, stable fatal/reject/fallback counters, daemon runtime events with `host_mutation=false`, live workload evidence, rollback-restored state, audit ledger validation, and cleanup proof. Host-safe or surrogate CI evidence may keep non-approval dry runs green only as `SKIP`; it must not be relabeled as live proof.
 
 For final T27/T28 same-run verification, use `qa/release_gate.sh --version <version> --current-run` so the gate writes ignored evidence under `evidence/releases/<version>-runall/current` by default. Current-run evidence must be ignored, untracked, and uncommitted; the gate refuses tracked or non-ignored current-run destinations. Tracked `evidence/releases/<version>/` files are curated historical release snapshots only and must not be rewritten merely to satisfy live-bundle freshness.
 

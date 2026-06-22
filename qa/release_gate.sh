@@ -10,7 +10,7 @@ evidence_dir=""
 self_test=false
 no_approval=false
 current_run=false
-live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/run-all/vm-live-behavior/summary.json}"
+live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/run-all/vm-backend-final/summary.json}"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
@@ -210,6 +210,41 @@ cleanup_release_lock() {
   rmdir "$release_lock" 2>/dev/null || true
 }
 trap cleanup_release_lock EXIT
+if [ "$current_run" = true ] && [ ! -f "$live_behavior_bundle" ]; then
+  python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle"
+import json
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+version = sys.argv[2]
+bundle = sys.argv[3]
+for stale_name in ("release-approval.json", "artifact-hashes.json"):
+    stale_path = out / stale_name
+    if stale_path.exists() or stale_path.is_symlink():
+        stale_path.unlink()
+summary = {
+    "schema": "zig-scheduler/release-gate-summary/v1",
+    "version": version,
+    "status": "SKIP",
+    "release_status": "skipped_no_vm",
+    "reason": "VM-live release evidence missing: " + bundle,
+    "production_ready": False,
+    "arbitrary_host_safe": False,
+    "required_artifacts_present": False,
+    "artifact_count": 0,
+    "artifact_hash_manifest": "",
+    "evidence_dir": str(out),
+    "current_run_evidence": True,
+    "evidence_retention": "ignored-current-run-not-for-commit",
+}
+summary_tmp = out / "summary.json.tmp"
+summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+summary_tmp.replace(out / "summary.json")
+PY
+  printf 'summary=%s\n' "$evidence_dir/summary.json"
+  fail "VM-live release evidence missing: $live_behavior_bundle"
+fi
 missing=0
 require_file() { if [ ! -f "$1" ]; then printf 'MISSING: %s\n' "$1"; missing=1; fi; }
 zig build bpf --summary all >/dev/null
@@ -275,6 +310,9 @@ rm -rf evidence/lab/run-all/no-host-mutation
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
+bash qa/no_frontend_root.sh >/dev/null
+simulator_status="$(git status --short simulator)"
+[ -z "$simulator_status" ] || fail "simulator worktree is dirty during release gate: $simulator_status"
 python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle" "$current_run"
 import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
@@ -313,8 +351,16 @@ def write_skip_summary(reason):
     summary_tmp = out / 'summary.json.tmp'
     summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
     summary_tmp.replace(out / 'summary.json')
-    print('SKIP: release gate did not create approval: ' + reason)
-    raise SystemExit(0)
+    print(('FAIL' if current_run else 'SKIP') + ': release gate did not create approval: ' + reason)
+    raise SystemExit(1 if current_run else 0)
+
+def require_cleanup_proof(summary):
+    cleanup = summary.get('cleanup')
+    if not isinstance(cleanup, dict):
+        raise SystemExit('VM-live behavior bundle missing cleanup proof')
+    for key in ('qemu_leftovers', 'tmux_leftovers'):
+        if cleanup.get(key) is not False:
+            raise SystemExit('VM-live behavior cleanup proof failed: ' + key)
 
 def require_live_behavior_bundle():
     if not live_behavior_bundle.is_file():
@@ -331,6 +377,7 @@ def require_live_behavior_bundle():
         validate_bundle(live_behavior_bundle)
     except (LiveBehaviorError, OSError, json.JSONDecodeError) as exc:
         raise SystemExit('VM-live behavior bundle invalid: ' + str(exc)) from exc
+    require_cleanup_proof(json.loads(live_behavior_bundle.read_text()))
 
 require_live_behavior_bundle()
 if checks['dsq'].get('release_eligible') is False:

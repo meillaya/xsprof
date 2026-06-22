@@ -5,6 +5,7 @@
 # ///
 # ─── How to run ───
 # python3 qa/governance_manifest_check.py --manifest fixtures/lab/governance-sources.json
+# noqa: SIZE_OK — the exact Task 11 governance source matrix is intentionally colocated with the validator.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,35 +15,53 @@ import json
 import os
 import subprocess
 import sys
-from typing import Final, NotRequired, TypedDict
+from typing import Final
 
 
 SCHEMA_VERSION: Final[int] = 1
-REQUIRED_SOURCE_PATHS: Final[tuple[str, ...]] = (
-    "AGENTS.md",
-    "README.md",
-    "WORKLOG.md",
-    "docs/security/threat-model.md",
-    "docs/releases/governance-gate.md",
-    "qa/clean_archive_check.sh",
-    "qa/governance_manifest_check.py",
-    "qa/release_gate.sh",
-    "qa/security_gate.sh",
-    "qa/wording_audit.sh",
+EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
+    ("AGENTS.md", "future-agent operator guidance and fail-closed invariants"),
+    ("README.md", "tracked project overview and governance entrypoint"),
+    ("WORKLOG.md", "historical checkpoints and current project posture"),
+    ("docs/adr/0001-sched-ext-production-claim-boundary.md", "sched_ext production claim boundary ADR"),
+    ("docs/adr/0002-loader-architecture.md", "loader architecture ADR for lab-scoped backend readiness"),
+    ("docs/adr/0003-non-vm-operation-gate.md", "non-VM operation governance design gate"),
+    ("docs/backend-capability-matrix.md", "backend capability matrix and milestone boundaries"),
+    ("docs/ci.md", "CI gate documentation for lab readiness checks"),
+    ("docs/releases/governance-gate.md", "release governance gate and evidence matrix"),
+    ("docs/releases/supported-kernel-tuples.md", "supported VM lab kernel tuple matrix"),
+    ("docs/runbooks/sched-ext-fallback.md", "sched_ext fallback and rollback runbook"),
+    ("docs/runbooks/verifier-and-incident.md", "verifier and incident response runbook"),
+    ("docs/runbooks/vm-lab.md", "VM lab runbook for backend readiness evidence"),
+    ("docs/security/review-checklist.md", "security signoff and privacy review checklist"),
+    ("docs/security/threat-model.md", "scheduler backend threat model"),
+    ("packaging/README.md", "package operator safety and install scope documentation"),
+    ("packaging/build_package.sh", "package build source and manifest generator"),
+    ("packaging/config/default.toml", "default package configuration safety posture"),
+    ("packaging/systemd/zig-scheduler-daemon.service", "daemon systemd unit safety source"),
+    ("packaging/systemd/zig-scheduler-lab-mutation.service", "lab mutation systemd unit safety source"),
+    ("packaging/systemd/zig-scheduler-preflight.service", "preflight systemd unit safety source"),
+    ("qa/clean_archive_check.sh", "clean archive and fresh clone reproducibility gate"),
+    ("qa/backend_capability_matrix_check.py", "backend capability matrix contract validator"),
+    ("qa/backend_capability_matrix_expected.json", "backend capability matrix expected contract source"),
+    ("qa/governance_manifest_check.py", "governance manifest schema and exact Task 11 source validator"),
+    ("qa/no_frontend_root.sh", "root frontend and UI artifact exclusion gate"),
+    ("qa/no_host_mutation.sh", "host mutation denial gate"),
+    ("qa/package_defaults.sh", "package default safety inspection gate"),
+    ("qa/package_lifecycle_drill.sh", "package install upgrade uninstall lifecycle drill"),
+    ("qa/package_manifest_check.py", "package manifest semantic safety validator"),
+    ("qa/release_gate.sh", "release evidence gate consumed by lab/release checks"),
+    ("qa/security_gate.sh", "security profile gate consumed by governance checks"),
+    ("qa/unsafe_cli_matrix.sh", "unsafe CLI refusal matrix gate"),
+    ("qa/wording_audit.sh", "wording, contradiction, and prompt-injection audit gate"),
+    ("qa/vm/contract_check.sh", "disposable VM execution contract validator"),
+    ("qa/vm/execution_contract.json", "disposable VM execution contract source"),
 )
-
-
-class SourceJson(TypedDict):
-    path: str
-    purpose: str
-    required: bool
-    sha256: str
-
-
-class ManifestJson(TypedDict):
-    schema_version: int
-    generated_for: NotRequired[str]
-    sources: list[SourceJson]
+EXPECTED_REQUIRED_SOURCE_PATHS: Final[frozenset[str]] = frozenset(
+    path for path, _purpose in EXPECTED_REQUIRED_SOURCES
+)
+EXPECTED_PURPOSE_BY_PATH: Final[dict[str, str]] = dict(EXPECTED_REQUIRED_SOURCES)
+HEX_DIGITS: Final[frozenset[str]] = frozenset("0123456789abcdef")
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +129,11 @@ def parse_manifest(path: Path) -> list[Source]:
         digest = item.get("sha256")
         if not isinstance(path_value, str) or path_value == "" or path_value.startswith("/"):
             raise ManifestError(f"source[{index}] has invalid relative path")
+        path_parts = Path(path_value).parts
+        if ".." in path_parts:
+            raise ManifestError(f"source[{index}] has path traversal: {path_value}")
+        if path_parts and path_parts[0] in {".omo", ".omx"}:
+            raise ManifestError(f"source[{index}] uses ignored local state: {path_value}")
         if path_value in seen:
             raise ManifestError(f"duplicate governance source: {path_value}")
         seen.add(path_value)
@@ -117,14 +141,28 @@ def parse_manifest(path: Path) -> list[Source]:
             raise ManifestError(f"source[{path_value}] has invalid purpose")
         if not isinstance(required, bool):
             raise ManifestError(f"source[{path_value}] has invalid required flag")
-        if not isinstance(digest, str) or len(digest) != 64:
+        if not isinstance(digest, str) or len(digest) != 64 or any(char not in HEX_DIGITS for char in digest):
             raise ManifestError(f"source[{path_value}] has invalid sha256")
         parsed.append(Source(Path(path_value), purpose, required, digest))
-    paths = {source.path.as_posix() for source in parsed}
-    for required_path in REQUIRED_SOURCE_PATHS:
-        if required_path not in paths:
-            raise ManifestError(f"missing tracked governance source manifest entry: {required_path}")
+    validate_exact_source_contract(parsed)
     return parsed
+
+
+def validate_exact_source_contract(sources: list[Source]) -> None:
+    paths = {source.path.as_posix() for source in sources}
+    missing = sorted(EXPECTED_REQUIRED_SOURCE_PATHS - paths)
+    if missing:
+        raise ManifestError("missing exact Task 11 governance source: " + ",".join(missing))
+    unexpected = sorted(paths - EXPECTED_REQUIRED_SOURCE_PATHS)
+    if unexpected:
+        raise ManifestError("unexpected Task 11 governance source: " + ",".join(unexpected))
+    for source in sources:
+        path_text = source.path.as_posix()
+        if not source.required:
+            raise ManifestError(f"Task 11 governance source must be required: {path_text}")
+        expected_purpose = EXPECTED_PURPOSE_BY_PATH[path_text]
+        if source.purpose != expected_purpose:
+            raise ManifestError(f"Task 11 governance source purpose mismatch: {path_text}")
 
 
 def git_tracked_files() -> set[str]:

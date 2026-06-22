@@ -6,3 +6,6 @@ mutation_service_enabled = false
 control_daemon_enabled = false
 lab_profile_required = true
 evidence_path_required = true
+release_scope = "vm-lab-backend-only"
+production_ready = false
+arbitrary_host_safe = false

@@ -90,6 +90,9 @@ def require_config_safe() -> None:
         'auto_start_scheduler = false',
         'mutation_service_enabled = false',
         'control_daemon_enabled = false',
+        'release_scope = "vm-lab-backend-only"',
+        'production_ready = false',
+        'arbitrary_host_safe = false',
     ):
         if line not in text:
             raise SystemExit('package default config is unsafe: ' + line)

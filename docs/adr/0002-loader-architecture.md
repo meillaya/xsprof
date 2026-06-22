@@ -38,6 +38,8 @@ The internal lifecycle manager must be explicit at every hazardous boundary:
    cgroup allowlist evidence;
 4. full-host switch remains out of scope until later governance approval;
 5. every future mutation command must emit a rollback snapshot and audit record.
+6. VM/lab backend release packaging must install disabled-safe defaults and must
+   not enable a daemon or mutation-capable unit during install or upgrade.
 
 ## Alternatives considered
 
@@ -68,6 +70,9 @@ possible without claiming drop-in compatibility.
 - Future lifecycle code can be tested with repository-owned schemas and fixtures.
 - Documentation can compare this operator with `scx_loader` without implying a
   DBus dependency.
+- Packaging can expose a manual, disabled-safe daemon and a lab-only mutation
+  unit, but the mutation unit remains condition-gated and not install-enabled by
+  default.
 - Migration remains open: a later ADR may add optional scx_loader integration if
   it preserves typed config, explicit lab gates, rollback, audit ids, and no
   silent scheduler mutation.

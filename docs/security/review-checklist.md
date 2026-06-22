@@ -10,6 +10,8 @@ Required topics for mutation-capable lab release:
 - [ ] Log privacy and private command-line sampling reviewed.
 - [ ] Packaging defaults and service enablement reviewed.
 - [ ] Package install, package upgrade, and package uninstall safety drills reviewed.
+- [ ] Cleanup proof reviewed for QEMU, tmux, package temp roots, current-run evidence, and staged package artifacts.
+- [ ] Scope fidelity reviewed: no frontend/root UI artifacts and no simulator changes in release/package gates.
 - [ ] Privacy review confirms runtime samples omit raw command lines, environments, secrets, and PII.
 - [ ] Security signoff includes reviewer identity, date, git SHA, authorized status, and scope.
 - [ ] Rollback/fallback and SysRq runbook reviewed.
