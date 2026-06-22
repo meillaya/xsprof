@@ -2,22 +2,62 @@
   "schema": "zig-scheduler/vm-execution-contract/v1",
   "status": "implemented-fixture-gated",
   "host_mutation": false,
-  "modes": ["read-only-smoke", "execute"],
+  "modes": [
+    "read-only-smoke",
+    "execute"
+  ],
   "inputs": {
     "image": {
       "required_for_execute": true,
-      "source": ["--image", "ZIG_SCHEDULER_VM_IMAGE"],
-      "must_be_file": true
+      "source": [
+        "--image",
+        "ZIG_SCHEDULER_VM_IMAGE"
+      ],
+      "must_be_file": true,
+      "required_for_vm_required_release": true,
+      "refusal_reason": "VM_CONFIG_INVALID"
     },
     "kernel": {
       "required_for_execute": false,
-      "source": ["--kernel", "ZIG_SCHEDULER_VM_KERNEL"],
-      "must_be_file": true
+      "source": [
+        "--kernel",
+        "ZIG_SCHEDULER_VM_KERNEL"
+      ],
+      "must_be_file": true,
+      "required_for_microvm_live": true,
+      "refusal_reason": "kernel_image_unavailable"
     },
     "env_file": {
       "required_for_execute": false,
       "parsed_as_data_only": true,
-      "allowed_keys": ["ZIG_SCHEDULER_VM_IMAGE", "ZIG_SCHEDULER_VM_KERNEL", "ZIG_SCHEDULER_VM_DRIVER", "ZIG_SCHEDULER_VM_TEST_FIXTURE"]
+      "allowed_keys": [
+        "ZIG_SCHEDULER_VM_IMAGE",
+        "ZIG_SCHEDULER_VM_KERNEL",
+        "ZIG_SCHEDULER_VM_DRIVER",
+        "ZIG_SCHEDULER_VM_TEST_FIXTURE"
+      ]
+    },
+    "nix": {
+      "required_for_microvm_live": true,
+      "source": [
+        "ZIG_SCHEDULER_NIX_BIN",
+        "trusted PATH locations"
+      ],
+      "trusted_canonical_paths": [
+        "/usr/bin/nix",
+        "/run/current-system/sw/bin/nix",
+        "/nix/var/nix/profiles/default/bin/nix",
+        "/nix/profile/bin/nix",
+        "/nix/store/*/bin/nix"
+      ],
+      "refusal_reason": "nix_busybox_unavailable"
+    },
+    "bpf_object": {
+      "required_for_vm_required_release": true,
+      "path": "zig-out/bpf/zigsched_minimal.bpf.o",
+      "metadata": "zig-out/bpf/zigsched_minimal.bpf.meta.json",
+      "build_command": "zig build bpf",
+      "skip_is_release_eligible": false
     }
   },
   "guest_marker": {
@@ -39,7 +79,9 @@
     "bpf-verifier.log",
     "runtime-samples.jsonl",
     "rollback-result.json",
-    "cleanup-receipt.json"
+    "cleanup-receipt.json",
+    "audit-ledger.jsonl",
+    "summary.json"
   ],
   "command_allowlist": [
     {
@@ -99,5 +141,127 @@
   "implementation_gate": {
     "execute_mode_t15": "fixture-gated",
     "reason": "real-qemu-command-transport-requires-later-signed-vm-profile"
+  },
+  "backend_entrypoint": {
+    "build_target": "vm-lab-backend",
+    "command": "zig build vm-lab-backend",
+    "implementation_status": "specified-not-implemented",
+    "implementation_task": "Task 8",
+    "help_command": "zig build vm-lab-backend -- --help",
+    "vm_required_command": "zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>",
+    "default_out": "evidence/lab/vm-backend-final",
+    "host_default": "fail-closed-no-attach"
+  },
+  "trusted_qemu_discovery": {
+    "script": "qa/vm/qemu_discovery.sh",
+    "binary": "qemu-system-x86_64",
+    "override_source": [
+      "--qemu",
+      "ZIG_SCHEDULER_QEMU_BIN"
+    ],
+    "trusted_canonical_paths": [
+      "/usr/bin/qemu-system-x86_64",
+      "/run/current-system/sw/bin/qemu-system-x86_64",
+      "/nix/store/*/bin/qemu-system-x86_64"
+    ],
+    "refuse_paths": [
+      "relative paths",
+      "/home/*",
+      "/tmp/*",
+      "/var/tmp/*",
+      "/dev/shm/*",
+      "paths containing traversal components",
+      "*/.zig-cache/*",
+      "*/.omo/*",
+      "*/.omx/*"
+    ],
+    "refusal_reason": "qemu override refused",
+    "incident": "qemu_untrusted_or_unavailable",
+    "must_not_execute_untrusted_candidate": true
+  },
+  "vm_tuple_requirements": {
+    "arch": [
+      "x86_64"
+    ],
+    "kvm": {
+      "required": true,
+      "path": "/dev/kvm",
+      "incident": "kvm_unavailable"
+    },
+    "kernel": {
+      "image_required": true,
+      "config_required": [
+        "CONFIG_SCHED_CLASS_EXT",
+        "CONFIG_BPF",
+        "CONFIG_BPF_SYSCALL",
+        "CONFIG_BPF_JIT",
+        "CONFIG_DEBUG_INFO_BTF"
+      ],
+      "sched_ext_state_path": "/sys/kernel/sched_ext/state",
+      "sched_ext_enable_seq_path": "/sys/kernel/sched_ext/enable_seq"
+    },
+    "btf": {
+      "required": true,
+      "path": "/sys/kernel/btf/vmlinux",
+      "incident": "btf_unavailable"
+    },
+    "cgroup_v2": {
+      "required": true,
+      "path": "/sys/fs/cgroup",
+      "incident": "cgroup_v2_unavailable"
+    },
+    "sched_ext": {
+      "required": true,
+      "state_path": "/sys/kernel/sched_ext/state",
+      "incident": "sched_ext_unavailable"
+    }
+  },
+  "evidence_layout": {
+    "backend_default_out": "evidence/lab/vm-backend-final",
+    "run_all_summary": "evidence/lab/run-all/vm-backend-final/summary.json",
+    "release_current_run": "evidence/releases/0.2.0-lab-runall/current",
+    "required_files": [
+      "manifest.json",
+      "attestation.json",
+      "transcript.jsonl",
+      "bpf-verifier.log",
+      "runtime-samples.jsonl",
+      "rollback-result.json",
+      "cleanup-receipt.json",
+      "audit-ledger.jsonl",
+      "summary.json"
+    ],
+    "host_mutation_required_value": false,
+    "fixture_release_eligible": false
+  },
+  "event_schemas": {
+    "transcript_index": "zig-scheduler/vm-transcript-index/v1",
+    "lifecycle_event": "zig-scheduler/vm-lab-lifecycle-event/v1",
+    "incident_event": "zig-scheduler/vm-lab-incident/v1",
+    "runtime_sample": "zig-scheduler/runtime-sample/v1",
+    "audit_ledger": "zig-scheduler/audit-ledger/v1",
+    "run_all_summary": "zig-scheduler/run-all-lab/v1"
+  },
+  "bpf_ownership": {
+    "kernel_program_source": "C",
+    "kernel_program_toolchain": "clang -target bpf",
+    "reason": "kernel ABI, verifier, struct_ops, and libbpf/bpftool compatibility",
+    "zig_owns": [
+      "build graph",
+      "orchestration",
+      "metadata validation",
+      "VM lab runner entrypoint",
+      "evidence schema checks",
+      "packaging",
+      "release gates"
+    ],
+    "host_attach_allowed": false,
+    "vm_attach_requires": [
+      "guest_marker",
+      "audit_id",
+      "rollback_id",
+      "verifier_success",
+      "tuple_gates"
+    ]
   }
 }

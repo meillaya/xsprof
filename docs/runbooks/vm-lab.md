@@ -72,6 +72,42 @@ python3 qa/vm/attestation_check.py --self-test
 
 The attestation must be copied out from the guest/fixture transcript, include `/run/zig-scheduler-vm-lab.marker`, match the current git SHA, satisfy the supported kernel tuple gates, and avoid host `/sys` source paths.
 
+
+## Backend VM input and ownership contract
+
+Task 3 fixes the contract before any downstream VM implementation depends on worker judgment. The current machine-readable source is `qa/vm/execution_contract.json`; the canonical current validator is `bash qa/vm/contract_check.sh`. The future Python checker named in the production-backend plan is intentionally absent at this point, so the shell checker remains authoritative until a later task replaces it.
+
+### Backend entrypoint name
+
+The backend operator surface is named now but is implemented later: `zig build vm-lab-backend`. Its VM-required form is:
+
+```bash
+zig build vm-lab-backend -- --mode vm-required --out evidence/lab/<run-id>
+```
+
+Until Task 8 wires that target into `build.zig`, any implementation must remain fail-closed and must not attach or load a scheduler on the host. The default release evidence directory for the final backend run is `evidence/lab/vm-backend-final`; run-all summaries belong under `evidence/lab/run-all/vm-backend-final/summary.json`; release current-run gate evidence belongs under `evidence/releases/0.2.0-lab-runall/current`.
+
+### Exact VM inputs and tuple gates
+
+Trusted QEMU discovery is limited to `qemu-system-x86_64` resolved by `qa/vm/qemu_discovery.sh`. Accepted canonical paths are `/usr/bin/qemu-system-x86_64`, `/run/current-system/sw/bin/qemu-system-x86_64`, and `/nix/store/*/bin/qemu-system-x86_64`. Overrides from `--qemu` or `ZIG_SCHEDULER_QEMU_BIN` must be absolute, canonical, executable, and outside writable/user/repo scratch paths. Untrusted candidates are refused before execution with qemu/refusal incident text.
+
+VM-required release evidence requires an x86_64 KVM tuple with `/dev/kvm`, a readable kernel image (`--kernel` or `ZIG_SCHEDULER_VM_KERNEL` for the microVM path), an explicit VM image for image-backed execution (`--image` or `ZIG_SCHEDULER_VM_IMAGE`), trusted Nix for busybox/initramfs assembly when the microVM live runner is used, `/sys/kernel/btf/vmlinux`, cgroup v2 at `/sys/fs/cgroup`, and sched_ext state files under `/sys/kernel/sched_ext/`. Kernel evidence must cover `CONFIG_SCHED_CLASS_EXT`, `CONFIG_BPF`, `CONFIG_BPF_SYSCALL`, `CONFIG_BPF_JIT`, and `CONFIG_DEBUG_INFO_BTF`. Missing inputs or unsupported tuple facts are deterministic `REFUSE`/incident outcomes, not success.
+
+### Evidence and event schema names
+
+Every VM backend evidence bundle must preserve `host_mutation=false` and copy out at least `manifest.json`, `attestation.json`, `transcript.jsonl`, `bpf-verifier.log`, `runtime-samples.jsonl`, `rollback-result.json`, `cleanup-receipt.json`, `audit-ledger.jsonl`, and `summary.json`. The schema names reserved for downstream implementation are:
+
+- `zig-scheduler/vm-transcript-index/v1`
+- `zig-scheduler/vm-lab-lifecycle-event/v1`
+- `zig-scheduler/vm-lab-incident/v1`
+- `zig-scheduler/runtime-sample/v1`
+- `zig-scheduler/audit-ledger/v1`
+- `zig-scheduler/run-all-lab/v1`
+
+### BPF ownership boundary
+
+The kernel BPF policy program remains C/clang-owned for kernel ABI, verifier, `struct_ops`, and libbpf/bpftool compatibility. Zig owns orchestration, the build graph, metadata validation, the `vm-lab-backend` entrypoint, evidence schema checks, packaging, and release gates. Host attach remains forbidden; attach/register/unregister experiments require the disposable VM marker, verifier success, audit id, rollback id, and tuple gates.
+
 ## Final current-run release evidence
 
 For final verification after a live VM bundle has been produced from the current `HEAD`, run the release gate in current-run mode instead of refreshing the tracked release snapshot:
