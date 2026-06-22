@@ -49,12 +49,7 @@ fi
 if grep -RInE 'kernel-equivalent|kernel equivalent|Linux fidelity|production proof' src README.md docs 2>/dev/null; then
   fail "root fidelity-proof wording leaked into root"
 fi
-[ ! -d src/tui ] || fail "root TUI implementation directory still exists"
-[ ! -d src/desktop ] || fail "root desktop implementation directory still exists"
-[ ! -d web ] || fail "root WebView/browser implementation directory still exists"
-if zig build --help | grep -E 'tui|TUI|webview|WebView|desktop' >/dev/null; then
-  fail "root build graph still advertises removed UI surfaces"
-fi
+bash qa/no_frontend_root.sh >/dev/null
 bash qa/wording_audit.sh --self-test >/dev/null
 bash qa/wording_audit.sh --scan-simulator simulator/README.md README.md docs >/dev/null
 if ! grep -RInE 'offline|teaching|deterministic' simulator/README.md 2>/dev/null | grep -Eiq 'offline|teaching|deterministic'; then
