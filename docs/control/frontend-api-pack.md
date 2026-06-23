@@ -52,6 +52,26 @@ The legacy aliases remain supported:
 
 Replay mode is the local development surface for future clients that need canonical frames without launching QEMU.
 
+The frontend-contract fixture pack stores already-serialized `daemon-event/v1`
+rows. Those JSONL files are consumed with `--replay-events` / `--from-event-seq`;
+they are not raw `runtime-sample/v1` input and do not exercise
+`--replay-runtime` unless the fixture name explicitly covers runtime sample
+cursor behavior.
+
+## Replay fixture classes
+
+The backend contract pack includes canonical rows for these client-visible
+states:
+
+| Fixture class | Files | Required semantics |
+| --- | --- | --- |
+| VM prerequisite refusals | `qemu-unavailable.jsonl`, `unsupported-kernel-tuple.jsonl`, `unsupported-btf-tuple.jsonl`, `unsupported-kvm-tuple.jsonl` | Terminal refusal/unsafe rows with documented prerequisite reason codes and `host_mutation=false`. |
+| Cgroup race incidents | `cgroup-race-target-disappeared.jsonl`, `cgroup-race-parent-changed.jsonl`, `cgroup-race-membership-changed.jsonl`, `cgroup-race-symlink.jsonl`, `cgroup-race-systemd-escape.jsonl` | Terminal unsafe rows with documented cgroup race reason codes and relative cgroup evidence artifacts. |
+| DSQ/perf fairness gate | `dsq-perf-fairness-gate.jsonl` | Validation/incident rows that withhold proof; the fixture must not contain `PASS`. |
+| Runtime alerts | `runtime-alert-nr-rejected.jsonl`, `runtime-alert-workload-dead.jsonl` | A `runtime_sample` row exposes either nonzero `nr_rejected` or `workload_alive=false`, followed by an unsafe incident. |
+| Malformed/privacy runtime variants | `malformed-runtime-sample.jsonl`, `privacy-runtime-variant.jsonl` | Redacted unsafe incidents using `malformed_runtime_sample` or `private_fields_rejected`. |
+| Release-ineligible state | `release-ineligible.jsonl` | Validation and unsafe incident rows keep eligibility withheld; the fixture must not contain `PASS`. |
+
 ## Lifecycle model
 
 Canonical client state is derived only from daemon events, not from UI labels:
@@ -63,7 +83,12 @@ Canonical client state is derived only from daemon events, not from UI labels:
 5. `validation`
 6. terminal `stage_finished` with `PASS`, `INCIDENT`, `REFUSE`, or `SKIP`
 
-An incident, failed rollback, cleanup residue, stale target, duplicate target, stale rollback ID, malformed action, stale git SHA, privacy rejection, timeout, or lost stream must be rendered as unsafe/incomplete client state. It is not release proof and not production readiness.
+An incident, failed rollback, cleanup residue, stale target, duplicate target,
+stale rollback ID, malformed action, stale git SHA, privacy rejection, runtime
+alert, VM prerequisite refusal, cgroup race, DSQ/perf fairness gate, timeout,
+lost stream, or release-ineligible validation must be treated as
+unsafe/incomplete client state. It is not release proof and not production
+readiness.
 
 ## Safety invariants
 

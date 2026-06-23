@@ -1,0 +1,1 @@
+{"artifact": "evidence/lab/cgroup-race/parent-changed.json", "event": "incident", "host_mutation": false, "reason": "cgroup_parent_changed", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "unsafe_to_assume", "status": "unsafe_to_assume", "target_id": "target-cgroup-parent"}

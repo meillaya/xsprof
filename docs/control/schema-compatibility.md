@@ -32,6 +32,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 ## Compatibility changelog
 
 - 2026-06-23: v1 public boundary documented as the backend client integration contract. stdio JSONL remains stable for tests/replay. UDS JSON-RPC is added as the local persistent client transport. Event replay and runtime sample replay cursors are documented separately.
+- 2026-06-23: Client contract fixtures expanded prerequisite, cgroup race, DSQ/perf, runtime alert, privacy, and release-ineligible states using existing optional `daemon-event/v1` fields; no v1 schema change is required.
 
 ## Required gates
 

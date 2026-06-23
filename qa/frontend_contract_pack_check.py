@@ -2,51 +2,66 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Final, NoReturn, TypeAlias
+from typing import Final
 
-JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
-JsonObject: TypeAlias = dict[str, JsonValue]
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-EVENT_SCHEMA: Final = "zig-scheduler/daemon-event/v1"
-REQUIRED_SCENARIOS: Final = (
-    "queued", "booting", "verifier", "attached", "observing", "rollback-ready", "rollback-active", "cleaned",
-    "incident", "lost-stream", "timeout", "verifier-reject", "rollback-failure", "cleanup-residue",
-    "stale-target", "duplicate-target", "stale-rollback", "malformed-action", "stream-backpressure", "stale-git",
-    "privacy-rejection", "replay-event-cursor", "replay-runtime-sample-cursor",
-)
-PRIVATE_KEY_NEEDLES: Final = ("cmdline", "command_line", "argv", "environment", "env", "secret", "api_key")
-PRIVATE_TEXT_NEEDLES: Final = ("cmdline", "command_line", "argv", "environment", '"env"', "secret", "api_key", "--token", "password=")
+from qa.frontend_contract_pack_semantics import REQUIRED_SCENARIOS, validate_replay, validate_scenario_semantics
+from qa.frontend_contract_pack_selftest import run_self_test
+from qa.frontend_contract_pack_types import Args, ContractPackError, EVENT_SCHEMA, JsonObject, JsonValue, parse_json_object
+
+PRIVATE_KEY_NEEDLES: Final = ("cmdline", "command_line", "argv", "environment", "env", "secret", "api_key", "private_key", "token", "authorization", "bearer", "password")
+PRIVATE_TEXT_NEEDLES: Final = ("cmdline", "command_line", "argv", "environment", '"env"', "secret", "api_key", "private_key", "command_line", "authorization", "bearer", "password")
+SENSITIVE_VALUE_PATTERN: Final = r"\b(?:access[\s_.\/-]+)?token\b[\s:=_.\/-]+\S+|\bcredential[\s:=_.\/-]+token\b|\b(?:password|auth|authorization|bearer|api[\s_.\/-]*key|private[\s_.\/-]*key)\b[\s:=_.\/-]+\S+"
+SENSITIVE_VALUE_RE: Final = re.compile(SENSITIVE_VALUE_PATTERN, re.IGNORECASE)
+PRIVATE_TEXT_SEPARATOR_RE: Final = re.compile(r"[-./]")
 IDENTIFIER: Final = re.compile(r"^[A-Za-z0-9_.-]{0,96}$")
+COMMAND_ARGV_HASH_PATTERN: Final = (
+    r"^(?:(?:sha1[:=_-])?[0-9a-fA-F]{40}"
+    r"|(?:sha224[:=_-])?[0-9a-fA-F]{56}"
+    r"|(?:sha256[:=_-])?[0-9a-fA-F]{64}"
+    r"|(?:sha384[:=_-])?[0-9a-fA-F]{96}"
+    r"|(?:sha512[:=_-])?[0-9a-fA-F]{128})$"
+)
+COMMAND_ARGV_HASH_RE: Final = re.compile(COMMAND_ARGV_HASH_PATTERN)
 CODE_RE: Final = re.compile(r"^\| `([^`]+)` \|", re.MULTILINE)
 
 
-@dataclass(frozen=True, slots=True)
-class Args:
+class ParsedArgs(argparse.Namespace):
     fixtures: Path
     schemas: Path
     docs: Path
-    self_test: bool
 
-
-class ContractPackError(Exception):
-    pass
+    def __init__(self) -> None:
+        super().__init__()
+        self.fixtures = Path()
+        self.schemas = Path()
+        self.docs = Path()
 
 
 def parse_args(argv: list[str]) -> Args:
     if argv == ["--self-test"]:
         return Args(Path("fixtures/frontend-contract"), Path("schemas/control"), Path("docs/control"), True)
     parser = argparse.ArgumentParser(description="Validate backend client contract fixture pack.")
-    parser.add_argument("--fixtures", required=True, type=Path)
-    parser.add_argument("--schemas", required=True, type=Path)
-    parser.add_argument("--docs", required=True, type=Path)
-    parsed = parser.parse_args(argv)
+    _ = parser.add_argument("--fixtures", required=True, type=Path)
+    _ = parser.add_argument("--schemas", required=True, type=Path)
+    _ = parser.add_argument("--docs", required=True, type=Path)
+    parsed = parser.parse_args(argv, namespace=ParsedArgs())
     return Args(parsed.fixtures, parsed.schemas, parsed.docs, False)
+
+
+def fixture_inventory(fixtures: Path) -> tuple[list[str], list[str]]:
+    expected = {f"{name}.jsonl" for name in REQUIRED_SCENARIOS}
+    actual = {path.name for path in fixtures.glob("*.jsonl") if path.is_file()}
+    return sorted(expected - actual), sorted(actual - expected)
+
+
+def normalized_private_text(value: str) -> str:
+    return PRIVATE_TEXT_SEPARATOR_RE.sub("_", value.lower())
 
 
 def load_jsonl(path: Path) -> list[JsonObject]:
@@ -54,10 +69,7 @@ def load_jsonl(path: Path) -> list[JsonObject]:
     for line_number, line in enumerate(path.read_text().splitlines(), 1):
         if not line.strip():
             continue
-        raw = json.loads(line)
-        if not isinstance(raw, dict):
-            raise ContractPackError(f"{path}:{line_number} is not an object")
-        rows.append(raw)
+        rows.append(parse_json_object(line, f"{path}:{line_number}"))
     if not rows:
         raise ContractPackError(f"empty fixture: {path}")
     return rows
@@ -89,10 +101,7 @@ def require_doc(docs: Path, name: str, needles: tuple[str, ...]) -> None:
 
 def load_event_schema(schemas: Path) -> JsonObject:
     path = schemas / "daemon-event.v1.schema.json"
-    raw = json.loads(path.read_text())
-    if not isinstance(raw, dict):
-        raise ContractPackError(f"{path} is not an object")
-    return raw
+    return parse_json_object(path.read_text(), str(path))
 
 
 def schema_properties(event_schema: JsonObject) -> tuple[set[str], set[str], set[str]]:
@@ -125,22 +134,66 @@ def validate_schema_surface(row: JsonObject, required: set[str], properties: set
         raise ContractPackError(f"{context} event absent from daemon-event schema enum: {event}")
 
 
+def reject_non_hash_command_argv_hash(value: JsonValue, context: str) -> None:
+    if not isinstance(value, str) or COMMAND_ARGV_HASH_RE.fullmatch(value) is None:
+        raise ContractPackError(f"{context} must be a hash-shaped redacted value")
+
+
 def reject_private(value: JsonValue, context: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
-            if key == "command_argv_hash":
-                continue
             lower_key = key.lower()
-            if any(needle in lower_key for needle in PRIVATE_KEY_NEEDLES):
+            if key != "command_argv_hash" and any(needle in lower_key for needle in PRIVATE_KEY_NEEDLES):
                 raise ContractPackError(f"privacy-unsafe key in {context}.{key}")
-            reject_private(child, f"{context}.{key}")
-    elif isinstance(value, list):
+            child_context = f"{context}.{key}"
+            reject_private(child, child_context)
+            if key == "command_argv_hash":
+                reject_non_hash_command_argv_hash(child, child_context)
+        return
+    if isinstance(value, list):
         for index, child in enumerate(value):
             reject_private(child, f"{context}[{index}]")
-    elif isinstance(value, str):
-        lower_value = value.lower()
-        if any(needle in lower_value for needle in PRIVATE_TEXT_NEEDLES):
+        return
+    if isinstance(value, str):
+        lower_value = normalized_private_text(value)
+        if SENSITIVE_VALUE_RE.search(value) is not None or any(needle in lower_value for needle in PRIVATE_TEXT_NEEDLES):
             raise ContractPackError(f"privacy-unsafe text in {context}")
+
+
+def reject_unsafe_path_text(raw: str, context: str) -> None:
+    path = Path(raw)
+    if path.is_absolute() or ".." in path.parts:
+        raise ContractPackError(f"{context} escapes repo: {raw}")
+
+
+def reject_artifact_path_collection(value: JsonValue, context: str) -> None:
+    if isinstance(value, str):
+        reject_unsafe_path_text(value, context)
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            reject_artifact_path_collection(child, f"{context}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key, child in value.items():
+            reject_artifact_path_collection(child, f"{context}.{key}")
+        return
+    if value is not None:
+        raise ContractPackError(f"{context} must contain path text")
+
+
+def reject_unsafe_artifact_paths(value: JsonValue, context: str) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_context = f"{context}.{key}"
+            if key == "artifact_paths":
+                reject_artifact_path_collection(child, child_context)
+            else:
+                reject_unsafe_artifact_paths(child, child_context)
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            reject_unsafe_artifact_paths(child, f"{context}[{index}]")
 
 
 def require_safe_path(row: JsonObject, field: str, context: str) -> None:
@@ -149,9 +202,7 @@ def require_safe_path(row: JsonObject, field: str, context: str) -> None:
         return
     if not isinstance(raw, str):
         raise ContractPackError(f"{context}.{field} must be a string")
-    path = Path(raw)
-    if path.is_absolute() or ".." in path.parts:
-        raise ContractPackError(f"{context}.{field} escapes repo: {raw}")
+    reject_unsafe_path_text(raw, f"{context}.{field}")
 
 
 def validate_identifier(row: JsonObject, field: str, context: str) -> None:
@@ -174,6 +225,7 @@ def validate_rows(path: Path, rows: list[JsonObject], codes: set[str], required:
     for row in rows:
         context = f"{path}:{row.get('seq', '?')}"
         reject_private(row, context)
+        reject_unsafe_artifact_paths(row, context)
         validate_schema_surface(row, required, properties, event_enum, context)
         if row.get("schema") != EVENT_SCHEMA:
             raise ContractPackError(f"{context} bad schema")
@@ -195,16 +247,6 @@ def validate_rows(path: Path, rows: list[JsonObject], codes: set[str], required:
                 raise ContractPackError(f"{context} undocumented incident/refusal reason: {reason}")
 
 
-def validate_replay(rows_by_name: dict[str, list[JsonObject]]) -> None:
-    event_rows = rows_by_name["replay-event-cursor"]
-    if event_rows[0].get("seq") != 2 or any(row.get("replay_cursor") != "event_seq" for row in event_rows):
-        raise ContractPackError("event replay fixture does not prove event-seq cursor semantics")
-    runtime_rows = rows_by_name["replay-runtime-sample-cursor"]
-    sample_rows = [row for row in runtime_rows if row.get("event") == "runtime_sample"]
-    if len(sample_rows) != 1 or sample_rows[0].get("sample_sequence") != 2 or sample_rows[0].get("replay_cursor") != "runtime_sample_sequence":
-        raise ContractPackError("runtime replay fixture does not prove sample-seq cursor semantics")
-
-
 def validate(args: Args) -> None:
     for schema_name in ("daemon-event.v1.schema.json", "operator-action.v1.schema.json", "runtime-sample.v1.schema.json"):
         if not (args.schemas / schema_name).is_file():
@@ -213,76 +255,28 @@ def validate(args: Args) -> None:
     require_doc(args.docs, "frontend-api-pack.md", ("backend contract", "no frontend implementation", "Unix-domain socket", "JSON-RPC", "Replay semantics"))
     require_doc(args.docs, "schema-compatibility.md", ("daemon-event/v1", "operator-action/v1", "runtime-sample/v1", "breaking change"))
     codes = load_codes(args.docs)
-    missing = [name for name in REQUIRED_SCENARIOS if not (args.fixtures / f"{name}.jsonl").is_file()]
+    missing, extra = fixture_inventory(args.fixtures)
     if missing:
         raise ContractPackError("missing fixture(s): " + ", ".join(missing))
+    if extra:
+        raise ContractPackError("unlisted fixture(s): " + ", ".join(extra))
     rows_by_name: dict[str, list[JsonObject]] = {}
     for name in REQUIRED_SCENARIOS:
         rows = load_jsonl(args.fixtures / f"{name}.jsonl")
         validate_rows(args.fixtures / f"{name}.jsonl", rows, codes, required, properties, event_enum)
+        validate_scenario_semantics(name, rows)
         rows_by_name[name] = rows
     validate_replay(rows_by_name)
-
-
-def run_self_test(args: Args) -> None:
-    validate(args)
-    with TemporaryDirectory(prefix="zigsched-contract-pack-") as tmp:
-        tmp_path = Path(tmp)
-        bad_fixtures = tmp_path / "fixtures"
-        bad_docs = tmp_path / "docs"
-        bad_fixtures.mkdir()
-        bad_docs.mkdir()
-        for fixture in args.fixtures.glob("*.jsonl"):
-            (bad_fixtures / fixture.name).write_text(fixture.read_text())
-        for doc in args.docs.glob("*.md"):
-            (bad_docs / doc.name).write_text(doc.read_text())
-        bad = json.loads((bad_fixtures / "incident.jsonl").read_text().splitlines()[0])
-        bad["reason"] = "undocumented_reason"
-        bad_fixtures.joinpath("incident.jsonl").write_text(json.dumps(bad) + "\n")
-        try:
-            validate(Args(bad_fixtures, args.schemas, bad_docs, False))
-        except ContractPackError as exc:
-            print(f"PASS self-test rejected undocumented reason: {exc}")
-        else:
-            raise ContractPackError("self-test failed to reject undocumented reason")
-        good = json.loads((bad_fixtures / "incident.jsonl").read_text().splitlines()[0])
-        good["reason"] = "lost_stream"
-        good["diagnostic"] = "PASSWORD=secret"
-        bad_fixtures.joinpath("incident.jsonl").write_text(json.dumps(good) + "\n")
-        try:
-            validate(Args(bad_fixtures, args.schemas, bad_docs, False))
-        except ContractPackError as exc:
-            print(f"PASS self-test rejected uppercase private text: {exc}")
-        else:
-            raise ContractPackError("self-test failed to reject uppercase private text")
-        good.pop("diagnostic", None)
-        good["env"] = "PATH=/usr/bin"
-        bad_fixtures.joinpath("incident.jsonl").write_text(json.dumps(good) + "\n")
-        try:
-            validate(Args(bad_fixtures, args.schemas, bad_docs, False))
-        except ContractPackError as exc:
-            print(f"PASS self-test rejected env key: {exc}")
-        else:
-            raise ContractPackError("self-test failed to reject env key")
-        good.pop("env", None)
-        good["unexpected_contract_field"] = "bad"
-        bad_fixtures.joinpath("incident.jsonl").write_text(json.dumps(good) + "\n")
-        try:
-            validate(Args(bad_fixtures, args.schemas, bad_docs, False))
-        except ContractPackError as exc:
-            print(f"PASS self-test rejected schema extra field: {exc}")
-            return
-    raise ContractPackError("self-test failed to reject schema extra field")
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     try:
         if args.self_test:
-            run_self_test(args)
+            run_self_test(args, validate)
         else:
             validate(args)
-    except (OSError, json.JSONDecodeError, ContractPackError) as exc:
+    except (OSError, ContractPackError) as exc:
         print(f"FAIL frontend contract pack: {exc}", file=sys.stderr)
         return 1
     print(f"PASS frontend contract pack: fixtures={args.fixtures} docs={args.docs}")

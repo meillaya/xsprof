@@ -1,0 +1,2 @@
+{"artifact": "evidence/releases/lab/release-ineligible.json", "event": "validation", "host_mutation": false, "reason": "release_ineligible", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "release_ineligible", "status": "withheld"}
+{"artifact": "evidence/releases/lab/release-ineligible.json", "event": "incident", "host_mutation": false, "reason": "release_ineligible", "schema": "zig-scheduler/daemon-event/v1", "seq": 2, "state": "unsafe_to_assume", "status": "unsafe_to_assume"}
