@@ -182,6 +182,7 @@ def write_metadata(object_path: Path) -> Path:
         "host_attach_allowed": False,
         "vm_only": True,
         "verification_claimed": False,
+        "tool_versions": {"clang_path": str(Path(shutil.which("clang") or "/usr/bin/clang").resolve())},
     }, sort_keys=True) + "\n")
     return path
 
