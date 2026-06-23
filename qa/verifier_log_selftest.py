@@ -173,7 +173,16 @@ def write_object() -> Path:
 def write_metadata(object_path: Path) -> Path:
     path = SELF_ROOT / "zigsched_minimal.bpf.meta.json"
     object_sha = sha256_file(object_path)
-    path.write_text(json.dumps({"object": object_path.as_posix(), "object_sha256": object_sha}, sort_keys=True) + "\n")
+    path.write_text(json.dumps({
+        "schema": "zig-scheduler/bpf-object-metadata/v1",
+        "object": object_path.as_posix(),
+        "object_sha256": object_sha,
+        "object_hash": "sha256:" + object_sha,
+        "host_mutation": False,
+        "host_attach_allowed": False,
+        "vm_only": True,
+        "verification_claimed": False,
+    }, sort_keys=True) + "\n")
     return path
 
 
@@ -185,3 +194,7 @@ def assert_result(result: Mapping[str, JsonValue], status: str, reason: str) -> 
     if result.get("status") != status or result.get("reason") != reason:
         verifier = importlib.import_module("verifier_log_check")
         raise verifier.VerifierLogError(f"expected {status}/{reason}, got {result}")
+
+
+if __name__ == "__main__":
+    run_self_test()
