@@ -19,16 +19,10 @@ __pycache__/
 
 # Local verification scratch outputs. Tracked release/governance evidence is not
 # removed by these rules; intentional new evidence can still be added with git -f.
-evidence/lab/task-*/
-evidence/lab/verifier-*/
-evidence/lab/*-tmp/
-evidence/lab/t[0-9]*-*/
-evidence/lab/run-all/task-*/
-evidence/lab/run-all/verifier-*/
-evidence/lab/run-all/t[0-9]*-*/
-evidence/lab/run-all/*-manual/
-evidence/lab/run-all/final-next-manual/
-evidence/lab/rollback-drill/t[0-9]*-*/
+# Generated lab runs are bulky and reproducible; keep curated snapshots tracked
+# deliberately, such as evidence/lab/run-all/final, and force-add new curated
+# evidence only after review.
+evidence/lab/**
 
 # Local scratch verification scripts/data that are not required to build or run.
 *.tmp
