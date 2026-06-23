@@ -15,8 +15,11 @@ PATH=/bin:/usr/bin
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t bpffs bpffs /sys/fs/bpf 2>/dev/null || true
-mount -t cgroup2 none /sys/fs/cgroup 2>/dev/null || true
-mkdir -p /run /tmp /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope
+	mount -t cgroup2 none /sys/fs/cgroup 2>/dev/null || true
+	mkdir -p /run /tmp /sys/fs/cgroup/zig-scheduler-lab.slice
+	echo +cpu > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+	echo +cpu > /sys/fs/cgroup/zig-scheduler-lab.slice/cgroup.subtree_control 2>/dev/null || true
+	mkdir -p /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope
 active_target="/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope"
 stale_target="/sys/fs/cgroup/zig-scheduler-lab.slice/stale.scope"
 echo vm > /run/zig-scheduler-vm-lab.marker
@@ -27,9 +30,33 @@ ops_value() { fact /sys/kernel/sched_ext/root/ops; }
 enable_seq_value() { fact /sys/kernel/sched_ext/enable_seq; }
 events_value() { fact /sys/kernel/sched_ext/events; }
 workload_alive_value() { if kill -0 "$lab_pid" 2>/dev/null; then printf true; else printf false; fi; }
-cgroup_status_value() { if [ -r "$active_target/cgroup.procs" ]; then printf present; else printf unreadable; fi; }
-cgroup_digest_value() { if [ -r "$active_target/cgroup.procs" ]; then sort "$active_target/cgroup.procs" | sha256sum | cut -d' ' -f1; else printf unavailable; fi; }
-emit_sched_sample() {
+	cgroup_status_value() { if [ -r "$active_target/cgroup.procs" ]; then printf present; else printf unreadable; fi; }
+	cgroup_digest_value() { if [ -r "$active_target/cgroup.procs" ]; then sort "$active_target/cgroup.procs" | sha256sum | cut -d' ' -f1; else printf unavailable; fi; }
+	emit_mutation_family() {
+	  family="$1"; target="$2"; post_value="$3"
+	  pre_value="$(fact "$target")"; [ -n "$pre_value" ] || pre_value=unavailable
+	  echo "$post_value" > "$target" 2>/tmp/mutation-write.err
+	  write_rc=$?
+	  post_observed="$(fact "$target")"; [ -n "$post_observed" ] || post_observed=unavailable
+	  echo "$pre_value" > "$target" 2>/tmp/mutation-rollback.err
+	  rollback_rc=$?
+	  restored_value="$(fact "$target")"; [ -n "$restored_value" ] || restored_value=unavailable
+	  status=FAIL; rollback_restored=false
+	  if [ "$write_rc" -eq 0 ] && [ "$rollback_rc" -eq 0 ] && [ "$restored_value" = "$pre_value" ]; then
+	    status=PASS; rollback_restored=true
+	  fi
+	  echo "ZIGSCHED_JSON {\"event\":\"mutation_family\",\"family\":\"$(json_escape "$family")\",\"status\":\"$status\",\"target\":\"vm:$(json_escape "$target")\",\"target_allowlisted\":true,\"pre_value\":\"$(json_escape "$pre_value")\",\"post_value\":\"$(json_escape "$post_observed")\",\"restored_value\":\"$(json_escape "$restored_value")\",\"write_rc\":$write_rc,\"rollback_rc\":$rollback_rc,\"rollback_restored\":$rollback_restored}"
+	}
+	emit_mutation_families() {
+	  emit_mutation_family cgroup.weight "$active_target/cpu.weight" 200
+	  emit_mutation_family cpu.max "$active_target/cpu.max" "50000 100000"
+	  emit_mutation_family uclamp "$active_target/cpu.uclamp.min" "1.00"
+	  cpu_online=/sys/devices/system/cpu/cpu1/online
+	  cpu_pre="$(fact "$cpu_online")"; cpu_post=1
+	  if [ "$cpu_pre" = "1" ]; then cpu_post=0; fi
+	  emit_mutation_family topology.offline_cpu "$cpu_online" "$cpu_post"
+	}
+	emit_sched_sample() {
   sample_event="$1"
   echo "ZIGSCHED_JSON {\"event\":\"$sample_event\",\"state\":\"$(json_escape "$(state_value)")\",\"ops\":\"$(json_escape "$(ops_value)")\",\"enable_seq\":\"$(json_escape "$(enable_seq_value)")\",\"events\":\"$(json_escape "$(events_value)")\",\"workload_alive\":$(workload_alive_value),\"cgroup_membership_digest\":\"$(json_escape "$(cgroup_digest_value)")\",\"cgroup_membership_status\":\"$(json_escape "$(cgroup_status_value)")\"}"
 }
@@ -49,10 +76,11 @@ kernel="$(uname -r)"; arch="$(uname -m)"; sched_state="$(state_value)"; btf=fals
 echo "ZIGSCHED_JSON {\"event\":\"tuple\",\"kernel\":\"$(json_escape "$kernel")\",\"arch\":\"$(json_escape "$arch")\",\"sched_state\":\"$(json_escape "$sched_state")\",\"btf\":$btf}"
 sleep 20 &
 lab_pid=$!
-echo "$lab_pid" > /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs 2>/tmp/cg.err || true
-cg_rc=$?
-echo "ZIGSCHED_JSON {\"event\":\"workload\",\"pid\":$lab_pid,\"cg_rc\":$cg_rc}"
-emit_sched_sample before
+	echo "$lab_pid" > /sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs 2>/tmp/cg.err || true
+	cg_rc=$?
+	echo "ZIGSCHED_JSON {\"event\":\"workload\",\"pid\":$lab_pid,\"cg_rc\":$cg_rc}"
+	emit_mutation_families
+	emit_sched_sample before
 bpftool version 2>&1 | sed 's/^/BPFT_VER /'
 bpftool -d struct_ops register /zigsched_minimal.bpf.o > /tmp/register.out 2>&1
 reg_rc=$?
@@ -104,6 +132,6 @@ microvm_build_rootfs() {
   cp "$object_file" "$root/zigsched_minimal.bpf.o"
   cp "$meta_file" "$root/zigsched_minimal.bpf.meta.json"
   microvm_write_guest_init "$root"
-  (cd "$root" && find . | cpio -o -H newc | gzip -1 > "$scratch/initramfs.cpio.gz")
-  cp "$scratch/initramfs.cpio.gz" "$out_dir/initramfs.cpio.gz"
+  (cd "$root" && find . | cpio -o -H newc | xz --check=crc32 -6 > "$scratch/initramfs.cpio.xz")
+  cp "$scratch/initramfs.cpio.xz" "$out_dir/initramfs.cpio.xz"
 }

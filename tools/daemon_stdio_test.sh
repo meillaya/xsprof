@@ -241,6 +241,39 @@ cmp <(printf '%s\n' "$limit_output") "$limit_dir/events.jsonl" >/dev/null
 rm -rf "$limit_dir"
 printf 'PASS: foreground daemon journal limit is bounded\n'
 
+replay_bad_dir=".zig-cache/tmp/zig-scheduler-daemon-replay-bad-test"
+replay_bad_file=".zig-cache/tmp/zig-scheduler-daemon-replay-bad.jsonl"
+rm -rf "$replay_bad_dir" "$replay_bad_file"
+mkdir -p "$replay_bad_dir"
+printf '%s\n' \
+  '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"state_changed","state":"read_only","host_mutation":false}' \
+  > "$replay_bad_file"
+if "$bin" --foreground --state-dir "$replay_bad_dir" --replay-events "$replay_bad_file" >/tmp/zig-scheduler-daemon-replay-bad.out 2>/tmp/zig-scheduler-daemon-replay-bad.err; then
+  cat /tmp/zig-scheduler-daemon-replay-bad.out >&2 || true
+  cat /tmp/zig-scheduler-daemon-replay-bad.err >&2 || true
+  rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
+  printf 'FAIL: replay-events accepted a row missing schema-required status\n' >&2
+  exit 1
+fi
+printf '%s\n' \
+  '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"runtime_sample","status":"accepted","state":"observing","replay_cursor":"not_schema_enum","host_mutation":false}' \
+  > "$replay_bad_file"
+if "$bin" --foreground --state-dir "$replay_bad_dir" --replay-events "$replay_bad_file" >/tmp/zig-scheduler-daemon-replay-bad.out 2>/tmp/zig-scheduler-daemon-replay-bad.err; then
+  cat /tmp/zig-scheduler-daemon-replay-bad.out >&2 || true
+  cat /tmp/zig-scheduler-daemon-replay-bad.err >&2 || true
+  rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
+  printf 'FAIL: replay-events accepted a row with invalid replay_cursor enum\n' >&2
+  exit 1
+fi
+if [ -s "$replay_bad_dir/events.jsonl" ]; then
+  cat "$replay_bad_dir/events.jsonl" >&2
+  rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
+  printf 'FAIL: replay-events persisted schema-invalid rows\n' >&2
+  exit 1
+fi
+rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
+printf 'PASS: replay-events rejects schema-invalid daemon rows\n'
+
 lifecycle_output="$($0 "$bin" --fixture lifecycle-contract)"
 printf '%s\n' "$lifecycle_output"
 assert_output lifecycle-fixture-rejected "$lifecycle_output"

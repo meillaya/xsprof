@@ -1,0 +1,2 @@
+{"event": "state_changed", "host_mutation": false, "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "read_only", "status": "ready"}
+{"cgroup_membership_digest": "digest-2", "enable_seq": "44", "event": "runtime_sample", "events_hash": "cd34", "host_mutation": false, "nr_rejected": "0", "ops": "zigsched_minimal", "replay_cursor": "runtime_sample_sequence", "sample_sequence": 2, "scheduler_state": "enabled", "schema": "zig-scheduler/daemon-event/v1", "seq": 2, "state": "observing", "status": "accepted", "workload_alive": true}

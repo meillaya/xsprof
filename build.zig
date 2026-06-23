@@ -31,6 +31,8 @@ pub fn build(b: *std.Build) void {
     addRunStep(b, preflight_exe, "linux-preflight", "Read-only Linux scheduler host preflight", .{});
     addRunStep(b, daemon_exe, "daemon", "Run disabled-safe foreground scheduler daemon", .{});
     const daemon_stdio_step = addDaemonStdioStep(b, daemon_exe);
+    const daemon_socket_rpc_step = addDaemonSocketRpcStep(b, daemon_exe);
+    const client_contract_step = addClientContractStep(b);
     addBpfStep(b);
     addVmLabBackendStep(b);
     addPackageStep(b);
@@ -40,6 +42,8 @@ pub fn build(b: *std.Build) void {
         addTestDependency(b, test_step, module);
     }
     test_step.dependOn(daemon_stdio_step);
+    test_step.dependOn(daemon_socket_rpc_step);
+    test_step.dependOn(client_contract_step);
 }
 
 fn addDaemonStdioStep(b: *Build, daemon_exe: *Compile) *Build.Step {
@@ -54,6 +58,34 @@ fn addDaemonStdioStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     const daemon_stdio_step = b.step("daemon-stdio", "Run foreground daemon stdin/stdout smoke test");
     daemon_stdio_step.dependOn(&daemon_stdio_test.step);
     return daemon_stdio_step;
+}
+
+fn addDaemonSocketRpcStep(b: *Build, daemon_exe: *Compile) *Build.Step {
+    const daemon_socket_rpc_test = b.addSystemCommand(&.{"python3"});
+    daemon_socket_rpc_test.addFileArg(b.path("tools/daemon_socket_rpc_test.py"));
+    daemon_socket_rpc_test.addArtifactArg(daemon_exe);
+    daemon_socket_rpc_test.step.dependOn(b.getInstallStep());
+
+    const daemon_socket_rpc_step = b.step("daemon-socket-rpc", "Run local socket JSON-RPC daemon contract test");
+    daemon_socket_rpc_step.dependOn(&daemon_socket_rpc_test.step);
+    return daemon_socket_rpc_step;
+}
+
+fn addClientContractStep(b: *Build) *Build.Step {
+    const contract_check = b.addSystemCommand(&.{"python3"});
+    contract_check.addFileArg(b.path("qa/frontend_contract_pack_check.py"));
+    contract_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/frontend-contract",
+        "--schemas",
+        "schemas/control",
+        "--docs",
+        "docs/control",
+    });
+
+    const contract_step = b.step("client-contract", "Run backend client contract fixture pack check");
+    contract_step.dependOn(&contract_check.step);
+    return contract_step;
 }
 
 fn addBpfStep(b: *Build) void {

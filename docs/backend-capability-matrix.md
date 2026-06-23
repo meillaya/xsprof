@@ -80,3 +80,14 @@ release_gate → SKIP, signed live proof withheld
 ## Non-goal boundary
 
 This task creates documentation and a checker only. Deferred/non-goal: it does not implement VM attach behavior, daemon lifecycle code, packaging changes, release gate changes, simulator changes, frontend source, theme, animation, hotkey, TUI, WebView, browser, or desktop artifacts.
+
+## VM-lab evidence scheduler safety update
+
+The current backend proof surface freezes the control/event schemas under `schemas/control/*.v1.schema.json` and the sched_ext BPF ABI strategy in `docs/adr/0004-bpf-abi-strategy.md` before any policy expansion. The live VM backend now carries one renderable evidence model for every mutation family: `cgroup.weight`, `cpu.max`, `uclamp`, and `topology.offline_cpu`.
+
+Each mutation family requires both sides of the fail-closed boundary:
+
+- host-side refusal artifact with `host_mutation=false`, no BPF load/attach, no cgroup/cpuset/affinity/priority/sys/proc writes, no VM marker, and no allowlisted host target;
+- VM-side evidence with `/run/zig-scheduler-vm-lab.marker`, allowlisted VM target, audit ID, rollback ID, pre-state, post-state, rollback proof, cleanup proof, and `host_mutation=false`.
+
+This is backend infrastructure only. Frontend, TUI, WebView, browser, desktop, simulator, real-host attach, release approval, and unguarded broader status changes are out of scope and must not be introduced.

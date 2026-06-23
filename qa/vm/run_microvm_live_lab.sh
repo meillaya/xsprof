@@ -18,6 +18,7 @@ qemu_arg="${ZIG_SCHEDULER_QEMU_BIN:-}"
 nix_arg="${ZIG_SCHEDULER_NIX_BIN:-}"
 mem="${ZIG_SCHEDULER_MICROVM_MEM:-2048M}"
 smp="${ZIG_SCHEDULER_MICROVM_SMP:-2}"
+accel="${ZIG_SCHEDULER_MICROVM_ACCEL:-kvm}"
 timeout_seconds="${ZIG_SCHEDULER_MICROVM_TIMEOUT:-120}"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
@@ -37,9 +38,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$accel$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail 'timeout must be a positive integer' ;; esac
 [ "$timeout_seconds" -gt 0 ] || fail 'timeout must be positive'
+case "$accel" in kvm|tcg) ;; *) fail 'ZIG_SCHEDULER_MICROVM_ACCEL must be kvm or tcg' ;; esac
 [ ! -e "$out_dir" ] || fail '--out must name a new output directory'
 prepare_evidence_dir evidence/lab "$out_dir"
 mkdir -p "$out_dir"
@@ -119,10 +121,16 @@ root="$scratch/root"
 microvm_build_rootfs "$scratch" "$root" "$busybox_bin" "$object_file" "$meta_file" "$out_dir"
 
 serial="$out_dir/serial.txt"
+if [ "$accel" = kvm ]; then
+  accel_args=(-enable-kvm -cpu host)
+else
+  accel_args=(-cpu max)
+fi
 set +e
-timeout "$timeout_seconds" "$qemu_bin" -enable-kvm -cpu host -m "$mem" -smp "$smp" \
+timeout "$timeout_seconds" "$qemu_bin" "${accel_args[@]}" -m "$mem" -smp "$smp" \
+  -run-with async-teardown=off \
   -name zig-scheduler-microvm-live-lab,debug-threads=on \
-  -kernel "$kernel_image" -initrd "$scratch/initramfs.cpio.gz" \
+  -kernel "$kernel_image" -initrd "$scratch/initramfs.cpio.xz" \
   -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot > "$serial" 2>&1
 qemu_rc=$?
 set -e

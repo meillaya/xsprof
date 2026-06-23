@@ -1,0 +1,19 @@
+{
+  "command_text": "zig-scheduler refused host mutation before execution",
+  "evidence_mode": "host-refusal",
+  "host_mutation": false,
+  "mutation": "cpu.max",
+  "no_affinity_write": true,
+  "no_bpf_load_attach": true,
+  "no_cgroup_write": true,
+  "no_cpuset_write": true,
+  "no_priority_write": true,
+  "no_proc_write": true,
+  "no_sys_write": true,
+  "reason": "host mutation refused; VM marker required",
+  "release_eligible": false,
+  "schema": "zig-scheduler/lab-evidence/v1",
+  "status": "REFUSE",
+  "target_allowlisted": false,
+  "vm_marker_present": false
+}

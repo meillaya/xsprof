@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zig-scheduler/perf-calibration-evidence/v1",
+  "title": "Record-only VM scheduler performance calibration evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "evidence_mode",
+    "source_bundle",
+    "runtime_samples",
+    "sample_count",
+    "threshold_status",
+    "hard_thresholds_enforced",
+    "production_capacity_claim",
+    "release_eligible",
+    "host_mutation"
+  ],
+  "properties": {
+    "schema": { "const": "zig-scheduler/perf-calibration-evidence/v1" },
+    "status": { "const": "RECORDED" },
+    "evidence_mode": { "const": "vm-live-record-only" },
+    "source_bundle": { "type": "string", "minLength": 1 },
+    "runtime_samples": { "type": "string", "minLength": 1 },
+    "sample_count": { "type": "integer", "minimum": 1 },
+    "threshold_status": { "const": "record_only" },
+    "hard_thresholds_enforced": { "const": false },
+    "production_capacity_claim": { "const": false },
+    "release_eligible": { "const": false },
+    "host_mutation": { "const": false }
+  }
+}

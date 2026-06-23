@@ -108,6 +108,7 @@ def write_summary(env: ReportEnv, rows: ReportRows, verifier: VerifierOutputs, o
         verifier.partial_transcript.as_posix(), observe.observe_summary.as_posix(), observe.samples.as_posix(),
         observe.daemon.as_posix(), observe.observe_transcript.as_posix(), verifier.ledger.as_posix(),
         verifier.snapshot.as_posix(), verifier.rollback_transcript.as_posix(), verifier.refusals.as_posix(),
+        verifier.mutation_evidence.as_posix(),
     ]
     data = summary_payload(env, rows, artifacts, verifier)
     if env.git_dirty and "/unsafe-matrix-" not in env.out.as_posix():
@@ -122,6 +123,7 @@ def write_summary(env: ReportEnv, rows: ReportRows, verifier: VerifierOutputs, o
 
 
 def summary_payload(env: ReportEnv, rows: ReportRows, artifacts: list[str], verifier: VerifierOutputs) -> JsonObject:
+    mutation_bundle = json.loads(verifier.mutation_evidence.read_text())
     return {
         "schema": "zig-scheduler/run-all-lab/v1",
         "status": "PASS",
@@ -142,12 +144,17 @@ def summary_payload(env: ReportEnv, rows: ReportRows, artifacts: list[str], veri
         "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
         "kernel_tuple": kernel_tuple(rows),
         "rollback_result": "PASS",
+        "audit_id": str(mutation_bundle.get("mutation_evidence", {}).get("cgroup.weight", {}).get("audit_id", "")),
+        "rollback_id": str(mutation_bundle.get("mutation_evidence", {}).get("cgroup.weight", {}).get("rollback_id", "")),
+        "mutation_evidence": mutation_bundle.get("mutation_evidence", {}),
+        "mutation_evidence_artifact": verifier.mutation_evidence.as_posix(),
         "artifact_paths": artifacts,
         "started_at": env.started_at,
         "ended_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "stages": [
             {"stage": "verifier", "status": "PASS", "reason": "bpftool verifier accepted sched_ext struct_ops object", "artifact": verifier.verifier_evidence.as_posix()},
             {"stage": "attach", "status": "PASS", "reason": "sched_ext ops registered inside disposable VM", "artifact": verifier.partial_evidence.as_posix()},
+            {"stage": "mutation_evidence", "status": "PASS", "reason": "VM-only mutation families recorded pre/post/rollback evidence", "artifact": verifier.mutation_evidence.as_posix()},
             {"stage": "rollback_refusals", "status": "PASS", "reason": "stale target and duplicate rollback ids refused", "artifact": verifier.refusals.as_posix()},
         ],
         "vm_execution_manifest": env.serial.as_posix(),
@@ -169,6 +176,7 @@ def emit_daemon_events(summary: Path, verifier: VerifierOutputs, observe: Observ
         ("verifier", "PASS", "verified", "BPF verifier accepted", verifier.verifier_evidence.as_posix(), {}),
         ("attach", "PASS", "zigsched_minimal", "runtime ops observed", verifier.partial_evidence.as_posix(), {}),
         ("runtime_sample", "accepted", "observing", "runtime samples accepted", observe.samples.as_posix(), {"ops": "zigsched_minimal"}),
+        ("validation", "PASS", "mutation_evidence", "VM-only mutation family pre/post/rollback evidence accepted", verifier.mutation_evidence.as_posix(), {}),
         ("rollback", "PASS", "rolled_back", "PASS", verifier.ledger.as_posix(), {}),
         ("validation", "refused", "stale_target_refused", "stale rollback target refused for active VM target", verifier.refusals.as_posix(), {}),
         ("validation", "refused", "duplicate_rollback_refused", "duplicate rollback id refused after rollback completed", verifier.refusals.as_posix(), {}),

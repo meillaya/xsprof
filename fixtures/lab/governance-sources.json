@@ -42,19 +42,19 @@
       "path": "docs/backend-capability-matrix.md",
       "purpose": "backend capability matrix and milestone boundaries",
       "required": true,
-      "sha256": "7d35b4bdf98f50f47215035673baff06648f2013fd98d26f5a119a0701bd0d45"
+      "sha256": "45d27a1a637d70c39b9c3890a129f73f079f41cc9260ea6790421f2ea1f5eec9"
     },
     {
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "dbae1c21a1ea9142f196a1f9558848ff16a63961927563737e42469346eb2620"
+      "sha256": "3c72b076c02815d87fc1c683782df8ee900d995ffde2a4c6198184106899568e"
     },
     {
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "9d4e1ffa4c9320e436ac1dcce10a269f44adddaad0f1c8399a96c18be872d6f5"
+      "sha256": "1cbe0ae3ec5d522abadde23c61fb2221a90489042f12aed11ba03d70b6deddb5"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -66,7 +66,7 @@
       "path": "docs/runbooks/sched-ext-fallback.md",
       "purpose": "sched_ext fallback and rollback runbook",
       "required": true,
-      "sha256": "db10e71b8baa4beecacf94108db9b5021522c19d243667c3851cb315b9cd08b4"
+      "sha256": "8af7460c5309007236ba48fc7add181d6fb11b03eeccbb58b44ce2b143fa4a34"
     },
     {
       "path": "docs/runbooks/verifier-and-incident.md",
@@ -78,19 +78,19 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "720259a33ee44471da51c9f0ef801ac9456486142bca295491f686dab2e099c4"
+      "sha256": "c3be53fb37bc6b9142ea09731015246fd2794dcfce753ded1ce3631947e0a8b5"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "cc45d0a01c6b1441d6ac500aa77cc8945598282d5f5cd636f6f1d71f16b3254f"
+      "sha256": "fb17c1b995c0ddfeb382500d39b2b5030c26c40a4cc4e2fa5afbedb03e69fae9"
     },
     {
       "path": "docs/security/threat-model.md",
       "purpose": "scheduler backend threat model",
       "required": true,
-      "sha256": "1e5482e3141b388737d0153e7c56d372071a17d047d27e9f32186324b47319c3"
+      "sha256": "e512b7f24e480d46ea55d2220a6cea493bf644aaea50f4ebb73a637cd6c095a7"
     },
     {
       "path": "packaging/README.md",

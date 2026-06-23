@@ -64,3 +64,17 @@ If a `.github/workflows/` directory is added later, keep the names explicit:
 - `privileged-vm.yml`: runs only on the explicit `privileged-vm` gate and prints SKIP when the gate is absent.
 
 No future workflow may hide sched_ext attach, BPF load, cgroup writes, cpuset writes, affinity changes, priority changes, or scheduler state mutation inside ordinary host-safe checks.
+
+## VM-lab evidence safety gates
+
+Add these checks to the default/backend verification lane after schema and BPF build steps:
+
+```bash
+python3 qa/control_schema_drift_check.py --protocol src/control/protocol.zig --schemas schemas/control
+python3 qa/bpf_abi_freeze_check.py --header bpf/include/zigsched_common.h --strategy docs/adr/0004-bpf-abi-strategy.md --metadata zig-out/bpf/zigsched_minimal.bpf.meta.json --skip-json zig-out/bpf/zigsched_minimal.bpf.skip.json
+python3 qa/vm_mutation_contract_check.py --self-test
+python3 qa/daemon_golden_transcript_check.py --daemon zig-out/bin/zig-scheduler-daemon --fixtures fixtures/control/golden
+python3 qa/perf_calibration_evidence_check.py --self-test
+```
+
+On runners where QEMU KVM cannot initialize because of local resource limits, the disposable VM runner may be invoked with the explicit non-default fallback `--accel tcg --mem 1024M`. That still boots a marked disposable VM and still runs the same BPF verifier/register/unregister, runtime sample, rollback, cleanup, and mutation-evidence checks. It is not release approval and is not a real-host attach path.

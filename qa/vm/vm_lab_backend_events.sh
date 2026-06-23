@@ -16,12 +16,23 @@ PY
 
 write_summary() {
   local status="$1" reason="$2" vm_kind="$3" release_eligible="$4" live_summary_path="${5:-}"
-  SUMMARY="$summary_file" STATUS="$status" REASON="$reason" MODE="$mode" OUT_DIR="$out_dir" RUN_ID="$run_id" EVENT_FILE="$event_file" INCIDENT_FILE="$incident_file" CLEANUP_FILE="$cleanup_file" STAGING_MANIFEST="$staging_manifest" LIVE_SUMMARY="$live_summary_path" VM_KIND="$vm_kind" RELEASE_ELIGIBLE="$release_eligible" python3 - <<'PY'
+  SUMMARY="$summary_file" STATUS="$status" REASON="$reason" MODE="$mode" OUT_DIR="$out_dir" RUN_ID="$run_id" EVENT_FILE="$event_file" INCIDENT_FILE="$incident_file" CLEANUP_FILE="$cleanup_file" STAGING_MANIFEST="$staging_manifest" LIVE_SUMMARY="$live_summary_path" VM_KIND="$vm_kind" RELEASE_ELIGIBLE="$release_eligible" MUTATION_REFUSAL_DIR="${mutation_refusal_dir:-}" python3 - <<'PY'
 import json, os
 from pathlib import Path
 artifacts = [os.environ["EVENT_FILE"], os.environ["INCIDENT_FILE"], os.environ["CLEANUP_FILE"], os.environ["STAGING_MANIFEST"]]
 if os.environ["LIVE_SUMMARY"]: artifacts.append(os.environ["LIVE_SUMMARY"])
+refusal_dir = Path(os.environ["MUTATION_REFUSAL_DIR"]) if os.environ["MUTATION_REFUSAL_DIR"] else None
+refusal_paths = []
+if refusal_dir is not None and refusal_dir.is_dir():
+    refusal_paths = [path.as_posix() for path in sorted(refusal_dir.glob("*.json"))]
+    artifacts.extend(refusal_paths)
 summary = {"schema":"zig-scheduler/vm-backend-run/v1","status":os.environ["STATUS"],"reason":os.environ["REASON"],"mode":os.environ["MODE"],"run_id":os.environ["RUN_ID"],"output_dir":os.environ["OUT_DIR"],"daemon_events":os.environ["EVENT_FILE"],"incident":os.environ["INCIDENT_FILE"],"cleanup_receipt":os.environ["CLEANUP_FILE"],"staging_manifest":os.environ["STAGING_MANIFEST"],"live_summary":os.environ["LIVE_SUMMARY"],"vm_kind":os.environ["VM_KIND"],"vm_marker_required":"/run/zig-scheduler-vm-lab.marker","host_mutation":False,"release_eligible_live_proof":os.environ["RELEASE_ELIGIBLE"] == "true","artifact_paths":artifacts}
+summary["mutation_refusal_artifacts"] = refusal_paths
+if os.environ["LIVE_SUMMARY"]:
+    live = json.loads(Path(os.environ["LIVE_SUMMARY"]).read_text())
+    for key in ("vm_marker_present", "vm_marker_path", "audit_id", "rollback_id", "mutation_evidence", "mutation_evidence_artifact"):
+        if key in live:
+            summary[key] = live[key]
 Path(os.environ["SUMMARY"]).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 }

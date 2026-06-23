@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/control/rollback-result.v1.schema.json",
+  "title": "zig-scheduler rollback result v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "rollback_id", "result", "idempotent", "host_mutation"],
+  "properties": {
+    "schema": { "enum": ["zig-scheduler/rollback-result/v1", "zig-scheduler/live-rollback-proof/v1"] },
+    "rollback_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "result": { "const": "PASS" },
+    "idempotent": { "const": true },
+    "host_mutation": { "const": false },
+    "pre_state": { "type": "object" },
+    "restored_state": { "type": "object" },
+    "cleanup_proof": { "type": "object" }
+  }
+}

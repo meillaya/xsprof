@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/control/daemon-event.v1.schema.json",
+  "title": "zig-scheduler daemon event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event",
+    "status",
+    "host_mutation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zig-scheduler/daemon-event/v1"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "boot",
+        "marker",
+        "verifier",
+        "attach",
+        "state_changed",
+        "stage_started",
+        "lab_run_active",
+        "stage_finished",
+        "journal_record",
+        "microvm_boot",
+        "vm_marker",
+        "bpf_register",
+        "runtime_sample",
+        "rollback",
+        "rollback_completed",
+        "cleanup",
+        "validation",
+        "incident",
+        "refusal"
+      ]
+    },
+    "action": {
+      "type": "string"
+    },
+    "action_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "status": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string",
+      "maxLength": 96
+    },
+    "target_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "audit_id": {
+      "type": "string",
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"
+    },
+    "rollback_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "live_bundle_path": {
+      "type": "string"
+    },
+    "sample_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scheduler_state": {
+      "type": "string"
+    },
+    "ops": {
+      "type": "string"
+    },
+    "enable_seq": {
+      "type": "string"
+    },
+    "events_hash": {
+      "type": "string"
+    },
+    "nr_rejected": {
+      "type": "string"
+    },
+    "cgroup_membership_digest": {
+      "type": "string"
+    },
+    "workload_alive": {
+      "type": "boolean"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "git_sha": {
+      "type": "string"
+    },
+    "command_argv_hash": {
+      "type": "string"
+    },
+    "artifact_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cleanup": {
+      "type": "string"
+    },
+    "artifact": {
+      "type": "string"
+    },
+    "target_action_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "replay_cursor": {
+      "type": "string",
+      "enum": [
+        "event_seq",
+        "runtime_sample_sequence"
+      ]
+    },
+    "lifecycle_source": {
+      "type": "string",
+      "enum": [
+        "runner_stream"
+      ]
+    }
+  }
+}

@@ -54,3 +54,9 @@ For final T27/T28 same-run verification, use `qa/release_gate.sh --version <vers
 
 ## Approval record
 The owner/operator records approval in `.omo/evidence/release-approval-<version>.json` or the release evidence bundle. Approval must include the release version, git SHA, audit ID, reviewer, date, and exact authorized status.
+
+## Non-release VM-lab evidence milestone
+
+The VM-lab evidence scheduler safety milestone is a backend proof milestone, not a release approval. A passing milestone bundle may demonstrate schema drift checks, BPF ABI freeze checks, disposable VM marker proof, VM-only attach/register/unregister, mutation-family evidence, rollback, cleanup, and record-only calibration. It must still keep release approval withheld and must not claim to be production-ready, safe for production, or safe for arbitrary production hosts.
+
+The milestone is rejected if any mutation family lacks host refusal proof, VM marker proof, allowlisted target, audit ID, rollback ID, pre-state, post-state, rollback proof, cleanup proof, or `host_mutation=false`. Frontend/root UI artifacts, simulator changes, real-host attach support, signing, publishing, and release-approval artifacts are out of scope and must not be introduced as part of the milestone.

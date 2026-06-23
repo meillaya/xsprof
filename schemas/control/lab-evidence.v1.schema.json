@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/control/lab-evidence.v1.schema.json",
+  "title": "zig-scheduler VM lab evidence v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "evidence_mode",
+    "vm_marker_present",
+    "vm_marker_path",
+    "target_allowlisted",
+    "audit_id",
+    "rollback_id",
+    "host_mutation",
+    "mutation_evidence"
+  ],
+  "properties": {
+    "schema": { "const": "zig-scheduler/lab-evidence/v1" },
+    "evidence_mode": { "enum": ["host-refusal", "vm-live", "vm-required"] },
+    "vm_marker_present": { "type": "boolean" },
+    "vm_marker_path": { "const": "/run/zig-scheduler-vm-lab.marker" },
+    "target_allowlisted": { "type": "boolean" },
+    "audit_id": { "type": "string", "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$" },
+    "rollback_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "host_mutation": { "const": false },
+    "release_eligible": { "const": false },
+    "mutation_evidence": {
+      "type": "object",
+      "required": ["cgroup.weight", "cpu.max", "uclamp", "topology.offline_cpu"],
+      "properties": {
+        "cgroup.weight": { "$ref": "#/$defs/mutation" },
+        "cpu.max": { "$ref": "#/$defs/mutation" },
+        "uclamp": { "$ref": "#/$defs/mutation" },
+        "topology.offline_cpu": { "$ref": "#/$defs/mutation" }
+      }
+    }
+  },
+  "$defs": {
+    "mutation": {
+      "type": "object",
+      "required": ["target", "pre_state", "post_state", "rollback_proof", "cleanup_proof"],
+      "properties": {
+        "target": { "type": "string" },
+        "pre_state": { "type": "object" },
+        "post_state": { "type": "object" },
+        "rollback_proof": { "type": "object" },
+        "cleanup_proof": { "type": "object" }
+      }
+    }
+  }
+}

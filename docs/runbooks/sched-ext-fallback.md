@@ -44,3 +44,7 @@ bash qa/vm/run_all_lab.sh --mode host-safe --out evidence/lab/run-all/manual-fal
 Review the summary for `host_mutation=false`, explicit `SKIP`/`REFUSE` outcomes on ordinary hosts, and cleanup receipts.
 
 SysRq-S remains VM-only. If a future lab profile permits SysRq-S fallback, the transcript must prove the VM marker, audit id, rollback id, pre/post sched_ext state, and console command. The host path must not fire SysRq-S.
+
+## Rollback proof now required per mutation family
+
+A rollback drill is incomplete unless each VM-only mutation-family record includes audit ID, rollback ID, pre-state, post-state, and rollback proof that restores the recorded pre-state. Stale target IDs and duplicate rollback IDs are first-class refusals and must remain visible in daemon events. Cleanup proof must show process-group teardown, temp-dir removal, and QEMU residue scan results.

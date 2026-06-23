@@ -129,3 +129,18 @@ summary and exits non-zero. Tracked `evidence/releases/<version>/` evidence
 remains a curated historical snapshot. Refresh and commit that snapshot only as
 an intentional release-history update, not as part of final live-bundle freshness
 proof.
+
+## VM mutation-family evidence proof
+
+The backend VM evidence story requires every mutation family to be represented as both host refusal and VM-only proof:
+
+```bash
+zig build vm-lab-backend -- --mode host-safe --accel tcg --mem 1024M --timeout 300 --out evidence/lab/run-all/<run-id>
+for m in cgroup.weight cpu.max uclamp topology.offline_cpu; do
+  python3 qa/vm_mutation_contract_check.py --mode host-refusal --mutation "$m" --path evidence/lab/run-all/<run-id>/mutation-refusals/$m.json
+done
+python3 qa/vm_mutation_contract_check.py --mode vm-evidence --summary evidence/lab/run-all/<run-id>/summary.json
+python3 qa/perf_calibration_evidence_check.py --bundle evidence/lab/run-all/<run-id>/live/summary.json --out evidence/lab/run-all/<run-id>/perf-calibration-evidence.json
+```
+
+Use `--accel kvm` on runners where KVM starts cleanly. Use `--accel tcg` only as an explicit disposable-VM fallback when QEMU/KVM startup is blocked by the runner environment. Either way, the host path remains fail-closed and must not load BPF or mutate host scheduler/cgroup state.

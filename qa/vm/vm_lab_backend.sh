@@ -20,6 +20,8 @@ out_dir="evidence/lab/vm-backend-final"
 qemu_arg="${ZIG_SCHEDULER_QEMU_BIN:-}"
 kernel_arg="${ZIG_SCHEDULER_VM_KERNEL:-}"
 timeout_seconds="${ZIG_SCHEDULER_VM_BACKEND_TIMEOUT:-600}"
+microvm_accel="${ZIG_SCHEDULER_MICROVM_ACCEL:-kvm}"
+microvm_mem="${ZIG_SCHEDULER_MICROVM_MEM:-2048M}"
 guest_marker="/run/zig-scheduler-vm-lab.marker"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
@@ -28,7 +30,7 @@ seq=1
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
-usage: zig build vm-lab-backend -- [--mode host-safe|auto|vm-required] --out evidence/lab/<run-id> [--kernel /boot/vmlinuz-...] [--qemu /trusted/qemu-system-x86_64]
+usage: zig build vm-lab-backend -- [--mode host-safe|auto|vm-required] --out evidence/lab/<run-id> [--kernel /boot/vmlinuz-...] [--qemu /trusted/qemu-system-x86_64] [--accel kvm|tcg] [--mem 1024M]
 
 Backend-only disposable VM lab runner:
   - root host remains fail-closed; no host sched_ext/BPF/cgroup mutation is attempted
@@ -46,6 +48,8 @@ while [ "$#" -gt 0 ]; do
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
     --kernel) [ "$#" -ge 2 ] || fail '--kernel requires value'; kernel_arg="$2"; shift 2 ;;
     --qemu) [ "$#" -ge 2 ] || fail '--qemu requires value'; qemu_arg="$2"; shift 2 ;;
+    --accel) [ "$#" -ge 2 ] || fail '--accel requires value'; microvm_accel="$2"; shift 2 ;;
+    --mem) [ "$#" -ge 2 ] || fail '--mem requires value'; microvm_mem="$2"; shift 2 ;;
     --timeout) [ "$#" -ge 2 ] || fail '--timeout requires value'; timeout_seconds="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
@@ -53,9 +57,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$mode" in host-safe|auto|vm-required) ;; *) fail '--mode must be host-safe, auto, or vm-required' ;; esac
-case "$out_dir$qemu_arg$kernel_arg$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$qemu_arg$kernel_arg$timeout_seconds$microvm_accel$microvm_mem" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail '--timeout must be a positive integer' ;; esac
 [ "$timeout_seconds" -gt 0 ] || fail '--timeout must be positive'
+case "$microvm_accel" in kvm|tcg) ;; *) fail 'ZIG_SCHEDULER_MICROVM_ACCEL must be kvm or tcg' ;; esac
+case "$microvm_mem" in *[!A-Za-z0-9_.,:-]*) fail '--mem contains unsafe characters' ;; esac
 
 prepare_owned_out_dir() {
   vm_output_safety_prepare_owned_dir evidence/lab "$out_dir" .zig-scheduler-vm-backend-owned
@@ -116,8 +122,42 @@ run_id="$safe_base"; action_id="act-$safe_base"; rollback_id="RB-$safe_base"
 event_file="$out_dir/daemon-events.jsonl"; summary_file="$out_dir/summary.json"; incident_file="$out_dir/incident.json"
 cleanup_file="$out_dir/cleanup-receipt.json"; staging_manifest="$out_dir/staging-manifest.json"
 qemu_before="$out_dir/qemu-process-scan-before.txt"; qemu_after="$out_dir/qemu-process-scan-after.txt"
+mutation_refusal_dir="$out_dir/mutation-refusals"
 : > "$event_file"
 qemu_scan_processes "$qemu_before"
+
+write_host_mutation_refusals() {
+  MUTATION_REFUSAL_DIR="$mutation_refusal_dir" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+fields = {
+    "schema": "zig-scheduler/lab-evidence/v1",
+    "evidence_mode": "host-refusal",
+    "status": "REFUSE",
+    "reason": "host mutation refused; VM marker required",
+    "host_mutation": False,
+    "release_eligible": False,
+    "vm_marker_present": False,
+    "target_allowlisted": False,
+    "no_bpf_load_attach": True,
+    "no_cgroup_write": True,
+    "no_cpuset_write": True,
+    "no_affinity_write": True,
+    "no_priority_write": True,
+    "no_sys_write": True,
+    "no_proc_write": True,
+}
+out = Path(os.environ["MUTATION_REFUSAL_DIR"])
+out.mkdir(parents=True, exist_ok=True)
+for mutation in ("cgroup.weight", "cpu.max", "uclamp", "topology.offline_cpu"):
+    payload = dict(fields)
+    payload["mutation"] = mutation
+    (out / f"{mutation}.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+PY
+}
+write_host_mutation_refusals
 
 scratch=""
 cleanup_trap() { [ -z "$scratch" ] || [ ! -d "$scratch" ] || rm -rf "$scratch"; qemu_scan_processes "$qemu_after"; }
@@ -143,7 +183,7 @@ if [ -z "$prereq_code" ]; then
     [ -n "$qemu_bin" ] || { prereq_code="qemu_untrusted_or_unavailable"; prereq_detail="trusted qemu-system-x86_64 not found"; }
   fi
 fi
-if [ -z "$prereq_code" ] && [ ! -e /dev/kvm ]; then prereq_code="kvm_unavailable"; prereq_detail="/dev/kvm is required for VM-required sched_ext lab"; fi
+if [ -z "$prereq_code" ] && [ "$microvm_accel" = kvm ] && [ ! -e /dev/kvm ]; then prereq_code="kvm_unavailable"; prereq_detail="/dev/kvm is required for VM-required sched_ext lab"; fi
 if [ -z "$prereq_code" ] && [ "$(uname -m)" != x86_64 ]; then prereq_code="arch_unsupported"; prereq_detail="x86_64 host/guest tuple is required"; fi
 if [ -z "$prereq_code" ] && [ -z "$kernel_image" ]; then
   kernel_image="$(vm_kernel_find_image "" 2> "$out_dir/kernel-validation.txt" || true)"
@@ -162,7 +202,7 @@ fi
 
 live_dir="$out_dir/live"; runner_stdout="$out_dir/runner.stdout.txt"; runner_stderr="$out_dir/runner.stderr.txt"
 set +e
-ZIG_SCHEDULER_QEMU_BIN="$qemu_bin" ZIG_SCHEDULER_VM_KERNEL="$kernel_image" ZIG_SCHEDULER_MICROVM_TIMEOUT="$timeout_seconds" timeout "$timeout_seconds" bash qa/vm/run_microvm_live_lab.sh --out "$live_dir" --kernel "$kernel_image" --qemu "$qemu_bin" > "$runner_stdout" 2> "$runner_stderr"
+ZIG_SCHEDULER_QEMU_BIN="$qemu_bin" ZIG_SCHEDULER_VM_KERNEL="$kernel_image" ZIG_SCHEDULER_MICROVM_ACCEL="$microvm_accel" ZIG_SCHEDULER_MICROVM_MEM="$microvm_mem" ZIG_SCHEDULER_MICROVM_TIMEOUT="$timeout_seconds" timeout "$timeout_seconds" bash qa/vm/run_microvm_live_lab.sh --out "$live_dir" --kernel "$kernel_image" --qemu "$qemu_bin" > "$runner_stdout" 2> "$runner_stderr"
 runner_rc=$?
 set -e
 qemu_scan_processes "$qemu_after"

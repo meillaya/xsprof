@@ -44,6 +44,7 @@ class ReportRows:
     boot: JsonObject
     tuple_row: JsonObject
     workload: JsonObject
+    mutation_rows: tuple[JsonObject, ...]
     before: JsonObject
     register: JsonObject
     unregister: JsonObject
@@ -73,6 +74,7 @@ class OutputPaths:
     partial_dir: Path
     observe_dir: Path
     rollback_dir: Path
+    mutation_dir: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +88,7 @@ class VerifierOutputs:
     snapshot: Path
     rollback_transcript: Path
     refusals: Path
+    mutation_evidence: Path
 
 
 @dataclass(frozen=True, slots=True)

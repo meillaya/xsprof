@@ -1,7 +1,7 @@
 const std = @import("std");
 const protocol = @import("protocol.zig");
 
-pub const DaemonError = error{ InvalidArgs, InvalidStateDir, JournalLimitExceeded, OutOfMemory } || std.Io.Writer.Error;
+pub const DaemonError = error{ InvalidArgs, InvalidStateDir, InvalidSocketPath, JournalLimitExceeded, OutOfMemory } || std.Io.Writer.Error;
 
 pub const max_events_per_run: usize = 128;
 pub const max_journal_bytes: usize = 64 * 1024;
@@ -10,16 +10,22 @@ pub const Options = struct {
     foreground: bool,
     state_dir: []const u8,
     runtime_stream_path: ?[]const u8 = null,
-    stream_from: usize = 0,
+    replay_events_path: ?[]const u8 = null,
+    from_event_seq: usize = 1,
+    from_sample_seq: usize = 0,
     follow: bool = false,
+    socket_path: ?[]const u8 = null,
 };
 
 pub fn parseArgs(args: []const []const u8) DaemonError!Options {
     var foreground = false;
     var state_dir: []const u8 = "";
     var runtime_stream_path: ?[]const u8 = null;
-    var stream_from: usize = 0;
+    var replay_events_path: ?[]const u8 = null;
+    var from_event_seq: usize = 1;
+    var from_sample_seq: usize = 0;
     var follow = false;
+    var socket_path: ?[]const u8 = null;
     var index: usize = 0;
     while (index < args.len) : (index += 1) {
         const arg = args[index];
@@ -36,22 +42,49 @@ pub fn parseArgs(args: []const []const u8) DaemonError!Options {
             if (index >= args.len) return error.InvalidArgs;
             try validateStateDir(args[index]);
             runtime_stream_path = args[index];
+        } else if (std.mem.eql(u8, arg, "--replay-runtime")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            try validateStateDir(args[index]);
+            runtime_stream_path = args[index];
+        } else if (std.mem.eql(u8, arg, "--replay-events")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            try validateStateDir(args[index]);
+            replay_events_path = args[index];
         } else if (std.mem.eql(u8, arg, "--stream-from")) {
             index += 1;
             if (index >= args.len) return error.InvalidArgs;
-            stream_from = std.fmt.parseUnsigned(usize, args[index], 10) catch return error.InvalidArgs;
+            from_sample_seq = std.fmt.parseUnsigned(usize, args[index], 10) catch return error.InvalidArgs;
+        } else if (std.mem.eql(u8, arg, "--from-sample-seq")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            from_sample_seq = std.fmt.parseUnsigned(usize, args[index], 10) catch return error.InvalidArgs;
+        } else if (std.mem.eql(u8, arg, "--from-event-seq")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            from_event_seq = std.fmt.parseUnsigned(usize, args[index], 10) catch return error.InvalidArgs;
+        } else if (std.mem.eql(u8, arg, "--socket")) {
+            index += 1;
+            if (index >= args.len) return error.InvalidArgs;
+            try validateStateDir(args[index]);
+            socket_path = args[index];
         } else {
             return error.InvalidArgs;
         }
     }
     if (!foreground or state_dir.len == 0) return error.InvalidArgs;
     try validateStateDir(state_dir);
+    if (socket_path) |path| try validateSocketPath(state_dir, path);
     return .{
         .foreground = foreground,
         .state_dir = state_dir,
         .runtime_stream_path = runtime_stream_path,
-        .stream_from = stream_from,
+        .replay_events_path = replay_events_path,
+        .from_event_seq = from_event_seq,
+        .from_sample_seq = from_sample_seq,
         .follow = follow,
+        .socket_path = socket_path,
     };
 }
 
@@ -68,6 +101,13 @@ pub fn validateStateDir(path: []const u8) DaemonError!void {
             else => {},
         }
     }
+}
+
+pub fn validateSocketPath(state_dir: []const u8, socket_path: []const u8) DaemonError!void {
+    try validateStateDir(socket_path);
+    if (socket_path.len <= state_dir.len + 1) return error.InvalidSocketPath;
+    if (!std.mem.startsWith(u8, socket_path, state_dir)) return error.InvalidSocketPath;
+    if (socket_path[state_dir.len] != '/') return error.InvalidSocketPath;
 }
 
 pub fn ensureCanWriteEvent(current_bytes: usize, next_event: []const u8) DaemonError!void {
@@ -117,8 +157,15 @@ fn writeRefusal(writer: anytype, seq: usize, reason: []const u8) !void {
 test "daemon args require foreground state dir and reject path traversal" {
     const followed = try parseArgs(&.{ "--foreground", "--follow", "--state-dir", ".omo/evidence/task-T08-state" });
     try std.testing.expect(followed.follow);
+    const replay = try parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/state", "--replay-events", ".zig-cache/tmp/events.jsonl", "--from-event-seq", "2", "--replay-runtime", ".zig-cache/tmp/runtime.jsonl", "--from-sample-seq", "4", "--socket", ".zig-cache/tmp/state/daemon.sock" });
+    try std.testing.expectEqual(@as(usize, 2), replay.from_event_seq);
+    try std.testing.expectEqual(@as(usize, 4), replay.from_sample_seq);
+    try std.testing.expect(replay.replay_events_path != null);
+    try std.testing.expect(replay.runtime_stream_path != null);
+    try std.testing.expect(replay.socket_path != null);
     _ = try parseArgs(&.{ "--foreground", "--state-dir", ".omo/evidence/task-T08-state" });
     try std.testing.expectError(error.InvalidArgs, parseArgs(&.{ "--state-dir", ".omo/evidence/task-T08-state" }));
+    try std.testing.expectError(error.InvalidSocketPath, parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/state", "--socket", ".zig-cache/tmp/daemon.sock" }));
     try std.testing.expectError(error.InvalidStateDir, parseArgs(&.{ "--foreground", "--state-dir", "../bad" }));
 }
 

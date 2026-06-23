@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/control/operator-action.v1.schema.json",
+  "title": "zig-scheduler operator action v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action"],
+  "properties": {
+    "schema": { "const": "zig-scheduler/operator-action/v1" },
+    "action": {
+      "type": "string",
+      "enum": [
+        "preflight",
+        "run_lab_host_safe",
+        "run_lab_vm",
+        "run_lab_microvm_live",
+        "verifier_only",
+        "partial_attach",
+        "observe",
+        "stop",
+        "rollback",
+        "stop_lab_run",
+        "rollback_lab_run",
+        "incident_drill"
+      ]
+    },
+    "action_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
+    "run_id": { "type": "string", "maxLength": 96 },
+    "target_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
+    "target_cgroup": { "type": "string", "maxLength": 256 },
+    "audit_id": { "type": "string", "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$" },
+    "rollback_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
+    "target_action_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" }
+  },
+  "forbiddenProperties": ["command", "shell", "argv", "host_mutation"]
+}

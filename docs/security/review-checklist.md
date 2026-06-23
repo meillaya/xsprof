@@ -39,3 +39,13 @@ Every mutation-capable security review and release approval must include:
 
 Placeholder identities such as `TODO`, `TBD`, `unknown`, or the unqualified
 `repository-owner-operator` must fail the security and release gates.
+
+## VM-lab evidence scheduler safety checklist
+
+- [ ] Control schemas are frozen and checked against Zig protocol sources.
+- [ ] BPF ABI strategy is frozen before policy expansion.
+- [ ] Host refusal artifacts exist for `cgroup.weight`, `cpu.max`, `uclamp`, and `topology.offline_cpu`.
+- [ ] VM evidence for every mutation family includes marker, allowlist, audit ID, rollback ID, pre/post state, rollback proof, and cleanup proof.
+- [ ] Stale target and duplicate rollback ID refusals are present in daemon events.
+- [ ] Performance evidence is record-only and contains no hard threshold or production-capacity claim.
+- [ ] Must not claim to be production-ready; frontend, simulator, real-host attach, release approval, and broader status changes must not be introduced and remain out of scope.

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/control/runtime-sample.v1.schema.json",
+  "title": "zig-scheduler runtime sample v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sequence",
+    "state",
+    "ops",
+    "enable_seq",
+    "events",
+    "events_hash",
+    "nr_rejected",
+    "debug_dump",
+    "cgroup_membership_digest",
+    "workload_alive",
+    "private_command_lines_sampled"
+  ],
+  "properties": {
+    "schema": { "const": "zig-scheduler/runtime-sample/v1" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "git_sha": { "type": "string" },
+    "state": { "$ref": "#/$defs/fact" },
+    "ops": { "$ref": "#/$defs/fact" },
+    "enable_seq": { "$ref": "#/$defs/fact" },
+    "events": { "$ref": "#/$defs/fact" },
+    "events_hash": { "type": "string" },
+    "nr_rejected": { "$ref": "#/$defs/fact" },
+    "debug_dump": { "$ref": "#/$defs/fact" },
+    "cgroup_membership_digest": { "type": "string" },
+    "workload_alive": { "type": "boolean" },
+    "private_command_lines_sampled": { "const": false }
+  },
+  "forbiddenProperties": ["command_line", "cmdline", "argv", "env", "environment", "secret", "api_key"],
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value"],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "value": { "type": "string" }
+      }
+    }
+  }
+}

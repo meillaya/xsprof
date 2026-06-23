@@ -179,6 +179,13 @@ Important caveats:
 
 The current daemon surface is already a good seed: it emits `zig-scheduler/daemon-event/v1`, tracks active targets, refuses duplicate/stale targets, and has journal replay tests for rollback/cleanup. The next milestone is to make it a formal API contract independent of any UI.
 
+Backend client boundary freeze criteria (no frontend implementation):
+
+- `docs/control/frontend-api-pack.md`, `docs/control/schema-compatibility.md`, and `docs/control/incident-taxonomy.md` define the backend-only client contract; no frontend implementation is approved here.
+- `fixtures/frontend-contract/` is the canonical no-QEMU client fixture pack for lifecycle, runtime, rollback, cleanup, incident, refusal, and replay-cursor behavior; no frontend code is included.
+- `zig build client-contract`, `zig build daemon-stdio`, and `zig build daemon-socket-rpc` must pass before any later client layer treats the daemon surface as stable.
+- This freeze: do not approve frontend implementation, simulator changes, real-host attach, release approval, or production-readiness claims.
+
 Next hardening tasks:
 
 - Publish event and action schemas:
@@ -267,5 +274,5 @@ Until those prerequisites are satisfied, real-host attach should remain a refusa
 
 - No frontend, TUI, WebView, browser, desktop, theme, or animation work.
 - No simulator changes.
-- No production readiness claim.
+- Must not claim production readiness.
 - No ordinary host attach, BPF load, cgroup/cpuset/affinity/priority mutation, or scheduler mutation outside the disposable VM lab path.

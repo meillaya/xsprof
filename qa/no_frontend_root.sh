@@ -80,6 +80,18 @@ is_strict_frontend_path() {
   esac
 }
 
+is_backend_contract_exception() {
+  local match="$1" file rel
+  file="${match%%:*}"
+  rel="$(relative "$file")"
+  case "$rel:$match" in
+    docs/control/frontend-api-pack.md:*) return 0 ;;
+    build.zig:*qa/frontend_contract_pack_check.py*) return 0 ;;
+    build.zig:*fixtures/frontend-contract*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 relative() {
   local path="$1"
   case "$path" in
@@ -134,6 +146,9 @@ while IFS= read -r match; do
   case "$rel_file" in
     docs/vendor/*) continue ;;
   esac
+  if is_backend_contract_exception "$match"; then
+    continue
+  fi
   if is_strict_frontend_path "$file"; then
     fail "forbidden root frontend/UI token in build/source/package path: $match"
   fi
@@ -147,6 +162,9 @@ for path in "${scan_paths[@]}"; do
   while IFS= read -r artifact; do
     [ -n "$artifact" ] || continue
     rel="$(relative "$artifact")"
+    case "$rel" in
+      docs/control/frontend-api-pack.md) continue ;;
+    esac
     fail "root frontend package/source artifact exists: $rel"
   done < <(find "$path" \
     \( -path "$root/.git" -o -path "$root/.omx" -o -path "$root/.omo" -o -path "$root/.zig-cache" -o -path "$root/zig-out" -o -path "$root/docs/vendor" \) -prune \

@@ -43,3 +43,7 @@ The mutation-capable lab profile specifically reviews config injection, cgroup e
 ## Packaging threat notes
 
 Packages install inert defaults. Services must not be enabled by installation or upgrade. Mutation-capable services must remain gated by VM marker, config marker, audit id, rollback id, approval evidence, and release gate proof. Package manifests must state VM/lab backend scope, `production_ready=false`, `arbitrary_host_safe=false`, and no frontend/simulator payloads.
+
+## Mutation-family evidence threats
+
+The mutation-family evidence contract treats generated VM evidence as untrusted until schema and contract checks pass. Attack surfaces include forged VM markers, host paths disguised as VM targets, stale rollback IDs, duplicate rollback attempts, missing cleanup proof, and performance evidence promoted into a capacity claim. Required mitigations are allowlisted VM target prefixes, immutable audit/rollback IDs, rollback restored-state comparison, generated host-refusal artifacts for every mutation family, and record-only performance calibration with no hard threshold or production-capacity claim.

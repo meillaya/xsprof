@@ -22,6 +22,7 @@ REQUIRED_EVENTS: Final[tuple[str, ...]] = (
     "stale_target_refusal",
     "duplicate_rollback_refusal",
 )
+MUTATION_FAMILIES: Final[tuple[str, ...]] = ("cgroup.weight", "cpu.max", "uclamp", "topology.offline_cpu")
 
 
 def load_timeout_env() -> TimeoutEnv:
@@ -83,10 +84,16 @@ def require_rows(rows: list[JsonObject]) -> ReportRows:
     for required in REQUIRED_EVENTS:
         if required not in by_event:
             raise SystemExit(f"missing microVM event: {required}")
+    mutation_rows = tuple(row for row in rows if row.get("event") == "mutation_family")
+    observed_families = {str(row.get("family")) for row in mutation_rows}
+    missing_families = sorted(set(MUTATION_FAMILIES) - observed_families)
+    if missing_families:
+        raise SystemExit("missing microVM mutation family evidence: " + ", ".join(missing_families))
     result = ReportRows(
         boot=by_event["boot"],
         tuple_row=by_event["tuple"],
         workload=by_event["workload"],
+        mutation_rows=mutation_rows,
         before=by_event["before"],
         register=by_event["register"],
         unregister=by_event["unregister"],
@@ -110,6 +117,13 @@ def validate_rows(rows: ReportRows) -> None:
         raise SystemExit("microVM duplicate rollback refusal did not refuse")
     if not rows.tuple_row.get("btf"):
         raise SystemExit("microVM kernel BTF missing")
+    for mutation in rows.mutation_rows:
+        if mutation.get("status") != "PASS":
+            raise SystemExit(f"microVM mutation family did not pass: {mutation.get('family')}")
+        if mutation.get("target_allowlisted") is not True:
+            raise SystemExit(f"microVM mutation target not allowlisted: {mutation.get('family')}")
+        if mutation.get("rollback_restored") is not True:
+            raise SystemExit(f"microVM mutation rollback did not restore: {mutation.get('family')}")
 
 
 def report_ids(env: ReportEnv, rows: ReportRows) -> ReportIds:

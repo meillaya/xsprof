@@ -1,0 +1,1 @@
+{"action": "rollback_lab_run", "action_id": "act-rb", "event": "rollback", "host_mutation": false, "rollback_id": "RB-active", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "rollback_active", "status": "active"}

@@ -113,7 +113,7 @@ fn requireSafeFact(fact: Fact) StreamError!void {
 fn hasPrivateNeedle(value: []const u8) bool {
     const needles = [_][]const u8{ "cmdline", "command_line", "argv", "environment", "\"env\"", "secret", "api_key", "--token", "password=" };
     for (needles) |needle| {
-        if (std.mem.indexOf(u8, value, needle) != null) return true;
+        if (std.ascii.indexOfIgnoreCase(value, needle) != null) return true;
     }
     return false;
 }
@@ -212,6 +212,10 @@ fn goodSample(sequence: usize) []const u8 {
 
 fn goodSampleWithPrivate() []const u8 {
     return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"cmdline\":\"demo\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
+}
+
+fn goodSampleWithUppercasePrivateValue() []const u8 {
+    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"state\":{\"status\":\"present\",\"value\":\"PASSWORD=secret\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
 }
 
 fn goodSampleWithGit(git_sha: []const u8) []const u8 {
