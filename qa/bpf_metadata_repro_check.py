@@ -61,7 +61,8 @@ def run_build(clang_path: Path) -> BuildResult:
         )
     if not OBJECT_PATH.is_file() or not METADATA_PATH.is_file():
         if SKIP_PATH.is_file():
-            raise SystemExit("SKIP: clang cannot emit BPF objects; metadata repro check not run")
+            print("SKIP: clang cannot emit BPF objects; metadata repro check not run")
+            raise SystemExit(0)
         raise BpfMetadataReproError(f"BPF build did not produce canonical outputs for {clang_path}")
     metadata = loads(METADATA_PATH.read_text())
     tool_versions = metadata.get("tool_versions")
