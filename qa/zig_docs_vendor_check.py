@@ -21,6 +21,8 @@ REQUIRED_FILES: Final[tuple[str, ...]] = (
     "std/main.js",
     "std/main.wasm",
     "std/sources.tar",
+    "zig-0.16.0-stdlib-reference.txt",
+    "zig-0.16.0-stdlib-sources.txt",
 )
 REQUIRED_SOURCE_TEXT: Final[tuple[str, ...]] = (
     "https://ziglang.org/documentation/0.16.0/",
