@@ -166,6 +166,7 @@ sections = set(struct_ops.get("program_sections") or [])
 for section in ("struct_ops.s/zigsched_minimal_init", "struct_ops/zigsched_minimal_enqueue", "struct_ops/zigsched_minimal_dispatch"):
     require(section in sections, f"struct_ops program section missing {section}")
 PY
+  python3 qa/bpf_metadata_repro_check.py || fail 'BPF metadata symlink reproducibility check failed'
   if command -v llvm-objdump >/dev/null 2>&1; then
     llvm-objdump -h "$object_file" | grep -q 'struct_ops' || fail 'object missing struct_ops section'
   elif command -v readelf >/dev/null 2>&1; then

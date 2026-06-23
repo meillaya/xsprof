@@ -28,6 +28,20 @@ command_path_or_unavailable() {
   command -v "$1" 2>/dev/null || printf 'unavailable'
 }
 
+canonical_command_path_or_unavailable() {
+  local path
+  path="$(command_path_or_unavailable "$1")"
+  if [ "$path" = 'unavailable' ]; then
+    printf 'unavailable'
+    return
+  fi
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$path" 2>/dev/null || printf '%s' "$path"
+  else
+    printf '%s' "$path"
+  fi
+}
+
 bpftool_version() {
   first_line_or_unavailable bpftool version
 }
@@ -43,7 +57,7 @@ file_version() {
 metadata_common_env() {
   SOURCE_SHA="$(sha256_file "$source_file")" \
   CLANG_VERSION="$(clang_version)" \
-  CLANG_PATH="$(command_path_or_unavailable "$cc")" \
+  CLANG_PATH="$(canonical_command_path_or_unavailable "$cc")" \
   LLVM_OBJDUMP_VERSION="$(llvm_objdump_version)" \
   BPFT_VERSION="$(bpftool_version)" \
   FILE_VERSION="$(file_version)" \

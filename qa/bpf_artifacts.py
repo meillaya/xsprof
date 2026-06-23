@@ -61,6 +61,13 @@ def validate_bpf_artifacts(object_path: Path, metadata_path: Path) -> BpfArtifac
         raise BpfArtifactError("BPF metadata must be VM-only")
     if metadata.get("verification_claimed") is not False:
         raise BpfArtifactError("BPF metadata must not claim verifier success")
+    tool_versions = metadata.get("tool_versions")
+    if not isinstance(tool_versions, dict):
+        raise BpfArtifactError("BPF metadata missing tool_versions object")
+    clang_path = require_text(tool_versions, "clang_path", "tool_versions")
+    clang_path_value = Path(clang_path)
+    if not clang_path_value.is_absolute() or clang_path_value.resolve() != clang_path_value:
+        raise BpfArtifactError("BPF metadata tool_versions.clang_path must be canonical")
     return BpfArtifacts(object_path=object_path, metadata_path=metadata_path, object_sha256=object_sha)
 
 
