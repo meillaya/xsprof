@@ -156,7 +156,7 @@
       "path": "qa/no_frontend_root.sh",
       "purpose": "root frontend and UI artifact exclusion gate",
       "required": true,
-      "sha256": "db49b544f6a82c2a7f76f4e04e2a5da668bbbf6244f6099a81e1d2b839584373"
+      "sha256": "5aa6d54a655295e4002b3bd809e709f355069e7b2d1c9a27b23ca4d825e8e212"
     },
     {
       "path": "qa/no_host_mutation.sh",

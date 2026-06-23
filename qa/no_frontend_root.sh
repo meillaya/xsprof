@@ -116,7 +116,7 @@ done
 [ "${#scan_paths[@]}" -gt 0 ] || fail 'no root paths available to scan'
 
 printf 'root=%s\n' "$root"
-printf 'checked_paths=' 
+printf 'checked_paths='
 first=1
 for path in "${scan_paths[@]}"; do
   if [ "$first" -eq 0 ]; then printf ','; fi
