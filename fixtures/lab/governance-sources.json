@@ -180,13 +180,13 @@
       "path": "qa/package_manifest_check.py",
       "purpose": "package manifest semantic safety validator",
       "required": true,
-      "sha256": "40ab7f6c840e33cff844449528f6ae1d8f34c28c989764955e2532a3b70b82bf"
+      "sha256": "9ddefc68c3430738aa476b336faddef7dcb79b89d0061584cb4365271ace2b80"
     },
     {
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "3b7f5c46e9bf198bbaaafd218de4487dd3560f6208a53b8cb055f4fe140b0873"
+      "sha256": "65c3280a1cd8708e59db9635258faa11694cd909684b4d5515c7a723565ffb11"
     },
     {
       "path": "qa/security_gate.sh",

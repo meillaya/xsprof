@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Final
@@ -130,12 +131,19 @@ def forbidden_payload_reason(rel: str) -> str | None:
     return None
 
 
+def current_git_sha() -> str:
+    try:
+        return subprocess.check_output(("git", "rev-parse", "HEAD"), text=True).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        raise PackageManifestError("could not read current git SHA") from exc
+
 def run(argv: list[str]) -> int:
     manifest_path = parse_manifest_arg(argv)
     raw = json.loads(manifest_path.read_text())
     require(isinstance(raw, dict), "manifest must be a JSON object")
     data = raw
     require(data.get("schema") == "zig-scheduler/package-manifest/v1", "bad schema")
+    require(data.get("git_sha") == current_git_sha(), "manifest git_sha is stale")
     require(data.get("milestone") == "vm_lab_backend_readiness", "package milestone must be VM/lab backend readiness")
     require(data.get("production_ready") is False, "package must not claim production readiness")
     require(data.get("arbitrary_host_safe") is False, "package must not claim arbitrary-host safety")

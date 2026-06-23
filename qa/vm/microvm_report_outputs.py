@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
-from microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
-from microvm_report_types import JsonObject, ObserveOutputs, OutputPaths, ReportEnv, ReportIds, ReportRows, SerialLines, VerifierOutputs
+from microvm_report_types import JsonObject, OutputPaths, ReportEnv, ReportIds, ReportRows, SerialLines, VerifierOutputs
 
 
 def sha(path: Path) -> str:

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import hashlib
-import json
 from typing import Final
 
-from qa.evidence_safety_check import JsonObject, JsonValue, reject_contradictions
+from qa.bpf_artifacts import BpfArtifactError, ensure_if_canonical, validate_bpf_artifacts
+from qa.evidence_safety_check import JsonObject, reject_contradictions
 
 SCHEMA: Final[str] = "zig-scheduler/verifier-log-parse/v1"
 VM_EVIDENCE_SCHEMA: Final[str] = "zig-scheduler/vm-verifier-evidence/v1"
@@ -152,8 +151,14 @@ def require_sha256(value: str, context: str) -> None:
 
 def require_relative_file(raw_path: str, context: str) -> Path:
     path = Path(raw_path)
-    if path.is_absolute() or ".." in path.parts or path.is_symlink() or not path.is_file():
-        raise VMVerifierError(f"{context} path is unsafe or missing")
+    if path.is_absolute() or ".." in path.parts or path.is_symlink():
+        raise VMVerifierError(f"{context} path is unsafe")
+    try:
+        ensure_if_canonical(path)
+    except BpfArtifactError as exc:
+        raise VMVerifierError(str(exc)) from exc
+    if not path.is_file():
+        raise VMVerifierError(f"{context} path is missing")
     return path
 
 
@@ -220,34 +225,14 @@ def require_log_matches_evidence(values: dict[str, str], evidence: JsonObject) -
 
 
 def require_artifact_hashes(claims: ArtifactClaims) -> None:
-    actual_object_sha = sha256_file(claims.object_path)
-    if claims.object_sha != actual_object_sha:
-        raise VMVerifierError("VM verifier evidence object_sha256 disagrees with object file")
-    metadata = load_metadata(claims.metadata_path)
-    metadata_object = metadata.get("object")
-    if isinstance(metadata_object, str) and Path(metadata_object) != claims.object_path:
-        raise VMVerifierError("VM verifier metadata object path disagrees with evidence object")
-    metadata_object_sha = metadata.get("object_sha256")
-    if claims.metadata_sha != metadata_object_sha or claims.metadata_sha != actual_object_sha:
-        raise VMVerifierError("VM verifier metadata object sha disagrees with object")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def load_metadata(path: Path) -> JsonObject:
     try:
-        raw: JsonValue = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise VMVerifierError(f"invalid BPF metadata JSON: {path}") from exc
-    if not isinstance(raw, dict):
-        raise VMVerifierError("BPF metadata must contain a JSON object")
-    return raw
+        artifacts = validate_bpf_artifacts(claims.object_path, claims.metadata_path)
+    except BpfArtifactError as exc:
+        raise VMVerifierError(str(exc)) from exc
+    if claims.object_sha != artifacts.object_sha256:
+        raise VMVerifierError("VM verifier evidence object_sha256 disagrees with object file")
+    if claims.metadata_sha != artifacts.object_sha256:
+        raise VMVerifierError("VM verifier metadata object sha disagrees with object")
 
 
 def parse_bpftool_rc(values: dict[str, str]) -> int | None:

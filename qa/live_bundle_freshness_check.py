@@ -24,6 +24,9 @@ import subprocess
 import sys
 from typing import Final, TypeAlias
 
+_ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from qa.bpf_artifacts import BpfArtifactError, ensure_canonical_bpf_artifacts
+
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 
@@ -319,11 +322,15 @@ def current_dirty_snapshot_hash() -> str:
 
 
 def current_bpf_sha(path: Path | None = None) -> str:
-    target = Path("zig-out/bpf/zigsched_minimal.bpf.o") if path is None else path
+    if path is None:
+        try:
+            return ensure_canonical_bpf_artifacts().object_sha256
+        except BpfArtifactError as exc:
+            raise FreshnessCheckError(str(exc)) from exc
     try:
-        return hashlib.sha256(target.read_bytes()).hexdigest()
+        return hashlib.sha256(path.read_bytes()).hexdigest()
     except FileNotFoundError as exc:
-        raise FreshnessCheckError(f"missing current BPF object: {target}") from exc
+        raise FreshnessCheckError(f"missing current BPF object: {path}") from exc
 
 
 def run(argv: list[str]) -> int:

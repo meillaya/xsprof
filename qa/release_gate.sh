@@ -308,6 +308,8 @@ if ! bash qa/no_host_mutation.sh >/dev/null; then
 fi
 rm -rf evidence/lab/run-all/no-host-mutation
 bash qa/security_gate.sh --profile mutation-capable-lab --review fixtures/lab/security-review-approved.json >/dev/null
+zig build package --summary all >/dev/null
+python3 qa/package_manifest_check.py --manifest zig-out/package/manifest.json >/dev/null
 bash qa/package_defaults.sh --mode inspect >/dev/null
 bash qa/restructure_check.sh >/dev/null
 bash qa/no_frontend_root.sh >/dev/null
