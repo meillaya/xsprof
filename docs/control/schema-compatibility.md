@@ -9,6 +9,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 | `zig-scheduler/daemon-event/v1` | `schemas/control/daemon-event.v1.schema.json` | Public client event stream. |
 | `zig-scheduler/operator-action/v1` | `schemas/control/operator-action.v1.schema.json` | Public client action input. |
 | `zig-scheduler/runtime-sample/v1` | `schemas/control/runtime-sample.v1.schema.json` | Public runtime sample input. |
+| `zig-scheduler/matrix-run/v1` | `schemas/control/matrix-run.v1.schema.json` | Standalone VM harness evidence artifact referenced by daemon events; not embedded into daemon-event/v1. |
 
 ## Compatibility guarantees
 
@@ -18,6 +19,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 - New event, action, status, state, or incident code values require fixture and documentation updates in the same change.
 - Unknown schema versions must be refused or treated as unsupported, never silently reinterpreted as v1.
 - A breaking change requires a new `/v2` schema string and a migration note.
+- Dotted namespace labels such as `bpf.libbpf_load_failed` are documentation-only groupings. They must not replace underscore-only v1 wire `reason` values such as `libbpf_load_failed`.
 
 ## Version matrix
 
@@ -27,12 +29,14 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 | operator-action/v1 | stdio daemon | yes | Validated by `zig build daemon-stdio`. |
 | operator-action/v1 | UDS JSON-RPC `action_json` | yes | Same dispatcher as stdio. |
 | runtime-sample/v1 | replay/runtime stream | yes | Validated by runtime replay and contract pack checks. |
+| matrix-run/v1 | daemon-event/v1 artifact reference | yes | The daemon event carries a relative artifact path; the matrix artifact is validated by its own checker. |
 | any v2+ | current daemon | no | Must refuse until a v2 compatibility plan exists. |
 
 ## Compatibility changelog
 
 - 2026-06-23: v1 public boundary documented as the backend client integration contract. stdio JSONL remains stable for tests/replay. UDS JSON-RPC is added as the local persistent client transport. Event replay and runtime sample replay cursors are documented separately.
 - 2026-06-23: Client contract fixtures expanded prerequisite, cgroup race, DSQ/perf, runtime alert, privacy, and release-ineligible states using existing optional `daemon-event/v1` fields; no v1 schema change is required.
+- 2026-06-29: Client contract fixtures expanded JSON-RPC refusal, replay-row refusal, matrix artifact reference, BPF/libbpf/scx, workload capability, runtime sample-loss, and release-ineligible coverage. Existing underscore-only v1 `reason` codes remain stable; dotted phase/source namespace labels are documentation-only and are rejected by the fixture semantics gate if used as wire reasons.
 
 ## Required gates
 

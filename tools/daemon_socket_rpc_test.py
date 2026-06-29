@@ -40,6 +40,28 @@ def result(response: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def rpc_error(response: dict[str, Any], incident_code: str) -> dict[str, Any]:
+    if response.get("jsonrpc") != "2.0":
+        fail(f"bad jsonrpc error response: {response}")
+    error = response.get("error")
+    if not isinstance(error, dict):
+        fail(f"missing error: {response}")
+    data = error.get("data")
+    if not isinstance(data, dict):
+        fail(f"missing error data: {response}")
+    expected = {
+        "incident_code": incident_code,
+        "reason": incident_code,
+        "state": "refused_host",
+        "status": "REFUSE",
+        "host_mutation": False,
+    }
+    for key, value in expected.items():
+        if data.get(key) != value:
+            fail(f"error data {key} drifted for {incident_code}: {response}")
+    return data
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 1:
         fail("usage: daemon_socket_rpc_test.py <daemon-bin>")
@@ -61,6 +83,9 @@ def main(argv: list[str]) -> int:
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if bad_proc.returncode == 0 or not collision.exists():
         fail("daemon accepted or unlinked a non-socket collision")
+    (state_dir / "events.jsonl").write_text(
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"rpc-live-active","target_id":"rpc-target-active","rollback_id":"RB-rpc-active","artifact":"evidence/lab/rpc-active","state":"partial_switch_lab","status":"active","host_mutation":false}\n'
+    )
     proc = subprocess.Popen([
         str(bin_path),
         "--foreground",
@@ -82,9 +107,20 @@ def main(argv: list[str]) -> int:
             fail("socket did not appear")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.connect(str(sock_path))
+            rpc_error(
+                request(client, {"jsonrpc": "1.0", "id": "bad-version", "method": "daemon.version"}),
+                "invalid_rpc_version",
+            )
             version = result(request(client, {"jsonrpc": "2.0", "id": "version", "method": "daemon.version"}))
             if version.get("event_schema") != "zig-scheduler/daemon-event/v1":
                 fail(f"bad version result: {version}")
+            missing_action = request(client, {
+                "jsonrpc": "2.0",
+                "id": "missing-action-json",
+                "method": "actions.submit",
+                "params": {},
+            })
+            rpc_error(missing_action, "action_json_required")
             submitted = result(request(client, {
                 "jsonrpc": "2.0",
                 "id": "preflight",
@@ -107,10 +143,16 @@ def main(argv: list[str]) -> int:
                 "method": "actions.rollback",
                 "params": {"action_json": '{"schema":"zig-scheduler/operator-action/v1","action":"preflight","action_id":"rpc-wrong-method-1"}'},
             })
-            error = mismatch.get("error", {})
-            data = error.get("data", {}) if isinstance(error, dict) else {}
-            if data.get("incident_code") != "rpc_action_mismatch" or data.get("host_mutation") is not False:
-                fail(f"method/action mismatch was not refused: {mismatch}")
+            rpc_error(mismatch, "rpc_action_mismatch")
+            duplicate = result(request(client, {
+                "jsonrpc": "2.0",
+                "id": "duplicate-target",
+                "method": "actions.submit",
+                "params": {"action_json": '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"rpc-live-duplicate","run_id":"rpc-run-duplicate","target_id":"rpc-target-active","rollback_id":"RB-rpc-duplicate"}'},
+            }))
+            duplicate_events = duplicate.get("events_jsonl", "")
+            if "duplicate_target_id" not in duplicate_events or "stage_started" in duplicate_events:
+                fail(f"duplicate active target was not visibly refused before dispatch: {duplicate}")
             replay = result(request(client, {"jsonrpc": "2.0", "id": "replay", "method": "events.replay", "params": {"from_event_seq": 2}}))
             events = replay.get("events_jsonl", "")
             if '"seq":1' in events or '"seq":2' not in events:

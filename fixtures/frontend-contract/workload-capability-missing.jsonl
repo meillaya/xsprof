@@ -1,0 +1,1 @@
+{"artifact": "evidence/lab/workloads/capability-missing.json", "event": "refusal", "host_mutation": false, "reason": "workload_capability_missing", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "unsafe_to_assume", "status": "REFUSE"}

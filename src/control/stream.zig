@@ -83,6 +83,14 @@ pub fn appendRuntimeLine(
     }
     try appendSample(allocator, output, next_seq.*, parsed.value);
     next_seq.* += 1;
+    if (sampleHasRejectedDispatches(parsed.value)) {
+        try appendIncident(allocator, output, next_seq.*, "runtime_nr_rejected_nonzero");
+        next_seq.* += 1;
+    }
+    if (!parsed.value.workload_alive) {
+        try appendIncident(allocator, output, next_seq.*, "runtime_workload_dead");
+        next_seq.* += 1;
+    }
 }
 
 fn parseSample(allocator: std.mem.Allocator, line: []const u8) StreamError!std.json.Parsed(RawSample) {
@@ -116,6 +124,14 @@ fn hasPrivateNeedle(value: []const u8) bool {
         if (std.ascii.indexOfIgnoreCase(value, needle) != null) return true;
     }
     return false;
+}
+
+fn sampleHasRejectedDispatches(sample: RawSample) bool {
+    if (!std.mem.eql(u8, sample.nr_rejected.status, "present")) return false;
+    const value = std.mem.trim(u8, sample.nr_rejected.value, " \t\r\n");
+    if (value.len == 0) return false;
+    const parsed = std.fmt.parseUnsigned(u64, value, 10) catch return !std.mem.eql(u8, value, "0");
+    return parsed != 0;
 }
 
 fn appendSample(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize, sample: RawSample) !void {
@@ -205,9 +221,26 @@ test "runtime stream supports replay offsets stale git and bounded drops" {
     try std.testing.expect(std.mem.indexOf(u8, output.items, "stream_backpressure_dropped") != null);
 }
 
+test "runtime stream emits ordered alerts after accepted samples" {
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(std.testing.allocator);
+    var seq: usize = 1;
+    try appendRuntimeLine(std.testing.allocator, &output, sampleWithRejectedDispatches(), &seq, 0, "sha");
+    try appendRuntimeLine(std.testing.allocator, &output, sampleWithDeadWorkload(), &seq, 0, "sha");
+    const rejected_sample = std.mem.indexOf(u8, output.items, "\"sample_sequence\":3") orelse return error.TestExpectedRuntimeAlertSample;
+    const rejected_incident = std.mem.indexOf(u8, output.items, "runtime_nr_rejected_nonzero") orelse return error.TestExpectedRuntimeAlertIncident;
+    const dead_sample = std.mem.indexOf(u8, output.items, "\"sample_sequence\":4") orelse return error.TestExpectedRuntimeAlertSample;
+    const dead_incident = std.mem.indexOf(u8, output.items, "runtime_workload_dead") orelse return error.TestExpectedRuntimeAlertIncident;
+    try std.testing.expect(rejected_sample < rejected_incident);
+    try std.testing.expect(dead_sample < dead_incident);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
+}
+
 fn goodSample(sequence: usize) []const u8 {
-    _ = sequence;
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":0,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
+    return switch (sequence) {
+        1 => "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        else => "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":0,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+    };
 }
 
 fn goodSampleWithPrivate() []const u8 {
@@ -221,4 +254,12 @@ fn goodSampleWithUppercasePrivateValue() []const u8 {
 fn goodSampleWithGit(git_sha: []const u8) []const u8 {
     _ = git_sha;
     return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":2,\"git_sha\":\"old\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
+}
+
+fn sampleWithRejectedDispatches() []const u8 {
+    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":3,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 3\"},\"events_hash\":\"reject33\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"3\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest-reject\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
+}
+
+fn sampleWithDeadWorkload() []const u8 {
+    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":4,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"dead44\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest-dead\",\"workload_alive\":false,\"private_command_lines_sampled\":false}";
 }

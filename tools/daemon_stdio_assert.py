@@ -25,17 +25,6 @@ JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dic
 JsonObject: TypeAlias = dict[str, JsonValue]
 
 
-class Field(StrEnum):
-    EVENT = "event"
-    STATUS = "status"
-    STATE = "state"
-    REASON = "reason"
-    ACTION_ID = "action_id"
-    TARGET_ACTION_ID = "target_action_id"
-    ROLLBACK_ID = "rollback_id"
-    HOST_MUTATION = "host_mutation"
-
-
 class Mode(StrEnum):
     LIFECYCLE_SUCCESS = "lifecycle-success"
     LIFECYCLE_FIXTURE_REJECTED = "lifecycle-fixture-rejected"
@@ -52,6 +41,7 @@ class Mode(StrEnum):
     JOURNAL_REPLAY = "journal-replay"
     ACTIVE_ROLLBACK = "active-rollback"
     STOP_CLEANUP = "stop-cleanup"
+    RUNTIME_ALERT_ORDERING = "runtime-alert-ordering"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,34 +54,22 @@ class DaemonRow:
     target_action_id: str = ""
     rollback_id: str = ""
     host_mutation: bool = True
+    nr_rejected: str = ""
+    workload_alive: bool | None = None
 
     def field(self, name: str) -> str | bool:
-        try:
-            field = Field(name)
-        except ValueError:
+        if name not in ROW_FIELD_NAMES:
             fail(f"unknown daemon row field: {name}")
-        match field:
-            case Field.EVENT:
-                return self.event
-            case Field.STATUS:
-                return self.status
-            case Field.STATE:
-                return self.state
-            case Field.REASON:
-                return self.reason
-            case Field.ACTION_ID:
-                return self.action_id
-            case Field.TARGET_ACTION_ID:
-                return self.target_action_id
-            case Field.ROLLBACK_ID:
-                return self.rollback_id
-            case Field.HOST_MUTATION:
-                return self.host_mutation
-            case unreachable:
-                assert_never(unreachable)
+        if name == "workload_alive":
+            return self.workload_alive is True
+        value = getattr(self, name)
+        if isinstance(value, str | bool):
+            return value
+        fail(f"unsupported daemon row field type: {name}")
 
 
 MODE_LABEL: Final[str] = sys.argv[1] if len(sys.argv) == 2 else ""
+ROW_FIELD_NAMES: Final[frozenset[str]] = frozenset(DaemonRow.__dataclass_fields__)
 
 
 def fail(message: str) -> NoReturn:
@@ -120,6 +98,8 @@ def parse_row(raw: JsonValue) -> DaemonRow:
         target_action_id=string_field(raw, "target_action_id"),
         rollback_id=string_field(raw, "rollback_id"),
         host_mutation=host_mutation,
+        nr_rejected=string_field(raw, "nr_rejected"),
+        workload_alive=raw.get("workload_alive") if isinstance(raw.get("workload_alive"), bool) else None,
     )
 
 
@@ -226,6 +206,24 @@ def assert_incident_terminal(rows: list[DaemonRow]) -> None:
     require_non_pass_terminal(rows)
 
 
+
+def assert_runtime_alert_ordering(rows: list[DaemonRow]) -> None:
+    rejected_sample_seen = False
+    dead_sample_seen = False
+    for row in rows:
+        if row.event == "runtime_sample" and row.nr_rejected not in {"", "0"}:
+            rejected_sample_seen = True
+        if row.event == "runtime_sample" and row.workload_alive is False:
+            dead_sample_seen = True
+        if row.event == "incident" and row.reason == "runtime_nr_rejected_nonzero" and not rejected_sample_seen:
+            fail("nr_rejected incident preceded accepted runtime sample")
+        if row.event == "incident" and row.reason == "runtime_workload_dead" and not dead_sample_seen:
+            fail("workload_dead incident preceded accepted runtime sample")
+    if not rejected_sample_seen or not has(rows, event="incident", reason="runtime_nr_rejected_nonzero"):
+        fail("missing ordered nr_rejected runtime alert")
+    if not dead_sample_seen or not has(rows, event="incident", reason="runtime_workload_dead"):
+        fail("missing ordered workload_dead runtime alert")
+
 def parse_mode(raw: str) -> Mode:
     try:
         return Mode(raw)
@@ -274,6 +272,8 @@ def assert_mode(rows: list[DaemonRow], mode: Mode) -> None:
             assert_active_rollback(rows)
         case Mode.STOP_CLEANUP:
             assert_stop_cleanup(rows)
+        case Mode.RUNTIME_ALERT_ORDERING:
+            assert_runtime_alert_ordering(rows)
         case unreachable:
             assert_never(unreachable)
 

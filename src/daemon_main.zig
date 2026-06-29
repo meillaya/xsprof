@@ -444,7 +444,9 @@ fn writeRpcError(allocator: std.mem.Allocator, response: *std.ArrayList(u8), id:
     try writeJsonString(&writer.writer, message);
     try writer.writer.writeAll(",\"data\":{\"incident_code\":");
     try writeJsonString(&writer.writer, incident_code);
-    try writer.writer.writeAll(",\"host_mutation\":false}}}");
+    try writer.writer.writeAll(",\"reason\":");
+    try writeJsonString(&writer.writer, incident_code);
+    try writer.writer.writeAll(",\"state\":\"refused_host\",\"status\":\"REFUSE\",\"host_mutation\":false}}}");
     response.* = writer.toArrayList();
 }
 

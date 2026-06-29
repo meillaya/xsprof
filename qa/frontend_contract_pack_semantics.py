@@ -15,6 +15,10 @@ REQUIRED_SCENARIOS: Final = (
     "cgroup-race-symlink", "cgroup-race-systemd-escape", "dsq-perf-fairness-gate",
     "runtime-alert-nr-rejected", "runtime-alert-workload-dead", "malformed-runtime-sample",
     "privacy-runtime-variant", "release-ineligible",
+    "rpc-invalid-version", "rpc-action-mismatch", "rpc-missing-action-json",
+    "replay-row-bad-version", "replay-row-nonmonotonic-seq", "replay-row-host-mutation-true",
+    "matrix-artifact-reference", "bpf-object-metadata-missing", "libbpf-load-failed",
+    "scx-register-failed", "workload-capability-missing", "runtime-sample-loss",
 )
 PREREQUISITE_SCENARIOS: Final = {
     "qemu-unavailable": "qemu_untrusted_or_unavailable",
@@ -29,6 +33,40 @@ CGROUP_RACE_SCENARIOS: Final = {
     "cgroup-race-symlink": "cgroup_symlink_race",
     "cgroup-race-systemd-escape": "cgroup_systemd_escape",
 }
+RPC_SCENARIOS: Final = {
+    "rpc-invalid-version": "invalid_rpc_version",
+    "rpc-action-mismatch": "rpc_action_mismatch",
+    "rpc-missing-action-json": "action_json_required",
+}
+REPLAY_ROW_SCENARIOS: Final = {
+    "replay-row-bad-version": "replay_row_bad_version",
+    "replay-row-nonmonotonic-seq": "replay_row_nonmonotonic_seq",
+    "replay-row-host-mutation-true": "replay_row_host_mutation_true",
+}
+BPF_SCENARIOS: Final = {
+    "bpf-object-metadata-missing": "bpf_object_metadata_missing",
+    "libbpf-load-failed": "libbpf_load_failed",
+    "scx-register-failed": "scx_register_failed",
+}
+WORKLOAD_SCENARIOS: Final = {
+    "workload-capability-missing": "workload_capability_missing",
+    "runtime-sample-loss": "runtime_sample_loss",
+}
+DOTTED_NAMESPACE_LABELS: Final = (
+    "rpc.invalid_version",
+    "rpc.action_mismatch",
+    "rpc.missing_action_json",
+    "replay.bad_version",
+    "replay.nonmonotonic_seq",
+    "replay.host_mutation_true",
+    "matrix.artifact_reference",
+    "bpf.object_metadata_missing",
+    "bpf.libbpf_load_failed",
+    "bpf.scx_register_failed",
+    "workload.capability_missing",
+    "runtime.sample_loss",
+    "governance.release_ineligible",
+)
 RELEASE_INELIGIBLE_FORBIDDEN_TEXT: Final = (
     "release_approved",
     "release-approved",
@@ -116,16 +154,47 @@ def reject_forbidden_strings(rows: list[JsonObject], scenario: str, needles: tup
 
 
 def validate_scenario_semantics(name: str, rows: list[JsonObject]) -> None:
+    for row in rows:
+        reason = row.get("reason")
+        if isinstance(reason, str) and "." in reason:
+            raise ContractPackError(f"{name} uses dotted namespace label as v1 reason: {reason}")
+        if reason in DOTTED_NAMESPACE_LABELS:
+            raise ContractPackError(f"{name} uses documentation-only namespace label as v1 reason: {reason}")
     if name in PREREQUISITE_SCENARIOS:
         reason = PREREQUISITE_SCENARIOS[name]
         if not any(row.get("event") == "refusal" and row.get("status") in {"REFUSE", "refused"} for row in rows):
             raise ContractPackError(f"{name} must be a visible refusal")
+        require_reasoned_terminal(rows, name, reason)
+    if name in RPC_SCENARIOS:
+        reason = RPC_SCENARIOS[name]
+        if not any(row.get("event") == "refusal" and row.get("status") in {"REFUSE", "refused"} for row in rows):
+            raise ContractPackError(f"{name} must be a visible JSON-RPC refusal")
+        require_reasoned_terminal(rows, name, reason)
+    if name in REPLAY_ROW_SCENARIOS:
+        reason = REPLAY_ROW_SCENARIOS[name]
+        if not any(row.get("event") == "refusal" and row.get("status") in {"REFUSE", "refused"} for row in rows):
+            raise ContractPackError(f"{name} must be a visible replay-row refusal")
         require_reasoned_terminal(rows, name, reason)
     if name in CGROUP_RACE_SCENARIOS:
         reason = CGROUP_RACE_SCENARIOS[name]
         require_reasoned_terminal(rows, name, reason)
         if not any(isinstance(row.get("artifact"), str) and "cgroup-race/" in str(row.get("artifact")) for row in rows):
             raise ContractPackError(f"{name} missing cgroup race artifact")
+    if name == "matrix-artifact-reference":
+        if not any(row.get("event") == "validation" and row.get("reason") == "matrix_artifact_referenced" for row in rows):
+            raise ContractPackError(f"{name} must validate a matrix artifact reference")
+        if not any(isinstance(row.get("artifact"), str) and "evidence/lab/matrix/" in str(row.get("artifact")) for row in rows):
+            raise ContractPackError(f"{name} missing matrix artifact path")
+    if name in BPF_SCENARIOS:
+        reason = BPF_SCENARIOS[name]
+        require_reasoned_terminal(rows, name, reason)
+        if not any(isinstance(row.get("artifact"), str) and ("/bpf/" in str(row.get("artifact")) or "/scx/" in str(row.get("artifact"))) for row in rows):
+            raise ContractPackError(f"{name} missing BPF/libbpf/scx artifact")
+    if name in WORKLOAD_SCENARIOS:
+        reason = WORKLOAD_SCENARIOS[name]
+        require_reasoned_terminal(rows, name, reason)
+        if not any(isinstance(row.get("artifact"), str) and ("/workloads/" in str(row.get("artifact")) or "/runtime/" in str(row.get("artifact"))) for row in rows):
+            raise ContractPackError(f"{name} missing workload/runtime artifact")
     if name == "dsq-perf-fairness-gate":
         reject_pass(rows, name)
         reject_forbidden_strings(rows, name, RELEASE_PROOF_FORBIDDEN_TEXT)

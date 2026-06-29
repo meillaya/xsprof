@@ -16,7 +16,7 @@ assert_output() {
 }
 
 usage() {
-  printf 'usage: %s <daemon-bin> [--fixture stale-target|duplicate-target|missing-target|lifecycle-contract|active-rollback|stop-cleanup|incident-drill|lost-stream|timeout|failed-live-rollback|failed-live-cleanup|failed-rollback-replay|failed-cleanup-replay|journal-replay]\n' "$0" >&2
+  printf 'usage: %s <daemon-bin> [--fixture stale-target|duplicate-target|missing-target|lifecycle-contract|active-rollback|stop-cleanup|incident-drill|lost-stream|timeout|failed-live-rollback|failed-live-cleanup|failed-rollback-replay|failed-cleanup-replay|journal-replay|runtime-alert-ordering]\n' "$0" >&2
 }
 
 if [[ "$fixture" == "--fixture" ]]; then
@@ -197,6 +197,21 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       exit 0
       ;;
+    runtime-alert-ordering)
+      state_dir=".zig-cache/tmp/zig-scheduler-daemon-runtime-alert-fixture"
+      runtime_file=".zig-cache/tmp/zig-scheduler-daemon-runtime-alerts.jsonl"
+      rm -rf "$state_dir" "$runtime_file"
+      mkdir -p "$state_dir" "$(dirname "$runtime_file")"
+      printf '%s\n%s\n' \
+        '{"schema":"zig-scheduler/runtime-sample/v1","sequence":1,"state":{"status":"present","value":"enabled"},"ops":{"status":"present","value":"zigsched_minimal"},"enable_seq":{"status":"present","value":"42"},"events":{"status":"present","value":"nr_rejected: 3"},"events_hash":"reject33","nr_rejected":{"status":"present","value":"3"},"debug_dump":{"status":"missing","value":""},"cgroup_membership_digest":"digest-reject","workload_alive":true,"private_command_lines_sampled":false}' \
+        '{"schema":"zig-scheduler/runtime-sample/v1","sequence":2,"state":{"status":"present","value":"enabled"},"ops":{"status":"present","value":"zigsched_minimal"},"enable_seq":{"status":"present","value":"43"},"events":{"status":"present","value":"nr_rejected: 0"},"events_hash":"dead44","nr_rejected":{"status":"present","value":"0"},"debug_dump":{"status":"missing","value":""},"cgroup_membership_digest":"digest-dead","workload_alive":false,"private_command_lines_sampled":false}' \
+        > "$runtime_file"
+      output="$("$bin" --foreground --state-dir "$state_dir" --replay-runtime "$runtime_file")"
+      printf '%s\n' "$output"
+      assert_output runtime-alert-ordering "$output"
+      rm -rf "$state_dir" "$runtime_file"
+      exit 0
+      ;;
     journal-replay)
       state_dir=".zig-cache/tmp/zig-scheduler-daemon-journal-replay-fixture"
       rm -rf "$state_dir"
@@ -273,6 +288,12 @@ if [ -s "$replay_bad_dir/events.jsonl" ]; then
 fi
 rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
 printf 'PASS: replay-events rejects schema-invalid daemon rows\n'
+
+
+runtime_alert_output="$($0 "$bin" --fixture runtime-alert-ordering)"
+printf '%s\n' "$runtime_alert_output"
+assert_output runtime-alert-ordering "$runtime_alert_output"
+printf 'PASS: runtime sample alerts are emitted after accepted samples\n'
 
 lifecycle_output="$($0 "$bin" --fixture lifecycle-contract)"
 printf '%s\n' "$lifecycle_output"

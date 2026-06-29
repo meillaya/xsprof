@@ -43,5 +43,37 @@ This backend-only taxonomy documents stable client-visible incident/refusal code
 | `unknown_rpc_method` | rpc_error | operator_error | retry_after_fix | Use a documented daemon RPC method. |
 | `action_json_required` | rpc_error | operator_error | retry_after_fix | Include operator-action/v1 JSON in `params.action_json`. |
 | `rpc_action_mismatch` | rpc_error | operator_error | retry_after_fix | Use the JSON-RPC method matching the embedded operator-action kind. |
+| `replay_row_bad_version` | refusal | replay_gate | retry_after_fix | Reject replay rows whose schema is not `zig-scheduler/daemon-event/v1`; do not reinterpret them as v1. |
+| `replay_row_nonmonotonic_seq` | refusal | replay_gate | retry_after_fix | Reject replay rows that move backward, repeat, or otherwise break the requested event-sequence cursor. |
+| `replay_row_host_mutation_true` | refusal | replay_gate | safety_gate | Reject replay rows that claim host mutation; v1 contract fixtures must remain `host_mutation=false`. |
+| `matrix_artifact_referenced` | validation | matrix_gate | inspect_artifact | A daemon-event row points to a standalone `matrix-run/v1` artifact; validate that artifact with the matrix contract checker before treating it as proof. |
+| `bpf_object_metadata_missing` | incident | bpf_gate | retry_after_fix | BPF object metadata or object hash is absent; do not treat BPF evidence as complete. |
+| `libbpf_load_failed` | incident | bpf_gate | retry_after_fix | libbpf failed in the VM-lab lane; inspect verifier/libbpf logs and do not retry on the host. |
+| `scx_register_failed` | incident | scx_gate | retry_after_fix | sched_ext registration failed in the VM lab; collect tuple/rollback/cleanup proof before rerun. |
+| `workload_capability_missing` | refusal | workload_gate | retry_after_lab_setup | Required VM workload tool or capability is unavailable; emit SKIP/REFUSE rather than falling back to host mutation. |
+| `runtime_sample_loss` | incident | runtime_alert | retry_with_replay | Runtime sample loss/backpressure makes proof incomplete; use replay or rerun after cleanup. |
 
 All incident/refusal rows and JSON-RPC errors preserve `host_mutation=false`.
+
+## Documentation-only namespace groupings
+
+The labels below are human documentation groupings for phases and sources. They
+MUST NOT appear as `daemon-event/v1.reason` values. The v1 wire contract keeps
+underscore-only reason codes for compatibility with existing clients and
+fixtures.
+
+| Namespace label | Phase/source | Stable v1 wire codes |
+| --- | --- | --- |
+| rpc.invalid_version | JSON-RPC framing | `invalid_rpc_version` |
+| rpc.action_mismatch | JSON-RPC action dispatch | `rpc_action_mismatch` |
+| rpc.missing_action_json | JSON-RPC action dispatch | `action_json_required` |
+| replay.bad_version | replay row validation | `replay_row_bad_version` |
+| replay.nonmonotonic_seq | replay row validation | `replay_row_nonmonotonic_seq` |
+| replay.host_mutation_true | replay row validation | `replay_row_host_mutation_true` |
+| matrix.artifact_reference | matrix evidence handoff | `matrix_artifact_referenced` |
+| bpf.object_metadata_missing | BPF artifact gate | `bpf_object_metadata_missing` |
+| bpf.libbpf_load_failed | VM-only libbpf load gate | `libbpf_load_failed` |
+| bpf.scx_register_failed | VM-only sched_ext registration gate | `scx_register_failed` |
+| workload.capability_missing | VM workload prerequisite gate | `workload_capability_missing` |
+| runtime.sample_loss | runtime stream/sample quality gate | `runtime_sample_loss` |
+| governance.release_ineligible | release governance gate | `release_ineligible` |

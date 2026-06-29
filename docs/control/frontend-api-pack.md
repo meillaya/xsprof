@@ -13,6 +13,7 @@ The API pack freezes the root backend surface future clients can consume without
 | daemon events | `zig-scheduler/daemon-event/v1` | Append-only lifecycle, runtime, rollback, cleanup, validation, refusal, and incident stream. |
 | operator actions | `zig-scheduler/operator-action/v1` | Client-submitted commands such as preflight, VM-lab run, stop, rollback, and incident drill. |
 | runtime samples | `zig-scheduler/runtime-sample/v1` | Privacy-filtered VM runtime observation input converted into daemon event rows. |
+| matrix artifacts | `zig-scheduler/matrix-run/v1` | Standalone VM harness evidence manifests referenced by daemon events through relative artifact paths. |
 
 ## Transports
 
@@ -71,6 +72,26 @@ states:
 | Runtime alerts | `runtime-alert-nr-rejected.jsonl`, `runtime-alert-workload-dead.jsonl` | A `runtime_sample` row exposes either nonzero `nr_rejected` or `workload_alive=false`, followed by an unsafe incident. |
 | Malformed/privacy runtime variants | `malformed-runtime-sample.jsonl`, `privacy-runtime-variant.jsonl` | Redacted unsafe incidents using `malformed_runtime_sample` or `private_fields_rejected`. |
 | Release-ineligible state | `release-ineligible.jsonl` | Validation and unsafe incident rows keep eligibility withheld; the fixture must not contain `PASS`. |
+| JSON-RPC contract refusals | `rpc-invalid-version.jsonl`, `rpc-action-mismatch.jsonl`, `rpc-missing-action-json.jsonl` | Local socket errors remain client-visible refusal rows with underscore-only reason codes and `host_mutation=false`. |
+| Replay row refusals | `replay-row-bad-version.jsonl`, `replay-row-nonmonotonic-seq.jsonl`, `replay-row-host-mutation-true.jsonl` | Bad replay input is refused rather than normalized into v1; fixtures document the refusal reasons without embedding invalid event rows in the stable pack. |
+| Matrix artifact reference | `matrix-artifact-reference.jsonl` | A daemon validation row points at a relative `matrix-run/v1` artifact path; clients validate that artifact separately before treating matrix evidence as proof. |
+| BPF/libbpf/scx incidents | `bpf-object-metadata-missing.jsonl`, `libbpf-load-failed.jsonl`, `scx-register-failed.jsonl` | VM-lab BPF and sched_ext failures are unsafe incidents, not host retries or production blockers hidden from clients. |
+| Workload/runtime quality incidents | `workload-capability-missing.jsonl`, `runtime-sample-loss.jsonl` | Missing VM workload capabilities REFUSE/SKIP visibly, and sample loss becomes an unsafe incident after the last accepted runtime sample. |
+
+## Incident namespace labels and wire compatibility
+
+The incident taxonomy groups client-visible states by documentation labels such
+as `rpc.invalid_version`, `replay.nonmonotonic_seq`,
+`matrix.artifact_reference`, `bpf.libbpf_load_failed`,
+`workload.capability_missing`, and `governance.release_ineligible`. Those dotted
+labels are not v1 wire values. Future clients must continue to read the
+underscore-only `reason` values documented in `incident-taxonomy.md`, for
+example `invalid_rpc_version`, `replay_row_nonmonotonic_seq`,
+`matrix_artifact_referenced`, `libbpf_load_failed`,
+`workload_capability_missing`, and `release_ineligible`.
+
+This preserves existing v1 compatibility while letting docs and future UX group
+incidents by phase/source without renaming stable daemon-event rows.
 
 ## Lifecycle model
 
@@ -85,8 +106,10 @@ Canonical client state is derived only from daemon events, not from UI labels:
 
 An incident, failed rollback, cleanup residue, stale target, duplicate target,
 stale rollback ID, malformed action, stale git SHA, privacy rejection, runtime
-alert, VM prerequisite refusal, cgroup race, DSQ/perf fairness gate, timeout,
-lost stream, or release-ineligible validation must be treated as
+alert, VM prerequisite refusal, cgroup race, DSQ/perf fairness gate, JSON-RPC
+refusal, replay-row refusal, matrix artifact handoff, BPF/libbpf/scx incident,
+workload capability refusal, runtime sample loss, timeout, lost stream, or
+release-ineligible validation must be treated as
 unsafe/incomplete client state. It is not release proof and not production
 readiness.
 

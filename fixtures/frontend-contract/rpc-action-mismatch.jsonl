@@ -1,0 +1,1 @@
+{"action": "actions.rollback", "action_id": "rpc-mismatch", "artifact": "evidence/control/rpc/action-mismatch.json", "event": "refusal", "host_mutation": false, "reason": "rpc_action_mismatch", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "refused_host", "status": "REFUSE"}

@@ -92,6 +92,8 @@ def run_self_test(args: Args, validate_pack: Callable[[Args], None]) -> None:
 
         assert_extra_fixture_rejected()
         assert_rejected("undocumented reason", "incident.jsonl", lambda rows: rows[0].__setitem__("reason", "undocumented_reason"))
+        assert_rejected("dotted namespace reason", "rpc-invalid-version.jsonl", lambda rows: rows[0].__setitem__("reason", "rpc.invalid_version"))
+        assert_rejected("matrix dotted namespace reason", "matrix-artifact-reference.jsonl", lambda rows: rows[0].__setitem__("reason", "matrix.artifact_reference"))
         assert_privacy_rejected("uppercase private text", lambda rows: rows[0].__setitem__("state", "PASSWORD=credential"))
         assert_privacy_rejected("generic token text", lambda rows: rows[0].__setitem__("state", "token=credential"))
         assert_privacy_rejected("generic token value", lambda rows: rows[0].__setitem__("state", "token=abc123"))
