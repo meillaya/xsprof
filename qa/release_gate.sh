@@ -11,10 +11,24 @@ self_test=false
 no_approval=false
 current_run=false
 live_behavior_bundle="${ZIG_SCHEDULER_LIVE_BEHAVIOR_BUNDLE:-evidence/lab/vm-backend-final/live/summary.json}"
+matrix_manifest=""
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 validate_governance_manifest() {
   python3 "$repo_root/qa/governance_manifest_check.py" --manifest "$repo_root/fixtures/lab/governance-sources.json" || fail 'missing tracked governance source: governance manifest validation failed'
+}
+validate_matrix_manifest() {
+  local manifest="$1"
+  [ -n "$manifest" ] || return 0
+  case "$manifest" in evidence/lab/matrix/*/manifest.json) ;;
+    *) fail '--matrix-manifest must be shaped as evidence/lab/matrix/<run-id>/manifest.json' ;;
+  esac
+  case "$manifest" in /*|*'/../'*|../*|*/..) fail 'unsafe matrix manifest path' ;; esac
+  [ -f "$manifest" ] || fail "matrix manifest missing: $manifest"
+  python3 "$repo_root/qa/matrix_run_contract_check.py" \
+    --manifest "$manifest" \
+    --schemas "$repo_root/schemas/control" \
+    --docs "$repo_root/docs/control" >/dev/null || fail 'matrix manifest contract validation failed'
 }
 reject_nohost_bypass_env() {
   [ "${ZIG_SCHEDULER_ALLOW_NO_STRACE:-}" != "1" ] || fail 'release gate rejects ambient ZIG_SCHEDULER_ALLOW_NO_STRACE'
@@ -46,14 +60,39 @@ while [ "$#" -gt 0 ]; do
     --self-test) self_test=true; shift ;;
     --version) [ "$#" -ge 2 ] || fail '--version requires value'; version="$2"; shift 2 ;;
     --evidence) [ "$#" -ge 2 ] || fail '--evidence requires value'; evidence_dir="$2"; shift 2 ;;
+    --matrix-manifest) [ "$#" -ge 2 ] || fail '--matrix-manifest requires value'; matrix_manifest="$2"; shift 2 ;;
     --current-run) current_run=true; shift ;;
     --no-approval) no_approval=true; shift ;;
-    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab [--current-run] [--no-approval]'; exit 0 ;;
+    --help|-h) echo 'usage: qa/release_gate.sh --self-test | --version 0.1.0-lab --evidence evidence/releases/0.1.0-lab [--matrix-manifest evidence/lab/matrix/<run-id>/manifest.json] [--current-run] [--no-approval]'; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 if [ "$self_test" = true ]; then
   validate_governance_manifest
+  rm -rf evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad evidence/releases/release-gate-self-test-matrix-good evidence/releases/release-gate-self-test-matrix-bad
+  bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out evidence/lab/matrix/release-gate-self-test-good >/dev/null
+  validate_matrix_manifest evidence/lab/matrix/release-gate-self-test-good/manifest.json
+  cp -R evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad
+  python3 - <<'PY'
+import json
+from pathlib import Path
+manifest = Path('evidence/lab/matrix/release-gate-self-test-bad/manifest.json')
+data = json.loads(manifest.read_text())
+data['matrix_run_id'] = 'release-gate-self-test-bad'
+data['out_dir'] = 'evidence/lab/matrix/release-gate-self-test-bad'
+data['release_eligible'] = True
+manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+for row_path in Path('evidence/lab/matrix/release-gate-self-test-bad/rows').glob('*/matrix-run.json'):
+    row = json.loads(row_path.read_text())
+    row['matrix_run_id'] = 'release-gate-self-test-bad'
+    row_path.write_text(json.dumps(row, indent=2, sort_keys=True) + '\n')
+PY
+  if bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/release-gate-self-test-matrix-bad --matrix-manifest evidence/lab/matrix/release-gate-self-test-bad/manifest.json --no-approval >/dev/null 2>&1; then
+    fail 'self-test expected release_eligible matrix manifest rejection'
+  fi
+  printf 'PASS accept release-ineligible matrix manifest validation\n'
+  printf 'PASS reject release_eligible matrix manifest\n'
+  rm -rf evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad evidence/releases/release-gate-self-test-matrix-good evidence/releases/release-gate-self-test-matrix-bad
   python3 - <<'PY'
 from pathlib import Path
 import shutil
@@ -170,11 +209,12 @@ fi
 [ -n "$version" ] || fail '--version is required'
 reject_nohost_bypass_env
 validate_governance_manifest
+validate_matrix_manifest "$matrix_manifest"
 if [ "$current_run" = true ] && [ -z "$evidence_dir" ]; then
   evidence_dir="$(current_run_default_dir "$version")"
 fi
 [ -n "$evidence_dir" ] || fail '--evidence is required unless --current-run supplies the default'
-case "$version$evidence_dir" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$version$evidence_dir$matrix_manifest" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$version" in *-lab|*-lab-*) ;; *) fail 'version must be lab candidate suffix, e.g. 0.1.0-lab' ;; esac
 case "$evidence_dir" in evidence/releases/*) ;; *) fail '--evidence must be under evidence/releases' ;; esac
 case "$evidence_dir" in *'/../'*|../*|*/..) fail 'unsafe evidence path' ;; esac
@@ -315,12 +355,12 @@ bash qa/restructure_check.sh >/dev/null
 bash qa/no_frontend_root.sh >/dev/null
 simulator_status="$(git status --short simulator)"
 [ -z "$simulator_status" ] || fail "simulator worktree is dirty during release gate: $simulator_status"
-python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle" "$current_run"
+python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle" "$current_run" "$matrix_manifest"
 import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
 from qa.live_behavior_check import LiveBehaviorError, validate_bundle
-out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3]); current_run = sys.argv[4] == 'true'
+out = Path(sys.argv[1]); version = sys.argv[2]; live_behavior_bundle = Path(sys.argv[3]); current_run = sys.argv[4] == 'true'; matrix_manifest = sys.argv[5]
 if current_run:
     for stale_name in ('release-approval.json', 'artifact-hashes.json', 'summary.json'):
         stale_path = out / stale_name
@@ -447,6 +487,8 @@ required_sources = {
  'governance-gate.md': 'docs/releases/governance-gate.md',
  'live-behavior-summary.json': str(live_behavior_bundle),
 }
+if matrix_manifest:
+    required_sources['matrix-manifest.json'] = matrix_manifest
 approval_path = out / 'release-approval.json'
 existing_approval = {}
 if approval_path.exists() and not approval_path.is_symlink(): existing_approval = json.loads(approval_path.read_text())

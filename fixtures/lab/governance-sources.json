@@ -1,12 +1,12 @@
 {
-  "generated_for": "production-backend-scheduler task 11 VM/lab backend readiness",
+  "generated_for": "vm-harness-matrix-incident-api-hardening task 8 host-safe matrix/release gate wiring",
   "schema_version": 1,
   "sources": [
     {
       "path": "AGENTS.md",
       "purpose": "future-agent operator guidance and fail-closed invariants",
       "required": true,
-      "sha256": "21706fe391d07fd2f3d65f1c4e74c08ef44c19a08fdbad46a6356875d0778ff1"
+      "sha256": "e7f684fe4c30670a5907738dfb8ce3059233dd1ad3baa41fa4e16909cabedcd6"
     },
     {
       "path": "README.md",
@@ -48,13 +48,19 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "3c72b076c02815d87fc1c683782df8ee900d995ffde2a4c6198184106899568e"
+      "sha256": "8a77dd33c89eaeb33228e9ed1f3a8167ab0ab372f241b08842ad0578fa5c502c"
+    },
+    {
+      "path": "docs/control/matrix-run-contract.md",
+      "purpose": "matrix-run v1 evidence contract documentation",
+      "required": true,
+      "sha256": "6e6e22c865c6839fdda9ce0aebb058a63ef3b066af623f2d72ff5d9d9058fd8d"
     },
     {
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "1cbe0ae3ec5d522abadde23c61fb2221a90489042f12aed11ba03d70b6deddb5"
+      "sha256": "60b0c9e048f84efbbcc112abba1d19dbd515582aefae02af6eaccd8d09d998ba"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -78,7 +84,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "c3be53fb37bc6b9142ea09731015246fd2794dcfce753ded1ce3631947e0a8b5"
+      "sha256": "df2ebe0f3a7525dae9189c1737994821e7f01614dd41b5b5fd97c0831d0b23a6"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -90,7 +96,7 @@
       "path": "docs/security/threat-model.md",
       "purpose": "scheduler backend threat model",
       "required": true,
-      "sha256": "e512b7f24e480d46ea55d2220a6cea493bf644aaea50f4ebb73a637cd6c095a7"
+      "sha256": "08a771393fb6b54694b6557706c906de7aae3ba5c2234ca26e72c23a34bedb4b"
     },
     {
       "path": "packaging/README.md",
@@ -129,6 +135,12 @@
       "sha256": "33446da45600296f87ded85c89622fd0e6661766389010abd00aa07858a4ab22"
     },
     {
+      "path": "schemas/control/matrix-run.v1.schema.json",
+      "purpose": "matrix-run v1 standalone evidence schema",
+      "required": true,
+      "sha256": "94b41182fa7690cadb292a5e00d7dd21f98d54c424806a07c0c841eef13ba51c"
+    },
+    {
       "path": "qa/clean_archive_check.sh",
       "purpose": "clean archive and fresh clone reproducibility gate",
       "required": true,
@@ -150,13 +162,19 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "4d25182f63da1f132a1d15db9db9ac5bc6e69e7091936695cb19715305f10bf3"
+      "sha256": "aae89effef4903e0691ef881638519e4ab16cb916e15492258c35650b658ff6b"
+    },
+    {
+      "path": "qa/matrix_run_contract_check.py",
+      "purpose": "matrix-run v1 contract validator and self-test gate",
+      "required": true,
+      "sha256": "15708909242615b72efec54429af47cbf6908764098e49f2f4c3c7a3488f113a"
     },
     {
       "path": "qa/no_frontend_root.sh",
       "purpose": "root frontend and UI artifact exclusion gate",
       "required": true,
-      "sha256": "5aa6d54a655295e4002b3bd809e709f355069e7b2d1c9a27b23ca4d825e8e212"
+      "sha256": "62518368c86aeae28c732bb5ccad1c629c46f6b62ea01f6e0852b79f83358271"
     },
     {
       "path": "qa/no_host_mutation.sh",
@@ -186,7 +204,7 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "65c3280a1cd8708e59db9635258faa11694cd909684b4d5515c7a723565ffb11"
+      "sha256": "193b1788e576741441ef14bbb4e99022c677d90c5ea53e72ed598b323f17a9bb"
     },
     {
       "path": "qa/security_gate.sh",
@@ -217,6 +235,18 @@
       "purpose": "disposable VM execution contract source",
       "required": true,
       "sha256": "1096366fde8103f9fa38413d2eb77082867ee0b4669a2048071e8e60ba1973ae"
+    },
+    {
+      "path": "qa/vm/vm_harness_matrix.sh",
+      "purpose": "canonical host-safe VM harness matrix runner",
+      "required": true,
+      "sha256": "85877283fba88af118dc778134cf7d6f8da04ae20a745a06f843f9fe4a13916f"
+    },
+    {
+      "path": "qa/vm/workload_catalog_check.sh",
+      "purpose": "VM workload catalog and matrix fixture validator",
+      "required": true,
+      "sha256": "c16468d62a2361331ee02e2d9b66b7ad07576f97bf925e4736a5a12b5d875fbb"
     }
   ]
 }

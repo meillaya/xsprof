@@ -46,4 +46,7 @@ Packages install inert defaults. Services must not be enabled by installation or
 
 ## Mutation-family evidence threats
 
+
+Matrix harness and release gates add another untrusted evidence surface: `matrix-run/v1` manifests and their per-row artifacts. The default build and CI gates must validate matrix rows with the contract checker before release tooling consumes them. Matrix manifests are accepted only when every artifact path is relative and non-traversing, every row has rollback, cleanup, host-refusal, and privacy proofs, `host_mutation=false`, and `release_eligible=false`. Missing QEMU/KVM/workload prerequisites remain typed `SKIP` or `REFUSE`; they are not VM-live proof and cannot authorize release or production claims.
+
 The mutation-family evidence contract treats generated VM evidence as untrusted until schema and contract checks pass. Attack surfaces include forged VM markers, host paths disguised as VM targets, stale rollback IDs, duplicate rollback attempts, missing cleanup proof, and performance evidence promoted into a capacity claim. Required mitigations are allowlisted VM target prefixes, immutable audit/rollback IDs, rollback restored-state comparison, generated host-refusal artifacts for every mutation family, and record-only performance calibration with no hard threshold or production-capacity claim.

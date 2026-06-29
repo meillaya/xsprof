@@ -1,6 +1,6 @@
 # Control schema compatibility policy
 
-This backend-only document freezes client-visible v1 control schemas. It is a no frontend implementation policy and does not approve real-host attach or production readiness.
+This backend-only document freezes client-visible v1 control schemas. It is a no frontend implementation policy and does not approve real-host attach and must not claim production readiness.
 
 ## Frozen v1 schemas
 

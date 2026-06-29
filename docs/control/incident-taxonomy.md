@@ -1,6 +1,6 @@
 # Backend incident and refusal taxonomy
 
-This backend-only taxonomy documents stable client-visible incident/refusal codes. It adds no frontend behavior, simulator behavior, real-host attach, release approval, or production readiness.
+This backend-only taxonomy documents stable client-visible incident/refusal codes. It adds no frontend behavior, simulator behavior, real-host attach, release approval, and must not claim production readiness.
 
 | Code | Event kind | Severity | Retryability | Expected client/operator response |
 | --- | --- | --- | --- | --- |

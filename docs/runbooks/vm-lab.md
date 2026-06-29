@@ -163,13 +163,17 @@ bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario missing-qemu,missing
 bash qa/vm/vm_harness_matrix.sh --mode vm-required --scenario missing-qemu --out evidence/lab/matrix/<run-id>-vm-required
 ```
 
-Rows run sequentially. Output must be a relative path exactly shaped as `evidence/lab/matrix/<run-id>`; `<run-id>` must be 1-64 characters from `A-Z`, `a-z`, `0-9`, `_`, `.`, and `-`, and becomes the manifest `matrix_run_id` without truncation or rewriting. An existing run directory is always refused as a collision, including directories that carry the runner ownership marker. Every row records daemon events, host refusal proof, rollback proof, cleanup proof, privacy proof, and cleanup scans with `host_mutation=false` and `release_eligible=false`. Fixture rows are lab contract evidence only and are not production or release approval.
+Rows run sequentially. Output must be a relative path exactly shaped as `evidence/lab/matrix/<run-id>`; `<run-id>` must be 1-64 characters from `A-Z`, `a-z`, `0-9`, `_`, `.`, and `-`, and becomes the manifest `matrix_run_id` without truncation or rewriting. An existing run directory is always refused as a collision, including directories that carry the runner ownership marker. Every row records daemon events, host refusal proof, rollback proof, cleanup proof, privacy proof, and cleanup scans with `host_mutation=false` and `release_eligible=false`. Fixture rows are lab contract evidence only and are not production or release approval. Release gating may consume a matrix manifest with `qa/release_gate.sh --matrix-manifest evidence/lab/matrix/<run-id>/manifest.json`, but the manifest is accepted only as release-withheld lab evidence; it cannot create production approval or arbitrary-host approval.
 
-The safe build target runs the host-safe fixture row by default:
+The safe build targets run host-safe matrix and contract gates by default:
 
 ```bash
-zig build vm-harness-matrix
+zig build client-contract --summary all
+zig build host-safe-gates --summary all
+zig build vm-harness-matrix --summary all
 ```
+
+`client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`. None of these default build targets require QEMU/KVM or VM kernel inputs.
 
 ## VM workload scenario catalog
 

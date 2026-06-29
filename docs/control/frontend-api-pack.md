@@ -4,7 +4,7 @@ This is a backend contract document. It intentionally contains no frontend imple
 
 ## Purpose
 
-The API pack freezes the root backend surface future clients can consume without reconstructing scheduler state from internal files. The daemon remains fail-closed on the host: ordinary host modes do not load BPF, mutate cgroups/cpusets/affinity/priority/scheduler state, write `/sys` or `/proc`, or claim production readiness.
+The API pack freezes the root backend surface future clients can consume without reconstructing scheduler state from internal files. The daemon remains fail-closed on the host: ordinary host modes do not load BPF, mutate cgroups/cpusets/affinity/priority/scheduler state, write `/sys` or `/proc`, and must not claim production readiness.
 
 ## Public contract surfaces
 

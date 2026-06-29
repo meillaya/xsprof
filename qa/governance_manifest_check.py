@@ -28,6 +28,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ("docs/adr/0003-non-vm-operation-gate.md", "non-VM operation governance design gate"),
     ("docs/backend-capability-matrix.md", "backend capability matrix and milestone boundaries"),
     ("docs/ci.md", "CI gate documentation for lab readiness checks"),
+    ("docs/control/matrix-run-contract.md", "matrix-run v1 evidence contract documentation"),
     ("docs/releases/governance-gate.md", "release governance gate and evidence matrix"),
     ("docs/releases/supported-kernel-tuples.md", "supported VM lab kernel tuple matrix"),
     ("docs/runbooks/sched-ext-fallback.md", "sched_ext fallback and rollback runbook"),
@@ -41,10 +42,12 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ("packaging/systemd/zig-scheduler-daemon.service", "daemon systemd unit safety source"),
     ("packaging/systemd/zig-scheduler-lab-mutation.service", "lab mutation systemd unit safety source"),
     ("packaging/systemd/zig-scheduler-preflight.service", "preflight systemd unit safety source"),
+    ("schemas/control/matrix-run.v1.schema.json", "matrix-run v1 standalone evidence schema"),
     ("qa/clean_archive_check.sh", "clean archive and fresh clone reproducibility gate"),
     ("qa/backend_capability_matrix_check.py", "backend capability matrix contract validator"),
     ("qa/backend_capability_matrix_expected.json", "backend capability matrix expected contract source"),
     ("qa/governance_manifest_check.py", "governance manifest schema and exact Task 11 source validator"),
+    ("qa/matrix_run_contract_check.py", "matrix-run v1 contract validator and self-test gate"),
     ("qa/no_frontend_root.sh", "root frontend and UI artifact exclusion gate"),
     ("qa/no_host_mutation.sh", "host mutation denial gate"),
     ("qa/package_defaults.sh", "package default safety inspection gate"),
@@ -56,6 +59,8 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ("qa/wording_audit.sh", "wording, contradiction, and prompt-injection audit gate"),
     ("qa/vm/contract_check.sh", "disposable VM execution contract validator"),
     ("qa/vm/execution_contract.json", "disposable VM execution contract source"),
+    ("qa/vm/vm_harness_matrix.sh", "canonical host-safe VM harness matrix runner"),
+    ("qa/vm/workload_catalog_check.sh", "VM workload catalog and matrix fixture validator"),
 )
 EXPECTED_REQUIRED_SOURCE_PATHS: Final[frozenset[str]] = frozenset(
     path for path, _purpose in EXPECTED_REQUIRED_SOURCES
@@ -223,6 +228,7 @@ PRODUCTION_MATRIX_TERMS: Final[tuple[tuple[str, str], ...]] = (
     ("package uninstall safety", "package uninstall"),
     ("incident runbook", "incident runbook"),
     ("privacy review", "privacy review"),
+    ("matrix manifest", "matrix-run/v1"),
     ("systemd no auto-start", "no auto-start"),
 )
 
