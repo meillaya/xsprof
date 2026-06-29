@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zig-scheduler/matrix-run/v1",
+  "title": "zig-scheduler VM harness matrix run evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "matrix_run_id",
+    "scenario_id",
+    "outcome",
+    "evidence_mode",
+    "kernel_tuple",
+    "supported_tuple_status",
+    "vm_marker",
+    "bpf_abi_version",
+    "policy",
+    "workload",
+    "action_id",
+    "audit_id",
+    "rollback_id",
+    "pre_scheduler_state",
+    "post_scheduler_state",
+    "pre_cgroup_state",
+    "post_cgroup_state",
+    "runtime_sample_path",
+    "incident_path",
+    "rollback_proof_path",
+    "cleanup_proof_path",
+    "host_refusal_proof_path",
+    "privacy_scan",
+    "git",
+    "release_eligible",
+    "host_mutation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zig-scheduler/matrix-run/v1"
+    },
+    "matrix_run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "SKIP",
+        "REFUSE",
+        "INCIDENT",
+        "FAIL"
+      ]
+    },
+    "evidence_mode": {
+      "type": "string",
+      "enum": [
+        "vm-live",
+        "host-refusal-only"
+      ]
+    },
+    "kernel_tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kernel_release",
+        "arch",
+        "btf",
+        "kvm",
+        "sched_ext"
+      ],
+      "properties": {
+        "kernel_release": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "btf": {
+          "type": "string",
+          "enum": [
+            "present",
+            "missing",
+            "unknown"
+          ]
+        },
+        "kvm": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ]
+        },
+        "sched_ext": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "supported_tuple_status": {
+      "type": "string",
+      "enum": [
+        "supported",
+        "unsupported",
+        "unknown"
+      ]
+    },
+    "vm_marker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "present",
+        "path",
+        "checked_by"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checked_by": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "bpf_abi_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "object_path",
+        "object_sha256",
+        "source_path",
+        "source_sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "object_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "spec_path",
+        "spec_sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spec_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "spec_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "audit_id": {
+      "type": "string",
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"
+    },
+    "rollback_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "pre_scheduler_state": {
+      "type": "object"
+    },
+    "post_scheduler_state": {
+      "type": "object"
+    },
+    "pre_cgroup_state": {
+      "type": "object"
+    },
+    "post_cgroup_state": {
+      "type": "object"
+    },
+    "runtime_sample_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "incident_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "rollback_proof_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "cleanup_proof_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "host_refusal_proof_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "privacy_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "private_fields_found",
+        "report_path"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "private_fields_found": {
+          "const": false
+        },
+        "report_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_sha",
+        "actual_sha",
+        "status",
+        "dirty"
+      ],
+      "properties": {
+        "expected_sha": {
+          "type": "string",
+          "minLength": 7
+        },
+        "actual_sha": {
+          "type": "string",
+          "minLength": 7
+        },
+        "status": {
+          "const": "current"
+        },
+        "dirty": {
+          "const": false
+        }
+      }
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "host_mutation": {
+      "const": false
+    }
+  }
+}

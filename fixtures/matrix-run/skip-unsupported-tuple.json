@@ -1,0 +1,69 @@
+{
+  "action_id": "ACT-pass-basic",
+  "audit_id": "AUD-20260629T120000Z-matrix-pass",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/skip/cleanup-proof.json",
+  "evidence_mode": "vm-live",
+  "git": {
+    "actual_sha": "302cead",
+    "dirty": false,
+    "expected_sha": "302cead",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/skip/host-refusal.json",
+  "incident_path": "evidence/lab/skip/unsupported-tuple.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "present",
+    "kernel_release": "6.12.0-lab",
+    "kvm": "available",
+    "sched_ext": "available"
+  },
+  "matrix_run_id": "MR-20260629-0001",
+  "outcome": "SKIP",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/pass/policy.o",
+    "object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "post_cgroup_state": {
+    "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "post_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "pre_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/pass/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-pass-basic",
+  "rollback_proof_path": "evidence/lab/skip/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/skip/runtime-sample.jsonl",
+  "scenario_id": "skip-unsupported-tuple",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "unsupported",
+  "vm_marker": {
+    "checked_by": "qa/vm/marker-check",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": true,
+    "required": true
+  },
+  "workload": {
+    "name": "cpu-smoke",
+    "spec_path": "fixtures/workloads/cpu-smoke.json",
+    "spec_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}
