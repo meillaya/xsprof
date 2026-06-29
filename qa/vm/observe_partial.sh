@@ -92,22 +92,45 @@ sample_json() {
   events="$(cat "$tmp/sys/kernel/sched_ext/events")"
   events_hash="$(printf '%s' "$events" | sha256sum | awk '{print $1}')"
   rejected="$(cat "$tmp/sys/kernel/sched_ext/nr_rejected")"
-  debug="$tmp/sys/kernel/debug/sched_ext/dump"
+  debug="sha256:$(sha256sum "$tmp/sys/kernel/debug/sched_ext/dump" | awk '{print $1}');bytes:$(wc -c < "$tmp/sys/kernel/debug/sched_ext/dump" | tr -d ' ')"
   membership="$(sha256sum "$tmp/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs" | awk '{print $1}')"
   if kill -0 "$lab_pid" >/dev/null 2>&1; then alive=true; else alive=false; fi
-  SEQ="$seq" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" EVENTS_HASH="$events_hash" REJECTED="$rejected" DEBUG_PATH="/sys/kernel/debug/sched_ext/dump" MEMBERSHIP="$membership" ALIVE="$alive" python3 - <<'PY' >> "$jsonl"
-import json, os
+  SEQ="$seq" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" EVENTS_HASH="$events_hash" REJECTED="$rejected" DEBUG_SUMMARY="$debug" MEMBERSHIP="$membership" ALIVE="$alive" python3 - <<'PY' >> "$jsonl"
+import json, os, re
+events = os.environ["EVENTS"]
+def counter(name):
+    match = re.search(rf"(?:^|[^A-Za-z0-9_]){re.escape(name)}\s*[:=]\s*([0-9]+)", events)
+    return int(match.group(1)) if match else 0
 print(json.dumps({
   "schema": "zig-scheduler/runtime-sample/v1",
   "sequence": int(os.environ["SEQ"]),
+  "observation_source": "vm_fixture_sched_ext",
   "state": {"status": "present", "value": os.environ["STATE"]},
   "ops": {"status": "present", "value": os.environ["OPS"]},
+  "root_ops": {"status": "present", "value": os.environ["OPS"]},
   "enable_seq": {"status": "present", "value": os.environ["ENABLE_SEQ"]},
-  "events": {"status": "present", "value": os.environ["EVENTS"]},
+  "events": {"status": "present", "value": events},
+  "scheduler_events": {"status": "present", "value": events},
   "events_hash": os.environ["EVENTS_HASH"],
   "nr_rejected": {"status": "present", "value": os.environ["REJECTED"]},
-  "debug_dump": {"status": "present", "value": os.environ["DEBUG_PATH"]},
+  "debug_dump": {"status": "present", "value": os.environ["DEBUG_SUMMARY"]},
+  "policy_counters": {
+    "nr_rejected": int(os.environ["REJECTED"]),
+    "dispatch_failed": counter("dispatch_failed"),
+    "fallback": counter("fallback"),
+    "fatal": counter("fatal")
+  },
+  "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
+  "policy_abi": {
+    "policy_name": "zigsched_minimal",
+    "policy_version": "sched_ext_minimal_v1",
+    "struct_ops": "zigsched_minimal_ops",
+    "object_sha256": "unavailable",
+    "btf_required": True
+  },
   "cgroup_membership_digest": os.environ["MEMBERSHIP"],
+  "cgroup_membership_status": {"status": "present", "value": "present"},
+  "workload": {"status": "present", "value": "alive" if os.environ["ALIVE"] == "true" else "not_alive"},
   "workload_alive": os.environ["ALIVE"] == "true",
   "private_command_lines_sampled": False
 }, sort_keys=True))

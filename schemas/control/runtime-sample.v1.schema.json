@@ -14,6 +14,7 @@
     "events_hash",
     "nr_rejected",
     "debug_dump",
+    "policy_abi",
     "cgroup_membership_digest",
     "workload_alive",
     "private_command_lines_sampled"
@@ -26,11 +27,23 @@
     "ops": { "$ref": "#/$defs/fact" },
     "enable_seq": { "$ref": "#/$defs/fact" },
     "events": { "$ref": "#/$defs/fact" },
-    "events_hash": { "type": "string" },
+    "events_hash": { "type": "string", "minLength": 1 },
     "nr_rejected": { "$ref": "#/$defs/fact" },
     "debug_dump": { "$ref": "#/$defs/fact" },
-    "cgroup_membership_digest": { "type": "string" },
+    "root_ops": { "$ref": "#/$defs/fact" },
+    "scheduler_events": { "$ref": "#/$defs/fact" },
+    "policy_counters": { "$ref": "#/$defs/policy_counters" },
+    "sample_loss": { "$ref": "#/$defs/sample_loss" },
+    "policy_abi": { "$ref": "#/$defs/policy_abi" },
+    "cgroup_membership_digest": { "type": "string", "pattern": "^(?!0{64}$)[0-9a-f]{64}$" },
+    "cgroup_membership_status": { "$ref": "#/$defs/fact" },
+    "workload": { "$ref": "#/$defs/fact" },
     "workload_alive": { "type": "boolean" },
+    "sample_source_event": { "type": "string" },
+    "observation_source": {
+      "type": "string",
+      "enum": ["vm_guest_sched_ext", "vm_serial_sched_ext", "vm_fixture_sched_ext"]
+    },
     "private_command_lines_sampled": { "const": false }
   },
   "forbiddenProperties": ["command_line", "cmdline", "argv", "env", "environment", "secret", "api_key"],
@@ -42,6 +55,38 @@
       "properties": {
         "status": { "type": "string", "minLength": 1 },
         "value": { "type": "string" }
+      }
+    },
+    "policy_counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nr_rejected", "dispatch_failed", "fallback", "fatal"],
+      "properties": {
+        "nr_rejected": { "type": "integer", "minimum": 0 },
+        "dispatch_failed": { "type": "integer", "minimum": 0 },
+        "fallback": { "type": "integer", "minimum": 0 },
+        "fatal": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sample_loss": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lost_samples", "backpressure_dropped"],
+      "properties": {
+        "lost_samples": { "type": "integer", "minimum": 0 },
+        "backpressure_dropped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "policy_abi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_name", "policy_version", "struct_ops", "object_sha256", "btf_required"],
+      "properties": {
+        "policy_name": { "type": "string", "minLength": 1 },
+        "policy_version": { "type": "string", "minLength": 1 },
+        "struct_ops": { "type": "string", "minLength": 1 },
+        "object_sha256": { "type": "string", "minLength": 1 },
+        "btf_required": { "type": "boolean" }
       }
     }
   }

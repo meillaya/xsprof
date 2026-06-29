@@ -54,7 +54,7 @@ def parse_and_emit_report() -> None:
     paths = prepare_output_paths(env.out)
     ids = report_ids(env, rows)
     verifier = write_verifier_outputs(env, rows, lines, ids, paths)
-    observe = write_observe_outputs(paths, rows, verifier)
+    observe = write_observe_outputs(paths, rows, verifier, env.object_sha)
     write_summary(env, rows, verifier, observe)
 
 

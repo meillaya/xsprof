@@ -6,16 +6,40 @@ pub const StreamError = error{ InvalidRuntimeSample, PrivacyUnsafe, OutOfMemory 
 
 pub const max_stream_events: usize = 64;
 const sample_schema = "zig-scheduler/runtime-sample/v1";
+const sha256_hex_len: usize = 64;
+const sha256_zero = "0" ** sha256_hex_len;
 
 const Fact = struct {
     status: []const u8,
     value: []const u8,
 };
 
+const PolicyCounters = struct {
+    nr_rejected: u64,
+    dispatch_failed: u64,
+    fallback: u64,
+    fatal: u64,
+};
+
+const SampleLoss = struct {
+    lost_samples: u64,
+    backpressure_dropped: u64,
+};
+
+const PolicyAbi = struct {
+    policy_name: []const u8,
+    policy_version: []const u8,
+    struct_ops: []const u8,
+    object_sha256: []const u8,
+    btf_required: bool,
+};
+
 const RawSample = struct {
     schema: []const u8,
     sequence: usize,
     git_sha: ?[]const u8 = null,
+    sample_source_event: ?[]const u8 = null,
+    observation_source: ?[]const u8 = null,
     state: Fact,
     ops: Fact,
     enable_seq: Fact,
@@ -23,7 +47,14 @@ const RawSample = struct {
     events_hash: []const u8,
     nr_rejected: Fact,
     debug_dump: Fact,
+    root_ops: ?Fact = null,
+    scheduler_events: ?Fact = null,
+    policy_counters: ?PolicyCounters = null,
+    sample_loss: ?SampleLoss = null,
+    policy_abi: PolicyAbi,
     cgroup_membership_digest: []const u8,
+    cgroup_membership_status: ?Fact = null,
+    workload: ?Fact = null,
     workload_alive: bool,
     private_command_lines_sampled: bool,
     command_line: ?[]const u8 = null,
@@ -87,6 +118,10 @@ pub fn appendRuntimeLine(
         try appendIncident(allocator, output, next_seq.*, "runtime_nr_rejected_nonzero");
         next_seq.* += 1;
     }
+    if (sampleHasLoss(parsed.value)) {
+        try appendIncident(allocator, output, next_seq.*, "runtime_sample_loss");
+        next_seq.* += 1;
+    }
     if (!parsed.value.workload_alive) {
         try appendIncident(allocator, output, next_seq.*, "runtime_workload_dead");
         next_seq.* += 1;
@@ -110,16 +145,52 @@ fn parseSample(allocator: std.mem.Allocator, line: []const u8) StreamError!std.j
     try requireSafeFact(raw.events);
     try requireSafeFact(raw.nr_rejected);
     try requireSafeFact(raw.debug_dump);
+    if (!std.mem.eql(u8, raw.debug_dump.status, "missing") and !std.mem.eql(u8, raw.debug_dump.status, "unknown")) {
+        if (!std.mem.startsWith(u8, raw.debug_dump.value, "sha256:") or std.mem.indexOf(u8, raw.debug_dump.value, ";bytes:") == null) return error.InvalidRuntimeSample;
+    }
+    if (raw.root_ops) |fact| try requireSafeFact(fact);
+    if (raw.scheduler_events) |fact| try requireSafeFact(fact);
+    if (raw.cgroup_membership_status) |fact| try requireSafeFact(fact);
+    if (raw.workload) |fact| try requireSafeFact(fact);
+    try requireSafePolicyAbi(raw.policy_abi);
+    try requireSha256Digest(raw.cgroup_membership_digest);
     return parsed;
 }
 
+fn requireSafePolicyAbi(abi: PolicyAbi) StreamError!void {
+    try requireSafeText(abi.policy_name);
+    try requireSafeText(abi.policy_version);
+    try requireSafeText(abi.struct_ops);
+    try requireSafeText(abi.object_sha256);
+    if (abi.policy_name.len == 0 or abi.policy_version.len == 0 or abi.struct_ops.len == 0 or abi.object_sha256.len == 0) return error.InvalidRuntimeSample;
+}
+
+fn requireSha256Digest(value: []const u8) StreamError!void {
+    if (value.len != sha256_hex_len or std.mem.eql(u8, value, sha256_zero)) return error.InvalidRuntimeSample;
+    for (value) |byte| {
+        if (!std.ascii.isDigit(byte) and (byte < 'a' or byte > 'f')) return error.InvalidRuntimeSample;
+    }
+}
+
 fn requireSafeFact(fact: Fact) StreamError!void {
-    if (fact.status.len == 0) return error.InvalidRuntimeSample;
-    if (hasPrivateNeedle(fact.value)) return error.PrivacyUnsafe;
+    if (!validFactStatus(fact.status)) return error.InvalidRuntimeSample;
+    if (std.mem.eql(u8, fact.status, "present") and fact.value.len == 0) return error.InvalidRuntimeSample;
+    try requireSafeText(fact.value);
+}
+
+fn requireSafeText(value: []const u8) StreamError!void {
+    if (hasPrivateNeedle(value)) return error.PrivacyUnsafe;
+}
+
+fn validFactStatus(status: []const u8) bool {
+    return std.mem.eql(u8, status, "present") or
+        std.mem.eql(u8, status, "missing") or
+        std.mem.eql(u8, status, "unreadable") or
+        std.mem.eql(u8, status, "unknown");
 }
 
 fn hasPrivateNeedle(value: []const u8) bool {
-    const needles = [_][]const u8{ "cmdline", "command_line", "argv", "environment", "\"env\"", "secret", "api_key", "--token", "password=" };
+    const needles = [_][]const u8{ "cmdline", "command_line", "argv", "environment", "\"env\"", "secret", "api_key", "--token", "password=", "/proc/", "/sys/" };
     for (needles) |needle| {
         if (std.ascii.indexOfIgnoreCase(value, needle) != null) return true;
     }
@@ -132,6 +203,13 @@ fn sampleHasRejectedDispatches(sample: RawSample) bool {
     if (value.len == 0) return false;
     const parsed = std.fmt.parseUnsigned(u64, value, 10) catch return !std.mem.eql(u8, value, "0");
     return parsed != 0;
+}
+
+fn sampleHasLoss(sample: RawSample) bool {
+    if (sample.sample_loss) |loss| {
+        return loss.lost_samples != 0 or loss.backpressure_dropped != 0;
+    }
+    return false;
 }
 
 fn appendSample(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize, sample: RawSample) !void {
@@ -189,77 +267,6 @@ fn writeJsonString(writer: anytype, value: []const u8) !void {
     try writer.writeByte('"');
 }
 
-test "runtime stream accepts good samples and sanitizes private failures" {
-    var output: std.ArrayList(u8) = .empty;
-    defer output.deinit(std.testing.allocator);
-    var seq: usize = 1;
-    try appendRuntimeLine(std.testing.allocator, &output, goodSample(0), &seq, 0, "sha");
-    try appendRuntimeLine(std.testing.allocator, &output, "{malformed", &seq, 0, "sha");
-    try appendRuntimeLine(std.testing.allocator, &output, goodSampleWithPrivate(), &seq, 0, "sha");
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"runtime_sample\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "unsafe_to_assume") != null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "cmdline") == null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"env\"") == null);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
-}
-
-test "runtime stream supports replay offsets stale git and bounded drops" {
-    var output: std.ArrayList(u8) = .empty;
-    defer output.deinit(std.testing.allocator);
-    var seq: usize = 1;
-    try appendRuntimeLine(std.testing.allocator, &output, goodSample(1), &seq, 2, "sha");
-    try std.testing.expectEqual(@as(usize, 1), seq);
-    try appendRuntimeLine(std.testing.allocator, &output, goodSampleWithGit("old"), &seq, 0, "sha");
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "stale_git_sha") != null);
-    var file: std.ArrayList(u8) = .empty;
-    defer file.deinit(std.testing.allocator);
-    for (0..max_stream_events + 2) |i| {
-        try file.appendSlice(std.testing.allocator, goodSample(i));
-        try file.append(std.testing.allocator, '\n');
-    }
-    try appendRuntimeFile(std.testing.allocator, &output, file.items, &seq, 0, "sha");
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "stream_backpressure_dropped") != null);
-}
-
-test "runtime stream emits ordered alerts after accepted samples" {
-    var output: std.ArrayList(u8) = .empty;
-    defer output.deinit(std.testing.allocator);
-    var seq: usize = 1;
-    try appendRuntimeLine(std.testing.allocator, &output, sampleWithRejectedDispatches(), &seq, 0, "sha");
-    try appendRuntimeLine(std.testing.allocator, &output, sampleWithDeadWorkload(), &seq, 0, "sha");
-    const rejected_sample = std.mem.indexOf(u8, output.items, "\"sample_sequence\":3") orelse return error.TestExpectedRuntimeAlertSample;
-    const rejected_incident = std.mem.indexOf(u8, output.items, "runtime_nr_rejected_nonzero") orelse return error.TestExpectedRuntimeAlertIncident;
-    const dead_sample = std.mem.indexOf(u8, output.items, "\"sample_sequence\":4") orelse return error.TestExpectedRuntimeAlertSample;
-    const dead_incident = std.mem.indexOf(u8, output.items, "runtime_workload_dead") orelse return error.TestExpectedRuntimeAlertIncident;
-    try std.testing.expect(rejected_sample < rejected_incident);
-    try std.testing.expect(dead_sample < dead_incident);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
-}
-
-fn goodSample(sequence: usize) []const u8 {
-    return switch (sequence) {
-        1 => "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
-        else => "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":0,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
-    };
-}
-
-fn goodSampleWithPrivate() []const u8 {
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"cmdline\":\"demo\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
-}
-
-fn goodSampleWithUppercasePrivateValue() []const u8 {
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":1,\"state\":{\"status\":\"present\",\"value\":\"PASSWORD=secret\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
-}
-
-fn goodSampleWithGit(git_sha: []const u8) []const u8 {
-    _ = git_sha;
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":2,\"git_sha\":\"old\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"ab12\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
-}
-
-fn sampleWithRejectedDispatches() []const u8 {
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":3,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 3\"},\"events_hash\":\"reject33\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"3\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest-reject\",\"workload_alive\":true,\"private_command_lines_sampled\":false}";
-}
-
-fn sampleWithDeadWorkload() []const u8 {
-    return "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":4,\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"dead44\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"cgroup_membership_digest\":\"digest-dead\",\"workload_alive\":false,\"private_command_lines_sampled\":false}";
+test "runtime stream behavior tests are linked" {
+    std.testing.refAllDecls(@import("stream_tests.zig"));
 }

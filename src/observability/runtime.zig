@@ -1,10 +1,19 @@
 const std = @import("std");
 const sched_ext = @import("../sched_ext/root.zig");
+const Sha256 = std.crypto.hash.sha2.Sha256;
 
 pub const EventCounters = struct {
     raw: []const u8,
     nr_rejected: ?u64,
     dispatch_failed: ?u64,
+};
+
+pub const PolicyAbi = struct {
+    policy_name: []const u8 = "zigsched_minimal",
+    policy_version: []const u8 = "sched_ext_minimal_v1",
+    struct_ops: []const u8 = "zigsched_minimal_ops",
+    object_sha256: []const u8 = "unavailable",
+    btf_required: bool = true,
 };
 
 pub const RuntimeSample = struct {
@@ -15,6 +24,7 @@ pub const RuntimeSample = struct {
     events_hash: []const u8,
     nr_rejected: sched_ext.TextFact,
     debug_dump: sched_ext.TextFact,
+    policy_abi: PolicyAbi,
     cgroup_membership_digest: []const u8,
     workload_alive: bool,
 };
@@ -47,7 +57,8 @@ pub fn collectFromRoot(
         .events = events,
         .events_hash = events_hash,
         .nr_rejected = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/sched_ext/nr_rejected"),
-        .debug_dump = try sched_ext.presenceFactFromRoot(allocator, root_path, "/sys/kernel/debug/sched_ext/dump", "/sys/kernel/debug/sched_ext/dump"),
+        .debug_dump = try debugDumpSummary(allocator, root_path),
+        .policy_abi = .{},
         .cgroup_membership_digest = try membershipDigest(allocator, root_path, cgroup_path),
         .workload_alive = try workloadAlive(root_path, workload_pid),
     };
@@ -72,9 +83,23 @@ pub fn writeJsonLine(writer: anytype, sample: RuntimeSample, sequence: usize) !v
     try writeJsonString(writer, sample.events_hash);
     try writeNamedFact(writer, "nr_rejected", sample.nr_rejected);
     try writeNamedFact(writer, "debug_dump", sample.debug_dump);
+    try writePolicyAbi(writer, sample.policy_abi);
     try writer.writeAll(",\"cgroup_membership_digest\":");
     try writeJsonString(writer, sample.cgroup_membership_digest);
     try writer.print(",\"workload_alive\":{},\"private_command_lines_sampled\":false}}\n", .{sample.workload_alive});
+}
+
+fn writePolicyAbi(writer: anytype, abi: PolicyAbi) !void {
+    try writer.writeAll(",\"policy_abi\":{\"policy_name\":");
+    try writeJsonString(writer, abi.policy_name);
+    try writer.writeAll(",\"policy_version\":");
+    try writeJsonString(writer, abi.policy_version);
+    try writer.writeAll(",\"struct_ops\":");
+    try writeJsonString(writer, abi.struct_ops);
+    try writer.writeAll(",\"object_sha256\":");
+    try writeJsonString(writer, abi.object_sha256);
+    try writer.print(",\"btf_required\":{}", .{abi.btf_required});
+    try writer.writeByte('}');
 }
 
 fn writeNamedFact(writer: anytype, name: []const u8, fact: sched_ext.TextFact) !void {
@@ -87,19 +112,33 @@ fn writeNamedFact(writer: anytype, name: []const u8, fact: sched_ext.TextFact) !
     try writer.writeAll("}");
 }
 
+fn debugDumpSummary(allocator: std.mem.Allocator, root_path: []const u8) !sched_ext.TextFact {
+    const fact = try sched_ext.readSmallFactFromRoot(allocator, root_path, "/sys/kernel/debug/sched_ext/dump");
+    defer sched_ext.freeFact(allocator, fact);
+    if (fact.status != .present) return .{ .status = fact.status, .value = try allocator.dupe(u8, "") };
+    const digest = try sha256Hex(allocator, fact.value);
+    defer allocator.free(digest);
+    return .{ .status = .present, .value = try std.fmt.allocPrint(allocator, "sha256:{s};bytes:{d}", .{ digest, fact.value.len }) };
+}
+
 fn membershipDigest(allocator: std.mem.Allocator, root_path: []const u8, cgroup_path: []const u8) ![]const u8 {
     const procs_path = try joinCgroupFile(allocator, cgroup_path);
     defer allocator.free(procs_path);
     const fact = try sched_ext.readSmallFactFromRoot(allocator, root_path, procs_path);
     defer sched_ext.freeFact(allocator, fact);
-    if (fact.status != .present) return allocator.dupe(u8, @tagName(fact.status));
-    const digest = std.hash.Wyhash.hash(0, fact.value);
-    return std.fmt.allocPrint(allocator, "{x:0>16}", .{digest});
+    if (fact.status != .present) return sha256Hex(allocator, @tagName(fact.status));
+    return sha256Hex(allocator, fact.value);
 }
 
 fn hashText(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
-    const digest = std.hash.Wyhash.hash(0, value);
-    return std.fmt.allocPrint(allocator, "{x:0>16}", .{digest});
+    return sha256Hex(allocator, value);
+}
+
+fn sha256Hex(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
+    var digest: [Sha256.digest_length]u8 = undefined;
+    Sha256.hash(value, &digest, .{});
+    const hex = std.fmt.bytesToHex(digest, .lower);
+    return allocator.dupe(u8, &hex);
 }
 
 fn joinCgroupFile(allocator: std.mem.Allocator, cgroup_path: []const u8) ![]const u8 {
@@ -185,7 +224,9 @@ test "runtime observer samples disabled state missing ops and workload liveness 
     list = writer.toArrayList();
     try std.testing.expect(std.mem.indexOf(u8, list.items, "private_command_lines_sampled\":false") != null);
     try std.testing.expect(std.mem.indexOf(u8, list.items, "\"events_hash\"") != null);
-    try std.testing.expect(sample.events_hash.len > 0);
+    try std.testing.expect(std.mem.indexOf(u8, list.items, "\"policy_abi\"") != null);
+    try std.testing.expectEqual(@as(usize, 64), sample.events_hash.len);
+    try std.testing.expectEqual(@as(usize, 64), sample.cgroup_membership_digest.len);
 }
 
 fn makePath(dir: *std.Io.Dir, sub_path: []const u8) !void {

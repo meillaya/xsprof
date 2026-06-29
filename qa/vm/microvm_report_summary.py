@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from microvm_report_outputs import kernel_tuple
-from microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
+from microvm_report_parse import fact, observed_bool, observed_cgroup_status, observed_digest
 from microvm_report_types import JsonObject, ObserveOutputs, OutputPaths, ReportEnv, ReportRows, VerifierOutputs
 
 
-def write_observe_outputs(paths: OutputPaths, rows: ReportRows, verifier: VerifierOutputs) -> ObserveOutputs:
+def write_observe_outputs(paths: OutputPaths, rows: ReportRows, verifier: VerifierOutputs, policy_object_sha256: str) -> ObserveOutputs:
     samples = paths.observe_dir / "runtime-samples.jsonl"
-    sample_rows = build_sample_rows(rows)
+    sample_rows = build_sample_rows(rows, policy_object_sha256)
     samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in sample_rows))
     daemon = paths.observe_dir / "daemon-runtime-events.jsonl"
     daemon.write_text("".join(json.dumps(daemon_row(row), sort_keys=True) + "\n" for row in sample_rows))
@@ -29,7 +30,7 @@ def write_observe_outputs(paths: OutputPaths, rows: ReportRows, verifier: Verifi
     )
 
 
-def build_sample_rows(rows: ReportRows) -> list[JsonObject]:
+def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonObject]:
     sample_rows: list[JsonObject] = []
     for seq, event in enumerate((rows.before, rows.register, rows.unregister)):
         source_event = str(event.get("event") or f"sample-{seq}")
@@ -47,11 +48,27 @@ def build_sample_rows(rows: ReportRows) -> list[JsonObject]:
             "observation_source": "vm_serial_sched_ext",
             "state": fact(state),
             "ops": fact(ops),
+            "root_ops": fact(ops),
             "enable_seq": fact(event.get("enable_seq", "0")),
             "events": fact(events_text),
+            "scheduler_events": fact(events_text),
             "events_hash": hashlib.sha256(events_text.encode()).hexdigest() if events_text else "unavailable",
-            "nr_rejected": counter_fact(events_text, "nr_rejected"),
+            "nr_rejected": fact(counter_value(events_text, "nr_rejected")),
             "debug_dump": {"status": "missing", "value": "unavailable"},
+            "policy_counters": {
+                "nr_rejected": counter_value(events_text, "nr_rejected"),
+                "dispatch_failed": counter_value(events_text, "dispatch_failed"),
+                "fallback": counter_value(events_text, "fallback"),
+                "fatal": counter_value(events_text, "fatal"),
+            },
+            "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
+            "policy_abi": {
+                "policy_name": "zigsched_minimal",
+                "policy_version": "sched_ext_minimal_v1",
+                "struct_ops": "zigsched_minimal_ops",
+                "object_sha256": policy_object_sha256,
+                "btf_required": True,
+            },
             "cgroup_membership_digest": cgroup_digest,
             "cgroup_membership_status": fact(cgroup_status),
             "workload": {"status": "present", "value": "alive" if observed_bool(event, "workload_alive", source_event) else "not_alive"},
@@ -59,6 +76,13 @@ def build_sample_rows(rows: ReportRows) -> list[JsonObject]:
             "private_command_lines_sampled": False,
         })
     return sample_rows
+
+
+def counter_value(events_text: str, name: str) -> int:
+    match = re.search(rf"(?:^|[^A-Za-z0-9_]){re.escape(name)}\s*[:=]\s*([0-9]+)", events_text)
+    if match is None:
+        return 0
+    return int(match.group(1))
 
 
 def daemon_row(row: JsonObject) -> JsonObject:
