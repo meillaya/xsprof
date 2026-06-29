@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILD_COMMAND = ("bash", "tools/build_bpf.sh")
 OBJECT_PATH = REPO_ROOT / "zig-out/bpf/zigsched_minimal.bpf.o"
 METADATA_PATH = REPO_ROOT / "zig-out/bpf/zigsched_minimal.bpf.meta.json"
-SKIP_PATH = REPO_ROOT / "zig-out/bpf/zigsched_minimal.bpf.skip.txt"
+SKIP_PATH = REPO_ROOT / "zig-out/bpf/zigsched_minimal.bpf.skip.json"
 
 
 @dataclass(frozen=True, slots=True)

@@ -48,3 +48,33 @@ For the production-backend VM scheduler milestone, the kernel policy remains C/c
 ## Build metadata contract
 
 `zig build bpf` emits `zig-out/bpf/zigsched_minimal.bpf.meta.json` for a built object, or `zig-out/bpf/zigsched_minimal.bpf.skip.json` when local clang/BPF prerequisites are absent. Both forms preserve the VM-only boundary with `host_mutation=false`, `host_attach_allowed=false`, and `vm_marker_required=/run/zig-scheduler-vm-lab.marker`. Built metadata includes `policy_name`, `object_hash`, `tuple`, `tool_versions`, and `struct_ops` fields so VM-only verifier stages can reject stale or mismatched artifacts before attempting any BPF verifier work.
+
+## ABI compatibility freeze
+
+The current BPF ABI is frozen as v1 before any future policy counter or config expansion:
+
+- `ZIGSCHED_ABI_VERSION=1u`.
+- `zigsched_stats`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_STATS=8u` entries.
+- `zigsched_events`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_EVENTS=4u` entries.
+- `zigsched_policy_config`: single-entry array map keyed by `u32`, value `struct zigsched_policy_config` with `fifo_dsq`, `vtime_dsq`, `starvation_ns_max`, and `mode` as ordered `zigsched_u64` fields.
+- Project-used `struct_ops` fields remain `name`, `flags`, `init`, `enqueue`, and `dispatch`; expected callbacks remain `init`, `enqueue`, and `dispatch`; full-switch remains prohibited.
+
+`tools/bpf_metadata.sh` emits this contract in metadata under `abi_contract`, including header/source hashes, map layouts, enum names, and counter/event counts. `qa/bpf_abi_freeze_check.py` rejects stale metadata, object/source/header hash mismatches, malformed SKIP/object metadata, or any unversioned layout/count/config drift. A future v2 must bump `ZIGSCHED_ABI_VERSION`, update ADR 0004 and the checker fixtures, and keep host attach forbidden unless a separate approval explicitly changes that boundary.
+
+The freeze checker does not trust metadata alone for the source ABI. It re-reads
+`bpf/zigsched_minimal.bpf.c`, strips C comments, and derives the contract from the
+source patterns this policy owns:
+
+- every `struct { ... } <name> SEC(".maps");` map declaration, including
+  `__uint(type, ...)`, `__uint(max_entries, ...)`, `__type(key, ...)`, and
+  `__type(value, ...)`;
+- every BPF program `SEC("...")` section outside the recognized `.maps`,
+  `.struct_ops`, and `license` data sections;
+- the designated initializer fields used by
+  `struct sched_ext_ops zigsched_minimal_ops SEC(".struct_ops")`.
+
+Adding a map, adding a BPF program section, or using a new project-owned
+`sched_ext_ops` field is therefore rejected under `ZIGSCHED_ABI_VERSION=1u` even
+when metadata and source hashes have been regenerated. That extraction is a
+documented source-contract parser for the minimal policy shape, not a general C
+parser or a host attach path.
