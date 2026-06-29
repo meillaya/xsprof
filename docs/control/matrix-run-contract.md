@@ -1,6 +1,6 @@
 # Matrix-run/v1 evidence contract
 
-`matrix-run/v1` is a backend-only standalone artifact manifest for VM harness matrix evidence. It is not a daemon-event and not a `daemon-event/v1` extension, not a frontend contract, not a simulator fixture, and not production or release approval.
+`matrix-run/v1` is a backend-only standalone artifact manifest for VM harness matrix evidence. It is not a daemon-event and not a `daemon-event/v1` extension, not an application client feature contract, not a simulator fixture, and not production or release approval.
 
 The artifact schema string and JSON Schema `$id` are both `zig-scheduler/matrix-run/v1`.
 
@@ -9,6 +9,7 @@ The artifact schema string and JSON Schema `$id` are both `zig-scheduler/matrix-
 - `host_mutation` is always `false`; host rows may only prove refusal.
 - `release_eligible` is always `false`; a matrix artifact is lab evidence only.
 - Artifact paths are repository-relative data paths. Absolute paths and `..` traversal are invalid both in the standalone schema and in the checker. This applies to top-level artifact paths plus `policy.object_path`, `policy.source_path`, `workload.spec_path`, and `privacy_scan.report_path`.
+- Manifest runs are rooted at `evidence/lab/matrix/<run-id>/manifest.json`; `<run-id>` and manifest `matrix_run_id` must be the same directory basename, 1-64 characters, using only `A-Z`, `a-z`, `0-9`, `_`, `.`, and `-`.
 - `rollback_proof_path`, `cleanup_proof_path`, and `host_refusal_proof_path` are required for every outcome, including `SKIP` and `REFUSE`.
 - VM-live rows require a VM marker fact with `required=true`, `present=true`, and path `/run/zig-scheduler-vm-lab.marker`.
 - Host-refusal-only rows use `evidence_mode=host-refusal-only` and keep `vm_marker.present=false` while still carrying host refusal proof.

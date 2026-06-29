@@ -144,3 +144,56 @@ python3 qa/perf_calibration_evidence_check.py --bundle evidence/lab/run-all/<run
 ```
 
 Use `--accel kvm` on runners where KVM starts cleanly. Use `--accel tcg` only as an explicit disposable-VM fallback when QEMU/KVM startup is blocked by the runner environment. Either way, the host path remains fail-closed and must not load BPF or mutate host scheduler/cgroup state.
+
+## VM harness matrix runner
+
+`qa/vm/vm_harness_matrix.sh` is the canonical host-safe matrix wrapper around the VM lab evidence surface. It emits a `zig-scheduler/vm-harness-matrix-index/v1` manifest and one standalone `zig-scheduler/matrix-run/v1` row per selected scenario. It does not replace `qa/vm/vm_lab_backend.sh`, `qa/vm/run_all_lab.sh`, or `qa/vm/run_microvm_live_lab.sh`; the `live-backend` scenario delegates to the existing backend runner only when explicitly selected.
+
+Host-safe fixture smoke run:
+
+```bash
+bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out evidence/lab/matrix/<run-id>
+python3 qa/matrix_run_contract_check.py --manifest evidence/lab/matrix/<run-id>/manifest.json --schemas schemas/control --docs docs/control
+```
+
+Prerequisite-refusal examples:
+
+```bash
+bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario missing-qemu,missing-kvm,missing-kernel --out evidence/lab/matrix/<run-id>-missing
+bash qa/vm/vm_harness_matrix.sh --mode vm-required --scenario missing-qemu --out evidence/lab/matrix/<run-id>-vm-required
+```
+
+Rows run sequentially. Output must be a relative path exactly shaped as `evidence/lab/matrix/<run-id>`; `<run-id>` must be 1-64 characters from `A-Z`, `a-z`, `0-9`, `_`, `.`, and `-`, and becomes the manifest `matrix_run_id` without truncation or rewriting. An existing run directory is always refused as a collision, including directories that carry the runner ownership marker. Every row records daemon events, host refusal proof, rollback proof, cleanup proof, privacy proof, and cleanup scans with `host_mutation=false` and `release_eligible=false`. Fixture rows are lab contract evidence only and are not production or release approval.
+
+The safe build target runs the host-safe fixture row by default:
+
+```bash
+zig build vm-harness-matrix
+```
+
+## VM workload scenario catalog
+
+Workload catalog rows are matrix-run fixtures and VM-only execution plans. They do **not** run stressors on the host, do **not** load or attach sched_ext on the host, and do **not** write host cgroups, affinities, priorities, `/sys`, or `/proc`. The read-only capability checker is `qa/vm/workload_capability_probe.sh`; the matrix integration is `qa/vm/vm_harness_matrix.sh --scenario <id> --fixture`. Live workload execution remains disposable-VM-only and requires `/run/zig-scheduler-vm-lab.marker` plus the listed tools.
+
+| Scenario ID | Workload class | Required tools / prereqs | Threshold source | Typed SKIP / REFUSE conditions | Artifact paths |
+| --- | --- | --- | --- | --- | --- |
+| `workload-cpu-saturation` | CPU saturation | `stress-ng` | `fixture` | Missing `stress-ng`; VM-required mode returns `REFUSE`, host-safe/auto returns `SKIP` when forced by the probe. | `rows/<scenario>/workload-spec.json`, `workload-capability.json`, `runtime-sample.jsonl`, `incident.json`, `rollback-proof.json`, `cleanup-proof.json`, `host-refusal.json`, `privacy-scan.json` |
+| `workload-interactive-latency` | Interactive latency probe | `cyclictest`, `perf` | `calibrated` | Missing `cyclictest` or `perf`; calibration is a placeholder until VM-live record-only evidence is produced. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-scheduler-affinity-churn` | Scheduler / affinity churn | `stress-ng`, `taskset`, `chrt` | `fixture` | Missing any listed tool; live use is VM-only because affinity and scheduling knobs are mutation surfaces. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-fork-ipc-pressure` | Bounded fork / IPC pressure | `hackbench` or a `perf bench sched messaging`-like fallback (`hackbench-like`) | `fixture` | Missing hackbench-like tool; process pressure remains bounded and VM-only. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-mixed-io` | Mixed I/O | `fio` | `calibrated` | Missing `fio`; no production throughput claim is inferred from fixture or calibration rows. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-cgroup-weight-quota` | cgroup weight / quota pressure | `stress-ng` | `calibrated` | Missing `stress-ng`; cgroup writes remain VM-live-only behind the VM marker and are always refused on the host. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-cpu-hotplug` | CPU hotplug / offline where supported | VM CPU online control (`cpu-hotplug-online-control`) | `deferred` | Missing writable VM CPU online control or unsupported topology; host CPU hotplug/offline is always refused. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+
+Capability discovery examples:
+
+```bash
+bash qa/vm/workload_capability_probe.sh --mode host-safe --scenario workload-cpu-saturation
+ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL=stress-ng \
+  bash qa/vm/vm_harness_matrix.sh --mode vm-required --fixture \
+    --scenario workload-cpu-saturation --out evidence/lab/matrix/<run-id>-missing-workload
+```
+
+The `workload-spec.json` hash is recorded in the row's `workload.spec_sha256`; `workload-capability.json` records prerequisite status, `threshold_source` (`fixture`, `calibrated`, or `deferred`), and typed missing-prereq state. Fixture thresholds are deterministic contract placeholders. Calibrated thresholds must come from VM-live record-only calibration evidence and remain `production_capacity_claim=false`; deferred thresholds are explicit gaps, not pass/fail performance results.
+
+Privacy rules: workload artifacts may record scenario IDs, tool names, threshold-source labels, bounded counters, and relative artifact paths only. They must not include command lines, argv, environments, secrets, API keys, tokens, passwords, bearer strings, or private process data. Every matrix row also carries a `privacy-scan.json` with `private_fields_found=false`, `host_mutation=false`, and `release_eligible=false`.

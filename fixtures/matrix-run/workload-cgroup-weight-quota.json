@@ -1,0 +1,69 @@
+{
+  "action_id": "ACT-workload-cgroup-weight-quota",
+  "audit_id": "AUD-20260629T120000Z-workload-cgroup-weight-quota",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/cleanup-proof.json",
+  "evidence_mode": "vm-live",
+  "git": {
+    "actual_sha": "302cead",
+    "dirty": false,
+    "expected_sha": "302cead",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/host-refusal.json",
+  "incident_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/incident.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "present",
+    "kernel_release": "6.12.0-lab",
+    "kvm": "available",
+    "sched_ext": "available"
+  },
+  "matrix_run_id": "MR-20260629-WORKLOAD",
+  "outcome": "PASS",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/policy.o",
+    "object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "post_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6"
+  },
+  "post_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6"
+  },
+  "pre_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-workload-cgroup-weight-quota",
+  "rollback_proof_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/matrix-fixtures/workload-cgroup-weight-quota/runtime-sample.jsonl",
+  "scenario_id": "workload-cgroup-weight-quota",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "supported",
+  "vm_marker": {
+    "checked_by": "qa/vm/marker-check",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": true,
+    "required": true
+  },
+  "workload": {
+    "name": "cgroup-weight-quota-pressure",
+    "spec_path": "fixtures/matrix-run/workload-specs/workload-cgroup-weight-quota.json",
+    "spec_sha256": "405adcf2ddc64d92bc3f7d6439217312db69ab9c3d0196695cb7dd3956ffa1a2"
+  }
+}

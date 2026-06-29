@@ -1,0 +1,19 @@
+{
+  "host_mutation": false,
+  "release_eligible": false,
+  "required_tools": [
+    "cyclictest",
+    "perf"
+  ],
+  "scenario_id": "workload-interactive-latency",
+  "schema": "zig-scheduler/workload-fixture/v1",
+  "threshold_source": "calibrated",
+  "thresholds": {
+    "calibration_status": "placeholder",
+    "fixture_status": "deterministic",
+    "production_capacity_claim": false,
+    "source": "calibrated"
+  },
+  "vm_marker_required_for_live_run": true,
+  "workload_class": "interactive-latency"
+}

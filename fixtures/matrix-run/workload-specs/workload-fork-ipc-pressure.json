@@ -1,0 +1,18 @@
+{
+  "host_mutation": false,
+  "release_eligible": false,
+  "required_tools": [
+    "hackbench-like"
+  ],
+  "scenario_id": "workload-fork-ipc-pressure",
+  "schema": "zig-scheduler/workload-fixture/v1",
+  "threshold_source": "fixture",
+  "thresholds": {
+    "calibration_status": "placeholder",
+    "fixture_status": "deterministic",
+    "production_capacity_claim": false,
+    "source": "fixture"
+  },
+  "vm_marker_required_for_live_run": true,
+  "workload_class": "bounded-fork-ipc-pressure"
+}

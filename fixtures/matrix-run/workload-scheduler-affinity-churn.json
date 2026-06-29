@@ -1,0 +1,69 @@
+{
+  "action_id": "ACT-workload-scheduler-affinity-churn",
+  "audit_id": "AUD-20260629T120000Z-workload-scheduler-affinity-churn",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/cleanup-proof.json",
+  "evidence_mode": "vm-live",
+  "git": {
+    "actual_sha": "302cead",
+    "dirty": false,
+    "expected_sha": "302cead",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/host-refusal.json",
+  "incident_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/incident.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "present",
+    "kernel_release": "6.12.0-lab",
+    "kvm": "available",
+    "sched_ext": "available"
+  },
+  "matrix_run_id": "MR-20260629-WORKLOAD",
+  "outcome": "PASS",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/policy.o",
+    "object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "post_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd3"
+  },
+  "post_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd3"
+  },
+  "pre_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-workload-scheduler-affinity-churn",
+  "rollback_proof_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/matrix-fixtures/workload-scheduler-affinity-churn/runtime-sample.jsonl",
+  "scenario_id": "workload-scheduler-affinity-churn",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "supported",
+  "vm_marker": {
+    "checked_by": "qa/vm/marker-check",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": true,
+    "required": true
+  },
+  "workload": {
+    "name": "scheduler-affinity-churn",
+    "spec_path": "fixtures/matrix-run/workload-specs/workload-scheduler-affinity-churn.json",
+    "spec_sha256": "cb8008b0815f00e15a83295156d3110eff88f0900bf061a672b696ba65280399"
+  }
+}

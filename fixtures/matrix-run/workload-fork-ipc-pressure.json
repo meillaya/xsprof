@@ -1,0 +1,69 @@
+{
+  "action_id": "ACT-workload-fork-ipc-pressure",
+  "audit_id": "AUD-20260629T120000Z-workload-fork-ipc-pressure",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/cleanup-proof.json",
+  "evidence_mode": "vm-live",
+  "git": {
+    "actual_sha": "302cead",
+    "dirty": false,
+    "expected_sha": "302cead",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/host-refusal.json",
+  "incident_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/incident.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "present",
+    "kernel_release": "6.12.0-lab",
+    "kvm": "available",
+    "sched_ext": "available"
+  },
+  "matrix_run_id": "MR-20260629-WORKLOAD",
+  "outcome": "PASS",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/policy.o",
+    "object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "post_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd4"
+  },
+  "post_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd4"
+  },
+  "pre_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-workload-fork-ipc-pressure",
+  "rollback_proof_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/runtime-sample.jsonl",
+  "scenario_id": "workload-fork-ipc-pressure",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "supported",
+  "vm_marker": {
+    "checked_by": "qa/vm/marker-check",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": true,
+    "required": true
+  },
+  "workload": {
+    "name": "bounded-fork-ipc-pressure",
+    "spec_path": "fixtures/matrix-run/workload-specs/workload-fork-ipc-pressure.json",
+    "spec_sha256": "b1a6077a3eb4e57323c0e0348d8fce075ca3c6f2480a818a7643825b8617c8d1"
+  }
+}

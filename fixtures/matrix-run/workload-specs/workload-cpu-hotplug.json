@@ -1,0 +1,18 @@
+{
+  "host_mutation": false,
+  "release_eligible": false,
+  "required_tools": [
+    "cpu-hotplug-online-control"
+  ],
+  "scenario_id": "workload-cpu-hotplug",
+  "schema": "zig-scheduler/workload-fixture/v1",
+  "threshold_source": "deferred",
+  "thresholds": {
+    "calibration_status": "placeholder",
+    "fixture_status": "deterministic",
+    "production_capacity_claim": false,
+    "source": "deferred"
+  },
+  "vm_marker_required_for_live_run": true,
+  "workload_class": "cpu-hotplug-offline"
+}

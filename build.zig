@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) void {
     const client_contract_step = addClientContractStep(b);
     addBpfStep(b);
     addVmLabBackendStep(b);
+    addVmHarnessMatrixStep(b);
     addPackageStep(b);
 
     const test_step = b.step("test", "Run root Linux scheduler safety tests");
@@ -107,6 +108,23 @@ fn addVmLabBackendStep(b: *Build) void {
 
     const vm_lab_backend_step = b.step("vm-lab-backend", "Run fail-closed disposable VM backend lab harness");
     vm_lab_backend_step.dependOn(&vm_lab_backend.step);
+}
+
+fn addVmHarnessMatrixStep(b: *Build) void {
+    const vm_harness_matrix = b.addSystemCommand(&.{"bash"});
+    vm_harness_matrix.has_side_effects = true;
+    if (b.args) |args| {
+        vm_harness_matrix.addFileArg(b.path("qa/vm/vm_harness_matrix.sh"));
+        vm_harness_matrix.addArgs(args);
+    } else {
+        vm_harness_matrix.addArgs(&.{
+            "-c",
+            "run_id=\"zig-build-vm-harness-matrix-$(date -u +%Y%m%dT%H%M%SZ)-$$\"; bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out \"evidence/lab/matrix/${run_id}\"",
+        });
+    }
+
+    const vm_harness_matrix_step = b.step("vm-harness-matrix", "Run host-safe VM harness matrix evidence runner");
+    vm_harness_matrix_step.dependOn(&vm_harness_matrix.step);
 }
 
 fn addPackageStep(b: *Build) void {
