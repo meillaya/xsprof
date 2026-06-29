@@ -63,7 +63,8 @@
       "type": "string",
       "enum": [
         "vm-live",
-        "host-refusal-only"
+        "host-refusal-only",
+        "fixture"
       ]
     },
     "kernel_tuple": {

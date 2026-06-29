@@ -11,6 +11,7 @@ zig build test --summary all
 zig build client-contract --summary all
 zig build host-safe-gates --summary all
 zig build vm-harness-matrix --summary all
+bash qa/scope_fidelity.sh --plan .omo/plans/vm-harness-matrix-incident-api-hardening.md --evidence .omo/evidence/vm-harness-matrix-incident-api-hardening
 zig build bpf --summary all
 zig build linux-preflight -- --json
 zig build run -- --help
@@ -29,7 +30,7 @@ Default matrix and release-withheld gates are host-safe:
 
 - `zig build client-contract` now runs the backend client API fixture pack, `matrix-run/v1` fixtures, runtime sample self-test, control schema drift check, and daemon golden transcript check.
 - `zig build host-safe-gates` runs the workload catalog, root UI absence, no-host-mutation, wording/privacy, read-only security, Zig docs vendor, BPF ABI/repro, and release gate self-tests.
-- `zig build vm-harness-matrix` runs only the host-safe fixture row by default. It writes ignored evidence under `evidence/lab/matrix/<run-id>` and validates the matrix contract without requiring QEMU, KVM, or a VM kernel.
+- `zig build vm-harness-matrix` runs only the host-safe fixture row by default. On hosts without `/run/zig-scheduler-vm-lab.marker`, that row must SKIP/REFUSE rather than claim PASS/vm-live marker evidence. It writes ignored evidence under `evidence/lab/matrix/<run-id>` and validates the matrix contract without requiring QEMU, KVM, or a VM kernel.
 - `qa/release_gate.sh --matrix-manifest evidence/lab/matrix/<run-id>/manifest.json ...` consumes a matrix manifest only after `qa/matrix_run_contract_check.py` proves every row has `host_mutation=false`, `release_eligible=false`, cleanup proof, rollback proof, host refusal proof, and safe relative artifact paths.
 
 `SKIP` means a prerequisite is absent or unsupported in the selected lane and no unsafe proof was attempted. `REFUSE` means a required unsafe or invalid prerequisite was requested and the harness intentionally declined it. `FAIL` means a checker or runner contract was violated and must fail the lane. Default CI may accept documented `SKIP`/`REFUSE` rows from host-safe fixture or missing-prerequisite scenarios, but must not reinterpret them as VM-live success or release approval.

@@ -154,6 +154,7 @@ Host-safe fixture smoke run:
 ```bash
 bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out evidence/lab/matrix/<run-id>
 python3 qa/matrix_run_contract_check.py --manifest evidence/lab/matrix/<run-id>/manifest.json --schemas schemas/control --docs docs/control
+bash qa/scope_fidelity.sh --plan .omo/plans/vm-harness-matrix-incident-api-hardening.md --evidence .omo/evidence/vm-harness-matrix-incident-api-hardening
 ```
 
 Prerequisite-refusal examples:
@@ -173,7 +174,7 @@ zig build host-safe-gates --summary all
 zig build vm-harness-matrix --summary all
 ```
 
-`client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`. None of these default build targets require QEMU/KVM or VM kernel inputs.
+`client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`; without a real VM marker, that row is `PASS` with `evidence_mode=fixture`, while vm-required marker-missing rows fail closed as `REFUSE` and prerequisite-missing rows remain `SKIP`/`REFUSE`. None of these default build targets require QEMU/KVM or VM kernel inputs.
 
 ## VM workload scenario catalog
 

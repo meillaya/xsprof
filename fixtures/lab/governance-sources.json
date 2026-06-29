@@ -48,13 +48,13 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "8a77dd33c89eaeb33228e9ed1f3a8167ab0ab372f241b08842ad0578fa5c502c"
+      "sha256": "851c19b5ea783e3c0df72bc86d335473cf50857adcb48fcf4cc16f3d4f999900"
     },
     {
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "6e6e22c865c6839fdda9ce0aebb058a63ef3b066af623f2d72ff5d9d9058fd8d"
+      "sha256": "2d02dfee5e55c1f77e7cd8fa272d1c184b0dd9f52669968a797e530706e0c327"
     },
     {
       "path": "docs/releases/governance-gate.md",
@@ -84,7 +84,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "df2ebe0f3a7525dae9189c1737994821e7f01614dd41b5b5fd97c0831d0b23a6"
+      "sha256": "1d7edbf26a124d3a790fc28945fad4e9f5a32f4c74dc0614c2fceaae54aff5e1"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -138,7 +138,7 @@
       "path": "schemas/control/matrix-run.v1.schema.json",
       "purpose": "matrix-run v1 standalone evidence schema",
       "required": true,
-      "sha256": "94b41182fa7690cadb292a5e00d7dd21f98d54c424806a07c0c841eef13ba51c"
+      "sha256": "83c06d61e91b42c525d83529ba36f75b8bafd05a2ab69a8bb59974fde636e719"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -168,7 +168,7 @@
       "path": "qa/matrix_run_contract_check.py",
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
-      "sha256": "15708909242615b72efec54429af47cbf6908764098e49f2f4c3c7a3488f113a"
+      "sha256": "dec778a05baf729aee54920c72d885a36fecfd52f34285da81913733f535a159"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -240,7 +240,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "85877283fba88af118dc778134cf7d6f8da04ae20a745a06f843f9fe4a13916f"
+      "sha256": "8e4f9336384b73c6efac9d7ea70dd5b82a35ac465f9b91deec338c5566ae4094"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",

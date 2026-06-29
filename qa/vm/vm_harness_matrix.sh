@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SIZE_OK: one audited shell entrypoint keeps output ownership, sequential row execution, event emission, and cleanup traps on one CI surface.
+# SIZE_OK: integration gate driver intentionally keeps output ownership, sequential row execution, event emission, and cleanup traps in one audited CI entrypoint; split next by extracting row JSON emission and scenario-shape helpers.
 # Canonical host-safe matrix runner for VM lab rows. It emits standalone
 # matrix-run/v1 artifacts and only delegates to live VM scripts when an
 # explicit live scenario is selected.
@@ -16,6 +16,7 @@ source qa/vm/qemu_cleanup.sh
 mode="host-safe"
 out_dir=""
 fixture_mode=false
+manifest_fixture_mode=false
 timeout_seconds="120"
 declare -a scenarios=()
 
@@ -30,11 +31,14 @@ Canonical VM harness matrix runner:
   - runs selected rows sequentially and records daemon-event/v1 lifecycle rows
   - refuses output outside evidence/lab/matrix/<run-id> and never reuses an existing run directory
   - requires <run-id> to be 1-64 characters from A-Z, a-z, 0-9, underscore, dot, and dash
-  - fixture scenarios emit deterministic lab evidence without launching QEMU
+  - host-safe fixture PASS rows emit evidence_mode=fixture without claiming a real VM marker
+  - VM-live PASS rows require a present /run/zig-scheduler-vm-lab.marker and a row-local marker proof
+  - vm-required rows without the marker fail closed as REFUSE; host-safe/auto marker-missing prerequisite rows SKIP/REFUSE
+  - fixture scenarios emit deterministic lab evidence without launching QEMU or claiming production/release readiness
   - live-backend delegates to qa/vm/vm_lab_backend.sh only when explicitly selected
 
 Scenarios:
-  fixture-pass        deterministic PASS row with VM-live-shaped fixture evidence
+  fixture-pass        deterministic host-safe PASS row with evidence_mode=fixture unless a real VM marker is present
   missing-qemu        typed SKIP (host-safe/auto) or REFUSE (vm-required)
   missing-kvm         typed SKIP (host-safe/auto) or REFUSE (vm-required)
   missing-kernel      typed SKIP (host-safe/auto) or REFUSE (vm-required)
@@ -48,8 +52,8 @@ Scenarios:
   workload-cgroup-weight-quota        cgroup weight/quota pressure fixture/probe row (stress-ng)
   workload-cpu-hotplug                CPU hotplug/offline fixture/probe row where supported
   fixture-refuse      host-refusal-only REFUSE row
-  fixture-incident    VM-live-shaped INCIDENT row
-  fixture-timeout     VM-live-shaped timeout INCIDENT row
+  fixture-incident    deterministic fixture INCIDENT row, or vm-live only when the VM marker is present
+  fixture-timeout     deterministic fixture timeout INCIDENT row, or vm-live only when the VM marker is present
   live-backend        explicit delegation to qa/vm/vm_lab_backend.sh
 USAGE
 }
@@ -79,6 +83,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$mode" in host-safe|auto|vm-required) ;; *) fail '--mode must be host-safe, auto, or vm-required' ;; esac
+manifest_fixture_mode="$fixture_mode"
 [ -n "$out_dir" ] || fail '--out is required'
 case "$out_dir$mode$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail '--timeout must be a positive integer' ;; esac
@@ -230,6 +235,36 @@ workload_tools() {
   esac
 }
 
+vm_marker_available() { [ -e /run/zig-scheduler-vm-lab.marker ]; }
+
+missing_vm_marker_shape() {
+  if [ "$mode" = vm-required ]; then
+    printf 'REFUSE host-refusal-only unknown unknown unknown unknown false false vm marker unavailable'
+  else
+    printf 'SKIP host-refusal-only unsupported unknown unknown unknown false false vm marker unavailable'
+  fi
+}
+
+vm_live_shape_or_marker_refusal() {
+  local outcome="$1" reason="$2"
+  if vm_marker_available; then
+    printf '%s vm-live supported present available available true true %s' "$outcome" "$reason"
+  else
+    missing_vm_marker_shape
+  fi
+}
+
+fixture_shape_or_vm_live() {
+  local outcome="$1" reason="$2"
+  if vm_marker_available; then
+    printf '%s vm-live supported present available available true true %s' "$outcome" "$reason"
+  elif [ "$mode" = vm-required ]; then
+    missing_vm_marker_shape
+  else
+    printf '%s fixture unknown unknown unknown unknown false false %s' "$outcome" "$reason"
+  fi
+}
+
 workload_threshold_source() {
   case "$1" in
     workload-cpu-saturation|workload-scheduler-affinity-churn|workload-fork-ipc-pressure) printf 'fixture' ;;
@@ -271,29 +306,29 @@ workload_probe_status() {
       printf 'SKIP host-refusal-only unsupported present available unknown false false workload-%s prerequisite unavailable' "$missing"
     fi
   else
-    printf 'PASS vm-live supported present available available true true workload fixture probe completed'
+    fixture_shape_or_vm_live PASS 'workload fixture probe completed'
   fi
 }
 
 scenario_shape() {
   local scenario="$1"
   case "$scenario" in
-    fixture-pass) printf 'PASS vm-live supported present available available true true fixture pass completed\n' ;;
+    fixture-pass) fixture_shape_or_vm_live PASS 'fixture pass completed'; printf '\n' ;;
     missing-qemu) [ "$mode" = vm-required ] && printf 'REFUSE host-refusal-only unknown unknown unavailable unknown false false qemu prerequisite unavailable\n' || printf 'SKIP host-refusal-only unsupported unknown unavailable unknown false false qemu prerequisite unavailable\n' ;;
     missing-kvm) [ "$mode" = vm-required ] && printf 'REFUSE host-refusal-only unknown present unavailable unknown false false kvm prerequisite unavailable\n' || printf 'SKIP host-refusal-only unsupported present unavailable unknown false false kvm prerequisite unavailable\n' ;;
     missing-kernel) [ "$mode" = vm-required ] && printf 'REFUSE host-refusal-only unknown unknown unknown unknown false false kernel prerequisite unavailable\n' || printf 'SKIP host-refusal-only unsupported unknown unknown unknown false false kernel prerequisite unavailable\n' ;;
     missing-nix) [ "$mode" = vm-required ] && printf 'REFUSE host-refusal-only unknown present available unknown false false nix prerequisite unavailable\n' || printf 'SKIP host-refusal-only unsupported present available unknown false false nix prerequisite unavailable\n' ;;
     missing-workload) [ "$mode" = vm-required ] && printf 'REFUSE host-refusal-only unknown present available unknown false false workload prerequisite unavailable\n' || printf 'SKIP host-refusal-only unsupported present available unknown false false workload prerequisite unavailable\n' ;;
     fixture-refuse) printf 'REFUSE host-refusal-only unknown present available unknown false false host refusal fixture completed\n' ;;
-    fixture-incident) printf 'INCIDENT vm-live supported present available available true true verifier incident fixture completed\n' ;;
-    fixture-timeout) printf 'INCIDENT vm-live supported present available available true true timeout fixture completed\n' ;;
+    fixture-incident) fixture_shape_or_vm_live INCIDENT 'verifier incident fixture completed'; printf '\n' ;;
+    fixture-timeout) fixture_shape_or_vm_live INCIDENT 'timeout fixture completed'; printf '\n' ;;
     workload-*) is_workload_scenario "$scenario" && { workload_probe_status "$scenario"; printf '\n'; } || return 1 ;;
     *) return 1 ;;
   esac
 }
 
 write_matrix_row() {
-  local scenario="$1" row_dir="$2" outcome="$3" evidence_mode="$4" tuple_status="$5" btf="$6" kvm="$7" sched_ext="$8" marker_present="$9" marker_required="${10}" reason="${11}"
+  local scenario="$1" row_dir="$2" outcome="$3" evidence_mode="$4" tuple_status="$5" btf="$6" kvm="$7" sched_ext="$8" marker_present="$9" marker_required="${10}" reason="${11}" fixture_authority="${12}"
   local qemu_before="$row_dir/qemu-process-scan-before.txt" qemu_after="$row_dir/qemu-process-scan-after.txt"
   local temp_before="$row_dir/temp-scan-before.txt" temp_after="$row_dir/temp-scan-after.txt"
   mkdir -p "$row_dir"
@@ -312,7 +347,7 @@ write_matrix_row() {
     threshold_source_value="$(workload_threshold_source "$scenario")"
     if missing_prereq_value="$(workload_missing_prereq "$scenario")"; then :; else missing_prereq_value=""; fi
   fi
-  SCENARIO="$scenario" ROW_DIR="$row_dir" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_mode" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" python3 - <<'PY'
+  SCENARIO="$scenario" ROW_DIR="$row_dir" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" python3 - <<'PY'
 import hashlib
 import json
 import os
@@ -379,7 +414,41 @@ workload_sha = write_json(workload, {
     "release_eligible": False,
 })
 runtime = row_dir / "runtime-sample.jsonl"
-runtime.write_text("".join(json.dumps({"schema": "zig-scheduler/runtime-sample/v1", "sequence": index, "scheduler_state": state, "ops": ops, "host_mutation": False}, sort_keys=True) + "\n" for index, (state, ops) in enumerate((("disabled", "none"), ("enabled", "zigsched_minimal"), ("disabled", "none")))), encoding="utf-8")
+cgroup_digest = hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()
+
+def fact(status: str, value: str) -> dict:
+    return {"status": status, "value": value}
+
+def runtime_sample(index: int, scheduler_state: str, ops: str) -> dict:
+    enabled = scheduler_state == "enabled"
+    return {
+        "schema": "zig-scheduler/runtime-sample/v1",
+        "sequence": index,
+        "state": fact("present", scheduler_state),
+        "ops": fact("present", ops),
+        "enable_seq": fact("present", str(40 + index) if enabled else "0"),
+        "events": fact("present", "nr_rejected: 0"),
+        "events_hash": hashlib.sha256(f"{scenario}:events:{index}".encode()).hexdigest(),
+        "nr_rejected": fact("present", "0"),
+        "debug_dump": fact("missing", ""),
+        "root_ops": fact("present", ops),
+        "scheduler_events": fact("present", "nr_rejected: 0"),
+        "policy_counters": {"nr_rejected": 0, "dispatch_failed": 0, "fallback": 0, "fatal": 0},
+        "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
+        "policy_abi": {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_minimal_v1", "struct_ops": "zigsched_minimal_ops", "object_sha256": policy_sha, "btf_required": True},
+        "cgroup_membership_digest": cgroup_digest,
+        "cgroup_membership_status": fact("present", "present"),
+        "workload": fact("present", "alive" if outcome == "PASS" else "not-started"),
+        "workload_alive": outcome == "PASS",
+        "private_command_lines_sampled": False,
+    }
+
+runtime_rows = (
+    runtime_sample(0, "disabled", "none"),
+    runtime_sample(1, "enabled", "zigsched_minimal"),
+    runtime_sample(2, "disabled", "none"),
+)
+runtime.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in runtime_rows), encoding="utf-8")
 incident = row_dir / "incident.json"
 write_json(incident, {"schema": "zig-scheduler/matrix-incident/v1", "scenario_id": scenario, "outcome": outcome, "reason": reason, "host_mutation": False, "release_eligible": False})
 rollback = row_dir / "rollback-proof.json"
@@ -390,6 +459,11 @@ privacy = row_dir / "privacy-scan.json"
 write_json(privacy, {"schema": "zig-scheduler/privacy-scan/v1", "status": "PASS", "private_fields_found": False, "host_mutation": False})
 cleanup = row_dir / "cleanup-proof.json"
 write_json(cleanup, {"schema": "zig-scheduler/cleanup-proof/v1", "scenario_id": scenario, "status": "PASS", "owned_qemu_leftovers": False, "owned_temp_leftovers": False, "qemu_scan_before": os.environ["QEMU_BEFORE"], "qemu_scan_after": os.environ["QEMU_AFTER"], "temp_scan_before": os.environ["TEMP_BEFORE"], "temp_scan_after": os.environ["TEMP_AFTER"], "host_mutation": False})
+marker_checked_by = "qa/vm/vm_harness_matrix.sh"
+if marker_present:
+    marker_proof = row_dir / "vm-marker-proof.json"
+    write_json(marker_proof, {"schema": "zig-scheduler/vm-marker-proof/v1", "path": "/run/zig-scheduler-vm-lab.marker", "required": True, "present": True, "evidence_mode": "vm-live", "host_mutation": False})
+    marker_checked_by = marker_proof.as_posix()
 state = {"ops": "none", "sched_ext": "disabled"}
 cgroup = {"digest": "sha256:" + hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()}
 row = {
@@ -400,7 +474,7 @@ row = {
     "evidence_mode": evidence_mode,
     "kernel_tuple": {"kernel_release": os.uname().release, "arch": os.uname().machine, "btf": os.environ["BTF"], "kvm": os.environ["KVM_STATUS"], "sched_ext": os.environ["SCHED_EXT"]},
     "supported_tuple_status": os.environ["TUPLE_STATUS"],
-    "vm_marker": {"required": marker_required, "present": marker_present, "path": "/run/zig-scheduler-vm-lab.marker", "checked_by": "qa/vm/vm_harness_matrix.sh"},
+    "vm_marker": {"required": marker_required, "present": marker_present, "path": "/run/zig-scheduler-vm-lab.marker", "checked_by": marker_checked_by},
     "bpf_abi_version": "zigsched-bpf-abi-v1",
     "policy": {"name": "zigsched_minimal", "object_path": policy.as_posix(), "object_sha256": policy_sha, "source_path": "bpf/zigsched_minimal.bpf.c", "source_sha256": source_sha},
     "workload": {"name": workload_class, "spec_path": workload.as_posix(), "spec_sha256": workload_sha},
@@ -436,11 +510,16 @@ PY
 }
 
 run_fixture_scenario() {
-  local scenario="$1" row_dir="$out_dir/rows/$scenario" shape outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason row_path
+  local scenario="$1" row_dir="$out_dir/rows/$scenario" shape outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason row_path fixture_authority
   if ! shape="$(scenario_shape "$scenario")"; then
     fail "unknown scenario: $scenario"
   fi
   read -r outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason <<< "$shape"
+  fixture_authority="$fixture_mode"
+  if [ "$evidence_mode" = fixture ]; then
+    fixture_authority=true
+    manifest_fixture_mode=true
+  fi
   case "$scenario" in
     missing-qemu) reason="forced missing QEMU prerequisite" ;;
     missing-kvm) reason="forced missing KVM prerequisite" ;;
@@ -453,7 +532,7 @@ run_fixture_scenario() {
     fixture-pass) reason="fixture pass row" ;;
   esac
   emit_event stage_started STARTED "$scenario" "$row_dir" "$reason"
-  outcome="$(write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason")"
+  outcome="$(write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason" "$fixture_authority")"
   row_path="$row_dir/matrix-run.json"
   case "$outcome" in
     PASS) emit_event validation PASS "$scenario" "$row_path" "$reason" ;;
@@ -490,7 +569,7 @@ run_live_backend() {
     outcome=REFUSE; evidence_mode=host-refusal-only; tuple_status=unknown; btf=unknown; kvm=unknown; sched_ext=unknown; marker_present=false; marker_required=false; reason="live backend refused or unavailable"
     [ "$mode" = vm-required ] && final_rc=1
   fi
-  outcome="$(write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason")"
+  outcome="$(write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason" "$fixture_mode")"
   row_path="$row_dir/matrix-run.json"
   emit_event validation "$outcome" "$scenario" "$row_path" "$reason"
   emit_event cleanup PASS "$scenario" "$row_dir/cleanup-proof.json" "cleanup proof recorded"
@@ -506,7 +585,7 @@ for scenario in "${scenarios[@]}"; do
 done
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-MANIFEST_ROWS="$manifest_rows" MANIFEST="$out_dir/manifest.json" RUN_ID="$run_id" MODE="$mode" FIXTURE_MODE="$fixture_mode" STARTED_AT="$started_at" ENDED_AT="$ended_at" EVENT_FILE="$event_file" OUT_DIR="$out_dir" python3 - <<'PY'
+MANIFEST_ROWS="$manifest_rows" MANIFEST="$out_dir/manifest.json" RUN_ID="$run_id" MODE="$mode" FIXTURE_MODE="$manifest_fixture_mode" STARTED_AT="$started_at" ENDED_AT="$ended_at" EVENT_FILE="$event_file" OUT_DIR="$out_dir" python3 - <<'PY'
 import json
 import os
 from pathlib import Path

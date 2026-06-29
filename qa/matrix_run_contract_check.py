@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 # ─── How to run ───
-# noqa: SIZE_OK — standalone contract checker keeps schema, fixture, and self-test gates together.
+# noqa: SIZE_OK — integration gate driver intentionally keeps schema/docs/fixture/manifest dereference checks in one audited fail-closed entrypoint; split next by moving manifest artifact validators and self-test case builders.
 # python3 qa/matrix_run_contract_check.py --fixtures fixtures/matrix-run --schemas schemas/control --docs docs/control
 from __future__ import annotations
 
@@ -17,8 +17,15 @@ from collections.abc import Callable
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
+
+from qa.daemon_event_contract_check import ContractError as DaemonEventContractError
+from qa.daemon_event_contract_check import validate as validate_daemon_event_stream
+from qa.runtime_sample_check import RuntimeSampleError, good_sample as runtime_good_sample
+from qa.runtime_sample_check import validate_file as validate_runtime_sample_file
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -28,7 +35,7 @@ SCHEMA_FILE: Final = "matrix-run.v1.schema.json"
 DOC_FILE: Final = "matrix-run-contract.md"
 VM_MARKER: Final = "/run/zig-scheduler-vm-lab.marker"
 OUTCOMES: Final = frozenset({"PASS", "SKIP", "REFUSE", "INCIDENT", "FAIL"})
-EVIDENCE_MODES: Final = frozenset({"vm-live", "host-refusal-only"})
+EVIDENCE_MODES: Final = frozenset({"vm-live", "host-refusal-only", "fixture"})
 TUPLE_STATUS: Final = frozenset({"supported", "unsupported", "unknown"})
 REQUIRED_FIXTURES: Final = frozenset({"pass.json", "skip-unsupported-tuple.json", "host-refusal-only.json", "incident-verifier-reject.json", "rollback-failure.json", "cleanup-residue.json", "workload-cpu-saturation.json", "workload-interactive-latency.json", "workload-scheduler-affinity-churn.json", "workload-fork-ipc-pressure.json", "workload-mixed-io.json", "workload-cgroup-weight-quota.json", "workload-cpu-hotplug.json"})
 REQUIRED_INVALID_FIXTURES: Final = frozenset({"host-mutation-true.json", "release-eligible-true.json", "invalid-outcome.json", "stale-git.json", "dirty-git.json", "missing-vm-marker.json", "unsafe-absolute-path.json", "unsafe-traversal-path.json", "missing-rollback-proof.json", "missing-cleanup-proof.json", "missing-cleanup-proof-on-skip.json", "missing-cleanup-proof-on-refuse.json", "missing-host-refusal-proof.json", "privacy-failed.json", "malformed.json", "extra-property.json"})
@@ -58,6 +65,11 @@ WORKLOAD_SPEC_SCHEMA: Final = "zig-scheduler/workload-fixture/v1"
 WORKLOAD_CAPABILITY_SCHEMA: Final = "zig-scheduler/workload-capability/v1"
 PRIVACY_SCAN_SCHEMA: Final = "zig-scheduler/privacy-scan/v1"
 PRIVACY_REPORT_FIELDS: Final = frozenset(("schema", "status", "private_fields_found", "host_mutation"))
+INCIDENT_FIELDS: Final = frozenset(("schema", "scenario_id", "outcome", "reason", "host_mutation", "release_eligible"))
+ROLLBACK_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "scheduler_state", "ops", "host_mutation"))
+CLEANUP_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "owned_qemu_leftovers", "owned_temp_leftovers", "qemu_scan_before", "qemu_scan_after", "temp_scan_before", "temp_scan_after", "host_mutation"))
+HOST_REFUSAL_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "reason", "no_bpf_load_attach", "no_cgroup_write", "no_sys_write", "no_proc_write", "host_mutation"))
+VM_MARKER_PROOF_FIELDS: Final = frozenset(("schema", "path", "required", "present", "evidence_mode", "host_mutation"))
 WORKLOAD_SPEC_FIELDS: Final = frozenset(("schema", "name", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "capability_artifact_path", "runner", "vm_marker_required_for_live_run", "host_safe_fixture_only", "missing_prereq", "host_mutation", "release_eligible"))
 WORKLOAD_THRESHOLD_FIELDS: Final = frozenset(("source", "fixture_status", "calibration_status", "production_capacity_claim"))
 WORKLOAD_CAPABILITY_FIELDS: Final = frozenset(("schema", "scenario_id", "workload_class", "required_tools", "threshold_source", "mode", "status", "typed_outcome", "missing_prereq", "vm_marker_required_for_live_run", "fixture_mode", "runner", "host_mutation", "release_eligible"))
@@ -296,6 +308,11 @@ def validate_schema_file(schemas: Path) -> None:
     missing = sorted(field for field in required_fields() if field not in required_names)
     require(not missing, f"{SCHEMA_FILE} missing required fields: {', '.join(missing)}")
     properties = obj(schema.get("properties"), f"{SCHEMA_FILE}.properties")
+    evidence_mode_schema = obj(properties.get("evidence_mode"), f"{SCHEMA_FILE}.properties.evidence_mode")
+    evidence_modes = evidence_mode_schema.get("enum")
+    if not isinstance(evidence_modes, list):
+        raise MatrixRunContractError(f"{SCHEMA_FILE}.properties.evidence_mode.enum must be a list")
+    require(frozenset(item for item in evidence_modes if isinstance(item, str)) == EVIDENCE_MODES, f"{SCHEMA_FILE}.properties.evidence_mode.enum must match checker evidence modes")
     for path_field in SCHEMA_PATH_FIELDS:
         schema_node = properties
         field_context = ".".join(path_field)
@@ -321,7 +338,8 @@ def validate_row(row: JsonObject, context: str) -> None:
     require_only_fields(row, ROW_FIELDS, context)
     require(set(required_fields()).issubset(row), f"{context} missing required fields")
     require(row.get("schema") == SCHEMA, f"{context} bad schema")
-    require(text(row.get("outcome"), f"{context}.outcome") in OUTCOMES, f"{context}.outcome invalid")
+    outcome = text(row.get("outcome"), f"{context}.outcome")
+    require(outcome in OUTCOMES, f"{context}.outcome invalid")
     mode = text(row.get("evidence_mode"), f"{context}.evidence_mode")
     require(mode in EVIDENCE_MODES, f"{context}.evidence_mode invalid")
     require(text(row.get("supported_tuple_status"), f"{context}.supported_tuple_status") in TUPLE_STATUS, f"{context}.supported_tuple_status invalid")
@@ -343,6 +361,7 @@ def validate_row(row: JsonObject, context: str) -> None:
     validate_workload(obj(row.get("workload"), f"{context}.workload"), scenario_id, context)
     validate_privacy(obj(row.get("privacy_scan"), f"{context}.privacy_scan"), context)
     validate_git(obj(row.get("git"), f"{context}.git"), context)
+    validate_pass_evidence_mode(outcome, mode, context)
     reject_private(row, context)
 
 
@@ -354,8 +373,15 @@ def validate_vm_marker(marker: JsonObject, mode: str, context: str) -> None:
     _ = text(marker.get("checked_by"), f"{context}.vm_marker.checked_by")
     if mode == "vm-live":
         require(required and present, f"{context} VM-live row requires present VM marker")
+    elif mode in {"host-refusal-only", "fixture"}:
+        require(not required and not present, f"{context} {mode} row must not claim VM marker")
     else:
-        require(not required and not present, f"{context} host-refusal-only row must not claim VM marker")
+        raise MatrixRunContractError(f"{context}.evidence_mode invalid")
+
+
+def validate_pass_evidence_mode(outcome: str, mode: str, context: str) -> None:
+    if outcome == "PASS":
+        require(mode in {"vm-live", "fixture"}, f"{context} PASS requires vm-live proof or explicit fixture evidence")
 
 
 def validate_policy(policy: JsonObject, context: str) -> None:
@@ -452,8 +478,10 @@ def validate_workload_capability(capability: JsonObject, scenario_id: str, workl
         require_expected_missing_prereq(missing, expected, f"{context}.missing_prereq")
         if row_outcome == "PASS":
             require(missing == "", f"{context}.missing_prereq must be empty for PASS")
-        elif row_outcome in {"SKIP", "REFUSE"}:
-            require(missing != "", f"{context}.missing_prereq must name the missing scenario tool for {row_outcome}")
+        elif row_outcome == "SKIP":
+            require(missing != "", f"{context}.missing_prereq must name the missing scenario tool for SKIP")
+        elif row_outcome == "REFUSE":
+            pass
         else:
             require(missing == "", f"{context}.missing_prereq must be empty unless outcome is SKIP or REFUSE")
     require(capability.get("vm_marker_required_for_live_run") is True, f"{context}.vm_marker_required_for_live_run must be true")
@@ -556,8 +584,8 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
     require(Path(require_safe_path(manifest.get("out_dir"), f"{manifest_path}.out_dir")) == manifest_root, f"{manifest_path}.out_dir must match manifest directory")
     daemon_events_path = Path(require_safe_path(manifest.get("daemon_events_path"), f"{manifest_path}.daemon_events_path"))
     require_descendant(daemon_events_path, manifest_root, f"{manifest_path}.daemon_events_path")
-    _ = text(manifest.get("mode"), f"{manifest_path}.mode")
-    _ = bool_field(manifest.get("fixture_mode"), f"{manifest_path}.fixture_mode")
+    mode = text(manifest.get("mode"), f"{manifest_path}.mode")
+    fixture_mode = bool_field(manifest.get("fixture_mode"), f"{manifest_path}.fixture_mode")
     _ = text(manifest.get("started_at"), f"{manifest_path}.started_at")
     _ = text(manifest.get("ended_at"), f"{manifest_path}.ended_at")
     rows = manifest.get("rows")
@@ -566,6 +594,7 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
     require(manifest.get("row_count") == len(rows), f"{manifest_path}.row_count must match rows length")
     seen_scenarios: set[str] = set()
     seen_artifacts: set[str] = set()
+    validate_manifest_daemon_events(daemon_events_path, manifest_root, f"{manifest_path}.daemon_events_path")
     for index, raw_row in enumerate(rows):
         manifest_row = obj(raw_row, f"{manifest_path}.rows[{index}]")
         require_only_fields(manifest_row, MANIFEST_ROW_FIELDS, f"{manifest_path}.rows[{index}]")
@@ -582,10 +611,117 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
         row = load_json(artifact_path)
         validate_row(row, artifact_path.as_posix())
         validate_manifest_row_paths(row, manifest_root, artifact_path.as_posix())
+        validate_manifest_vm_claim(row, mode, fixture_mode, manifest_root, artifact_path.as_posix())
         require(row.get("matrix_run_id") == manifest_run_id, f"{artifact_path}.matrix_run_id must match manifest")
         require(manifest_row.get("scenario_id") == row.get("scenario_id"), f"{manifest_path}.rows[{index}].scenario_id mismatch")
         require(manifest_row.get("outcome") == row.get("outcome"), f"{manifest_path}.rows[{index}].outcome mismatch")
     return len(rows), 0
+
+
+def validate_manifest_daemon_events(path: Path, manifest_root: Path, context: str) -> None:
+    require_descendant(path, manifest_root, context)
+    try:
+        validate_daemon_event_stream(path, False)
+    except DaemonEventContractError as exc:
+        raise MatrixRunContractError(f"{context} invalid daemon event stream: {exc}") from exc
+
+
+def validate_manifest_vm_claim(row: JsonObject, mode: str, fixture_mode: bool, manifest_root: Path, context: str) -> None:
+    marker = obj(row.get("vm_marker"), f"{context}.vm_marker")
+    marker_required = bool_field(marker.get("required"), f"{context}.vm_marker.required")
+    marker_present = bool_field(marker.get("present"), f"{context}.vm_marker.present")
+    evidence_mode = text(row.get("evidence_mode"), f"{context}.evidence_mode")
+    outcome = text(row.get("outcome"), f"{context}.outcome")
+    fixture_authorized = fixture_mode and mode in {"host-safe", "auto"}
+    if evidence_mode == "fixture":
+        require(fixture_authorized, f"{context} fixture evidence requires explicit fixture_mode=true on a host-safe/auto manifest")
+    if outcome == "PASS" and not fixture_authorized:
+        require(evidence_mode == "vm-live", f"{context} non-fixture PASS requires vm-live evidence")
+    if fixture_authorized:
+        require(not marker_present, f"{context} fixture manifest must not claim VM marker presence")
+        require(evidence_mode != "vm-live", f"{context} fixture manifest must not claim vm-live evidence")
+        if outcome == "PASS":
+            require(evidence_mode == "fixture", f"{context} fixture PASS must use fixture evidence")
+    if evidence_mode == "vm-live" or marker_present:
+        marker_path = Path(require_safe_path(marker.get("checked_by"), f"{context}.vm_marker.checked_by"))
+        require_descendant(marker_path, manifest_root, f"{context}.vm_marker.checked_by")
+        validate_vm_marker_proof(load_json(marker_path), marker_required, marker_present, evidence_mode, f"{context}.vm_marker.proof")
+
+
+def validate_vm_marker_proof(data: JsonObject, marker_required: bool, marker_present: bool, evidence_mode: str, context: str) -> None:
+    require_only_fields(data, VM_MARKER_PROOF_FIELDS, context)
+    require(data.get("schema") == "zig-scheduler/vm-marker-proof/v1", f"{context}.schema unsupported")
+    require(data.get("path") == VM_MARKER, f"{context}.path mismatch")
+    require(data.get("required") == marker_required, f"{context}.required must match row marker")
+    require(data.get("present") == marker_present, f"{context}.present must match row marker")
+    require(data.get("evidence_mode") == evidence_mode, f"{context}.evidence_mode must match row evidence_mode")
+    require(marker_required and marker_present and evidence_mode == "vm-live", f"{context} must prove a real vm-live marker")
+    require(data.get("host_mutation") is False, f"{context}.host_mutation must be false")
+
+
+def validate_manifest_runtime_sample(path: Path, context: str) -> None:
+    try:
+        validate_runtime_sample_file(path)
+    except RuntimeSampleError as exc:
+        raise MatrixRunContractError(f"{context} invalid runtime sample artifact: {exc}") from exc
+
+
+def validate_incident_artifact(data: JsonObject, scenario_id: str, outcome: str, context: str) -> None:
+    require_only_fields(data, INCIDENT_FIELDS, context)
+    require(data.get("schema") == "zig-scheduler/matrix-incident/v1", f"{context}.schema unsupported")
+    require(data.get("scenario_id") == scenario_id, f"{context}.scenario_id must match row")
+    require(data.get("outcome") == outcome, f"{context}.outcome must match row")
+    _ = text(data.get("reason"), f"{context}.reason")
+    require(data.get("host_mutation") is False, f"{context}.host_mutation must be false")
+    require(data.get("release_eligible") is False, f"{context}.release_eligible must be false")
+    reject_private(data, context)
+
+
+def validate_rollback_artifact(data: JsonObject, scenario_id: str, context: str) -> None:
+    require_only_fields(data, ROLLBACK_PROOF_FIELDS, context)
+    require(data.get("schema") == "zig-scheduler/rollback-proof/v1", f"{context}.schema unsupported")
+    require(data.get("scenario_id") == scenario_id, f"{context}.scenario_id must match row")
+    _ = text(data.get("status"), f"{context}.status")
+    _ = text(data.get("scheduler_state"), f"{context}.scheduler_state")
+    _ = text(data.get("ops"), f"{context}.ops")
+    require(data.get("host_mutation") is False, f"{context}.host_mutation must be false")
+    reject_private(data, context)
+
+
+def validate_cleanup_artifact(data: JsonObject, scenario_id: str, outcome: str, context: str) -> None:
+    require_only_fields(data, CLEANUP_PROOF_FIELDS, context)
+    require(data.get("schema") == "zig-scheduler/cleanup-proof/v1", f"{context}.schema unsupported")
+    require(data.get("scenario_id") == scenario_id, f"{context}.scenario_id must match row")
+    _ = text(data.get("status"), f"{context}.status")
+    for field in ("owned_qemu_leftovers", "owned_temp_leftovers", "host_mutation"):
+        require(data.get(field) is False, f"{context}.{field} must be false")
+    for field in ("qemu_scan_before", "qemu_scan_after", "temp_scan_before", "temp_scan_after"):
+        _ = require_safe_path(data.get(field), f"{context}.{field}")
+    if outcome != "FAIL":
+        require(data.get("status") == "PASS", f"{context}.status must be PASS unless row outcome is FAIL")
+    reject_private(data, context)
+
+
+def validate_host_refusal_artifact(data: JsonObject, scenario_id: str, context: str) -> None:
+    require_only_fields(data, HOST_REFUSAL_FIELDS, context)
+    require(data.get("schema") == "zig-scheduler/host-refusal-proof/v1", f"{context}.schema unsupported")
+    require(data.get("scenario_id") == scenario_id, f"{context}.scenario_id must match row")
+    require(data.get("status") == "REFUSE", f"{context}.status must be REFUSE")
+    _ = text(data.get("reason"), f"{context}.reason")
+    for field in ("no_bpf_load_attach", "no_cgroup_write", "no_sys_write", "no_proc_write"):
+        require(data.get(field) is True, f"{context}.{field} must be true")
+    require(data.get("host_mutation") is False, f"{context}.host_mutation must be false")
+    reject_private(data, context)
+
+
+def validate_manifest_proof_artifacts(row: JsonObject, context: str) -> None:
+    scenario_id = text(row.get("scenario_id"), f"{context}.scenario_id")
+    outcome = text(row.get("outcome"), f"{context}.outcome")
+    validate_manifest_runtime_sample(Path(text(row.get("runtime_sample_path"), f"{context}.runtime_sample_path")), f"{context}.runtime_sample_path")
+    validate_incident_artifact(load_json(Path(text(row.get("incident_path"), f"{context}.incident_path"))), scenario_id, outcome, f"{context}.incident")
+    validate_rollback_artifact(load_json(Path(text(row.get("rollback_proof_path"), f"{context}.rollback_proof_path"))), scenario_id, f"{context}.rollback_proof")
+    validate_cleanup_artifact(load_json(Path(text(row.get("cleanup_proof_path"), f"{context}.cleanup_proof_path"))), scenario_id, outcome, f"{context}.cleanup_proof")
+    validate_host_refusal_artifact(load_json(Path(text(row.get("host_refusal_proof_path"), f"{context}.host_refusal_proof_path"))), scenario_id, f"{context}.host_refusal_proof")
 
 
 def validate_manifest_row_paths(row: JsonObject, manifest_root: Path, context: str) -> None:
@@ -600,6 +736,7 @@ def validate_manifest_row_paths(row: JsonObject, manifest_root: Path, context: s
     privacy_path = Path(require_safe_path(privacy.get("report_path"), f"{context}.privacy_scan.report_path"))
     require_descendant(privacy_path, manifest_root, f"{context}.privacy_scan.report_path")
     validate_manifest_workload_artifacts(row, manifest_root, spec_path, privacy_path, context)
+    validate_manifest_proof_artifacts(row, context)
 
 
 def validate_manifest_workload_artifacts(row: JsonObject, manifest_root: Path, spec_path: Path, privacy_path: Path, context: str) -> None:
@@ -717,6 +854,8 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject) -> Path:
     row["rollback_proof_path"] = (row_dir / "rollback-proof.json").as_posix()
     row["cleanup_proof_path"] = (row_dir / "cleanup-proof.json").as_posix()
     row["host_refusal_proof_path"] = (row_dir / "host-refusal.json").as_posix()
+    marker = obj(row.get("vm_marker"), "manifest self-test vm_marker")
+    marker["checked_by"] = (row_dir / "vm-marker-proof.json").as_posix()
     policy = obj(row.get("policy"), "manifest self-test policy")
     policy["object_path"] = (row_dir / "policy.o").as_posix()
     workload = obj(row.get("workload"), "manifest self-test workload")
@@ -753,13 +892,20 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject) -> Path:
         "host_mutation": False,
         "release_eligible": False,
     })
+    write_json(row_dir / "vm-marker-proof.json", {"schema": "zig-scheduler/vm-marker-proof/v1", "path": VM_MARKER, "required": True, "present": True, "evidence_mode": "vm-live", "host_mutation": False})
+    write_json(row_dir / "incident.json", {"schema": "zig-scheduler/matrix-incident/v1", "scenario_id": scenario, "outcome": "PASS", "reason": "self-test", "host_mutation": False, "release_eligible": False})
+    write_json(row_dir / "rollback-proof.json", {"schema": "zig-scheduler/rollback-proof/v1", "scenario_id": scenario, "status": "PASS", "scheduler_state": "disabled", "ops": "none", "host_mutation": False})
+    write_json(row_dir / "cleanup-proof.json", {"schema": "zig-scheduler/cleanup-proof/v1", "scenario_id": scenario, "status": "PASS", "owned_qemu_leftovers": False, "owned_temp_leftovers": False, "qemu_scan_before": (row_dir / "qemu-process-scan-before.txt").as_posix(), "qemu_scan_after": (row_dir / "qemu-process-scan-after.txt").as_posix(), "temp_scan_before": (row_dir / "temp-scan-before.txt").as_posix(), "temp_scan_after": (row_dir / "temp-scan-after.txt").as_posix(), "host_mutation": False})
+    write_json(row_dir / "host-refusal.json", {"schema": "zig-scheduler/host-refusal-proof/v1", "scenario_id": scenario, "status": "REFUSE", "reason": "host mutation refused", "no_bpf_load_attach": True, "no_cgroup_write": True, "no_sys_write": True, "no_proc_write": True, "host_mutation": False})
+    _ = (row_dir / "runtime-sample.jsonl").write_text(json.dumps(runtime_good_sample(), sort_keys=True) + "\n")
     row_path = row_dir / "matrix-run.json"
+    _ = (run_root / "daemon-events.jsonl").write_text(json.dumps({"schema": "zig-scheduler/daemon-event/v1", "seq": 1, "event": "validation", "status": "PASS", "run_id": run_id, "target_id": scenario, "action_id": "ACT-" + scenario, "audit_id": "AUD-20260629T120000Z-abcdef0-000001", "rollback_id": "RB-" + scenario, "reason": "self-test", "artifact_paths": [row_path.as_posix()], "git_sha": "abcdef012345", "host_mutation": False}, sort_keys=True) + "\n")
     write_json(row_path, row)
     manifest: JsonObject = {
         "schema": "zig-scheduler/vm-harness-matrix-index/v1",
         "matrix_run_id": run_id,
-        "mode": "host-safe",
-        "fixture_mode": True,
+        "mode": "vm-required",
+        "fixture_mode": False,
         "started_at": "2026-06-29T12:00:00Z",
         "ended_at": "2026-06-29T12:00:01Z",
         "out_dir": run_root.as_posix(),
@@ -770,6 +916,27 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject) -> Path:
         "release_eligible": False,
     }
     manifest_path = run_root / MANIFEST_FILE
+    write_json(manifest_path, manifest)
+    return manifest_path
+
+
+def write_host_safe_fixture_pass_self_test_pack(run_root: Path, good: JsonObject) -> Path:
+    manifest_path = write_manifest_self_test_pack(run_root, good)
+    manifest = load_json(manifest_path)
+    manifest["mode"] = "host-safe"
+    manifest["fixture_mode"] = True
+    rows = manifest.get("rows")
+    if not isinstance(rows, list):
+        raise MatrixRunContractError("host-safe fixture self-test setup produced non-list rows")
+    row = obj(rows[0], "host-safe fixture self-test first row")
+    artifact_path = Path(text(row.get("artifact_path"), "host-safe fixture self-test artifact_path"))
+    row_data = load_json(artifact_path)
+    row_data["evidence_mode"] = "fixture"
+    marker = obj(row_data.get("vm_marker"), "host-safe fixture self-test vm_marker")
+    marker["required"] = False
+    marker["present"] = False
+    marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+    write_json(artifact_path, row_data)
     write_json(manifest_path, manifest)
     return manifest_path
 
@@ -844,6 +1011,64 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
                 row_data["runtime_sample_path"] = "fixtures/matrix-run/pass.json"
                 write_json(artifact_path, row_data)
                 assert_invalid_manifest(manifest_path, name)
+            case "missing-proof-artifact":
+                row_data = load_json(artifact_path)
+                Path(text(row_data.get("rollback_proof_path"), "manifest self-test rollback_proof_path")).unlink()
+                assert_invalid_manifest(manifest_path, name, "missing JSON file")
+            case "invalid-runtime-sample-artifact":
+                row_data = load_json(artifact_path)
+                runtime_path = Path(text(row_data.get("runtime_sample_path"), "manifest self-test runtime_sample_path"))
+                _ = runtime_path.write_text(json.dumps({"schema": "zig-scheduler/runtime-sample/v1", "sequence": 0}) + "\n")
+                assert_invalid_manifest(manifest_path, name, "invalid runtime sample artifact")
+            case "host-safe-vm-live-claim":
+                manifest["mode"] = "host-safe"
+                manifest["fixture_mode"] = True
+                write_json(manifest_path, manifest)
+                assert_invalid_manifest(manifest_path, name, "fixture manifest must not claim")
+            case "forged-pass-host-refusal-no-marker":
+                row_data = load_json(artifact_path)
+                row_data["evidence_mode"] = "host-refusal-only"
+                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                marker["required"] = False
+                marker["present"] = False
+                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                write_json(artifact_path, row_data)
+                assert_invalid_manifest(manifest_path, name, "PASS requires vm-live proof or explicit fixture evidence")
+            case "forged-fixture-mode-false-fixture-pass":
+                row_data = load_json(artifact_path)
+                row_data["evidence_mode"] = "fixture"
+                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                marker["required"] = False
+                marker["present"] = False
+                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                write_json(artifact_path, row_data)
+                assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
+            case "host-safe-fixture-mode-false-fixture-pass":
+                manifest["mode"] = "host-safe"
+                manifest["fixture_mode"] = False
+                row_data = load_json(artifact_path)
+                row_data["evidence_mode"] = "fixture"
+                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                marker["required"] = False
+                marker["present"] = False
+                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                write_json(artifact_path, row_data)
+                write_json(manifest_path, manifest)
+                assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
+            case "vm-live-missing-marker-proof":
+                row_data = load_json(artifact_path)
+                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                write_json(artifact_path, row_data)
+                assert_invalid_manifest(manifest_path, name, "vm_marker.checked_by must stay under")
+            case "vm-live-marker-proof-mismatch":
+                row_data = load_json(artifact_path)
+                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                marker_path = Path(text(marker.get("checked_by"), "manifest self-test vm_marker.checked_by"))
+                proof = load_json(marker_path)
+                proof["present"] = False
+                write_json(marker_path, proof)
+                assert_invalid_manifest(manifest_path, name, "present must match row marker")
             case "malicious-workload-spec-token":
                 row_data = load_json(artifact_path)
                 workload = obj(row_data.get("workload"), "manifest self-test workload")
@@ -1055,6 +1280,16 @@ def run_self_test() -> None:
             _ = validate(args)
             assert_invalid_fixture_gate(args, name, good)
     MATRIX_BASE.mkdir(parents=True, exist_ok=True)
+    host_safe_root = MATRIX_BASE / "selftest-host-safe-fixture-pass"
+    if host_safe_root.exists():
+        shutil.rmtree(host_safe_root)
+    host_safe_root.mkdir(parents=True)
+    try:
+        host_safe_manifest = write_host_safe_fixture_pass_self_test_pack(host_safe_root, good)
+        _ = validate_manifest(host_safe_manifest)
+        print("PASS self-test accepts host-safe fixture PASS without VM marker claim")
+    finally:
+        shutil.rmtree(host_safe_root)
     for index, name in enumerate((
         "root-outside-matrix",
         "absolute-artifact-path",
@@ -1066,6 +1301,14 @@ def run_self_test() -> None:
         "manifest-run-id-basename-mismatch",
         "row-run-id-manifest-mismatch",
         "row-internal-path-outside-root",
+        "missing-proof-artifact",
+        "invalid-runtime-sample-artifact",
+        "host-safe-vm-live-claim",
+        "forged-pass-host-refusal-no-marker",
+        "forged-fixture-mode-false-fixture-pass",
+        "host-safe-fixture-mode-false-fixture-pass",
+        "vm-live-missing-marker-proof",
+        "vm-live-marker-proof-mismatch",
         "malicious-workload-spec-token",
         "malicious-capability-token",
         "false-private-fields-found",
