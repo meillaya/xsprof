@@ -23,6 +23,12 @@ __pycache__/
 # deliberately, such as evidence/lab/run-all/final, and force-add new curated
 # evidence only after review.
 evidence/lab/**
+# Curated matrix fixture referenced by the frontend contract pack; keep this
+# limited to the fixture directory. Its nested .gitignore lists the exact
+# canonical files, so generated siblings and incidental run output stay ignored.
+!evidence/lab/
+!evidence/lab/matrix/
+!evidence/lab/matrix/fixture-pass/
 
 # Local scratch verification scripts/data that are not required to build or run.
 *.tmp

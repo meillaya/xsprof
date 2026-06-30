@@ -72,7 +72,7 @@ for path in sorted(p for p in staging.rglob('*') if p.is_file()):
     })
 mutation_unit = staging / 'usr/lib/systemd/system/zig-scheduler-lab-mutation.service'
 mutation_text = mutation_unit.read_text()
-out_of_scope_terms = ['front' + 'end', 't' + 'ui', 'web' + 'view', 'browser-' + 'ui']
+out_of_scope_terms = ['frontend', 'tui', 'webview', 'browser-ui']
 manifest = {
     'schema': 'zig-scheduler/package-manifest/v1',
     'git_sha': git_sha,

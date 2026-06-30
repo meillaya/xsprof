@@ -68,12 +68,36 @@ fn addDaemonSocketRpcStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     daemon_socket_rpc_test.addArtifactArg(daemon_exe);
     daemon_socket_rpc_test.step.dependOn(b.getInstallStep());
 
+    const openrpc_contract = b.addSystemCommand(&.{"python3"});
+    openrpc_contract.addFileArg(b.path("qa/openrpc_contract_check.py"));
+    openrpc_contract.addArgs(&.{
+        "--contract",
+        "docs/control/daemon-openrpc.json",
+        "--daemon",
+        "src/daemon_main.zig",
+        "--docs",
+        "docs/control",
+    });
+
+    const openrpc_self_test = b.addSystemCommand(&.{"python3"});
+    openrpc_self_test.addFileArg(b.path("qa/openrpc_contract_check.py"));
+    openrpc_self_test.addArg("--self-test");
+
     const daemon_socket_rpc_step = b.step("daemon-socket-rpc", "Run local socket JSON-RPC daemon contract test");
     daemon_socket_rpc_step.dependOn(&daemon_socket_rpc_test.step);
+    daemon_socket_rpc_step.dependOn(&openrpc_contract.step);
+    daemon_socket_rpc_step.dependOn(&openrpc_self_test.step);
     return daemon_socket_rpc_step;
 }
 
 fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
+    const matrix_fixture = b.addSystemCommand(&.{"bash"});
+    matrix_fixture.has_side_effects = true;
+    matrix_fixture.addArgs(&.{
+        "-c",
+        "rm -rf evidence/lab/matrix/fixture-pass && bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out evidence/lab/matrix/fixture-pass >/dev/null",
+    });
+
     const contract_check = b.addSystemCommand(&.{"python3"});
     contract_check.addFileArg(b.path("qa/frontend_contract_pack_check.py"));
     contract_check.addArgs(&.{
@@ -84,6 +108,28 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
         "--docs",
         "docs/control",
     });
+    contract_check.step.dependOn(&matrix_fixture.step);
+
+    const consumer_contract_check = b.addSystemCommand(&.{"python3"});
+    consumer_contract_check.addFileArg(b.path("qa/consumer_contract_check.py"));
+    consumer_contract_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/frontend-contract",
+        "--schemas",
+        "schemas/control",
+        "--docs",
+        "docs/control",
+    });
+    consumer_contract_check.step.dependOn(&matrix_fixture.step);
+
+    const matrix_fixture_cleanup = b.addSystemCommand(&.{"bash"});
+    matrix_fixture_cleanup.has_side_effects = true;
+    matrix_fixture_cleanup.addArgs(&.{
+        "-c",
+        "rm -rf evidence/lab/matrix/fixture-pass; rmdir evidence/lab/matrix 2>/dev/null || true",
+    });
+    matrix_fixture_cleanup.step.dependOn(&contract_check.step);
+    matrix_fixture_cleanup.step.dependOn(&consumer_contract_check.step);
 
     const matrix_contract_check = b.addSystemCommand(&.{"python3"});
     matrix_contract_check.addFileArg(b.path("qa/matrix_run_contract_check.py"));
@@ -100,6 +146,15 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     runtime_sample_check.addFileArg(b.path("qa/runtime_sample_check.py"));
     runtime_sample_check.addArg("--self-test");
 
+    const benchmark_output_check = b.addSystemCommand(&.{"python3"});
+    benchmark_output_check.addFileArg(b.path("qa/benchmark_output_check.py"));
+    benchmark_output_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/benchmark-output",
+        "--schema",
+        "schemas/control/benchmark-output.v1.schema.json",
+    });
+
     const control_schema_check = b.addSystemCommand(&.{"python3"});
     control_schema_check.addFileArg(b.path("qa/control_schema_drift_check.py"));
     control_schema_check.addArgs(&.{
@@ -107,6 +162,19 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
         "src/control/protocol.zig",
         "--schemas",
         "schemas/control",
+    });
+
+    const schema_compatibility_check = b.addSystemCommand(&.{"python3"});
+    schema_compatibility_check.addFileArg(b.path("qa/schema_compatibility_check.py"));
+    schema_compatibility_check.addArgs(&.{
+        "--protocol",
+        "src/control/protocol.zig",
+        "--schemas",
+        "schemas/control",
+        "--docs",
+        "docs/control",
+        "--fixtures",
+        "fixtures/frontend-contract",
     });
 
     const daemon_golden_check = b.addSystemCommand(&.{"python3"});
@@ -119,12 +187,25 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     });
     daemon_golden_check.step.dependOn(b.getInstallStep());
 
+    const golden_lifecycle_check = b.addSystemCommand(&.{"python3"});
+    golden_lifecycle_check.addFileArg(b.path("qa/golden_fixture_lifecycle_check.py"));
+    golden_lifecycle_check.addArgs(&.{
+        "--docs",
+        "docs/control",
+        "--control",
+        "fixtures/control/golden",
+        "--frontend=fixtures/frontend-contract",
+    });
+
     const contract_step = b.step("client-contract", "Run backend client contract fixture pack check");
-    contract_step.dependOn(&contract_check.step);
+    contract_step.dependOn(&matrix_fixture_cleanup.step);
     contract_step.dependOn(&matrix_contract_check.step);
     contract_step.dependOn(&runtime_sample_check.step);
+    contract_step.dependOn(&benchmark_output_check.step);
     contract_step.dependOn(&control_schema_check.step);
+    contract_step.dependOn(&schema_compatibility_check.step);
     contract_step.dependOn(&daemon_golden_check.step);
+    contract_step.dependOn(&golden_lifecycle_check.step);
     return contract_step;
 }
 
@@ -162,8 +243,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     workload_catalog.addFileArg(b.path("qa/vm/workload_catalog_check.sh"));
 
     const root_ui_absence = b.addSystemCommand(&.{"bash"});
-    const root_ui_absence_script = "qa/no_" ++ "front" ++ "end_root.sh";
-    root_ui_absence.addFileArg(b.path(root_ui_absence_script));
+    root_ui_absence.addFileArg(b.path("qa/no_frontend_root.sh"));
 
     const no_host_mutation = b.addSystemCommand(&.{"bash"});
     no_host_mutation.addFileArg(b.path("qa/no_host_mutation.sh"));
@@ -187,6 +267,62 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     security_read_only.addFileArg(b.path("qa/security_gate.sh"));
     security_read_only.addArgs(&.{ "--profile", "read-only" });
 
+    const security_self_test = b.addSystemCommand(&.{"bash"});
+    security_self_test.has_side_effects = true;
+    security_self_test.addFileArg(b.path("qa/security_gate.sh"));
+    security_self_test.addArg("--self-test");
+
+    const governance_manifest = b.addSystemCommand(&.{"python3"});
+    governance_manifest.addFileArg(b.path("qa/governance_manifest_check.py"));
+    governance_manifest.addArgs(&.{
+        "--manifest",
+        "fixtures/lab/governance-sources.json",
+    });
+
+    const evidence_manifest_self_test = b.addSystemCommand(&.{"python3"});
+    evidence_manifest_self_test.addFileArg(b.path("qa/evidence_manifest_check.py"));
+    evidence_manifest_self_test.addArg("--self-test");
+
+    const manual_vm_proof_self_test = b.addSystemCommand(&.{"python3"});
+    manual_vm_proof_self_test.addFileArg(b.path("qa/manual_vm_proof_ci_check.py"));
+    manual_vm_proof_self_test.addArg("--self-test");
+
+    const manual_vm_proof_static = b.addSystemCommand(&.{"python3"});
+    manual_vm_proof_static.addFileArg(b.path("qa/manual_vm_proof_ci_check.py"));
+    manual_vm_proof_static.addArgs(&.{
+        "--workflow",
+        ".github/workflows/manual-vm-proof.yml",
+        "--docs",
+        "docs/ci.md",
+        "docs/runbooks/vm-lab.md",
+        "docs/releases/governance-gate.md",
+        "docs/security/review-checklist.md",
+    });
+
+    const matrix_contract_self_test = b.addSystemCommand(&.{"python3"});
+    matrix_contract_self_test.addFileArg(b.path("qa/matrix_run_contract_check.py"));
+    matrix_contract_self_test.addArgs(&.{
+        "--fixtures",
+        "fixtures/matrix-run",
+        "--schemas",
+        "schemas/control",
+        "--docs",
+        "docs/control",
+    });
+
+    const benchmark_self_test = b.addSystemCommand(&.{"python3"});
+    benchmark_self_test.addFileArg(b.path("qa/benchmark_output_check.py"));
+    benchmark_self_test.addArg("--self-test");
+
+    const host_safe_matrix_cleanup = b.addSystemCommand(&.{"bash"});
+    host_safe_matrix_cleanup.has_side_effects = true;
+    host_safe_matrix_cleanup.addArgs(&.{
+        "-c",
+        "rmdir evidence/lab/matrix 2>/dev/null || true",
+    });
+    host_safe_matrix_cleanup.step.dependOn(&release_gate.step);
+    host_safe_matrix_cleanup.step.dependOn(&matrix_contract_self_test.step);
+
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
     host_safe_gates.dependOn(bpf_step);
     host_safe_gates.dependOn(&workload_catalog.step);
@@ -196,6 +332,14 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&wording.step);
     host_safe_gates.dependOn(&zig_docs.step);
     host_safe_gates.dependOn(&security_read_only.step);
+    host_safe_gates.dependOn(&security_self_test.step);
+    host_safe_gates.dependOn(&governance_manifest.step);
+    host_safe_gates.dependOn(&evidence_manifest_self_test.step);
+    host_safe_gates.dependOn(&manual_vm_proof_self_test.step);
+    host_safe_gates.dependOn(&manual_vm_proof_static.step);
+    host_safe_gates.dependOn(&matrix_contract_self_test.step);
+    host_safe_gates.dependOn(&benchmark_self_test.step);
+    host_safe_gates.dependOn(&host_safe_matrix_cleanup.step);
     return host_safe_gates;
 }
 
@@ -235,8 +379,17 @@ fn addPackageStep(b: *Build) void {
     package_build.addArg("zig-out/package");
     package_build.step.dependOn(b.getInstallStep());
 
+    const package_manifest_check = b.addSystemCommand(&.{"python3"});
+    package_manifest_check.addFileArg(b.path("qa/package_manifest_check.py"));
+    package_manifest_check.addArgs(&.{
+        "--manifest",
+        "zig-out/package/manifest.json",
+    });
+    package_manifest_check.step.dependOn(&package_build.step);
+
     const package_step = b.step("package", "Stage a safe installable package artifact manifest");
     package_step.dependOn(&package_build.step);
+    package_step.dependOn(&package_manifest_check.step);
 }
 
 fn addExecutable(

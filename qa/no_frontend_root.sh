@@ -71,6 +71,17 @@ context_guarded_frontend_match() {
   esac
 }
 
+is_out_of_scope_denylist_line() {
+  local match="$1" rel text
+  rel="$(relative "${match%%:*}")"
+  text="${match#*:}"
+  text="${text#*:}"
+  case "$rel:$text" in
+    packaging/build_package.sh:*out_of_scope_terms*frontend*tui*webview*browser-ui*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 is_strict_frontend_path() {
   local file="$1" rel
   rel="$(relative "$file")"
@@ -80,12 +91,38 @@ is_strict_frontend_path() {
   esac
 }
 
+is_neutral_backend_contract_fixture_line() {
+  local match="$1" text lower neutral
+  text="${match#*:}"
+  text="${text#*:}"
+  lower="$(printf '%s' "$text" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    *fixtures/frontend-contract/*) ;;
+    *) return 1 ;;
+  esac
+  neutral="${lower//fixtures\/frontend-contract\//fixture-path/}"
+  neutral="${neutral//frontend-contract/fixture-pack/}"
+  if printf '%s\n' "$neutral" | grep -Eq '(^|[^[:alnum:]_-])((front-?end([[:space:]_-]+(code|implementation|supports?|supported|exists|client|app|is[[:space:]]+available))?)|ui|tui|webview|browser|desktop|http|sse|client[[:space:]_-]+app)([^[:alnum:]_-]|$)'; then
+    return 1
+  fi
+  return 0
+}
+
 is_backend_contract_exception() {
   local match="$1" file rel
   file="${match%%:*}"
   rel="$(relative "$file")"
   case "$rel:$match" in
-    docs/control/frontend-api-pack.md:*) return 0 ;;
+	    docs/control/frontend-api-pack.md:*) return 0 ;;
+	    packaging/build_package.sh:*)
+	      is_out_of_scope_denylist_line "$match"
+	      return $?
+	      ;;
+	    docs/control/stream-semantics.md:*)
+	      is_neutral_backend_contract_fixture_line "$match"
+	      return $?
+      ;;
+    build.zig:*qa/no_frontend_root.sh*) return 0 ;;
     build.zig:*qa/frontend_contract_pack_check.py*) return 0 ;;
     build.zig:*fixtures/frontend-contract*) return 0 ;;
     *) return 1 ;;
@@ -156,6 +193,70 @@ while IFS= read -r match; do
     fail "unguarded root frontend/UI scope: $match"
   fi
 done < <(grep -RHInEi --exclude-dir=.git --exclude-dir=.omx --exclude-dir=.omo --exclude-dir=.zig-cache --exclude-dir=zig-out -- "$pattern" "${scan_paths[@]}" 2>/dev/null || true)
+
+strict_scan_paths=()
+for path in build.zig build.zig.zon src packaging; do
+  [ -e "$root/$path" ] && strict_scan_paths+=("$root/$path")
+done
+
+if [ "${#strict_scan_paths[@]}" -gt 0 ]; then
+  while IFS= read -r match; do
+    [ -n "$match" ] || continue
+    if is_backend_contract_exception "$match"; then
+      continue
+    fi
+    fail "obfuscated root frontend/UI token in build/source/package path: $match"
+  done < <(python3 - "$root" "${strict_scan_paths[@]}" <<'PY'
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+paths = [Path(item) for item in sys.argv[2:]]
+hidden_terms = ("frontend", "front-end", "webview", "browser-ui", "browserui", "desktop")
+literal_re = re.compile(r"tui|webview|desktop|browser[- ]ui|browser ui|frontend|front-end", re.IGNORECASE)
+tui_concat_re = re.compile(r"['\"]t['\"]\s*\+\s*['\"]ui['\"]|['\"]tu['\"]\s*\+\s*['\"]i['\"]", re.IGNORECASE)
+
+
+def relative(path: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def normalized(line: str) -> str:
+    return re.sub(r"['\"`+_\s:-]+", "", line.lower())
+
+
+def scan_file(path: Path) -> None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return
+    except OSError as exc:
+        print(f"{relative(path)}:0:unreadable: {exc}")
+        return
+    for line_no, line in enumerate(text.splitlines(), 1):
+        if literal_re.search(line):
+            continue
+        compact = normalized(line)
+        if tui_concat_re.search(line) or any(term.replace("-", "") in compact for term in hidden_terms):
+            print(f"{relative(path)}:{line_no}:{line}")
+
+
+for candidate in paths:
+    if candidate.is_dir():
+        for child in sorted(candidate.rglob("*")):
+            if child.is_file() and ".git" not in child.parts and ".zig-cache" not in child.parts and "zig-out" not in child.parts:
+                scan_file(child)
+    elif candidate.is_file():
+        scan_file(candidate)
+PY
+  )
+fi
 
 for path in "${scan_paths[@]}"; do
   [ -d "$path" ] || continue
