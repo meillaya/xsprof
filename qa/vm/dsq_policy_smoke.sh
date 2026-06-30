@@ -87,8 +87,8 @@ grep -q 'ZIGSCHED_DSQ_FIFO' bpf/include/zigsched_common.h || fail 'FIFO DSQ miss
 grep -q 'ZIGSCHED_DSQ_VTIME' bpf/include/zigsched_common.h || fail 'vtime DSQ missing from header'
 grep -q 'scx_bpf_dsq_insert(p, ZIGSCHED_DSQ_FIFO, SCX_SLICE_DFL, enq_flags)' bpf/zigsched_minimal.bpf.c || fail 'FIFO DSQ insertion missing from BPF source'
 grep -q 'scx_bpf_dsq_insert_vtime(p, ZIGSCHED_DSQ_VTIME, SCX_SLICE_DFL, 0, enq_flags)' bpf/zigsched_minimal.bpf.c || fail 'vtime DSQ insertion missing from BPF source'
-if grep -R -n -E 'NUMA|numa|cgroup.*policy|classification layer' bpf/zigsched_minimal.bpf.c bpf/include/zigsched_common.h; then
-  fail 'NUMA/cgroup-layer policy appeared before T25 permits it'
+if grep -R -n -E 'NUMA|numa|classification layer|cgroup.*classification' bpf/zigsched_minimal.bpf.c bpf/include/zigsched_common.h; then
+  fail 'NUMA/classification policy appeared before T25 permits it'
 fi
 
 if [ ! -f "$(host_path "$vm_marker")" ]; then

@@ -364,12 +364,61 @@ marker_present = os.environ["MARKER_PRESENT"] == "true"
 marker_required = os.environ["MARKER_REQUIRED"] == "true"
 
 def write_text(path: Path, text: str) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def write_json(path: Path, payload: dict) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def benchmark_record() -> dict | None:
+    if threshold_source != "calibrated":
+        return None
+    bench_dir = row_dir / "benchmark-provenance"
+    if scenario == "workload-mixed-io":
+        raw = bench_dir / "fio.json"
+        write_text(raw, json.dumps({"jobs": [{"read": {"iops": 1, "bw_bytes": 2, "lat_ns": {"mean": 3}}, "write": {"iops": 4, "bw_bytes": 5, "lat_ns": {"mean": 6}}}]}, sort_keys=True) + "\n")
+        metrics = {"jobs": 1, "read_bw_bytes": 2.0, "read_iops": 1.0, "read_lat_ns_mean_avg": 3.0, "write_bw_bytes": 5.0, "write_iops": 4.0, "write_lat_ns_mean_avg": 6.0}
+        units = {"jobs": "count", "read_bw_bytes": "bytes_per_second", "read_iops": "iops", "read_lat_ns_mean_avg": "ns", "write_bw_bytes": "bytes_per_second", "write_iops": "iops", "write_lat_ns_mean_avg": "ns"}
+        tool = "fio"
+        family = "fio"
+    elif scenario == "workload-interactive-latency":
+        raw = bench_dir / "cyclictest.txt"
+        write_text(raw, "T: 0 ( 123) P:80 I:1000 C:100 Min:1 Act:2 Avg:3 Max:4\n")
+        metrics = {"threads": 1, "cycles": 100.0, "latency_min_us_avg": 1.0, "latency_avg_us_avg": 3.0, "latency_max_us": 4.0}
+        units = {"threads": "count", "cycles": "count", "latency_min_us_avg": "us", "latency_avg_us_avg": "us", "latency_max_us": "us"}
+        tool = "cyclictest"
+        family = "cyclictest"
+    else:
+        raw = bench_dir / "perf-bench-sched-messaging.txt"
+        write_text(raw, "# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
+        metrics = {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123}
+        units = {"groups": "count", "processes": "count", "total_time_seconds": "seconds"}
+        tool = "perf"
+        family = "perf_bench_sched_messaging"
+    record_path = bench_dir / f"{family}.benchmark-output.json"
+    record_sha = write_json(record_path, {
+        "schema": "zig-scheduler/benchmark-output/v1",
+        "status": "RECORDED",
+        "tool": tool,
+        "command_family": family,
+        "output_path": raw.as_posix(),
+        "output_sha256": hashlib.sha256(raw.read_bytes()).hexdigest(),
+        "vm_evidence": (row_dir / "matrix-run.json").as_posix(),
+        "metrics": metrics,
+        "units": units,
+        "sample_count": 1,
+        "run_count": 1,
+        "host_mutation": False,
+        "release_eligible": False,
+        "production_capacity_claim": False,
+        "hard_thresholds_enforced": False,
+        "threshold_status": "record_only",
+        "privacy_sanitized": True,
+    })
+    return {"record_path": record_path.as_posix(), "record_sha256": record_sha, "record_only": True}
 
 policy = row_dir / "policy.o"
 policy_sha = write_text(policy, f"matrix fixture policy object\nscenario={scenario}\n")
@@ -397,7 +446,7 @@ write_json(capability, {
     "host_mutation": False,
     "release_eligible": False,
 })
-workload_sha = write_json(workload, {
+workload_spec = {
     "schema": "zig-scheduler/workload-fixture/v1",
     "name": workload_class,
     "workload_class": workload_class,
@@ -412,7 +461,11 @@ workload_sha = write_json(workload, {
     "missing_prereq": missing_prereq,
     "host_mutation": False,
     "release_eligible": False,
-})
+}
+provenance = benchmark_record()
+if provenance is not None:
+    workload_spec["benchmark_provenance"] = [provenance]
+workload_sha = write_json(workload, workload_spec)
 runtime = row_dir / "runtime-sample.jsonl"
 cgroup_digest = hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()
 

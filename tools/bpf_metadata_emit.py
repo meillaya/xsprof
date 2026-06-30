@@ -20,14 +20,19 @@ JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dic
 JsonObject: TypeAlias = dict[str, JsonValue]
 
 DEFINES: Final[JsonObject] = {
-    "ZIGSCHED_ABI_VERSION": "1u",
-    "ZIGSCHED_MINIMAL_NR_STATS": "8u",
-    "ZIGSCHED_MINIMAL_NR_EVENTS": "4u",
+    "ZIGSCHED_ABI_VERSION": "3u",
+    "ZIGSCHED_MINIMAL_NR_STATS": "13u",
+    "ZIGSCHED_MINIMAL_NR_EVENTS": "6u",
     "ZIGSCHED_DSQ_FIFO": "0x5a195f1f0ULL",
     "ZIGSCHED_DSQ_VTIME": "0x5a195f1f1ULL",
     "ZIGSCHED_STARVATION_NS_MAX": "50000000ULL",
     "ZIGSCHED_POLICY_MODE_FIFO": "1ULL",
     "ZIGSCHED_POLICY_MODE_VTIME": "2ULL",
+    "ZIGSCHED_CGROUP_KNOB_WEIGHT_OBSERVED": "1ULL",
+    "ZIGSCHED_CGROUP_KNOB_CPU_MAX_DEFERRED": "2ULL",
+    "ZIGSCHED_CGROUP_KNOB_CPUSET_OBSERVED": "4ULL",
+    "ZIGSCHED_CGROUP_KNOB_PRESSURE_OBSERVED": "8ULL",
+    "ZIGSCHED_CGROUP_KNOB_UCLAMP_DEFERRED": "16ULL",
     "SCX_OPS_SWITCH_PARTIAL": "8ULL",
 }
 STATS: Final[list[JsonValue]] = [
@@ -39,19 +44,63 @@ STATS: Final[list[JsonValue]] = [
     "ZIGSCHED_STAT_VTIME_INSERTS",
     "ZIGSCHED_STAT_FIFO_DISPATCHES",
     "ZIGSCHED_STAT_VTIME_DISPATCHES",
+    "ZIGSCHED_STAT_CGROUP_INIT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_EXIT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_MOVE_CALLS",
+    "ZIGSCHED_STAT_CGROUP_SET_WEIGHT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_WEIGHT_OBSERVED",
+]
+STATS_FIELDS: Final[list[JsonValue]] = [
+    "zigsched_u64 select_cpu_calls",
+    "zigsched_u64 enqueue_calls",
+    "zigsched_u64 dispatch_calls",
+    "zigsched_u64 local_direct_inserts",
+    "zigsched_u64 fifo_inserts",
+    "zigsched_u64 vtime_inserts",
+    "zigsched_u64 fifo_dispatches",
+    "zigsched_u64 vtime_dispatches",
+    "zigsched_u64 cgroup_init_calls",
+    "zigsched_u64 cgroup_exit_calls",
+    "zigsched_u64 cgroup_move_calls",
+    "zigsched_u64 cgroup_set_weight_calls",
+    "zigsched_u64 cgroup_weight_observed",
 ]
 EVENTS: Final[list[JsonValue]] = [
     "ZIGSCHED_EVENT_SELECT_CPU_FALLBACK",
     "ZIGSCHED_EVENT_DISPATCH_EMPTY",
     "ZIGSCHED_EVENT_INIT_FIFO_DSQ_FAILED",
     "ZIGSCHED_EVENT_INIT_VTIME_DSQ_FAILED",
+    "ZIGSCHED_EVENT_CGROUP_MOVE_OBSERVED",
+    "ZIGSCHED_EVENT_CGROUP_WEIGHT_OBSERVED",
 ]
-POLICY_FIELDS: Final[list[JsonValue]] = ["zigsched_u64 fifo_dsq", "zigsched_u64 vtime_dsq", "zigsched_u64 starvation_ns_max", "zigsched_u64 mode"]
-PROGRAM_SECTIONS: Final[list[JsonValue]] = ["struct_ops.s/zigsched_minimal_init", "struct_ops/zigsched_minimal_enqueue", "struct_ops/zigsched_minimal_dispatch"]
+POLICY_FIELDS: Final[list[JsonValue]] = ["zigsched_u64 fifo_dsq", "zigsched_u64 vtime_dsq", "zigsched_u64 starvation_ns_max", "zigsched_u64 mode", "zigsched_u64 cgroup_knob_support"]
+CGROUP_POLICY_FIELDS: Final[list[JsonValue]] = ["zigsched_u64 last_weight", "zigsched_u64 weight_generation", "zigsched_u64 move_generation", "zigsched_u64 callback_observed_knobs", "zigsched_u64 observed_knobs", "zigsched_u64 deferred_knobs"]
+PROGRAM_SECTIONS: Final[list[JsonValue]] = [
+    "struct_ops/zigsched_minimal_select_cpu",
+    "struct_ops.s/zigsched_minimal_init",
+    "struct_ops/zigsched_minimal_cgroup_init",
+    "struct_ops/zigsched_minimal_cgroup_exit",
+    "struct_ops/zigsched_minimal_cgroup_prep_move",
+    "struct_ops/zigsched_minimal_cgroup_move",
+    "struct_ops/zigsched_minimal_cgroup_cancel_move",
+    "struct_ops/zigsched_minimal_cgroup_set_weight",
+    "struct_ops/zigsched_minimal_enqueue",
+    "struct_ops/zigsched_minimal_dispatch",
+]
+CALLBACKS: Final[list[JsonValue]] = ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"]
 MAP_LAYOUTS: Final[JsonObject] = {
     "zigsched_stats": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_STATS", "key": "u32", "value": "u64"},
     "zigsched_events": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_EVENTS", "key": "u32", "value": "u64"},
     "zigsched_policy_config": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_policy_config"},
+    "zigsched_cgroup_policy": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_cgroup_policy"},
+}
+CGROUP_KNOB_SEMANTICS: Final[JsonObject] = {
+    "cpu.weight": "callback-observed",
+    "cpu.max": "deferred",
+    "cpuset.cpus": "observed-only",
+    "cpuset.cpus.effective": "observed-only",
+    "cpu.pressure": "observed-only",
+    "uclamp": "deferred",
 }
 
 
@@ -97,17 +146,23 @@ def env(name: str) -> str:
 
 def abi_contract() -> JsonObject:
     return {
-        "abi_version": 1,
+        "abi_version": 3,
         "header": env("HEADER_FILE"),
         "header_sha256": env("HEADER_SHA"),
         "source_sha256": env("SOURCE_SHA"),
         "defines": DEFINES,
-        "stats_count": 8,
-        "events_count": 4,
+        "stats_count": 13,
+        "events_count": 6,
         "stats": STATS,
         "events": EVENTS,
+        "stats_fields": STATS_FIELDS,
         "policy_config_fields": POLICY_FIELDS,
-        "struct_ops_used_fields": ["name", "flags", "init", "enqueue", "dispatch"],
+        "cgroup_policy_fields": CGROUP_POLICY_FIELDS,
+        "struct_ops_used_fields": ["name", "flags", "select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"],
+        "abi_v3_accepted_callbacks": CALLBACKS,
+        "abi_v3_source_status": "implemented",
+        "cgroup_knob_semantics": CGROUP_KNOB_SEMANTICS,
+        "tuple_reference": "docs/releases/supported-kernel-tuples.md",
         "map_layouts": MAP_LAYOUTS,
     }
 
@@ -120,6 +175,7 @@ def tuple_info() -> JsonObject:
         "host_kernel_release": env("HOST_KERNEL_RELEASE"),
         "vm_required_for_attach": True,
         "vm_contract": env("VM_CONTRACT"),
+        "tuple_reference": "docs/releases/supported-kernel-tuples.md",
     }
 
 
@@ -142,7 +198,7 @@ def struct_ops() -> JsonObject:
         "scheduler_name": policy_name,
         "object_section": ".struct_ops",
         "program_sections": PROGRAM_SECTIONS,
-        "expected_callbacks": ["init", "enqueue", "dispatch"],
+        "expected_callbacks": CALLBACKS,
         "expected_switch_mode": env("STRUCT_OPS_SWITCH_MODE"),
         "prohibited_switch_modes": ["SCX_OPS_SWITCH_ALL"],
     }

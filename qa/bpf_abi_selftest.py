@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Protocol
 
-from qa.bpf_abi_model import JsonValue, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, PROGRAM_SECTIONS, VM_CONTRACT, VM_MARKER, Args, BpfAbiError, JsonObject, obj, sha256_file
-from qa.bpf_abi_parse import parse_header, parse_source_abi, source_map_layouts_object
+from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, JsonValue, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, VM_CONTRACT, VM_MARKER, Args, BpfAbiError, JsonObject, obj, sha256_file
+from qa.bpf_abi_parse import parse_header, parse_source_abi, source_abi_status, source_map_layouts_object
 from qa.bpf_abi_validate import validate
 
 
@@ -31,16 +31,22 @@ def abi_contract_fixture(header: Path, source: Path) -> JsonObject:
     source_sha = sha256_file(source)
     source_abi = parse_source_abi(source, source_sha)
     return {
-        "abi_version": 1,
+        "abi_version": ABI_VERSION,
         "header_sha256": snapshot.header_sha256,
         "source_sha256": source_sha,
         "defines": json_string_map(snapshot.defines),
-        "stats_count": 8,
-        "events_count": 4,
+        "stats_count": 13,
+        "events_count": 6,
         "stats": list(snapshot.stats),
         "events": list(snapshot.events),
+        "stats_fields": list(snapshot.stats_fields),
         "policy_config_fields": list(snapshot.policy_config_fields),
+        "cgroup_policy_fields": list(snapshot.cgroup_policy_fields),
         "struct_ops_used_fields": list(source_abi.struct_ops_used_fields),
+        "abi_v3_accepted_callbacks": list(ABI_V3_ACCEPTED_CALLBACKS),
+        "abi_v3_source_status": source_abi_status(source_abi),
+        "cgroup_knob_semantics": json_string_map(CGROUP_KNOB_SEMANTICS),
+        "tuple_reference": "docs/releases/supported-kernel-tuples.md",
         "map_layouts": source_map_layouts_object(source_abi),
     }
 
@@ -54,6 +60,10 @@ def update_source_metadata(data: JsonObject, source: Path) -> None:
     contract = obj(data["abi_contract"], "abi_contract")
     contract["source_sha256"] = source_sha
     contract["struct_ops_used_fields"] = list(source_abi.struct_ops_used_fields)
+    try:
+        contract["abi_v3_source_status"] = source_abi_status(source_abi)
+    except BpfAbiError:
+        contract["abi_v3_source_status"] = "invalid-self-test-shape"
     contract["map_layouts"] = source_map_layouts_object(source_abi)
     struct_ops = obj(data["struct_ops"], "struct_ops")
     struct_ops["expected_callbacks"] = list(source_abi.struct_ops_callbacks)
@@ -70,6 +80,16 @@ def expect_rejected(args: Args, metadata: Path, data: JsonObject, label: str) ->
     raise BpfAbiError(f"self-test failed to reject {label}")
 
 
+
+def expect_rejected_skip(args: Args, skip_path: Path, data: JsonObject, label: str) -> None:
+    _ = skip_path.write_text(json.dumps(data))
+    try:
+        _ = validate(args.header, args.strategy, args.metadata, args.skip_json)
+    except BpfAbiError as exc:
+        print(f"PASS self-test rejected {label}: {exc}")
+        return
+    raise BpfAbiError(f"self-test failed to reject {label}")
+
 def clone_json_object(data: JsonObject) -> JsonObject:
     return obj(json_loader.loads(json.dumps(data)), "cloned self-test metadata")
 
@@ -79,6 +99,7 @@ def good_metadata(root: Path, source: Path, header: Path) -> JsonObject:
     _ = object_path.write_bytes(b"abc")
     object_sha = sha256_file(object_path)
     source_sha = sha256_file(source)
+    source_abi = parse_source_abi(source, source_sha)
     root_value = root.relative_to(Path.cwd())
     source_value = source.relative_to(Path.cwd())
     object_value = root_value / "zigsched_minimal.bpf.o"
@@ -96,9 +117,9 @@ def good_metadata(root: Path, source: Path, header: Path) -> JsonObject:
         "source_sha256": source_sha,
         "expected_verifier_object": str(object_value),
         "abi_contract": abi_contract_fixture(header, source),
-        "tuple": {"target_arch": "bpf", "target_define": "__TARGET_ARCH_x86", "vm_required_for_attach": True, "vm_contract": VM_CONTRACT},
+        "tuple": {"target_arch": "bpf", "target_define": "__TARGET_ARCH_x86", "vm_required_for_attach": True, "vm_contract": VM_CONTRACT, "tuple_reference": "docs/releases/supported-kernel-tuples.md"},
         "tool_versions": {"clang": "c", "clang_path": "/usr/bin/clang", "llvm_objdump": "o", "bpftool": "b", "file": "f", "zig": "z"},
-        "struct_ops": {"policy_name": POLICY_NAME, "object_name": POLICY_SYMBOL, "object_section": ".struct_ops", "expected_switch_mode": PARTIAL_SWITCH, "prohibited_switch_modes": ["SCX_OPS_SWITCH_ALL"], "expected_callbacks": ["init", "enqueue", "dispatch"], "program_sections": list(PROGRAM_SECTIONS)},
+        "struct_ops": {"policy_name": POLICY_NAME, "object_name": POLICY_SYMBOL, "object_section": ".struct_ops", "expected_switch_mode": PARTIAL_SWITCH, "prohibited_switch_modes": ["SCX_OPS_SWITCH_ALL"], "expected_callbacks": list(source_abi.struct_ops_callbacks), "program_sections": list(source_abi.program_sections)},
         "vm_only": True,
         "vm_marker_required": VM_MARKER,
         "vm_contract": VM_CONTRACT,
@@ -124,25 +145,59 @@ def run_self_test(args: Args) -> None:
         _ = metadata.write_text(json.dumps(good))
         local_args = Args(header, strategy, metadata, skip, False)
         _ = validate(header, strategy, metadata, skip)
-        bad = clone_json_object(good); bad["host_attach_allowed"] = True
+        bad = clone_json_object(good)
+        bad["host_attach_allowed"] = True
         expect_rejected(local_args, metadata, bad, "unsafe metadata")
-        bad = clone_json_object(good); contract = obj(bad["abi_contract"], "abi_contract"); contract["stats_count"] = 9
+        bad = clone_json_object(good)
+        contract = obj(bad["abi_contract"], "abi_contract")
+        contract["stats_count"] = 14
         expect_rejected(local_args, metadata, bad, "stats_count drift")
+        bad_header = root / "stale_stats_struct.h"
+        _ = bad_header.write_text(header.read_text().replace("    zigsched_u64 cgroup_init_calls;\n    zigsched_u64 cgroup_exit_calls;\n    zigsched_u64 cgroup_move_calls;\n    zigsched_u64 cgroup_set_weight_calls;\n    zigsched_u64 cgroup_weight_observed;\n", ""))
+        bad_args = Args(bad_header, strategy, metadata, skip, False)
+        expect_rejected(bad_args, metadata, good, "stale stats struct layout")
+        bad = clone_json_object(good)
+        contract = obj(bad["abi_contract"], "abi_contract")
+        contract["abi_v3_accepted_callbacks"] = ["select_cpu", "init", "enqueue", "dispatch"]
+        expect_rejected(local_args, metadata, bad, "missing ABI-v3 cgroup callback acceptance")
+        bad = clone_json_object(good)
+        contract = obj(bad["abi_contract"], "abi_contract")
+        contract["tuple_reference"] = "docs/runbooks/vm-lab.md"
+        expect_rejected(local_args, metadata, bad, "wrong tuple reference")
         extra_map = root / "extra_map.bpf.c"
         _ = extra_map.write_text(source_text + '\nstruct {\n __uint(type, BPF_MAP_TYPE_ARRAY);\n __uint(max_entries, 1);\n __type(key, u32);\n __type(value, u64);\n} zigsched_extra SEC(".maps");\n')
-        bad = clone_json_object(good); update_source_metadata(bad, extra_map)
+        bad = clone_json_object(good)
+        update_source_metadata(bad, extra_map)
         expect_rejected(local_args, metadata, bad, "unversioned source map")
         extra_prog = root / "extra_program.bpf.c"
         _ = extra_prog.write_text(source_text + '\nSEC("struct_ops/zigsched_extra")\nvoid BPF_PROG(zigsched_extra) {\n}\n')
-        bad = clone_json_object(good); update_source_metadata(bad, extra_prog)
+        bad = clone_json_object(good)
+        update_source_metadata(bad, extra_prog)
         expect_rejected(local_args, metadata, bad, "unversioned SEC program")
+        bandwidth = root / "unapproved_cgroup_bandwidth.bpf.c"
+        _ = bandwidth.write_text(source_text.replace("    .enqueue = (void *)zigsched_minimal_enqueue,\n", "    .cgroup_set_bandwidth = (void *)zigsched_minimal_cgroup_set_weight,\n    .enqueue = (void *)zigsched_minimal_enqueue,\n", 1))
+        bad = clone_json_object(good)
+        update_source_metadata(bad, bandwidth)
+        expect_rejected(local_args, metadata, bad, "unapproved cgroup bandwidth callback")
         drift = root / "struct_ops_drift.bpf.c"
-        _ = drift.write_text(source_text.replace("    .init = (void *)zigsched_minimal_init,\n", "    .select_cpu = (void *)zigsched_minimal_init,\n    .init = (void *)zigsched_minimal_init,\n", 1))
-        bad = clone_json_object(good); update_source_metadata(bad, drift)
-        expect_rejected(local_args, metadata, bad, "struct_ops source usage drift")
-        stale = clone_json_object(good); stale["source_sha256"] = "0" * 64; stale["source_hash"] = "sha256:" + "0" * 64; obj(stale["abi_contract"], "abi_contract")["source_sha256"] = "0" * 64
+        _ = drift.write_text(source_text.replace("    .select_cpu = (void *)zigsched_minimal_select_cpu,\n", "    .select_cpu = (void *)zigsched_minimal_init,\n", 1))
+        bad = clone_json_object(good)
+        update_source_metadata(bad, drift)
+        obj(bad["abi_contract"], "abi_contract")["abi_v3_source_status"] = "declared-pending-implementation"
+        expect_rejected(local_args, metadata, bad, "misleading select_cpu source status")
+        v3_good = clone_json_object(good)
+        _ = metadata.write_text(json.dumps(v3_good))
+        _ = validate(header, strategy, metadata, skip)
+        print("PASS self-test accepted implemented ABI-v3 cgroup-aware source shape")
+        stale = clone_json_object(good)
+        stale["source_sha256"] = "0" * 64
+        stale["source_hash"] = "sha256:" + "0" * 64
+        obj(stale["abi_contract"], "abi_contract")["source_sha256"] = "0" * 64
         expect_rejected(local_args, metadata, stale, "stale source metadata")
-        misleading = clone_json_object(good); obj(misleading["struct_ops"], "struct_ops")["program_sections"] = [*PROGRAM_SECTIONS, "struct_ops/zigsched_extra"]
+        misleading = clone_json_object(good)
+        struct_ops = obj(misleading["struct_ops"], "struct_ops")
+        sections = list(struct_ops["program_sections"]) if isinstance(struct_ops["program_sections"], list) else []
+        struct_ops["program_sections"] = [*sections, "struct_ops/zigsched_extra"]
         expect_rejected(local_args, metadata, misleading, "misleading program metadata")
         _ = metadata.write_text("{")
         try:
@@ -158,4 +213,4 @@ def run_self_test(args: Args) -> None:
         _ = validate(header, strategy, metadata, skip)
         skip_data["reason"] = ""
         _ = skip.write_text(json.dumps(skip_data))
-        expect_rejected(local_args, metadata, skip_data, "bad skip")
+        expect_rejected_skip(local_args, skip, skip_data, "bad skip")

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from qa.bpf_abi_model import ABI_VERSION, EXPECTED_DEFINES, EXPECTED_EVENTS, EXPECTED_MAP_LAYOUTS, EXPECTED_POLICY_CONFIG_FIELDS, EXPECTED_STATS, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, PROGRAM_SECTIONS, REQUIRED_HEADER_TEXT, STRUCT_OPS_USED_FIELDS, AbiSnapshot, BpfAbiError, JsonObject, JsonValue, SourceAbi, SourceMapLayout, obj, require, sha256_file
+from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, ABI_V3_PROGRAM_SECTIONS, ABI_V3_STRUCT_OPS_USED_FIELDS, EXPECTED_CGROUP_POLICY_FIELDS, EXPECTED_DEFINES, EXPECTED_EVENTS, EXPECTED_MAP_LAYOUTS, EXPECTED_POLICY_CONFIG_FIELDS, EXPECTED_STATS, EXPECTED_STATS_FIELDS, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, REQUIRED_HEADER_TEXT, AbiSnapshot, BpfAbiError, JsonObject, JsonValue, SourceAbi, SourceMapLayout, obj, require, sha256_file
 
 
 class JsonLoader(Protocol):
@@ -75,14 +75,19 @@ def parse_header(path: Path) -> AbiSnapshot:
     defines = parse_defines(header_text)
     stats = parse_enum_names(header_text, "zigsched_stat_index", EXPECTED_STATS)
     events = parse_enum_names(header_text, "zigsched_event_index", EXPECTED_EVENTS)
+    stats_fields = parse_struct_fields(header_text, "zigsched_stats")
+    require(stats_fields == EXPECTED_STATS_FIELDS, "stats struct layout changed without ABI acceptance")
+    require(len(stats_fields) == len(stats), "stats struct field count must match stats enum count")
     policy_config_fields = parse_struct_fields(header_text, "zigsched_policy_config")
     require(policy_config_fields == EXPECTED_POLICY_CONFIG_FIELDS, "policy config layout changed without ABI acceptance")
+    cgroup_policy_fields = parse_struct_fields(header_text, "zigsched_cgroup_policy")
+    require(cgroup_policy_fields == EXPECTED_CGROUP_POLICY_FIELDS, "cgroup policy layout changed without ABI acceptance")
     struct_ops_fields = parse_struct_fields(header_text, "sched_ext_ops")
     require("char name[128]" in struct_ops_fields, "struct_ops field missing from header: name")
     require("zigsched_u64 flags" in struct_ops_fields, "struct_ops field missing from header: flags")
-    for callback in ("init", "enqueue", "dispatch"):
+    for callback in ABI_V3_ACCEPTED_CALLBACKS:
         require(any(f"(*{callback})(" in line for line in struct_ops_fields), f"struct_ops callback missing from header: {callback}")
-    return AbiSnapshot(sha256_file(path), defines, stats, events, policy_config_fields)
+    return AbiSnapshot(sha256_file(path), defines, stats, events, stats_fields, policy_config_fields, cgroup_policy_fields)
 
 
 def expected_source_map_layouts() -> tuple[SourceMapLayout, ...]:
@@ -150,8 +155,21 @@ def source_map_layouts_object(source_abi: SourceAbi) -> JsonObject:
     return {layout.name: {"type": layout.map_type, "max_entries": layout.max_entries, "key": layout.key_type, "value": layout.value_type} for layout in source_abi.map_layouts}
 
 
-def require_source_abi_v1(source_abi: SourceAbi) -> None:
+def source_abi_status(source_abi: SourceAbi) -> str:
     require(source_abi.map_layouts == expected_source_map_layouts(), f"source map layouts changed without ABI v{ABI_VERSION + 1}: expected {expected_source_map_layouts()}, got {source_abi.map_layouts}")
-    require(source_abi.program_sections == PROGRAM_SECTIONS, f"source SEC program set changed without ABI v{ABI_VERSION + 1}: expected {PROGRAM_SECTIONS}, got {source_abi.program_sections}")
-    require(source_abi.struct_ops_used_fields == STRUCT_OPS_USED_FIELDS, f"source struct_ops fields changed without ABI v{ABI_VERSION + 1}: expected {STRUCT_OPS_USED_FIELDS}, got {source_abi.struct_ops_used_fields}")
-    require(source_abi.struct_ops_callbacks == ("init", "enqueue", "dispatch"), "source struct_ops callbacks changed without ABI acceptance")
+    if (
+        source_abi.program_sections == ABI_V3_PROGRAM_SECTIONS
+        and source_abi.struct_ops_used_fields == ABI_V3_STRUCT_OPS_USED_FIELDS
+        and source_abi.struct_ops_callbacks == ABI_V3_ACCEPTED_CALLBACKS
+    ):
+        return "implemented"
+    detail = f"sections={source_abi.program_sections} fields={source_abi.struct_ops_used_fields} callbacks={source_abi.struct_ops_callbacks}"
+    raise BpfAbiError(f"source struct_ops/program shape is not an accepted ABI-v3 shape: {detail}")
+
+
+def source_abi_v2_status(source_abi: SourceAbi) -> str:
+    return source_abi_status(source_abi)
+
+
+def require_source_abi_v1(source_abi: SourceAbi) -> None:
+    _ = source_abi_status(source_abi)

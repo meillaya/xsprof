@@ -93,6 +93,10 @@ python3 qa/daemon_event_contract_check.py --input evidence/lab/<run-id>/daemon-e
 
 The target is wired through `build.zig` and remains fail-closed on the host: any attach/register/unregister work must occur only after the disposable VM marker and tuple gates are observed inside the VM. The default release evidence directory for the final backend run is `evidence/lab/vm-backend-final`; run-all summaries belong under `evidence/lab/run-all/vm-backend-final/summary.json`; release current-run gate evidence belongs under `evidence/releases/0.2.0-lab-runall/current`.
 
+### Live action audit linkage
+
+Live microVM dispatch requires the operator action to carry explicit `action_id`, `target_id`, `audit_id`, and `rollback_id` fields before launch. The daemon validates the audit identifier shape (`AUD-YYYYMMDDTHHMMSSZ-<lowercase-git-7-to-12>-<lowercase-hex-6>`) and refuses missing or malformed audit linkage before emitting live runner start events. Do not rely on generated audit IDs for live dispatch or `partial_attach`; create and record the audit ID in the operator workflow before submitting the action.
+
 ### Exact VM inputs and tuple gates
 
 Trusted QEMU discovery is limited to `qemu-system-x86_64` resolved by `qa/vm/qemu_discovery.sh`. Accepted canonical paths are `/usr/bin/qemu-system-x86_64`, `/run/current-system/sw/bin/qemu-system-x86_64`, and `/nix/store/*/bin/qemu-system-x86_64`. Overrides from `--qemu` or `ZIG_SCHEDULER_QEMU_BIN` must be absolute, canonical, executable, and outside writable/user/repo scratch paths. Untrusted candidates are refused before execution with qemu/refusal incident text.
@@ -110,11 +114,81 @@ Every VM backend evidence bundle must preserve `host_mutation=false` and copy ou
 - `zig-scheduler/audit-ledger/v1`
 - `zig-scheduler/run-all-lab/v1`
 
+### Stable VM-live proof contract
+
+`qa/vm/execution_contract.json` also carries the stable live-proof semantics
+that validators and operators must agree on before a run-all `summary.json` can
+be treated as VM-live proof. A live bundle must be explicitly marked
+`evidence_mode=vm-live`, `vm_kind=qemu-vm`, `host_mutation=false`,
+`release_eligible_live_proof=false`, `vm_marker_path=/run/zig-scheduler-vm-lab.marker`,
+`vm_marker_present=true`, and `rollback_result=PASS`.
+
+The stable cleanup receipt contract is equally explicit: `qemu_leftovers=false`,
+`tmux_leftovers=false`, `process_group_reaped=true`, `temp_dirs_removed=true`,
+and the cleanup timeout result must not be timeout rc `124`. These fields are
+release-withheld lab evidence only; they are not a production or arbitrary-host
+approval.
+
+The live summary must include artifact paths for the runtime behavior and event
+proofs, including:
+
+- `partial-attach/partial-attach-evidence.json`
+- `observe-partial/summary.json`
+- `observe-partial/runtime-samples.jsonl`
+- `observe-partial/daemon-runtime-events.jsonl`
+- `rollback-drill/audit-ledger.jsonl`
+
+The observe summary is required to expose `runtime_samples`,
+`daemon_runtime_events`, `sample_count`, `workload_alive_all_samples`,
+`final_ops`, `final_state`, `final_state_disabled_or_rolled_back`,
+`private_command_lines_sampled=false`, `release_eligible_live_proof=false`, and
+`evidence_mode=vm-live`. Partial attach evidence must expose
+`ops_during_attach=zigsched_minimal`, `switch_mode=SCX_OPS_SWITCH_PARTIAL`, an
+allowlisted target cgroup under `/sys/fs/cgroup/zig-scheduler-lab.slice/`, a
+non-zero 64-character SHA-256 object hash, rollback linkage, `rollback_status=PASS`,
+`host_mutation=false`, and `release_eligible_live_proof=false`.
+
+Runtime sample JSONL rows are committed to the
+`zig-scheduler/runtime-sample/v1` shape with `schema`, `sequence`, `ops`,
+`state`, `events`, `workload_alive`, `private_command_lines_sampled`,
+`cgroup_membership_digest`, and `cgroup_membership_status`. Daemon runtime
+event JSONL rows are committed to the `zig-scheduler/daemon-event/v1` shape
+with `event=runtime_sample`, `ops`, and `host_mutation=false`.
+
+The static contract deliberately does **not** duplicate runtime-order,
+counter-growth, cgroup digest, or daemon-event occurrence proofs. Those remain
+in `qa/live_behavior_check.py` and `src/control/lab_runner/live_summary.zig`,
+where the checker can compare actual before/during/after samples and reject
+forged success output.
+
 Task 9 VM-required evidence additionally requires a real `qemu-vm` run with `boot`, `marker`, `verifier`, `attach`, `runtime_sample`, `rollback`, `cleanup`, `validation`, and `incident` daemon events. The verifier event must point at copied-out verifier evidence from the VM, the runtime sample must show `zigsched_minimal`, rollback must restore the VM scheduler to disabled/previous state, and validation/incident events must visibly refuse stale target and duplicate rollback IDs with `host_mutation=false`.
 
 ### BPF ownership boundary
 
 The kernel BPF policy program remains C/clang-owned for kernel ABI, verifier, `struct_ops`, and libbpf/bpftool compatibility. Zig owns orchestration, the build graph, metadata validation, the `vm-lab-backend` entrypoint, evidence schema checks, packaging, and release gates. Host attach remains forbidden; attach/register/unregister experiments require the disposable VM marker, verifier success, audit id, rollback id, and tuple gates.
+
+### ABI-v3 cgroup-aware policy semantics
+
+The cgroup-aware scheduler policy capability is VM-lab-only and ABI-gated by
+`ZIGSCHED_ABI_VERSION=3u`. Host paths still refuse attach/load/mutation and must
+not write host cgroups, cpusets, affinities, priorities, `/sys`, or `/proc`.
+
+Supported and refused knobs are deliberately split:
+
+| Knob / callback family | ABI-v3 status | Exact semantics |
+| --- | --- | --- |
+| `cpu.weight` / `cgroup_set_weight` | **callback-observed** | In a marked disposable VM, sched_ext may call `cgroup_set_weight`; the BPF policy records the latest weight and generation in `zigsched_cgroup_policy`, increments weight-observed counters, and exposes metadata for VM evidence. This is not a production fairness claim. |
+| cgroup lifetime and move callbacks | **observed** | `cgroup_init`, `cgroup_exit`, `cgroup_prep_move`, `cgroup_move`, and `cgroup_cancel_move` are accepted to account lifecycle/move observations and populate cgroup policy metadata. They do not authorize host cgroup writes. |
+| `cpuset.cpus` and `cpuset.cpus.effective` | **observed-only** | Runtime/lab evidence may report stable redacted cpuset facts. ABI v3 does not let the scheduler own cpuset writes or placement changes from those values. |
+| `cpu.pressure` | **observed-only** | Pressure is telemetry/calibration input only. It does not drive a scheduler-owned control loop in ABI v3. |
+| `cpu.max` / `cgroup_set_bandwidth` | **deferred/refused** | Bandwidth callbacks and quota control are not accepted by ABI v3. Host and VM fixture paths must refuse scheduler-owned `cpu.max` behavior unless a later ABI adds executable VM proof. |
+| uclamp | **deferred/refused** | uclamp mutation is not accepted by ABI v3 and remains a future VM-only research item. |
+| `cgroup_set_idle` | **deferred/refused** | Idle-state callbacks are not wired into `zigsched_minimal_ops` in ABI v3. |
+
+ABI metadata must record `abi_contract.cgroup_knob_semantics` with those exact
+callback-observed / observed-only / deferred statuses. `qa/bpf_abi_freeze_check.py`
+rejects unversioned cgroup maps, unaccepted cgroup callbacks such as
+`cgroup_set_bandwidth`, stale metadata, and any metadata that enables host attach.
 
 ## Final current-run release evidence
 
@@ -141,7 +215,16 @@ for m in cgroup.weight cpu.max uclamp topology.offline_cpu; do
 done
 python3 qa/vm_mutation_contract_check.py --mode vm-evidence --summary evidence/lab/run-all/<run-id>/summary.json
 python3 qa/perf_calibration_evidence_check.py --bundle evidence/lab/run-all/<run-id>/live/summary.json --out evidence/lab/run-all/<run-id>/perf-calibration-evidence.json
+python3 qa/benchmark_output_check.py --fixtures fixtures/benchmark-output --schema schemas/control/benchmark-output.v1.schema.json
 ```
+
+### Record-only benchmark-output calibration
+
+`benchmark-output/v1` records sanitized VM benchmark outputs as calibration inputs only. The checker can normalize committed examples for `cyclictest` JSON/text, `fio` JSON, and `perf bench sched messaging` summaries. `rtla` and `perf sched` are represented only as `UNSUPPORTED_DEFERRED` records until a later milestone adds parsers.
+
+Every record must include the tool family, safe relative output path, raw-output SHA-256, VM evidence link, basic metrics with units, sample/run counts, `host_mutation=false`, `release_eligible=false`, `production_capacity_claim=false`, `hard_thresholds_enforced=false`, and `threshold_status=record_only`. The checker rejects command lines, argv, environments, secrets, absolute/traversing paths, hard-threshold PASS/FAIL claims, release claims, and production-capacity claims. These artifacts are not performance gates and must not be used to approve production, release eligibility, or scheduler superiority.
+
+Matrix workload specs may attach those records under `benchmark_provenance` as `{record_path, record_sha256, record_only=true}`. In manifest validation, `qa/matrix_run_contract_check.py` keeps each referenced path under `evidence/lab/matrix/<run-id>/`, verifies the SHA-256, then reuses `qa/benchmark_output_check.py` to validate the `benchmark-output/v1` record. Missing records, malformed records, and records carrying threshold/release/production claims are rejected. The attachment is provenance for calibration review only; it is not a PASS/FAIL threshold and is not a release gate.
 
 Use `--accel kvm` on runners where KVM starts cleanly. Use `--accel tcg` only as an explicit disposable-VM fallback when QEMU/KVM startup is blocked by the runner environment. Either way, the host path remains fail-closed and must not load BPF or mutate host scheduler/cgroup state.
 
@@ -199,6 +282,28 @@ ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL=stress-ng \
     --scenario workload-cpu-saturation --out evidence/lab/matrix/<run-id>-missing-workload
 ```
 
-The `workload-spec.json` hash is recorded in the row's `workload.spec_sha256`; `workload-capability.json` records prerequisite status, `threshold_source` (`fixture`, `calibrated`, or `deferred`), and typed missing-prereq state. Fixture thresholds are deterministic contract placeholders. Calibrated thresholds must come from VM-live record-only calibration evidence and remain `production_capacity_claim=false`; deferred thresholds are explicit gaps, not pass/fail performance results.
+The `workload-spec.json` hash is recorded in the row's `workload.spec_sha256`; `workload-capability.json` records prerequisite status, `threshold_source` (`fixture`, `calibrated`, or `deferred`), and typed missing-prereq state. Fixture thresholds are deterministic contract placeholders. Calibrated thresholds must come from VM-live record-only calibration evidence and remain `production_capacity_claim=false`; matrix manifests reference that evidence with `benchmark_provenance` records validated by the benchmark-output checker. Deferred thresholds are explicit gaps, not pass/fail performance results.
 
 Privacy rules: workload artifacts may record scenario IDs, tool names, threshold-source labels, bounded counters, and relative artifact paths only. They must not include command lines, argv, environments, secrets, API keys, tokens, passwords, bearer strings, or private process data. Every matrix row also carries a `privacy-scan.json` with `private_fields_found=false`, `host_mutation=false`, and `release_eligible=false`.
+
+## Manual protected VM proof workflow
+
+The repository includes `.github/workflows/manual-vm-proof.yml` as an opt-in `workflow_dispatch` lane for disposable VM proof provenance. It is not part of ordinary CI and ordinary push or pull-request checks must remain host-safe. Repository owners must configure the `vm-proof-manual` protected environment with required reviewers, branch/tag restrictions, and access only to an isolated self-hosted runner carrying `self-hosted`, `zig-scheduler-vm-proof`, and `disposable-vm` labels.
+
+The manual dispatch requires the operator to provide an audit id, rollback id, VM marker path `/run/zig-scheduler-vm-lab.marker`, and supported tuple. The workflow is allowed to run VM-required proof commands only on that isolated runner; it must not be interpreted as real-host attach permission. The uploaded proof is the GitHub Actions artifact `vm-proof-bundle.tar.zst`; it is not a release asset, not OCI, not production approval, and keeps `release_eligible=false`, `host_mutation=false`, and `production_capacity_claim=false`.
+
+`vm-proof-bundle.tar.zst` is the pinned manual proof artifact type. It must contain or explicitly account for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when the object is skipped, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated matrix rows. Missing QEMU/KVM/kernel prerequisites remain `SKIP` or `REFUSE`; they are not success and are not release approval.
+
+Post-run provenance review is manual and evidence-based:
+
+```bash
+gh run download <run-id> --name vm-proof-bundle
+gh attestation verify vm-proof-bundle.tar.zst --repo <owner>/<repo>
+tar --zstd -tf vm-proof-bundle.tar.zst
+python3 qa/matrix_run_contract_check.py --manifest evidence/lab/matrix/manual-vm-proof/manifest.json --schemas schemas/control --docs docs/control
+python3 qa/manual_vm_proof_ci_check.py --workflow .github/workflows/manual-vm-proof.yml --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md
+```
+
+Do not claim this run was approved or executed by a human unless the GitHub run history and protected-environment review record show that approval. Static local validation only proves the workflow/provenance contract is safe to review.
+
+Manual protected VM proof bundles now carry `evidence-manifest.json` beside the matrix output. Operators should validate it with `python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json` before treating the bundle as lab evidence. The manifest records SHA-256 hashes and schema roles for the matrix manifest, matrix rows, BPF metadata or BPF SKIP JSON, daemon events, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, static verification logs, audit id, rollback id, VM marker, supported tuple, and attestation status. It does not make the proof release eligible or production approved.

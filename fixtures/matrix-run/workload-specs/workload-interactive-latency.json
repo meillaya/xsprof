@@ -1,4 +1,11 @@
 {
+  "benchmark_provenance": [
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/cyclictest-json.benchmark-output.json",
+      "record_sha256": "21382c92d8799c7069c2535e27df9f6b6787da44ad3adc58b418d783703be88f"
+    }
+  ],
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [

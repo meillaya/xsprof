@@ -13,7 +13,9 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 
-contract_path = Path("qa/vm/execution_contract.json")
+import os
+
+contract_path = Path(os.environ.get("ZIG_SCHEDULER_VM_CONTRACT", "qa/vm/execution_contract.json"))
 contract = json.loads(contract_path.read_text())
 
 def require(condition: bool, message: str) -> None:
@@ -96,6 +98,119 @@ for name, schema in {
     "run_all_summary": "zig-scheduler/run-all-lab/v1",
 }.items():
     require(events.get(name) == schema, f"event schema mismatch for {name}")
+live = contract.get("stable_live_proof", {})
+require(live.get("description", "").startswith("Static VM-live bundle semantics"), "stable live-proof contract description missing")
+require(live.get("summary_schema") == "zig-scheduler/run-all-lab/v1", "stable live-proof summary schema mismatch")
+require(live.get("status") == "PASS", "stable live-proof status must be PASS")
+require(live.get("evidence_mode") == "vm-live", "stable live-proof evidence_mode must be vm-live")
+require(live.get("vm_kind") == "qemu-vm", "stable live-proof vm_kind must be qemu-vm")
+require(live.get("host_mutation") is False, "stable live-proof host_mutation must be false")
+require(live.get("release_eligible_live_proof") is False, "stable live-proof must be release-ineligible")
+require(live.get("vm_marker_path") == "/run/zig-scheduler-vm-lab.marker", "stable live-proof VM marker path mismatch")
+require(live.get("vm_marker_present") is True, "stable live-proof VM marker presence must be true")
+require(live.get("rollback_result") == "PASS", "stable live-proof rollback_result must be PASS")
+cleanup = live.get("cleanup", {})
+require(cleanup.get("required") is True, "stable live-proof cleanup receipt must be required")
+cleanup_values = cleanup.get("required_values", {})
+for field, expected in {
+    "qemu_leftovers": False,
+    "tmux_leftovers": False,
+    "process_group_reaped": True,
+    "temp_dirs_removed": True,
+}.items():
+    require(cleanup_values.get(field) is expected, f"stable live-proof cleanup field mismatch: {field}")
+require(cleanup.get("timeout_rc_must_not_equal") == 124, "stable live-proof cleanup must reject timeout rc 124")
+live_artifacts = set(live.get("required_artifact_paths", []))
+for path in (
+    "partial-attach/partial-attach-evidence.json",
+    "observe-partial/summary.json",
+    "observe-partial/runtime-samples.jsonl",
+    "observe-partial/daemon-runtime-events.jsonl",
+    "rollback-drill/audit-ledger.jsonl",
+):
+    require(path in live_artifacts, f"stable live-proof required artifact missing {path}")
+observe = live.get("observe_summary", {})
+require(observe.get("schema") == "zig-scheduler/observe-partial-summary/v1", "observe summary schema mismatch")
+observe_fields = set(observe.get("required_fields", []))
+for field in (
+    "schema",
+    "status",
+    "evidence_mode",
+    "runtime_samples",
+    "daemon_runtime_events",
+    "sample_count",
+    "workload_alive_all_samples",
+    "final_ops",
+    "final_state",
+    "final_state_disabled_or_rolled_back",
+    "private_command_lines_sampled",
+    "release_eligible_live_proof",
+):
+    require(field in observe_fields, f"observe summary required field missing {field}")
+observe_values = observe.get("required_values", {})
+for field, expected in {
+    "status": "PASS",
+    "evidence_mode": "vm-live",
+    "workload_alive_all_samples": True,
+    "final_state_disabled_or_rolled_back": True,
+    "private_command_lines_sampled": False,
+    "release_eligible_live_proof": False,
+}.items():
+    require(observe_values.get(field) == expected, f"observe summary required value mismatch: {field}")
+require(observe.get("sample_count_min") == 3, "observe summary sample_count_min must be 3")
+partial = live.get("partial_attach", {})
+require(partial.get("schema") == "zig-scheduler/partial-attach-evidence/v1", "partial attach schema mismatch")
+partial_fields = set(partial.get("required_fields", []))
+for field in (
+    "schema",
+    "host_mutation",
+    "release_eligible_live_proof",
+    "object",
+    "object_sha256",
+    "ops_during_attach",
+    "switch_mode",
+    "target_cgroup",
+    "rollback_id",
+    "rollback_status",
+    "post_state",
+    "transcript_path",
+):
+    require(field in partial_fields, f"partial attach required field missing {field}")
+partial_values = partial.get("required_values", {})
+for field, expected in {
+    "host_mutation": False,
+    "release_eligible_live_proof": False,
+    "ops_during_attach": "zigsched_minimal",
+    "switch_mode": "SCX_OPS_SWITCH_PARTIAL",
+    "rollback_status": "PASS",
+}.items():
+    require(partial_values.get(field) == expected, f"partial attach required value mismatch: {field}")
+require(partial.get("target_cgroup_prefix") == "/sys/fs/cgroup/zig-scheduler-lab.slice/", "partial attach target cgroup prefix mismatch")
+require(partial.get("object_sha256_shape") == "sha256-hex-64-nonzero", "partial attach object sha shape mismatch")
+runtime_sample = live.get("runtime_sample_artifact", {})
+require(runtime_sample.get("path_suffix") == "observe-partial/runtime-samples.jsonl", "runtime sample artifact path suffix mismatch")
+require(runtime_sample.get("schema") == "zig-scheduler/runtime-sample/v1", "runtime sample schema mismatch")
+runtime_sample_fields = set(runtime_sample.get("required_fields", []))
+for field in ("schema", "sequence", "ops", "state", "events", "workload_alive", "private_command_lines_sampled", "cgroup_membership_digest", "cgroup_membership_status"):
+    require(field in runtime_sample_fields, f"runtime sample required field missing {field}")
+require(runtime_sample.get("required_values", {}).get("workload_alive") is True, "runtime sample workload_alive must be true")
+require(runtime_sample.get("required_values", {}).get("private_command_lines_sampled") is False, "runtime sample private command lines must be false")
+daemon_runtime = live.get("daemon_runtime_event_artifact", {})
+require(daemon_runtime.get("path_suffix") == "observe-partial/daemon-runtime-events.jsonl", "daemon runtime event artifact path suffix mismatch")
+require(daemon_runtime.get("schema") == "zig-scheduler/daemon-event/v1", "daemon runtime event schema mismatch")
+require(daemon_runtime.get("event") == "runtime_sample", "daemon runtime event name mismatch")
+daemon_runtime_fields = set(daemon_runtime.get("required_fields", []))
+for field in ("schema", "event", "ops", "host_mutation"):
+    require(field in daemon_runtime_fields, f"daemon runtime event required field missing {field}")
+require(daemon_runtime.get("required_values", {}).get("host_mutation") is False, "daemon runtime events must require host_mutation=false")
+validator_boundaries = set(live.get("validator_boundaries", {}).get("kept_in_runtime_validators", []))
+for boundary in (
+    "sample ordering before/during/after attach",
+    "counter growth and explicit counter fact validation",
+    "cgroup membership digest validation",
+    "daemon runtime_sample occurrence and zigsched_minimal occurrence checks",
+):
+    require(boundary in validator_boundaries, f"runtime validator boundary missing {boundary}")
 ownership = contract.get("bpf_ownership", {})
 require(ownership.get("kernel_program_source") == "C", "BPF kernel program source ownership must remain C")
 require(ownership.get("kernel_program_toolchain") == "clang -target bpf", "BPF toolchain ownership must remain clang -target bpf")
@@ -123,7 +238,23 @@ for trusted in ("/usr/bin/", "/run/current-system/sw/bin/", "/nix/store/*/bin/")
 for refused in ("/tmp/*", "/var/tmp/*", "/dev/shm/*", "*/.omo/*", "*/.omx/*"):
     require(refused in qemu_discovery, f"qemu discovery missing refusal pattern {refused}")
 runbook = Path("docs/runbooks/vm-lab.md").read_text()
-for required_text in ("zig build vm-lab-backend", "C/clang-owned", "Zig owns orchestration", "zig-scheduler/vm-lab-lifecycle-event/v1", "qemu-system-x86_64"):
+for required_text in (
+    "zig build vm-lab-backend",
+    "C/clang-owned",
+    "Zig owns orchestration",
+    "zig-scheduler/vm-lab-lifecycle-event/v1",
+    "qemu-system-x86_64",
+    "evidence_mode=vm-live",
+    "vm_kind=qemu-vm",
+    "vm_marker_path=/run/zig-scheduler-vm-lab.marker",
+    "qemu_leftovers=false",
+    "observe-partial/runtime-samples.jsonl",
+    "observe-partial/daemon-runtime-events.jsonl",
+    "ops_during_attach=zigsched_minimal",
+    "zig-scheduler/runtime-sample/v1",
+    "zig-scheduler/daemon-event/v1",
+    "does **not** duplicate runtime-order",
+):
     require(required_text in runbook, f"runbook missing {required_text}")
 bpf_readme = Path("bpf/README.md").read_text()
 require("C/clang-owned" in bpf_readme and "Zig owns" in bpf_readme, "BPF ownership boundary missing from README")

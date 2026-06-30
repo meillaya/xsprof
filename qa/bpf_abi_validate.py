@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from qa.bpf_abi_model import ABI_VERSION, EVENTS_COUNT, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, STATS_COUNT, VM_CONTRACT, VM_MARKER, AbiSnapshot, JsonObject, SourceAbi, obj, require, require_int, require_string, require_string_list, sha256_file, str_list
-from qa.bpf_abi_parse import load_json, parse_header, parse_source_abi, require_source_abi_v1, require_text, source_map_layouts_object
+from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, EVENTS_COUNT, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, STATS_COUNT, VM_CONTRACT, VM_MARKER, AbiSnapshot, JsonObject, SourceAbi, obj, require, require_int, require_string, require_string_list, sha256_file, str_list
+from qa.bpf_abi_parse import load_json, parse_header, parse_source_abi, require_text, source_abi_status, source_map_layouts_object
 from qa.bpf_abi_model import REQUIRED_ADR_TEXT
 
 
@@ -13,7 +13,7 @@ def require_map_layouts(value: JsonObject, source_abi: SourceAbi) -> None:
     require(value == source_map_layouts_object(source_abi), "map layout metadata drifted from source")
 
 
-def require_abi_contract(contract: JsonObject, snapshot: AbiSnapshot, source_abi: SourceAbi) -> None:
+def require_abi_contract(contract: JsonObject, snapshot: AbiSnapshot, source_abi: SourceAbi, source_status: str) -> None:
     require_int(contract.get("abi_version"), ABI_VERSION, "abi_contract.abi_version")
     require(contract.get("header_sha256") == snapshot.header_sha256, "abi_contract.header_sha256 mismatch")
     require(contract.get("source_sha256") == source_abi.source_sha256, "abi_contract.source_sha256 mismatch")
@@ -22,8 +22,14 @@ def require_abi_contract(contract: JsonObject, snapshot: AbiSnapshot, source_abi
     require_int(contract.get("events_count"), EVENTS_COUNT, "abi_contract.events_count")
     require_string_list(contract.get("stats"), snapshot.stats, "abi_contract.stats")
     require_string_list(contract.get("events"), snapshot.events, "abi_contract.events")
+    require_string_list(contract.get("stats_fields"), snapshot.stats_fields, "abi_contract.stats_fields")
     require_string_list(contract.get("policy_config_fields"), snapshot.policy_config_fields, "abi_contract.policy_config_fields")
+    require_string_list(contract.get("cgroup_policy_fields"), snapshot.cgroup_policy_fields, "abi_contract.cgroup_policy_fields")
     require_string_list(contract.get("struct_ops_used_fields"), source_abi.struct_ops_used_fields, "abi_contract.struct_ops_used_fields")
+    require_string_list(contract.get("abi_v3_accepted_callbacks"), ABI_V3_ACCEPTED_CALLBACKS, "abi_contract.abi_v3_accepted_callbacks")
+    require(contract.get("abi_v3_source_status") == source_status, f"abi_contract.abi_v3_source_status must match source shape: {source_status}")
+    require(obj(contract.get("cgroup_knob_semantics"), "abi_contract.cgroup_knob_semantics") == CGROUP_KNOB_SEMANTICS, "cgroup knob semantics changed without ABI acceptance")
+    require(contract.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "abi_contract.tuple_reference must pin supported tuple document")
     require_map_layouts(obj(contract.get("map_layouts"), "abi_contract.map_layouts"), source_abi)
 
 
@@ -45,13 +51,14 @@ def common_checks(data: JsonObject, snapshot: AbiSnapshot) -> SourceAbi:
     source_sha = require_string(data.get("source_sha256"), "source_sha256")
     require(data.get("source_hash") == f"sha256:{source_sha}", "source_hash/source_sha256 mismatch")
     source_abi = parse_source_abi(resolve_repo_path(require_string(data.get("source"), "source")), source_sha)
-    require_source_abi_v1(source_abi)
-    require_abi_contract(obj(data.get("abi_contract"), "abi_contract"), snapshot, source_abi)
+    source_status = source_abi_status(source_abi)
+    require_abi_contract(obj(data.get("abi_contract"), "abi_contract"), snapshot, source_abi, source_status)
     tuple_data = obj(data.get("tuple"), "tuple")
     require(tuple_data.get("target_arch") == "bpf", "target arch mismatch")
     require(tuple_data.get("target_define") == "__TARGET_ARCH_x86", "target define mismatch")
     require(tuple_data.get("vm_required_for_attach") is True, "tuple must require VM attach")
     require(tuple_data.get("vm_contract") == VM_CONTRACT, "tuple VM contract mismatch")
+    require(tuple_data.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "tuple reference mismatch")
     tools = obj(data.get("tool_versions"), "tool_versions")
     for key in ("clang", "clang_path", "llvm_objdump", "bpftool", "file", "zig"):
         require(isinstance(tools.get(key), str) and tools[key] != "", f"tool_versions missing {key}")

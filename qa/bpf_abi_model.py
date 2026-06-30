@@ -15,18 +15,23 @@ VM_CONTRACT: Final = "qa/vm/execution_contract.json"
 POLICY_NAME: Final = "zigsched_minimal"
 POLICY_SYMBOL: Final = "zigsched_minimal_ops"
 PARTIAL_SWITCH: Final = "SCX_OPS_SWITCH_PARTIAL"
-ABI_VERSION: Final = 1
-STATS_COUNT: Final = 8
-EVENTS_COUNT: Final = 4
+ABI_VERSION: Final = 3
+STATS_COUNT: Final = 13
+EVENTS_COUNT: Final = 6
 EXPECTED_DEFINES: Final[dict[str, str]] = {
-    "ZIGSCHED_ABI_VERSION": "1u",
-    "ZIGSCHED_MINIMAL_NR_STATS": "8u",
-    "ZIGSCHED_MINIMAL_NR_EVENTS": "4u",
+    "ZIGSCHED_ABI_VERSION": "3u",
+    "ZIGSCHED_MINIMAL_NR_STATS": "13u",
+    "ZIGSCHED_MINIMAL_NR_EVENTS": "6u",
     "ZIGSCHED_DSQ_FIFO": "0x5a195f1f0ULL",
     "ZIGSCHED_DSQ_VTIME": "0x5a195f1f1ULL",
     "ZIGSCHED_STARVATION_NS_MAX": "50000000ULL",
     "ZIGSCHED_POLICY_MODE_FIFO": "1ULL",
     "ZIGSCHED_POLICY_MODE_VTIME": "2ULL",
+    "ZIGSCHED_CGROUP_KNOB_WEIGHT_OBSERVED": "1ULL",
+    "ZIGSCHED_CGROUP_KNOB_CPU_MAX_DEFERRED": "2ULL",
+    "ZIGSCHED_CGROUP_KNOB_CPUSET_OBSERVED": "4ULL",
+    "ZIGSCHED_CGROUP_KNOB_PRESSURE_OBSERVED": "8ULL",
+    "ZIGSCHED_CGROUP_KNOB_UCLAMP_DEFERRED": "16ULL",
     "SCX_OPS_SWITCH_PARTIAL": "8ULL",
 }
 EXPECTED_STATS: Final = (
@@ -38,35 +43,92 @@ EXPECTED_STATS: Final = (
     "ZIGSCHED_STAT_VTIME_INSERTS",
     "ZIGSCHED_STAT_FIFO_DISPATCHES",
     "ZIGSCHED_STAT_VTIME_DISPATCHES",
+    "ZIGSCHED_STAT_CGROUP_INIT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_EXIT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_MOVE_CALLS",
+    "ZIGSCHED_STAT_CGROUP_SET_WEIGHT_CALLS",
+    "ZIGSCHED_STAT_CGROUP_WEIGHT_OBSERVED",
+)
+EXPECTED_STATS_FIELDS: Final = (
+    "zigsched_u64 select_cpu_calls",
+    "zigsched_u64 enqueue_calls",
+    "zigsched_u64 dispatch_calls",
+    "zigsched_u64 local_direct_inserts",
+    "zigsched_u64 fifo_inserts",
+    "zigsched_u64 vtime_inserts",
+    "zigsched_u64 fifo_dispatches",
+    "zigsched_u64 vtime_dispatches",
+    "zigsched_u64 cgroup_init_calls",
+    "zigsched_u64 cgroup_exit_calls",
+    "zigsched_u64 cgroup_move_calls",
+    "zigsched_u64 cgroup_set_weight_calls",
+    "zigsched_u64 cgroup_weight_observed",
 )
 EXPECTED_EVENTS: Final = (
     "ZIGSCHED_EVENT_SELECT_CPU_FALLBACK",
     "ZIGSCHED_EVENT_DISPATCH_EMPTY",
     "ZIGSCHED_EVENT_INIT_FIFO_DSQ_FAILED",
     "ZIGSCHED_EVENT_INIT_VTIME_DSQ_FAILED",
+    "ZIGSCHED_EVENT_CGROUP_MOVE_OBSERVED",
+    "ZIGSCHED_EVENT_CGROUP_WEIGHT_OBSERVED",
 )
 EXPECTED_POLICY_CONFIG_FIELDS: Final = (
     "zigsched_u64 fifo_dsq",
     "zigsched_u64 vtime_dsq",
     "zigsched_u64 starvation_ns_max",
     "zigsched_u64 mode",
+    "zigsched_u64 cgroup_knob_support",
+)
+EXPECTED_CGROUP_POLICY_FIELDS: Final = (
+    "zigsched_u64 last_weight",
+    "zigsched_u64 weight_generation",
+    "zigsched_u64 move_generation",
+    "zigsched_u64 callback_observed_knobs",
+    "zigsched_u64 observed_knobs",
+    "zigsched_u64 deferred_knobs",
 )
 STRUCT_OPS_USED_FIELDS: Final = ("name", "flags", "init", "enqueue", "dispatch")
+ABI_V2_ACCEPTED_CALLBACKS: Final = ("select_cpu", "init", "enqueue", "dispatch")
+ABI_V3_ACCEPTED_CALLBACKS: Final = (
+    "select_cpu",
+    "init",
+    "cgroup_init",
+    "cgroup_exit",
+    "cgroup_prep_move",
+    "cgroup_move",
+    "cgroup_cancel_move",
+    "cgroup_set_weight",
+    "enqueue",
+    "dispatch",
+)
+CGROUP_KNOB_SEMANTICS: Final[dict[str, str]] = {
+    "cpu.weight": "callback-observed",
+    "cpu.max": "deferred",
+    "cpuset.cpus": "observed-only",
+    "cpuset.cpus.effective": "observed-only",
+    "cpu.pressure": "observed-only",
+    "uclamp": "deferred",
+}
 REQUIRED_HEADER_TEXT: Final = (
-    "#define ZIGSCHED_ABI_VERSION 1u",
+    "#define ZIGSCHED_ABI_VERSION 3u",
     "ZIGSCHED_DSQ_FIFO",
     "ZIGSCHED_DSQ_VTIME",
     "ZIGSCHED_STARVATION_NS_MAX",
+    "ZIGSCHED_CGROUP_KNOB_WEIGHT_OBSERVED",
     "enum zigsched_stat_index",
     "enum zigsched_event_index",
     "struct zigsched_policy_config",
+    "struct zigsched_cgroup_policy",
     "struct sched_ext_ops",
     "SCX_OPS_SWITCH_PARTIAL",
 )
 REQUIRED_ADR_TEXT: Final = (
     "Policy expansion is blocked",
     "v1 compatibility contract",
-    "v2 requires",
+    "v2 compatibility contract",
+    "v3 compatibility contract",
+    "cpu.weight",
+    "docs/releases/supported-kernel-tuples.md",
     "zigsched_minimal_ops",
     "SCX_OPS_SWITCH_PARTIAL",
     "SCX_OPS_SWITCH_ALL",
@@ -79,10 +141,44 @@ PROGRAM_SECTIONS: Final = (
     "struct_ops/zigsched_minimal_enqueue",
     "struct_ops/zigsched_minimal_dispatch",
 )
+ABI_V2_PROGRAM_SECTIONS: Final = (
+    "struct_ops/zigsched_minimal_select_cpu",
+    "struct_ops.s/zigsched_minimal_init",
+    "struct_ops/zigsched_minimal_enqueue",
+    "struct_ops/zigsched_minimal_dispatch",
+)
+ABI_V2_STRUCT_OPS_USED_FIELDS: Final = ("name", "flags", "select_cpu", "init", "enqueue", "dispatch")
+ABI_V3_PROGRAM_SECTIONS: Final = (
+    "struct_ops/zigsched_minimal_select_cpu",
+    "struct_ops.s/zigsched_minimal_init",
+    "struct_ops/zigsched_minimal_cgroup_init",
+    "struct_ops/zigsched_minimal_cgroup_exit",
+    "struct_ops/zigsched_minimal_cgroup_prep_move",
+    "struct_ops/zigsched_minimal_cgroup_move",
+    "struct_ops/zigsched_minimal_cgroup_cancel_move",
+    "struct_ops/zigsched_minimal_cgroup_set_weight",
+    "struct_ops/zigsched_minimal_enqueue",
+    "struct_ops/zigsched_minimal_dispatch",
+)
+ABI_V3_STRUCT_OPS_USED_FIELDS: Final = (
+    "name",
+    "flags",
+    "select_cpu",
+    "init",
+    "cgroup_init",
+    "cgroup_exit",
+    "cgroup_prep_move",
+    "cgroup_move",
+    "cgroup_cancel_move",
+    "cgroup_set_weight",
+    "enqueue",
+    "dispatch",
+)
 EXPECTED_MAP_LAYOUTS: Final[dict[str, dict[str, str]]] = {
     "zigsched_stats": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_STATS", "key": "u32", "value": "u64"},
     "zigsched_events": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_EVENTS", "key": "u32", "value": "u64"},
     "zigsched_policy_config": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_policy_config"},
+    "zigsched_cgroup_policy": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_cgroup_policy"},
 }
 
 
@@ -101,7 +197,9 @@ class AbiSnapshot:
     defines: dict[str, str]
     stats: tuple[str, ...]
     events: tuple[str, ...]
+    stats_fields: tuple[str, ...]
     policy_config_fields: tuple[str, ...]
+    cgroup_policy_fields: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)

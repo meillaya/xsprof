@@ -283,5 +283,127 @@
       "verifier_success",
       "tuple_gates"
     ]
+  },
+  "stable_live_proof": {
+    "description": "Static VM-live bundle semantics required before a run-all summary may be treated as live proof. Runtime ordering, counter growth, cgroup digest comparisons, and daemon-event occurrence checks remain in live_behavior_check.py and live_summary.zig.",
+    "summary_schema": "zig-scheduler/run-all-lab/v1",
+    "status": "PASS",
+    "evidence_mode": "vm-live",
+    "vm_kind": "qemu-vm",
+    "host_mutation": false,
+    "release_eligible_live_proof": false,
+    "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
+    "vm_marker_present": true,
+    "rollback_result": "PASS",
+    "cleanup": {
+      "required": true,
+      "required_values": {
+        "qemu_leftovers": false,
+        "tmux_leftovers": false,
+        "process_group_reaped": true,
+        "temp_dirs_removed": true
+      },
+      "timeout_rc_must_not_equal": 124
+    },
+    "required_artifact_paths": [
+      "partial-attach/partial-attach-evidence.json",
+      "observe-partial/summary.json",
+      "observe-partial/runtime-samples.jsonl",
+      "observe-partial/daemon-runtime-events.jsonl",
+      "rollback-drill/audit-ledger.jsonl"
+    ],
+    "observe_summary": {
+      "schema": "zig-scheduler/observe-partial-summary/v1",
+      "required_fields": [
+        "schema",
+        "status",
+        "evidence_mode",
+        "runtime_samples",
+        "daemon_runtime_events",
+        "sample_count",
+        "workload_alive_all_samples",
+        "final_ops",
+        "final_state",
+        "final_state_disabled_or_rolled_back",
+        "private_command_lines_sampled",
+        "release_eligible_live_proof"
+      ],
+      "required_values": {
+        "status": "PASS",
+        "evidence_mode": "vm-live",
+        "workload_alive_all_samples": true,
+        "final_state_disabled_or_rolled_back": true,
+        "private_command_lines_sampled": false,
+        "release_eligible_live_proof": false
+      },
+      "sample_count_min": 3
+    },
+    "partial_attach": {
+      "schema": "zig-scheduler/partial-attach-evidence/v1",
+      "required_fields": [
+        "schema",
+        "host_mutation",
+        "release_eligible_live_proof",
+        "object",
+        "object_sha256",
+        "ops_during_attach",
+        "switch_mode",
+        "target_cgroup",
+        "rollback_id",
+        "rollback_status",
+        "post_state",
+        "transcript_path"
+      ],
+      "required_values": {
+        "host_mutation": false,
+        "release_eligible_live_proof": false,
+        "ops_during_attach": "zigsched_minimal",
+        "switch_mode": "SCX_OPS_SWITCH_PARTIAL",
+        "rollback_status": "PASS"
+      },
+      "target_cgroup_prefix": "/sys/fs/cgroup/zig-scheduler-lab.slice/",
+      "object_sha256_shape": "sha256-hex-64-nonzero"
+    },
+    "runtime_sample_artifact": {
+      "path_suffix": "observe-partial/runtime-samples.jsonl",
+      "schema": "zig-scheduler/runtime-sample/v1",
+      "required_fields": [
+        "schema",
+        "sequence",
+        "ops",
+        "state",
+        "events",
+        "workload_alive",
+        "private_command_lines_sampled",
+        "cgroup_membership_digest",
+        "cgroup_membership_status"
+      ],
+      "required_values": {
+        "workload_alive": true,
+        "private_command_lines_sampled": false
+      }
+    },
+    "daemon_runtime_event_artifact": {
+      "path_suffix": "observe-partial/daemon-runtime-events.jsonl",
+      "schema": "zig-scheduler/daemon-event/v1",
+      "event": "runtime_sample",
+      "required_fields": [
+        "schema",
+        "event",
+        "ops",
+        "host_mutation"
+      ],
+      "required_values": {
+        "host_mutation": false
+      }
+    },
+    "validator_boundaries": {
+      "kept_in_runtime_validators": [
+        "sample ordering before/during/after attach",
+        "counter growth and explicit counter fact validation",
+        "cgroup membership digest validation",
+        "daemon runtime_sample occurrence and zigsched_minimal occurrence checks"
+      ]
+    }
   }
 }

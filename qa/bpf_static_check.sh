@@ -57,7 +57,27 @@ grep -q 'scx_bpf_dsq_insert(p, ZIGSCHED_DSQ_FIFO, SCX_SLICE_DFL, enq_flags)' "$s
 grep -q 'scx_bpf_dsq_insert_vtime(p, ZIGSCHED_DSQ_VTIME, SCX_SLICE_DFL, 0, enq_flags)' "$source_file" || fail 'custom vtime DSQ insertion missing'
 grep -q 'ZIGSCHED_POLICY_MODE_FIFO' "$header_file" "$source_file" || fail 'FIFO policy mode missing'
 grep -q 'ZIGSCHED_POLICY_MODE_VTIME' "$header_file" || fail 'vtime policy mode missing'
+grep -q '#define ZIGSCHED_ABI_VERSION 3u' "$header_file" || fail 'ABI v3 define missing'
+grep -q 'select_cpu' "$header_file" || fail 'select_cpu ABI declaration missing from header'
+grep -q 'SEC("struct_ops/zigsched_minimal_select_cpu")' "$source_file" || fail 'select_cpu struct_ops section missing'
+grep -q 'scx_bpf_select_cpu_dfl(p, prev_cpu, wake_flags, &direct)' "$source_file" || fail 'select_cpu default helper call missing'
+grep -q 'ZIGSCHED_STAT_SELECT_CPU_CALLS' "$source_file" "$header_file" || fail 'select_cpu stats counter missing'
+grep -q 'ZIGSCHED_STAT_LOCAL_DIRECT_INSERTS' "$source_file" "$header_file" || fail 'local direct insert stats counter missing'
+grep -Fq '.select_cpu = (void *)zigsched_minimal_select_cpu' "$source_file" || fail 'select_cpu callback not wired into struct_ops'
 grep -q 'zigsched_policy_config' "$source_file" "$header_file" || fail 'policy config map missing'
+grep -q 'zigsched_cgroup_policy' "$source_file" "$header_file" || fail 'cgroup policy ABI map missing'
+grep -q 'ZIGSCHED_CGROUP_KNOB_WEIGHT_OBSERVED' "$source_file" "$header_file" || fail 'cgroup weight observed marker missing'
+grep -q 'ZIGSCHED_CGROUP_KNOB_CPU_MAX_DEFERRED' "$source_file" "$header_file" || fail 'cpu.max deferred marker missing'
+grep -q 'ZIGSCHED_CGROUP_KNOB_CPUSET_OBSERVED' "$source_file" "$header_file" || fail 'cpuset observed marker missing'
+grep -q 'ZIGSCHED_CGROUP_KNOB_PRESSURE_OBSERVED' "$source_file" "$header_file" || fail 'cpu.pressure observed marker missing'
+grep -q 'ZIGSCHED_CGROUP_KNOB_UCLAMP_DEFERRED' "$source_file" "$header_file" || fail 'uclamp deferred marker missing'
+grep -Fq '.cgroup_init = (void *)zigsched_minimal_cgroup_init' "$source_file" || fail 'cgroup_init callback not wired'
+grep -Fq '.cgroup_exit = (void *)zigsched_minimal_cgroup_exit' "$source_file" || fail 'cgroup_exit callback not wired'
+grep -Fq '.cgroup_prep_move = (void *)zigsched_minimal_cgroup_prep_move' "$source_file" || fail 'cgroup_prep_move callback not wired'
+grep -Fq '.cgroup_move = (void *)zigsched_minimal_cgroup_move' "$source_file" || fail 'cgroup_move callback not wired'
+grep -Fq '.cgroup_cancel_move = (void *)zigsched_minimal_cgroup_cancel_move' "$source_file" || fail 'cgroup_cancel_move callback not wired'
+grep -Fq '.cgroup_set_weight = (void *)zigsched_minimal_cgroup_set_weight' "$source_file" || fail 'cgroup_set_weight callback not wired'
+grep -q 'ZIGSCHED_STAT_CGROUP_WEIGHT_OBSERVED' "$source_file" "$header_file" || fail 'cgroup weight observed counter missing'
 grep -q 'SEC("struct_ops/' "$source_file" || fail 'struct_ops sections missing'
 
 if [ "$require_dispatch_consume" -eq 1 ]; then
@@ -149,6 +169,7 @@ require(tuple_info.get("target_arch") == "bpf", "tuple target_arch mismatch")
 require(tuple_info.get("target_define") == "__TARGET_ARCH_x86", "tuple target define mismatch")
 require(tuple_info.get("vm_required_for_attach") is True, "tuple must be VM-required for attach")
 require(tuple_info.get("vm_contract") == vm_contract, "tuple VM contract mismatch")
+require(tuple_info.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "tuple reference mismatch")
 for key in ("host_arch", "host_kernel_release"):
     require(bool(tuple_info.get(key)), f"tuple missing {key}")
 tools = meta.get("tool_versions") or {}
@@ -161,9 +182,15 @@ require(struct_ops.get("scheduler_name") == "zigsched_minimal", "struct_ops sche
 require(struct_ops.get("object_section") == ".struct_ops", "struct_ops section mismatch")
 require(struct_ops.get("expected_switch_mode") == "SCX_OPS_SWITCH_PARTIAL", "struct_ops switch mode mismatch")
 require("SCX_OPS_SWITCH_ALL" in set(struct_ops.get("prohibited_switch_modes") or []), "full-switch prohibition missing")
-require(set(struct_ops.get("expected_callbacks") or []) == {"init", "enqueue", "dispatch"}, "struct_ops callbacks mismatch")
+require(struct_ops.get("expected_callbacks") == ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"], "struct_ops callbacks mismatch")
+abi = meta.get("abi_contract") or {}
+require(abi.get("abi_version") == 3, "ABI metadata version mismatch")
+require(abi.get("abi_v3_accepted_callbacks") == ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"], "ABI-v3 accepted callbacks mismatch")
+require(abi.get("abi_v3_source_status") == "implemented", "ABI-v3 source status mismatch")
+require((abi.get("cgroup_knob_semantics") or {}).get("cpu.weight") == "callback-observed", "cgroup weight callback-observed semantics missing")
+require(abi.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "ABI tuple reference mismatch")
 sections = set(struct_ops.get("program_sections") or [])
-for section in ("struct_ops.s/zigsched_minimal_init", "struct_ops/zigsched_minimal_enqueue", "struct_ops/zigsched_minimal_dispatch"):
+for section in ("struct_ops/zigsched_minimal_select_cpu", "struct_ops.s/zigsched_minimal_init", "struct_ops/zigsched_minimal_cgroup_init", "struct_ops/zigsched_minimal_cgroup_exit", "struct_ops/zigsched_minimal_cgroup_prep_move", "struct_ops/zigsched_minimal_cgroup_move", "struct_ops/zigsched_minimal_cgroup_cancel_move", "struct_ops/zigsched_minimal_cgroup_set_weight", "struct_ops/zigsched_minimal_enqueue", "struct_ops/zigsched_minimal_dispatch"):
     require(section in sections, f"struct_ops program section missing {section}")
 PY
   python3 qa/bpf_metadata_repro_check.py || fail 'BPF metadata symlink reproducibility check failed'
@@ -216,7 +243,15 @@ require(skip.get("host_attach_allowed") is False, "skip host attach must be fals
 tuple_info = skip.get("tuple") or {}
 require(tuple_info.get("target_arch") == "bpf", "skip tuple target_arch mismatch")
 require(tuple_info.get("vm_required_for_attach") is True, "skip tuple VM gate missing")
+require(tuple_info.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "skip tuple reference mismatch")
+abi = skip.get("abi_contract") or {}
+require(abi.get("abi_version") == 3, "skip ABI metadata version mismatch")
+require(abi.get("abi_v3_accepted_callbacks") == ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"], "skip ABI-v3 accepted callbacks mismatch")
+require(abi.get("abi_v3_source_status") == "implemented", "skip ABI-v3 source status mismatch")
+require((abi.get("cgroup_knob_semantics") or {}).get("cpu.max") == "deferred", "skip cgroup knob semantics missing")
+require(abi.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "skip ABI tuple reference mismatch")
 struct_ops = skip.get("struct_ops") or {}
+require(struct_ops.get("expected_callbacks") == ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"], "skip struct_ops callbacks mismatch")
 require(struct_ops.get("expected_switch_mode") == "SCX_OPS_SWITCH_PARTIAL", "skip struct_ops switch mode mismatch")
 require("SCX_OPS_SWITCH_ALL" in set(struct_ops.get("prohibited_switch_modes") or []), "skip full-switch prohibition missing")
 PY

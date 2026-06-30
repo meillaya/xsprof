@@ -10,9 +10,10 @@ Policy contract:
   `SCX_OPS_SWITCH_PARTIAL` only. Full-switch flags are intentionally absent.
 - `init` creates one FIFO DSQ and one vtime DSQ. Failure is reported through event
   counters so verifier-only lab runs can explain init failures.
-- `select_cpu` delegates to `scx_bpf_select_cpu_dfl()`, direct-inserts to
-  `SCX_DSQ_LOCAL` when the kernel default selector says that is safe, and records
-  fallback events if the selected CPU is unusable.
+- `select_cpu` delegates CPU selection to `scx_bpf_select_cpu_dfl()`, records
+  callback attempts, increments the local-direct counter when the kernel helper
+  direct-inserts, and records fallback events when enqueue/dispatch remains in
+  the custom DSQ path.
 - `enqueue` inserts into either `ZIGSCHED_DSQ_FIFO` or `ZIGSCHED_DSQ_VTIME` based
   on the config map. The default zero config uses vtime mode.
 - `dispatch` consumes FIFO first, then vtime, with `scx_bpf_dsq_move_to_local()`.
@@ -51,15 +52,18 @@ For the production-backend VM scheduler milestone, the kernel policy remains C/c
 
 ## ABI compatibility freeze
 
-The current BPF ABI is frozen as v1 before any future policy counter or config expansion:
+The current BPF ABI is frozen as v3 for VM-only cgroup-aware policy metadata:
 
-- `ZIGSCHED_ABI_VERSION=1u`.
-- `zigsched_stats`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_STATS=8u` entries.
-- `zigsched_events`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_EVENTS=4u` entries.
-- `zigsched_policy_config`: single-entry array map keyed by `u32`, value `struct zigsched_policy_config` with `fifo_dsq`, `vtime_dsq`, `starvation_ns_max`, and `mode` as ordered `zigsched_u64` fields.
-- Project-used `struct_ops` fields remain `name`, `flags`, `init`, `enqueue`, and `dispatch`; expected callbacks remain `init`, `enqueue`, and `dispatch`; full-switch remains prohibited.
+- `ZIGSCHED_ABI_VERSION=3u`.
+- `zigsched_stats`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_STATS=13u` entries. New cgroup counters record init, exit, move, set-weight, and weight-observed callbacks.
+- `zigsched_events`: array map, `u32` key, `u64` value, `ZIGSCHED_MINIMAL_NR_EVENTS=6u` entries. New cgroup events record move observation and weight observation.
+- `zigsched_policy_config`: single-entry array map keyed by `u32`, value `struct zigsched_policy_config` with `fifo_dsq`, `vtime_dsq`, `starvation_ns_max`, `mode`, and `cgroup_knob_support` as ordered `zigsched_u64` fields.
+- `zigsched_cgroup_policy`: single-entry array map keyed by `u32`, value `struct zigsched_cgroup_policy` with `last_weight`, `weight_generation`, `move_generation`, `callback_observed_knobs`, `observed_knobs`, and `deferred_knobs`. It is VM-lab evidence metadata, not a host attach surface.
+- ABI v3 accepts the active callbacks `select_cpu`, `init`, `cgroup_init`, `cgroup_exit`, `cgroup_prep_move`, `cgroup_move`, `cgroup_cancel_move`, `cgroup_set_weight`, `enqueue`, and `dispatch`; metadata records `abi_contract.abi_v3_source_status=implemented`. `cgroup_set_bandwidth`, `cgroup_set_idle`, host attach/register, and full-switch remain unaccepted.
+- Cgroup knob semantics are exact: `cpu.weight` is **callback-observed** through scheduler-visible `cgroup_set_weight` callbacks and the `zigsched_cgroup_policy` metadata; `cpuset.cpus`, `cpuset.cpus.effective`, and `cpu.pressure` are **observed-only** through runtime/lab evidence and do not change placement; `cpu.max` and uclamp are **deferred/refused** for scheduler-owned behavior until executable VM evidence and a future ABI explicitly accept them.
+- Full-switch remains prohibited; metadata must keep `vm_only=true`, `host_mutation=false`, `host_attach_allowed=false`, `verification_claimed=false`, and the VM marker requirement. Live proof is VM-lab-only and pinned to the supported tuple reference in `docs/releases/supported-kernel-tuples.md`.
 
-`tools/bpf_metadata.sh` emits this contract in metadata under `abi_contract`, including header/source hashes, map layouts, enum names, and counter/event counts. `qa/bpf_abi_freeze_check.py` rejects stale metadata, object/source/header hash mismatches, malformed SKIP/object metadata, or any unversioned layout/count/config drift. A future v2 must bump `ZIGSCHED_ABI_VERSION`, update ADR 0004 and the checker fixtures, and keep host attach forbidden unless a separate approval explicitly changes that boundary.
+`tools/bpf_metadata.sh` emits this contract in metadata under `abi_contract`, including header/source hashes, map layouts, enum names, counter/event counts, v3 accepted callbacks, cgroup knob semantics, and the tuple reference. `qa/bpf_abi_freeze_check.py` rejects stale metadata, object/source/header hash mismatches, malformed SKIP/object metadata, unsafe VM-only flags, or any unversioned layout/count/config/source drift. A future ABI must bump `ZIGSCHED_ABI_VERSION`, update ADR 0004 and the checker fixtures, and keep host attach forbidden unless a separate approval explicitly changes that boundary.
 
 The freeze checker does not trust metadata alone for the source ABI. It re-reads
 `bpf/zigsched_minimal.bpf.c`, strips C comments, and derives the contract from the
@@ -74,7 +78,7 @@ source patterns this policy owns:
   `struct sched_ext_ops zigsched_minimal_ops SEC(".struct_ops")`.
 
 Adding a map, adding a BPF program section, or using a new project-owned
-`sched_ext_ops` field is therefore rejected under `ZIGSCHED_ABI_VERSION=1u` even
-when metadata and source hashes have been regenerated. That extraction is a
-documented source-contract parser for the minimal policy shape, not a general C
-parser or a host attach path.
+`sched_ext_ops` field beyond the ABI-v3 callback set is therefore rejected under
+`ZIGSCHED_ABI_VERSION=3u` even when metadata and source hashes have been
+regenerated. That extraction is a documented source-contract parser for the
+minimal policy shape, not a general C parser or a host attach path.

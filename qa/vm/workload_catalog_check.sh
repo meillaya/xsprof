@@ -46,13 +46,18 @@ allowed_spec_fields = {
     "required_tools",
     "threshold_source",
     "thresholds",
+    "benchmark_provenance",
     "vm_marker_required_for_live_run",
     "host_mutation",
     "release_eligible",
 }
+required_spec_fields = allowed_spec_fields - {"benchmark_provenance"}
 allowed_threshold_fields = {"source", "fixture_status", "calibration_status", "production_capacity_claim"}
+allowed_benchmark_provenance_fields = {"record_path", "record_sha256", "record_only"}
 private_needles = ("cmdline", "command_line", "argv", "environment", "env", "secret", "api_key", "token", "password", "authorization", "bearer")
 private_path = re.compile(r"(^|[\s=:])/(?:home|root|etc|proc|sys|var|tmp)/")
+sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+claim_text = re.compile(r"\b(?:production|release|performance)\s+(?:ready|eligible|approved|claim|slo|sla|guarantee|baseline|capacity)\b", re.IGNORECASE)
 
 def fail(message: str) -> None:
     raise SystemExit(f"FAIL workload catalog: {message}")
@@ -78,8 +83,46 @@ def reject_private(value, context: str) -> None:
             reject_private(child, f"{context}[{index}]")
     elif isinstance(value, str):
         lowered = value.lower()
-        if any(needle in lowered for needle in private_needles) or private_path.search(value):
+        if any(needle in lowered for needle in private_needles) or private_path.search(value) or claim_text.search(value):
             fail(f"privacy-unsafe text in {context}")
+
+def safe_relative_path(value, context: str) -> Path:
+    if not isinstance(value, str) or value == "":
+        fail(f"{context} must be a non-empty relative path")
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts or path.as_posix() != value:
+        fail(f"{context} must be a safe relative path")
+    return path
+
+def validate_benchmark_provenance(spec: dict, spec_path: Path, threshold_source: str) -> None:
+    provenance = spec.get("benchmark_provenance")
+    if threshold_source != "calibrated":
+        if provenance is not None:
+            fail(f"{spec_path} benchmark_provenance is only allowed for calibrated workloads")
+        return
+    if not isinstance(provenance, list) or not provenance:
+        fail(f"{spec_path} calibrated workloads must include benchmark_provenance")
+    for index, entry in enumerate(provenance):
+        context = f"{spec_path} benchmark_provenance[{index}]"
+        if not isinstance(entry, dict):
+            fail(f"{context} must be an object")
+        extra = sorted(set(entry) - allowed_benchmark_provenance_fields)
+        if extra:
+            fail(f"{context} has unexpected fields: {', '.join(extra)}")
+        missing = sorted(allowed_benchmark_provenance_fields - set(entry))
+        if missing:
+            fail(f"{context} missing fields: {', '.join(missing)}")
+        if entry.get("record_only") is not True:
+            fail(f"{context}.record_only must be true")
+        record_path = safe_relative_path(entry.get("record_path"), f"{context}.record_path")
+        record_sha256 = entry.get("record_sha256")
+        if not isinstance(record_sha256, str) or sha256_pattern.fullmatch(record_sha256) is None:
+            fail(f"{context}.record_sha256 must be lowercase sha256")
+        if not record_path.is_file():
+            fail(f"{context}.record_path missing referenced artifact")
+        digest = hashlib.sha256(record_path.read_bytes()).hexdigest()
+        if record_sha256 != digest:
+            fail(f"{context}.record_sha256 mismatch")
 
 for scenario, (workload_class, tools, threshold_source) in expected.items():
     spec_path = Path("fixtures/matrix-run/workload-specs") / f"{scenario}.json"
@@ -89,7 +132,7 @@ for scenario, (workload_class, tools, threshold_source) in expected.items():
     extra = sorted(set(spec) - allowed_spec_fields)
     if extra:
         fail(f"{spec_path} has unexpected fields: {', '.join(extra)}")
-    missing = sorted(allowed_spec_fields - set(spec))
+    missing = sorted(required_spec_fields - set(spec))
     if missing:
         fail(f"{spec_path} missing fields: {', '.join(missing)}")
     if spec.get("schema") != "zig-scheduler/workload-fixture/v1":
@@ -113,6 +156,7 @@ for scenario, (workload_class, tools, threshold_source) in expected.items():
         fail(f"{spec_path} thresholds fields mismatch")
     if thresholds.get("source") != threshold_source or thresholds.get("production_capacity_claim") is not False:
         fail(f"{spec_path} thresholds are unsafe")
+    validate_benchmark_provenance(spec, spec_path, threshold_source)
     row = load_object(row_path)
     workload = row.get("workload")
     if not isinstance(workload, dict):

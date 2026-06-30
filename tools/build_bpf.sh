@@ -16,6 +16,7 @@ mkdir -p "$out_dir"
 
 probe_c=""
 probe_o=""
+tmp_build_dir=""
 tmp_object=""
 tmp_meta=""
 cleanup_temps() {
@@ -24,6 +25,7 @@ cleanup_temps() {
     ${probe_o:+"$probe_o"} \
     ${tmp_object:+"$tmp_object"} \
     ${tmp_meta:+"$tmp_meta"}
+  [ -n "${tmp_build_dir:-}" ] && rm -rf -- "$tmp_build_dir"
 }
 trap cleanup_temps EXIT
 
@@ -57,8 +59,9 @@ if ! "$cc" -target bpf -O2 -c "$probe_c" -o "$probe_o" >"$log_file" 2>&1; then
   skip "clang cannot emit -target bpf objects; see $log_file"
 fi
 
-tmp_object="$(mktemp "$out_dir/.zigsched_minimal.bpf.o.XXXXXX")"
-tmp_meta="$(mktemp "$out_dir/.zigsched_minimal.bpf.meta.json.XXXXXX")"
+tmp_build_dir="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-bpf-build.XXXXXX")"
+tmp_object="$tmp_build_dir/zigsched_minimal.bpf.o"
+tmp_meta="$tmp_build_dir/zigsched_minimal.bpf.meta.json"
 
 if "$cc" -target bpf -D__TARGET_ARCH_x86 -O2 -g -Wall -Wextra \
   -ffile-prefix-map="$repo_root=." \

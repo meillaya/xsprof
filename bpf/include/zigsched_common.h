@@ -24,15 +24,20 @@ typedef _Bool bool;
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-#define ZIGSCHED_ABI_VERSION 1u
+#define ZIGSCHED_ABI_VERSION 3u
 #define ZIGSCHED_BUILD_PROBE_OK 0
-#define ZIGSCHED_MINIMAL_NR_STATS 8u
-#define ZIGSCHED_MINIMAL_NR_EVENTS 4u
+#define ZIGSCHED_MINIMAL_NR_STATS 13u
+#define ZIGSCHED_MINIMAL_NR_EVENTS 6u
 #define ZIGSCHED_DSQ_FIFO 0x5a195f1f0ULL
 #define ZIGSCHED_DSQ_VTIME 0x5a195f1f1ULL
 #define ZIGSCHED_STARVATION_NS_MAX 50000000ULL
 #define ZIGSCHED_POLICY_MODE_FIFO 1ULL
 #define ZIGSCHED_POLICY_MODE_VTIME 2ULL
+#define ZIGSCHED_CGROUP_KNOB_WEIGHT_OBSERVED 1ULL
+#define ZIGSCHED_CGROUP_KNOB_CPU_MAX_DEFERRED 2ULL
+#define ZIGSCHED_CGROUP_KNOB_CPUSET_OBSERVED 4ULL
+#define ZIGSCHED_CGROUP_KNOB_PRESSURE_OBSERVED 8ULL
+#define ZIGSCHED_CGROUP_KNOB_UCLAMP_DEFERRED 16ULL
 #define SCX_OPS_SWITCH_PARTIAL 8ULL
 #define SCX_DSQ_LOCAL 9223372036854775808ULL
 #define SCX_DSQ_GLOBAL 9223372036854775809ULL
@@ -67,6 +72,11 @@ enum zigsched_stat_index {
     ZIGSCHED_STAT_VTIME_INSERTS = 5,
     ZIGSCHED_STAT_FIFO_DISPATCHES = 6,
     ZIGSCHED_STAT_VTIME_DISPATCHES = 7,
+    ZIGSCHED_STAT_CGROUP_INIT_CALLS = 8,
+    ZIGSCHED_STAT_CGROUP_EXIT_CALLS = 9,
+    ZIGSCHED_STAT_CGROUP_MOVE_CALLS = 10,
+    ZIGSCHED_STAT_CGROUP_SET_WEIGHT_CALLS = 11,
+    ZIGSCHED_STAT_CGROUP_WEIGHT_OBSERVED = 12,
 };
 
 enum zigsched_event_index {
@@ -74,6 +84,8 @@ enum zigsched_event_index {
     ZIGSCHED_EVENT_DISPATCH_EMPTY = 1,
     ZIGSCHED_EVENT_INIT_FIFO_DSQ_FAILED = 2,
     ZIGSCHED_EVENT_INIT_VTIME_DSQ_FAILED = 3,
+    ZIGSCHED_EVENT_CGROUP_MOVE_OBSERVED = 4,
+    ZIGSCHED_EVENT_CGROUP_WEIGHT_OBSERVED = 5,
 };
 
 struct zigsched_build_probe_event {
@@ -91,6 +103,11 @@ struct zigsched_stats {
     zigsched_u64 vtime_inserts;
     zigsched_u64 fifo_dispatches;
     zigsched_u64 vtime_dispatches;
+    zigsched_u64 cgroup_init_calls;
+    zigsched_u64 cgroup_exit_calls;
+    zigsched_u64 cgroup_move_calls;
+    zigsched_u64 cgroup_set_weight_calls;
+    zigsched_u64 cgroup_weight_observed;
 };
 
 struct zigsched_policy_config {
@@ -98,6 +115,16 @@ struct zigsched_policy_config {
     zigsched_u64 vtime_dsq;
     zigsched_u64 starvation_ns_max;
     zigsched_u64 mode;
+    zigsched_u64 cgroup_knob_support;
+};
+
+struct zigsched_cgroup_policy {
+    zigsched_u64 last_weight;
+    zigsched_u64 weight_generation;
+    zigsched_u64 move_generation;
+    zigsched_u64 callback_observed_knobs;
+    zigsched_u64 observed_knobs;
+    zigsched_u64 deferred_knobs;
 };
 
 struct sched_ext_ops {

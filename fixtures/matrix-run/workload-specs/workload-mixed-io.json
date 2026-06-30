@@ -1,4 +1,11 @@
 {
+  "benchmark_provenance": [
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/fio-json.benchmark-output.json",
+      "record_sha256": "12977aa962470ec504f578b8e0bf1d3a00be35fa807caba8663d72c5d7764a20"
+    }
+  ],
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [

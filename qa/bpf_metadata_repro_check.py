@@ -7,15 +7,26 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from hashlib import sha256
-from json import loads
 from pathlib import Path
-from shutil import rmtree, which
+from shutil import which
 from subprocess import run
 from tempfile import TemporaryDirectory
+from typing import Protocol, TypeAlias
 import os
 import sys
+
+JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject: TypeAlias = dict[str, JsonValue]
+
+
+class JsonLoader(Protocol):
+    def loads(self, s: str) -> JsonValue: ...
+
+
+json_loader: JsonLoader = json
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILD_COMMAND = ("bash", "tools/build_bpf.sh")
@@ -44,7 +55,9 @@ def sha256_file(path: Path) -> str:
 
 
 def run_build(clang_path: Path) -> BuildResult:
-    rmtree(OBJECT_PATH.parent, ignore_errors=True)
+    OBJECT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    for path in (OBJECT_PATH, METADATA_PATH, SKIP_PATH):
+        path.unlink(missing_ok=True)
     env = os.environ.copy()
     env["CLANG"] = str(clang_path)
     completed = run(
@@ -64,7 +77,10 @@ def run_build(clang_path: Path) -> BuildResult:
             print("SKIP: clang cannot emit BPF objects; metadata repro check not run")
             raise SystemExit(0)
         raise BpfMetadataReproError(f"BPF build did not produce canonical outputs for {clang_path}")
-    metadata = loads(METADATA_PATH.read_text())
+    raw = json_loader.loads(METADATA_PATH.read_text())
+    if not isinstance(raw, dict):
+        raise BpfMetadataReproError("metadata root must be an object")
+    metadata: JsonObject = raw
     tool_versions = metadata.get("tool_versions")
     if not isinstance(tool_versions, dict):
         raise BpfMetadataReproError("metadata missing tool_versions object")
@@ -96,23 +112,19 @@ def main() -> int:
 
     if real.object_sha256 != alias_result.object_sha256:
         raise BpfMetadataReproError(
-            "BPF object hash changed across clang aliases: "
-            f"real={real.object_sha256} alias={alias_result.object_sha256}"
+            f"BPF object hash changed across clang aliases: real={real.object_sha256} alias={alias_result.object_sha256}"
         )
     if real.metadata_sha256 != alias_result.metadata_sha256:
         raise BpfMetadataReproError(
-            "BPF metadata hash changed across clang aliases: "
-            f"real={real.metadata_sha256} alias={alias_result.metadata_sha256}"
+            f"BPF metadata hash changed across clang aliases: real={real.metadata_sha256} alias={alias_result.metadata_sha256}"
         )
     if real.clang_path != alias_result.clang_path:
         raise BpfMetadataReproError(
-            "recorded clang_path changed across aliases: "
-            f"real={real.clang_path} alias={alias_result.clang_path}"
+            f"recorded clang_path changed across aliases: real={real.clang_path} alias={alias_result.clang_path}"
         )
     if real.clang_path != str(canonical):
         raise BpfMetadataReproError(
-            "recorded clang_path is not canonical: "
-            f"recorded={real.clang_path} canonical={canonical}"
+            f"recorded clang_path is not canonical: recorded={real.clang_path} canonical={canonical}"
         )
 
     print("PASS: BPF metadata stable across clang symlink aliases")

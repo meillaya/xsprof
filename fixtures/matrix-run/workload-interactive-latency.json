@@ -64,6 +64,6 @@
   "workload": {
     "name": "interactive-latency",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-interactive-latency.json",
-    "spec_sha256": "4c951593f16d402240ebc35797b549fbd6b697b4bcdd13945f447e8e4917bb9d"
+    "spec_sha256": "784868d3821d4bdbd680c7daa3bc3f0f52398b85259e995cf786ca52a19bc9f2"
   }
 }
