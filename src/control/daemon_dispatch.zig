@@ -149,7 +149,7 @@ fn dispatchLiveMicrovmAction(
     follow_flush: *FollowFlush,
     action: protocol.OperatorAction,
 ) !void {
-    if (action.action_id.len == 0 or action.rollback_id.len == 0) {
+    if (action.action_id.len == 0 or action.audit_id.len == 0 or action.rollback_id.len == 0) {
         try daemon_events.appendInvalidField(allocator, output, action, seq.*);
         seq.* += 1;
         return;

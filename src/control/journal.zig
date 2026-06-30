@@ -165,6 +165,8 @@ pub fn writeLabActive(writer: anytype, seq: usize, action: protocol.OperatorActi
     try format.writeJsonString(writer, action.action_id);
     try writer.writeAll(",\"target_id\":");
     try format.writeJsonString(writer, action.target_id);
+    try writer.writeAll(",\"audit_id\":");
+    try format.writeJsonString(writer, action.audit_id);
     try writer.writeAll(",\"rollback_id\":");
     try format.writeJsonString(writer, action.rollback_id);
     try writer.writeAll(",\"artifact\":");

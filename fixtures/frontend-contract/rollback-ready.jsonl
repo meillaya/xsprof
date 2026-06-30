@@ -1,1 +1,1 @@
-{"action": "run_lab_microvm_live", "action_id": "act-rb-ready", "event": "state_changed", "host_mutation": false, "rollback_id": "RB-ready", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "rollback_ready", "status": "ready"}
+{"action": "run_lab_microvm_live", "action_id": "act-rb-ready", "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "event": "state_changed", "host_mutation": false, "rollback_id": "RB-ready", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "rollback_ready", "status": "ready"}

@@ -1,0 +1,11 @@
+{
+  "host_mutation": false,
+  "no_bpf_load_attach": true,
+  "no_cgroup_write": true,
+  "no_proc_write": true,
+  "no_sys_write": true,
+  "reason": "host scheduler mutation refused; VM marker required",
+  "scenario_id": "fixture-pass",
+  "schema": "zig-scheduler/host-refusal-proof/v1",
+  "status": "REFUSE"
+}

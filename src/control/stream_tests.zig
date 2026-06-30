@@ -11,9 +11,12 @@ test "runtime stream accepts good samples and sanitizes private failures" {
     defer output.deinit(std.testing.allocator);
     var seq: usize = 1;
     try appendRuntimeLine(std.testing.allocator, &output, samples.goodSample(0), &seq, 0, "sha");
+    try appendRuntimeLine(std.testing.allocator, &output, samples.richSample(), &seq, 0, "sha");
     try appendRuntimeLine(std.testing.allocator, &output, "{malformed", &seq, 0, "sha");
     try appendRuntimeLine(std.testing.allocator, &output, samples.goodSampleWithPrivate(), &seq, 0, "sha");
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"runtime_sample\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"dsq_depth\":\"global=2 local=1 shared=0\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"benchmark_histograms\":\"refs=1\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "unsafe_to_assume") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "cmdline") == null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"env\"") == null);
@@ -50,6 +53,18 @@ test "runtime stream refuses missing policy ABI and invalid cgroup digests" {
     try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
 }
 
+test "runtime stream refuses digest quote injection before emission" {
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(std.testing.allocator);
+    var seq: usize = 1;
+    try appendRuntimeLine(std.testing.allocator, &output, samples.sampleWithDigestQuoteInjection(), &seq, 0, "sha");
+    try std.testing.expectEqual(@as(usize, 2), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"runtime_sample\"") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"host_mutation\":true") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"x\"") == null);
+}
+
 test "runtime stream emits ordered alerts after accepted samples" {
     var output: std.ArrayList(u8) = .empty;
     defer output.deinit(std.testing.allocator);
@@ -67,4 +82,30 @@ test "runtime stream emits ordered alerts after accepted samples" {
     try std.testing.expect(loss_sample < loss_incident);
     try std.testing.expect(dead_sample < dead_incident);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
+}
+
+test "runtime stream accepts ABI-v3 cgroup policy ABI and replay summary stays no-claim" {
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(std.testing.allocator);
+    var seq: usize = 1;
+    try appendRuntimeFile(std.testing.allocator, &output, samples.goodAbiV3PolicySample(), &seq, 0, "sha");
+    try std.testing.expectEqual(@as(usize, 2), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"runtime_sample\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "production_claim") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "release_eligible") == null);
+}
+
+test "runtime stream rejects bad ABI-v3 cgroup semantics and host claims" {
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(std.testing.allocator);
+    var seq: usize = 1;
+    try appendRuntimeLine(std.testing.allocator, &output, samples.sampleWithBadAbiV3CpuMax(), &seq, 0, "sha");
+    try appendRuntimeLine(std.testing.allocator, &output, samples.sampleWithAbiV3HostMutationClaim(), &seq, 0, "sha");
+    try std.testing.expectEqual(@as(usize, 3), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"runtime_sample\"") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":true") == null);
 }

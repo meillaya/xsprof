@@ -37,8 +37,8 @@ pub fn buildLabCommand(allocator: std.mem.Allocator, action: protocol.OperatorAc
     const run_id = if (action.run_id.len == 0) "manual" else action.run_id;
     try validateToken(run_id);
     try validateOptional(action.target_cgroup);
-    try validateOptional(action.audit_id);
-    try validateOptional(action.rollback_id);
+    try validateAuditIdForAction(action);
+    try validateRollbackIdForAction(action);
 
     return switch (action.kind) {
         .run_lab_host_safe => runAll(allocator, run_id),
@@ -89,8 +89,8 @@ fn verifierOnly(allocator: std.mem.Allocator, run_id: []const u8) CommandError!C
 
 fn partialAttach(allocator: std.mem.Allocator, action: protocol.OperatorAction, run_id: []const u8) CommandError!CommandPlan {
     const target = if (action.target_cgroup.len == 0) demo_target else action.target_cgroup;
-    const audit_id = if (action.audit_id.len == 0) "AUD-20990101T000000Z-deadbee-abc123" else action.audit_id;
-    const rollback_id = if (action.rollback_id.len == 0) "RB-demo" else action.rollback_id;
+    const audit_id = action.audit_id;
+    const rollback_id = action.rollback_id;
     var plan = try basePlan(allocator, "qa/vm/partial_attach.sh", "partial-attach", run_id, .refusal);
     inline for (.{ .{ "--target", target }, .{ "--audit-id", audit_id }, .{ "--rollback-id", rollback_id }, .{ "--out", plan.out_dir }, .{ "--object", object_path } }) |pair| {
         append(&plan, pair[0]);
@@ -149,6 +149,23 @@ fn append(plan: *CommandPlan, value: []const u8) void {
 
 fn validateOptional(value: []const u8) CommandError!void {
     if (value.len != 0) try validateText(value);
+}
+
+fn validateAuditIdForAction(action: protocol.OperatorAction) CommandError!void {
+    if (action.kind != .run_lab_microvm_live and action.kind != .partial_attach) {
+        try validateOptional(action.audit_id);
+        return;
+    }
+    if (!protocol.validAuditIdShape(action.audit_id)) return error.InvalidField;
+}
+
+fn validateRollbackIdForAction(action: protocol.OperatorAction) CommandError!void {
+    if (action.kind != .partial_attach) {
+        try validateOptional(action.rollback_id);
+        return;
+    }
+    if (action.rollback_id.len == 0) return error.InvalidField;
+    try validateOptional(action.rollback_id);
 }
 
 fn validateToken(value: []const u8) CommandError!void {

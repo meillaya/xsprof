@@ -1,7 +1,7 @@
 const std = @import("std");
 const protocol = @import("protocol.zig");
 
-pub const DaemonError = error{ InvalidArgs, InvalidStateDir, InvalidSocketPath, JournalLimitExceeded, OutOfMemory } || std.Io.Writer.Error;
+pub const DaemonError = error{ InvalidArgs, InvalidStateDir, InvalidSocketPath, UnsafeStateDir, JournalLimitExceeded, OutOfMemory } || std.Io.Writer.Error;
 
 pub const max_events_per_run: usize = 128;
 pub const max_journal_bytes: usize = 64 * 1024;
@@ -110,6 +110,25 @@ pub fn validateSocketPath(state_dir: []const u8, socket_path: []const u8) Daemon
     if (socket_path[state_dir.len] != '/') return error.InvalidSocketPath;
 }
 
+pub fn validateStateDirPermissions(stat: std.Io.Dir.Stat) DaemonError!void {
+    if (stat.kind != .directory) return error.InvalidStateDir;
+    if (stat.permissions.toMode() & 0o022 != 0) return error.UnsafeStateDir;
+}
+
+fn testStat(mode: std.posix.mode_t, kind: std.Io.File.Kind) std.Io.Dir.Stat {
+    return .{
+        .inode = 1,
+        .nlink = 1,
+        .size = 0,
+        .permissions = .fromMode(mode),
+        .kind = kind,
+        .atime = null,
+        .mtime = .zero,
+        .ctime = .zero,
+        .block_size = 1,
+    };
+}
+
 pub fn ensureCanWriteEvent(current_bytes: usize, next_event: []const u8) DaemonError!void {
     if (next_event.len > max_journal_bytes) return error.JournalLimitExceeded;
     if (current_bytes > max_journal_bytes - next_event.len) return error.JournalLimitExceeded;
@@ -167,6 +186,15 @@ test "daemon args require foreground state dir and reject path traversal" {
     try std.testing.expectError(error.InvalidArgs, parseArgs(&.{ "--state-dir", ".omo/evidence/task-T08-state" }));
     try std.testing.expectError(error.InvalidSocketPath, parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/state", "--socket", ".zig-cache/tmp/daemon.sock" }));
     try std.testing.expectError(error.InvalidStateDir, parseArgs(&.{ "--foreground", "--state-dir", "../bad" }));
+    try std.testing.expectError(error.InvalidSocketPath, parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/state", "--socket", ".zig-cache/tmp/state2/daemon.sock" }));
+}
+
+test "daemon state dir permissions reject group or world writable modes" {
+    try validateStateDirPermissions(testStat(0o700, .directory));
+    try validateStateDirPermissions(testStat(0o755, .directory));
+    try std.testing.expectError(error.UnsafeStateDir, validateStateDirPermissions(testStat(0o770, .directory)));
+    try std.testing.expectError(error.UnsafeStateDir, validateStateDirPermissions(testStat(0o707, .directory)));
+    try std.testing.expectError(error.InvalidStateDir, validateStateDirPermissions(testStat(0o700, .file)));
 }
 
 test "daemon foreground action emits read only events and malformed refusals" {

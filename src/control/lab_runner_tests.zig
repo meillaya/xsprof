@@ -12,6 +12,7 @@ test "live microvm start events publish active rollback target before runner blo
         .action_id = "live-active",
         .run_id = "live-active",
         .target_id = "target-live-active",
+        .audit_id = "AUD-20990101T000000Z-deadbee-abc123",
         .rollback_id = "RB-live-active",
     }, &seq);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"event\":\"lab_run_active\"") != null);

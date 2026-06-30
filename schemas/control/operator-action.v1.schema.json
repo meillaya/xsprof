@@ -4,9 +4,13 @@
   "title": "zig-scheduler operator action v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["action"],
+  "required": [
+    "action"
+  ],
   "properties": {
-    "schema": { "const": "zig-scheduler/operator-action/v1" },
+    "schema": {
+      "const": "zig-scheduler/operator-action/v1"
+    },
     "action": {
       "type": "string",
       "enum": [
@@ -24,13 +28,83 @@
         "incident_drill"
       ]
     },
-    "action_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
-    "run_id": { "type": "string", "maxLength": 96 },
-    "target_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
-    "target_cgroup": { "type": "string", "maxLength": 256 },
-    "audit_id": { "type": "string", "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$" },
-    "rollback_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" },
-    "target_action_id": { "type": "string", "maxLength": 96, "pattern": "^[A-Za-z0-9_.-]*$" }
+    "action_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "run_id": {
+      "type": "string",
+      "maxLength": 96
+    },
+    "target_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "target_cgroup": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "audit_id": {
+      "type": "string",
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{7,12}-[0-9a-f]{6}$"
+    },
+    "rollback_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    },
+    "target_action_id": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]*$"
+    }
   },
-  "forbiddenProperties": ["command", "shell", "argv", "host_mutation"]
+  "forbiddenProperties": [
+    "command",
+    "shell",
+    "argv",
+    "host_mutation"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "run_lab_microvm_live"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "action_id",
+          "target_id",
+          "audit_id",
+          "rollback_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "partial_attach"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "audit_id",
+          "rollback_id"
+        ]
+      }
+    }
+  ]
 }

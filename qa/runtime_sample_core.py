@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol, TypeAlias
 
+from qa.runtime_sample_digest import is_digest_summary
+from qa.runtime_sample_fixtures import good_sample as good_sample
+from qa.runtime_sample_policy_abi import PolicyAbiError, validate_policy_abi_contract
+
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 
@@ -23,6 +27,10 @@ FORBIDDEN_TEXT: Final[tuple[str, ...]] = ("--token", "api_key=", "AWS_SECRET", "
 FACT_STATUSES: Final[frozenset[str]] = frozenset({"present", "missing", "unreadable", "unknown"})
 SCHED_STATES: Final[frozenset[str]] = frozenset({"disabled", "enabled", "enabling", "disabling", "unknown", "unavailable"})
 COUNTERS: Final[tuple[str, ...]] = ("nr_rejected", "dispatch_failed", "fallback", "fatal")
+DSQ_DEPTH_FIELDS: Final[tuple[str, ...]] = ("global", "local", "shared")
+LATENCY_FIELDS: Final[tuple[str, ...]] = ("p50_us", "p95_us", "p99_us", "max_us")
+SCHEDULER_COUNTER_FIELDS: Final[tuple[str, ...]] = ("context_switches", "wakeups", "migrations")
+FAIRNESS_STATES: Final[frozenset[str]] = frozenset({"ok", "watch", "starved", "unknown"})
 SHA256_ZERO: Final[str] = "0" * 64
 
 
@@ -114,12 +122,11 @@ def validate_sched_ext_facts(row: JsonObject, context: str) -> None:
     _ = validate_fact(row, "nr_rejected", context)
     debug_dump = validate_fact(row, "debug_dump", context)
     debug_value = str(debug_dump["value"])
-    if debug_dump["status"] == "present" and not (debug_value.startswith("sha256:") and ";bytes:" in debug_value):
+    if debug_dump["status"] == "present" and not is_digest_summary(debug_value):
         raise RuntimeSampleError(f"{context}.debug_dump must be a redacted digest summary")
     for field in ("root_ops", "scheduler_events"):
         if field in row:
             _ = validate_fact(row, field, context)
-
 
 def validate_nonnegative_fields(data: JsonObject, fields: tuple[str, ...], context: str) -> None:
     for field in fields:
@@ -134,13 +141,72 @@ def validate_optional_counter_sets(row: JsonObject, context: str) -> None:
     loss = optional_object(row, "sample_loss", context)
     if loss is not None:
         validate_nonnegative_fields(loss, ("lost_samples", "backpressure_dropped"), f"{context}.sample_loss")
+        for field in ("ring_buffer_overruns", "reader_lag_events"):
+            if field in loss and require_int(loss, field, f"{context}.sample_loss") < 0:
+                raise RuntimeSampleError(f"{context}.sample_loss.{field} must be nonnegative")
+
+
+def validate_counter_map(data: JsonObject, context: str) -> None:
+    if not data:
+        raise RuntimeSampleError(f"{context} must not be empty")
+    for key, value in data.items():
+        if key.startswith("/") or ".." in key or key == "":
+            raise RuntimeSampleError(f"{context}.{key} is not a stable redacted key")
+        reject_private_leaks(key, f"{context}.{key}")
+        if not isinstance(value, int) or value < 0:
+            raise RuntimeSampleError(f"{context}.{key} must be a nonnegative integer")
+
+
+def validate_benchmark_refs(row: JsonObject, context: str) -> None:
+    refs = row.get("benchmark_histograms")
+    if refs is None:
+        return
+    if not isinstance(refs, list):
+        raise RuntimeSampleError(f"{context}.benchmark_histograms must be a list")
+    for index, item in enumerate(refs):
+        if not isinstance(item, dict):
+            raise RuntimeSampleError(f"{context}.benchmark_histograms[{index}] must be an object")
+        ref_context = f"{context}.benchmark_histograms[{index}]"
+        path = require_string(item, "record_path", ref_context)
+        if path.startswith("/") or ".." in Path(path).parts:
+            raise RuntimeSampleError(f"{ref_context}.record_path must be repo-relative")
+        validate_digest(require_string(item, "record_sha256", ref_context), f"{ref_context}.record_sha256")
+        _ = require_string(item, "histogram_id", ref_context)
+        if require_bool(item, "record_only", ref_context) is not True:
+            raise RuntimeSampleError(f"{ref_context}.record_only must be true")
+
+
+def validate_scheduler_telemetry(row: JsonObject, context: str) -> None:
+    for field, fields in (("dsq_depth", DSQ_DEPTH_FIELDS), ("queue_latency", LATENCY_FIELDS), ("scheduler_counters", SCHEDULER_COUNTER_FIELDS)):
+        counters = optional_object(row, field, context)
+        if counters is not None:
+            validate_nonnegative_fields(counters, fields, f"{context}.{field}")
+    fairness = optional_object(row, "fairness", context)
+    if fairness is not None:
+        state = require_string(fairness, "state", f"{context}.fairness")
+        if state not in FAIRNESS_STATES:
+            raise RuntimeSampleError(f"{context}.fairness.state has unsupported value")
+        validate_nonnegative_fields(fairness, ("starved_tasks", "max_wait_us"), f"{context}.fairness")
+    task_counts = optional_object(row, "task_counts", context)
+    if task_counts is not None:
+        validate_counter_map(require_object(task_counts, "by_cgroup_digest", f"{context}.task_counts"), f"{context}.task_counts.by_cgroup_digest")
+        validate_counter_map(require_object(task_counts, "by_class", f"{context}.task_counts"), f"{context}.task_counts.by_class")
+    sched_ext = optional_object(row, "sched_ext_observation", context)
+    if sched_ext is not None:
+        dump = validate_fact(sched_ext, "dump", f"{context}.sched_ext_observation")
+        if dump["status"] == "present" and not is_digest_summary(str(dump["value"])):
+            raise RuntimeSampleError(f"{context}.sched_ext_observation.dump must be a redacted digest summary")
+        tracepoints = require_object(sched_ext, "tracepoints", f"{context}.sched_ext_observation")
+        validate_counter_map(tracepoints, f"{context}.sched_ext_observation.tracepoints")
+    validate_benchmark_refs(row, context)
 
 
 def validate_policy_abi(row: JsonObject, context: str) -> None:
     abi = require_object(row, "policy_abi", context)
-    for field in ("policy_name", "policy_version", "struct_ops", "object_sha256"):
-        _ = require_string(abi, field, f"{context}.policy_abi")
-    _ = require_bool(abi, "btf_required", f"{context}.policy_abi")
+    try:
+        validate_policy_abi_contract(abi, f"{context}.policy_abi")
+    except PolicyAbiError as exc:
+        raise RuntimeSampleError(str(exc)) from exc
     reject_private_leaks(abi, f"{context}.policy_abi")
 
 
@@ -184,6 +250,7 @@ def validate_sample(row: JsonObject, index: int) -> None:
     if require_bool(row, "private_command_lines_sampled", context):
         raise RuntimeSampleError(f"{context} sampled private command lines")
     validate_optional_counter_sets(row, context)
+    validate_scheduler_telemetry(row, context)
     validate_policy_abi(row, context)
 
 
@@ -191,31 +258,6 @@ def validate_file(path: Path) -> None:
     for index, row in enumerate(load_jsonl(path)):
         validate_sample(row, index)
 
-
-def good_sample() -> JsonObject:
-    digest = "a" * 64
-    policy_abi: JsonObject = {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_minimal_v1", "struct_ops": "zigsched_minimal_ops", "object_sha256": "unavailable", "btf_required": True}
-    return {
-        "schema": SAMPLE_SCHEMA,
-        "sequence": 0,
-        "state": {"status": "present", "value": "enabled"},
-        "ops": {"status": "present", "value": "zigsched_minimal"},
-        "enable_seq": {"status": "present", "value": "42"},
-        "events": {"status": "present", "value": "nr_rejected: 0"},
-        "events_hash": "ab12",
-        "nr_rejected": {"status": "present", "value": "0"},
-        "debug_dump": {"status": "missing", "value": ""},
-        "root_ops": {"status": "present", "value": "zigsched_minimal"},
-        "scheduler_events": {"status": "present", "value": "nr_rejected: 0"},
-        "policy_counters": {"nr_rejected": 0, "dispatch_failed": 0, "fallback": 0, "fatal": 0},
-        "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
-        "policy_abi": policy_abi,
-        "cgroup_membership_digest": digest,
-        "cgroup_membership_status": {"status": "present", "value": "present"},
-        "workload": {"status": "present", "value": "alive"},
-        "workload_alive": True,
-        "private_command_lines_sampled": False,
-    }
 
 
 def validate_alert_order(rows: list[JsonObject], label: str) -> None:

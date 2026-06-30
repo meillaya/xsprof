@@ -24,6 +24,32 @@ const PolicyCounters = struct {
 const SampleLoss = struct {
     lost_samples: u64,
     backpressure_dropped: u64,
+    ring_buffer_overruns: ?u64 = null,
+    reader_lag_events: ?u64 = null,
+};
+
+const DsqDepth = struct { global: u64, local: u64, shared: u64 };
+const QueueLatency = struct { p50_us: u64, p95_us: u64, p99_us: u64, max_us: u64 };
+const Fairness = struct { state: []const u8, starved_tasks: u64, max_wait_us: u64 };
+const CounterMap = std.json.ArrayHashMap(u64);
+const TaskCounts = struct { by_cgroup_digest: CounterMap, by_class: CounterMap };
+const SchedulerCounters = struct { context_switches: u64, wakeups: u64, migrations: u64 };
+const SchedExtObservation = struct { dump: Fact, tracepoints: CounterMap };
+const BenchmarkHistogram = struct { record_path: []const u8, record_sha256: []const u8, histogram_id: []const u8, record_only: bool };
+
+const abi_v3_policy_version = "sched_ext_cgroup_abi_v3";
+const abi_v3_label = "zigsched-bpf-abi-v3";
+
+const CgroupSemantics = struct {
+    @"cpu.weight": []const u8,
+    @"cgroup.lifecycle": []const u8,
+    @"cgroup.move": []const u8,
+    @"cpuset.cpus": []const u8,
+    @"cpuset.cpus.effective": []const u8,
+    @"cpu.pressure": []const u8,
+    @"cpu.max": []const u8,
+    uclamp: []const u8,
+    cgroup_set_idle: []const u8,
 };
 
 const PolicyAbi = struct {
@@ -32,6 +58,13 @@ const PolicyAbi = struct {
     struct_ops: []const u8,
     object_sha256: []const u8,
     btf_required: bool,
+    abi_version: ?u64 = null,
+    abi_label: ?[]const u8 = null,
+    cgroup_semantics: ?CgroupSemantics = null,
+    vm_only: ?bool = null,
+    host_mutation: ?bool = null,
+    production_claim: ?bool = null,
+    release_eligible: ?bool = null,
 };
 
 const RawSample = struct {
@@ -51,6 +84,13 @@ const RawSample = struct {
     scheduler_events: ?Fact = null,
     policy_counters: ?PolicyCounters = null,
     sample_loss: ?SampleLoss = null,
+    dsq_depth: ?DsqDepth = null,
+    queue_latency: ?QueueLatency = null,
+    fairness: ?Fairness = null,
+    task_counts: ?TaskCounts = null,
+    scheduler_counters: ?SchedulerCounters = null,
+    sched_ext_observation: ?SchedExtObservation = null,
+    benchmark_histograms: ?[]const BenchmarkHistogram = null,
     policy_abi: PolicyAbi,
     cgroup_membership_digest: []const u8,
     cgroup_membership_status: ?Fact = null,
@@ -146,15 +186,70 @@ fn parseSample(allocator: std.mem.Allocator, line: []const u8) StreamError!std.j
     try requireSafeFact(raw.nr_rejected);
     try requireSafeFact(raw.debug_dump);
     if (!std.mem.eql(u8, raw.debug_dump.status, "missing") and !std.mem.eql(u8, raw.debug_dump.status, "unknown")) {
-        if (!std.mem.startsWith(u8, raw.debug_dump.value, "sha256:") or std.mem.indexOf(u8, raw.debug_dump.value, ";bytes:") == null) return error.InvalidRuntimeSample;
+        if (!isDigestSummary(raw.debug_dump.value)) return error.InvalidRuntimeSample;
     }
     if (raw.root_ops) |fact| try requireSafeFact(fact);
     if (raw.scheduler_events) |fact| try requireSafeFact(fact);
     if (raw.cgroup_membership_status) |fact| try requireSafeFact(fact);
     if (raw.workload) |fact| try requireSafeFact(fact);
+    try requireSchedulerTelemetry(raw);
     try requireSafePolicyAbi(raw.policy_abi);
     try requireSha256Digest(raw.cgroup_membership_digest);
     return parsed;
+}
+
+fn requireSchedulerTelemetry(raw: RawSample) StreamError!void {
+    if (raw.fairness) |fairness| {
+        if (!std.mem.eql(u8, fairness.state, "ok") and !std.mem.eql(u8, fairness.state, "watch") and !std.mem.eql(u8, fairness.state, "starved") and !std.mem.eql(u8, fairness.state, "unknown")) return error.InvalidRuntimeSample;
+    }
+    if (raw.task_counts) |counts| {
+        try requireSafeCounterMap(counts.by_cgroup_digest);
+        try requireSafeCounterMap(counts.by_class);
+    }
+    if (raw.sched_ext_observation) |observation| {
+        try requireSafeFact(observation.dump);
+        if (std.mem.eql(u8, observation.dump.status, "present") and !isDigestSummary(observation.dump.value)) return error.InvalidRuntimeSample;
+        try requireSafeCounterMap(observation.tracepoints);
+    }
+    if (raw.benchmark_histograms) |refs| {
+        for (refs) |ref| {
+            try requireSafeRelativePath(ref.record_path);
+            try requireSha256Digest(ref.record_sha256);
+            try requireSafeText(ref.histogram_id);
+            if (!ref.record_only) return error.InvalidRuntimeSample;
+        }
+    }
+}
+
+fn isDigestSummary(value: []const u8) bool {
+    const digest_prefix = "sha256:";
+    const bytes_prefix = ";bytes:";
+    const digest_start = digest_prefix.len;
+    const digest_end = digest_start + sha256_hex_len;
+    if (value.len <= digest_end + bytes_prefix.len) return false;
+    if (!std.mem.startsWith(u8, value, digest_prefix)) return false;
+    if (!std.mem.eql(u8, value[digest_end .. digest_end + bytes_prefix.len], bytes_prefix)) return false;
+    for (value[digest_start..digest_end]) |byte| {
+        if (!std.ascii.isDigit(byte) and (byte < 'a' or byte > 'f')) return false;
+    }
+    for (value[digest_end + bytes_prefix.len ..]) |byte| {
+        if (!std.ascii.isDigit(byte)) return false;
+    }
+    return true;
+}
+
+fn requireSafeCounterMap(map: CounterMap) StreamError!void {
+    if (map.map.count() == 0) return error.InvalidRuntimeSample;
+    var it = map.map.iterator();
+    while (it.next()) |entry| {
+        if (entry.key_ptr.*.len == 0 or std.mem.startsWith(u8, entry.key_ptr.*, "/") or std.mem.indexOf(u8, entry.key_ptr.*, "..") != null) return error.InvalidRuntimeSample;
+        try requireSafeText(entry.key_ptr.*);
+    }
+}
+
+fn requireSafeRelativePath(path: []const u8) StreamError!void {
+    if (path.len == 0 or std.mem.startsWith(u8, path, "/") or std.mem.indexOf(u8, path, "..") != null) return error.InvalidRuntimeSample;
+    try requireSafeText(path);
 }
 
 fn requireSafePolicyAbi(abi: PolicyAbi) StreamError!void {
@@ -163,6 +258,41 @@ fn requireSafePolicyAbi(abi: PolicyAbi) StreamError!void {
     try requireSafeText(abi.struct_ops);
     try requireSafeText(abi.object_sha256);
     if (abi.policy_name.len == 0 or abi.policy_version.len == 0 or abi.struct_ops.len == 0 or abi.object_sha256.len == 0) return error.InvalidRuntimeSample;
+
+    const has_v3_field = abi.abi_version != null or
+        abi.abi_label != null or
+        abi.cgroup_semantics != null or
+        abi.vm_only != null or
+        abi.host_mutation != null or
+        abi.production_claim != null or
+        abi.release_eligible != null;
+    if (!has_v3_field) return;
+    try requireAbiV3PolicyAbi(abi);
+}
+
+fn requireAbiV3PolicyAbi(abi: PolicyAbi) StreamError!void {
+    if (!std.mem.eql(u8, abi.policy_version, abi_v3_policy_version)) return error.InvalidRuntimeSample;
+    if ((abi.abi_version orelse return error.InvalidRuntimeSample) != 3) return error.InvalidRuntimeSample;
+    const label = abi.abi_label orelse return error.InvalidRuntimeSample;
+    try requireSafeText(label);
+    if (!std.mem.eql(u8, label, abi_v3_label)) return error.InvalidRuntimeSample;
+    if ((abi.vm_only orelse return error.InvalidRuntimeSample) != true) return error.InvalidRuntimeSample;
+    if ((abi.host_mutation orelse return error.InvalidRuntimeSample) != false) return error.InvalidRuntimeSample;
+    if ((abi.production_claim orelse return error.InvalidRuntimeSample) != false) return error.InvalidRuntimeSample;
+    if ((abi.release_eligible orelse return error.InvalidRuntimeSample) != false) return error.InvalidRuntimeSample;
+    try requireCgroupSemantics(abi.cgroup_semantics orelse return error.InvalidRuntimeSample);
+}
+
+fn requireCgroupSemantics(semantics: CgroupSemantics) StreamError!void {
+    if (!std.mem.eql(u8, semantics.@"cpu.weight", "callback-observed")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cgroup.lifecycle", "observed")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cgroup.move", "observed")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cpuset.cpus", "observed-only")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cpuset.cpus.effective", "observed-only")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cpu.pressure", "observed-only")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.@"cpu.max", "deferred")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.uclamp, "deferred")) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, semantics.cgroup_set_idle, "refused")) return error.InvalidRuntimeSample;
 }
 
 fn requireSha256Digest(value: []const u8) StreamError!void {
@@ -207,7 +337,8 @@ fn sampleHasRejectedDispatches(sample: RawSample) bool {
 
 fn sampleHasLoss(sample: RawSample) bool {
     if (sample.sample_loss) |loss| {
-        return loss.lost_samples != 0 or loss.backpressure_dropped != 0;
+        return loss.lost_samples != 0 or loss.backpressure_dropped != 0 or
+            (loss.ring_buffer_overruns orelse 0) != 0 or (loss.reader_lag_events orelse 0) != 0;
     }
     return false;
 }
@@ -231,10 +362,35 @@ fn appendSample(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: u
     try writeJsonString(&writer.writer, sample.nr_rejected.value);
     try writer.writer.writeAll(",\"cgroup_membership_digest\":");
     try writeJsonString(&writer.writer, sample.cgroup_membership_digest);
+    try appendRichTelemetry(&writer.writer, sample);
     try writer.writer.print(",\"workload_alive\":{},\"host_mutation\":false}}\n", .{sample.workload_alive});
     event = writer.toArrayList();
     try daemon.ensureCanWriteEvent(output.items.len, event.items);
     try output.appendSlice(allocator, event.items);
+}
+
+fn appendRichTelemetry(writer: anytype, sample: RawSample) !void {
+    if (sample.sample_loss) |loss| {
+        try writer.print(",\"sample_loss\":\"lost={d} backpressure={d}", .{ loss.lost_samples, loss.backpressure_dropped });
+        if (loss.ring_buffer_overruns) |value| try writer.print(" ring_buffer_overruns={d}", .{value});
+        if (loss.reader_lag_events) |value| try writer.print(" reader_lag_events={d}", .{value});
+        try writer.writeByte('"');
+    }
+    if (sample.dsq_depth) |depth| try writer.print(",\"dsq_depth\":\"global={d} local={d} shared={d}\"", .{ depth.global, depth.local, depth.shared });
+    if (sample.queue_latency) |latency| try writer.print(",\"queue_latency\":\"p50_us={d} p95_us={d} p99_us={d} max_us={d}\"", .{ latency.p50_us, latency.p95_us, latency.p99_us, latency.max_us });
+    if (sample.fairness) |fairness| {
+        try writer.writeAll(",\"fairness\":\"state=");
+        try writeJsonStringContent(writer, fairness.state);
+        try writer.print(" starved_tasks={d} max_wait_us={d}\"", .{ fairness.starved_tasks, fairness.max_wait_us });
+    }
+    if (sample.task_counts) |counts| try writer.print(",\"task_counts\":\"cgroup_digests={d} classes={d}\"", .{ counts.by_cgroup_digest.map.count(), counts.by_class.map.count() });
+    if (sample.scheduler_counters) |counters| try writer.print(",\"scheduler_counters\":\"context_switches={d} wakeups={d} migrations={d}\"", .{ counters.context_switches, counters.wakeups, counters.migrations });
+    if (sample.sched_ext_observation) |observation| {
+        try writer.writeAll(",\"sched_ext_observation\":\"dump=");
+        try writeJsonStringContent(writer, observation.dump.value);
+        try writer.print(" tracepoints={d}\"", .{observation.tracepoints.map.count()});
+    }
+    if (sample.benchmark_histograms) |refs| try writer.print(",\"benchmark_histograms\":\"refs={d}\"", .{refs.len});
 }
 
 fn appendIncident(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: usize, reason: []const u8) !void {
@@ -256,6 +412,11 @@ fn appendDropped(allocator: std.mem.Allocator, output: *std.ArrayList(u8), seq: 
 
 fn writeJsonString(writer: anytype, value: []const u8) !void {
     try writer.writeByte('"');
+    try writeJsonStringContent(writer, value);
+    try writer.writeByte('"');
+}
+
+fn writeJsonStringContent(writer: anytype, value: []const u8) !void {
     for (value) |byte| switch (byte) {
         '"' => try writer.writeAll("\\\""),
         '\\' => try writer.writeAll("\\\\"),
@@ -264,7 +425,6 @@ fn writeJsonString(writer: anytype, value: []const u8) !void {
         '\t' => try writer.writeAll("\\t"),
         else => if (byte < 0x20) try writer.print("\\u{x:0>4}", .{byte}) else try writer.writeByte(byte),
     };
-    try writer.writeByte('"');
 }
 
 test "runtime stream behavior tests are linked" {

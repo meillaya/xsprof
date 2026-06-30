@@ -186,8 +186,11 @@ pub fn parseActionJson(allocator: std.mem.Allocator, source: []const u8) Protoco
     try validateOptionalTargetCgroup(raw.target_cgroup);
     if (raw.audit_id) |audit_id| {
         if (!validAuditIdShape(audit_id)) return error.InvalidField;
+    } else if (actionRequiresAuditId(kind)) {
+        return error.InvalidField;
     }
     try validateOptionalIdentifier(raw.rollback_id orelse "");
+    if (kind == .partial_attach and raw.rollback_id == null) return error.InvalidField;
     try validateOptionalIdentifier(raw.target_action_id orelse "");
 
     return .{ .arena = parsed, .value = .{
@@ -255,7 +258,11 @@ fn validateSafeText(raw: []const u8) ProtocolError!void {
     }
 }
 
-fn validAuditIdShape(id: []const u8) bool {
+fn actionRequiresAuditId(kind: ActionKind) bool {
+    return kind == .run_lab_microvm_live or kind == .partial_attach;
+}
+
+pub fn validAuditIdShape(id: []const u8) bool {
     if (id.len < "AUD-YYYYMMDDTHHMMSSZ-a-000000".len or !std.mem.startsWith(u8, id, "AUD-")) return false;
     if (id.len <= 21 or id[20] != '-') return false;
     const timestamp = id[4..20];

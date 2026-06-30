@@ -67,7 +67,7 @@
     },
     "audit_id": {
       "type": "string",
-      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{7,12}-[0-9a-f]{6}$"
     },
     "rollback_id": {
       "type": "string",
@@ -143,6 +143,31 @@
       "enum": [
         "runner_stream"
       ]
+    },
+    "sample_loss": {
+      "type": "string"
+    },
+    "dsq_depth": {
+      "type": "string"
+    },
+    "queue_latency": {
+      "type": "string"
+    },
+    "fairness": {
+      "type": "string"
+    },
+    "task_counts": {
+      "type": "string"
+    },
+    "scheduler_counters": {
+      "type": "string"
+    },
+    "sched_ext_observation": {
+      "type": "string",
+      "pattern": "^dump=sha256:[0-9a-f]{64};bytes:[0-9]+ tracepoints=[0-9]+$"
+    },
+    "benchmark_histograms": {
+      "type": "string"
     }
   }
 }

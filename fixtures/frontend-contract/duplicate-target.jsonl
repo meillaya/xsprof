@@ -1,1 +1,1 @@
-{"action": "run_lab_microvm_live", "event": "refusal", "host_mutation": false, "reason": "duplicate_target", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "refused_host", "status": "refused", "target_id": "target-dup"}
+{"action": "run_lab_microvm_live", "event": "refusal", "host_mutation": false, "reason": "duplicate_target", "schema": "zig-scheduler/daemon-event/v1", "seq": 1, "state": "refused_host", "status": "refused", "target_id": "target-dup", "audit_id": "AUD-20990101T000000Z-deadbee-abc123"}

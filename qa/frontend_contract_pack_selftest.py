@@ -90,10 +90,30 @@ def run_self_test(args: Args, validate_pack: Callable[[Args], None]) -> None:
             sample["seq"] = 2
             rows[:] = [incident, sample]
 
+        def missing_matrix_manifest(rows: list[JsonObject]) -> None:
+            missing_path = "evidence/lab/matrix/frontend-contract-selftest-missing/manifest.json"
+            rows[0]["artifact"] = missing_path
+            rows[0]["artifact_paths"] = [missing_path]
+
+        malformed_matrix_root = Path("evidence/lab/matrix/frontend-contract-selftest-malformed")
+
+        def malformed_matrix_manifest(rows: list[JsonObject]) -> None:
+            manifest_path = malformed_matrix_root / "manifest.json"
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            _ = manifest_path.write_text('{"schema": "zig-scheduler/vm-harness-matrix-index/v1",')
+            rows[0]["artifact"] = manifest_path.as_posix()
+            rows[0]["artifact_paths"] = [manifest_path.as_posix()]
+
         assert_extra_fixture_rejected()
         assert_rejected("undocumented reason", "incident.jsonl", lambda rows: rows[0].__setitem__("reason", "undocumented_reason"))
         assert_rejected("dotted namespace reason", "rpc-invalid-version.jsonl", lambda rows: rows[0].__setitem__("reason", "rpc.invalid_version"))
         assert_rejected("matrix dotted namespace reason", "matrix-artifact-reference.jsonl", lambda rows: rows[0].__setitem__("reason", "matrix.artifact_reference"))
+        assert_rejected("missing matrix manifest artifact", "matrix-artifact-reference.jsonl", missing_matrix_manifest)
+        try:
+            assert_rejected("malformed matrix manifest artifact", "matrix-artifact-reference.jsonl", malformed_matrix_manifest)
+        finally:
+            if malformed_matrix_root.exists():
+                shutil.rmtree(malformed_matrix_root)
         assert_privacy_rejected("uppercase private text", lambda rows: rows[0].__setitem__("state", "PASSWORD=credential"))
         assert_privacy_rejected("generic token text", lambda rows: rows[0].__setitem__("state", "token=credential"))
         assert_privacy_rejected("generic token value", lambda rows: rows[0].__setitem__("state", "token=abc123"))

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Final
 
+from qa.frontend_contract_matrix_ref import validate_matrix_artifact_reference
 from qa.frontend_contract_pack_types import ContractPackError, JsonObject, JsonValue
 
 REQUIRED_SCENARIOS: Final = (
@@ -181,10 +182,7 @@ def validate_scenario_semantics(name: str, rows: list[JsonObject]) -> None:
         if not any(isinstance(row.get("artifact"), str) and "cgroup-race/" in str(row.get("artifact")) for row in rows):
             raise ContractPackError(f"{name} missing cgroup race artifact")
     if name == "matrix-artifact-reference":
-        if not any(row.get("event") == "validation" and row.get("reason") == "matrix_artifact_referenced" for row in rows):
-            raise ContractPackError(f"{name} must validate a matrix artifact reference")
-        if not any(isinstance(row.get("artifact"), str) and "evidence/lab/matrix/" in str(row.get("artifact")) for row in rows):
-            raise ContractPackError(f"{name} missing matrix artifact path")
+        validate_matrix_artifact_reference(name, rows)
     if name in BPF_SCENARIOS:
         reason = BPF_SCENARIOS[name]
         require_reasoned_terminal(rows, name, reason)

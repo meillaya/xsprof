@@ -102,6 +102,15 @@ test "operator action protocol accepts rollback lab targets" {
     try std.testing.expect(std.mem.indexOf(u8, rendered, "target_action_id") != null);
 }
 
+test "operator action protocol rejects missing audit ids for mutation-capable VM actions" {
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-no-audit","run_id":"live-demo","target_id":"target-live-demo","rollback_id":"RB-live-demo"}
+    ));
+    try std.testing.expectError(error.InvalidField, parseActionJson(std.testing.allocator,
+        \\{"schema":"zig-scheduler/operator-action/v1","action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","rollback_id":"RB-demo"}
+    ));
+}
+
 test "operator action protocol accepts live microvm action without execution fields" {
     const parsed = try parseActionJson(std.testing.allocator,
         \\{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-1","run_id":"live-demo","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-live-demo"}

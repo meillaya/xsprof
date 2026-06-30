@@ -33,6 +33,7 @@ class Mode(StrEnum):
     INCIDENT_DRILL = "incident-drill"
     DUPLICATE_TARGET = "duplicate-target"
     MISSING_TARGET = "missing-target"
+    MISSING_AUDIT = "missing-audit"
     MALFORMED_DEFAULT = "malformed-default"
     FAILED_ROLLBACK_REPLAY = "failed-rollback-replay"
     FAILED_CLEANUP_REPLAY = "failed-cleanup-replay"
@@ -255,6 +256,11 @@ def assert_mode(rows: list[DaemonRow], mode: Mode) -> None:
         case Mode.MISSING_TARGET:
             if not has(rows, event="refusal", reason="target_id_required"):
                 fail("missing target was not refused")
+        case Mode.MISSING_AUDIT:
+            if not has(rows, event="refusal", reason="malformed_action") and not has(rows, event="refusal", reason="invalid_field"):
+                fail("missing audit_id was not refused")
+            if any(row.event in {"stage_started", "lab_run_active"} for row in rows):
+                fail("missing audit_id reached live runner dispatch events")
         case Mode.MALFORMED_DEFAULT:
             if not any(row.reason == "malformed_action" for row in rows):
                 fail("malformed input was not refused")

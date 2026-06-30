@@ -1,0 +1,6 @@
+{
+  "host_mutation": false,
+  "private_fields_found": false,
+  "schema": "zig-scheduler/privacy-scan/v1",
+  "status": "PASS"
+}

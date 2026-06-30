@@ -1,0 +1,69 @@
+{
+  "action_id": "ACT-fixture-pass",
+  "audit_id": "AUD-20260629T120000Z-fixture-pass",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/cleanup-proof.json",
+  "evidence_mode": "fixture",
+  "git": {
+    "actual_sha": "1d3a858c9db2",
+    "dirty": false,
+    "expected_sha": "1d3a858c9db2",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/host-refusal.json",
+  "incident_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/incident.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "unknown",
+    "kernel_release": "7.1.1-2-cachyos",
+    "kvm": "unknown",
+    "sched_ext": "unknown"
+  },
+  "matrix_run_id": "fixture-pass",
+  "outcome": "PASS",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/policy.o",
+    "object_sha256": "5afa7ccf5a2f443c070217f3eb0af7a439dd72035b17bb61372fc38dcbed3507",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "7ade687aaeba59d6c85252384990764095fe3b141a71bc545c28309503ed65c4"
+  },
+  "post_cgroup_state": {
+    "digest": "sha256:b120ec4c18526beb100dfed37c12aea72d9da09a03e56dfa2aaa20e45baef9e3"
+  },
+  "post_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:b120ec4c18526beb100dfed37c12aea72d9da09a03e56dfa2aaa20e45baef9e3"
+  },
+  "pre_scheduler_state": {
+    "ops": "none",
+    "sched_ext": "disabled"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-fixture-pass",
+  "rollback_proof_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/runtime-sample.jsonl",
+  "scenario_id": "fixture-pass",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "unknown",
+  "vm_marker": {
+    "checked_by": "qa/vm/vm_harness_matrix.sh",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": false,
+    "required": false
+  },
+  "workload": {
+    "name": "cpu-smoke",
+    "spec_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/workload-spec.json",
+    "spec_sha256": "5f7ca5b593071c9e384313a4ce5c0f3e446e80c61bbd125af4c24d0a19652e15"
+  }
+}

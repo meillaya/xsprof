@@ -16,7 +16,7 @@ assert_output() {
 }
 
 usage() {
-  printf 'usage: %s <daemon-bin> [--fixture stale-target|duplicate-target|missing-target|lifecycle-contract|active-rollback|stop-cleanup|incident-drill|lost-stream|timeout|failed-live-rollback|failed-live-cleanup|failed-rollback-replay|failed-cleanup-replay|journal-replay|runtime-alert-ordering]\n' "$0" >&2
+  printf 'usage: %s <daemon-bin> [--fixture stale-target|duplicate-target|missing-target|missing-audit|lifecycle-contract|active-rollback|stop-cleanup|incident-drill|lost-stream|timeout|failed-live-rollback|failed-live-cleanup|failed-rollback-replay|failed-cleanup-replay|journal-replay|runtime-alert-ordering]\n' "$0" >&2
 }
 
 if [[ "$fixture" == "--fixture" ]]; then
@@ -35,10 +35,10 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-target-1","target_id":"target-duplicate","rollback_id":"RB-target-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-target-1","target_id":"target-duplicate","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-target-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$(printf '%s\n' \
-        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-target-2","run_id":"run-target-2","target_id":"target-duplicate","rollback_id":"RB-target-2"}' |
+        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-target-2","run_id":"run-target-2","target_id":"target-duplicate","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-target-2"}' |
         "$bin" --foreground --state-dir "$state_dir")"
       printf '%s\n' "$output"
       assert_output duplicate-target "$output"
@@ -50,11 +50,24 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       output="$(printf '%s\n' \
-        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-missing-target","run_id":"run-missing-target","rollback_id":"RB-missing-target"}' |
+        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-missing-target","run_id":"run-missing-target","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-missing-target"}' |
         "$bin" --foreground --state-dir "$state_dir")"
       printf '%s\n' "$output"
       assert_output missing-target "$output"
       rm -rf "$state_dir"
+      exit 0
+      ;;
+    missing-audit)
+      state_dir=".zig-cache/tmp/zig-scheduler-daemon-missing-audit-fixture"
+      rm -rf "$state_dir"
+      mkdir -p "$state_dir"
+      output="$(printf '%s
+'         '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-missing-audit","run_id":"run-missing-audit","target_id":"target-missing-audit","rollback_id":"RB-missing-audit"}' |
+        "$bin" --foreground --state-dir "$state_dir")"
+      printf '%s
+' "$output"
+      assert_output missing-audit "$output"
+      rm -rf "$state_dir" "evidence/lab/run-all/run-missing-audit"
       exit 0
       ;;
     lifecycle-contract)
@@ -97,7 +110,7 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-rollback-1","target_id":"target-rollback","rollback_id":"RB-rollback-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-rollback-1","target_id":"target-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-rollback-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$(printf '%s\n' \
         '{"schema":"zig-scheduler/operator-action/v1","action":"rollback_lab_run","action_id":"rb-live-rollback-1","run_id":"rollback-active-fixture","target_action_id":"live-rollback-1","rollback_id":"RB-rollback-1"}' |
@@ -112,7 +125,7 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-stop-1","target_id":"target-stop","rollback_id":"RB-stop-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-stop-1","target_id":"target-stop","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-stop-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$(printf '%s\n%s\n' \
         '{"schema":"zig-scheduler/operator-action/v1","action":"stop_lab_run","action_id":"stop-live-1","target_action_id":"live-stop-1","rollback_id":"RB-stop-1"}' \
@@ -170,11 +183,11 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-failed-rb-1","target_id":"target-failed-rb","rollback_id":"RB-failed-rb-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":2,"event":"rollback","action":"run_lab_microvm_live","action_id":"live-failed-rb-1","target_id":"target-failed-rb","rollback_id":"RB-failed-rb-1","artifact":"evidence/lab/fixture/audit-ledger.jsonl","state":"incident","status":"FAIL","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-failed-rb-1","target_id":"target-failed-rb","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-failed-rb-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":2,"event":"rollback","action":"run_lab_microvm_live","action_id":"live-failed-rb-1","target_id":"target-failed-rb","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-failed-rb-1","artifact":"evidence/lab/fixture/audit-ledger.jsonl","state":"incident","status":"FAIL","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$(printf '%s\n' \
-        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-failed-rb-2","run_id":"run-failed-rb-2","target_id":"target-failed-rb","rollback_id":"RB-failed-rb-2"}' |
+        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-failed-rb-2","run_id":"run-failed-rb-2","target_id":"target-failed-rb","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-failed-rb-2"}' |
         "$bin" --foreground --state-dir "$state_dir")"
       printf '%s\n' "$output"
       assert_output failed-rollback-replay "$output"
@@ -186,11 +199,11 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-failed-clean-1","target_id":"target-failed-clean","rollback_id":"RB-failed-clean-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-failed-clean-1","target_id":"target-failed-clean","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-failed-clean-1","artifact":"evidence/lab/fixture","state":"partial_switch_lab","status":"active","host_mutation":false}' \
         '{"schema":"zig-scheduler/daemon-event/v1","seq":2,"event":"cleanup","action":"stop_lab_run","action_id":"stop-failed-clean-1","target_action_id":"live-failed-clean-1","target_id":"","rollback_id":"RB-failed-clean-1","artifact":"evidence/lab/fixture/summary.json","state":"incident","status":"FAIL","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$(printf '%s\n' \
-        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-failed-clean-2","run_id":"run-failed-clean-2","target_id":"target-failed-clean","rollback_id":"RB-failed-clean-2"}' |
+        '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"live-failed-clean-2","run_id":"run-failed-clean-2","target_id":"target-failed-clean","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-failed-clean-2"}' |
         "$bin" --foreground --state-dir "$state_dir")"
       printf '%s\n' "$output"
       assert_output failed-cleanup-replay "$output"
@@ -217,9 +230,9 @@ if [[ "$fixture" == "--fixture" ]]; then
       rm -rf "$state_dir"
       mkdir -p "$state_dir"
       printf '%s\n%s\n%s\n' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay","state":"partial_switch_lab","status":"active","host_mutation":false}' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":2,"event":"rollback","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay/audit-ledger.jsonl","state":"rolled_back","status":"PASS","host_mutation":false}' \
-        '{"schema":"zig-scheduler/daemon-event/v1","seq":3,"event":"cleanup","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay/summary.json","state":"clean","status":"PASS","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":1,"event":"lab_run_active","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay","state":"partial_switch_lab","status":"active","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":2,"event":"rollback","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay/audit-ledger.jsonl","state":"rolled_back","status":"PASS","host_mutation":false}' \
+        '{"schema":"zig-scheduler/daemon-event/v1","seq":3,"event":"cleanup","action":"run_lab_microvm_live","action_id":"live-replay-1","target_id":"target-replay","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-replay-1","artifact":"evidence/lab/replay/summary.json","state":"clean","status":"PASS","host_mutation":false}' \
         > "$state_dir/events.jsonl"
       output="$("$bin" --foreground --state-dir "$state_dir" < /dev/null)"
       printf '%s\n' "$output"
@@ -289,6 +302,13 @@ fi
 rm -rf "$replay_bad_dir" "$replay_bad_file" /tmp/zig-scheduler-daemon-replay-bad.out /tmp/zig-scheduler-daemon-replay-bad.err
 printf 'PASS: replay-events rejects schema-invalid daemon rows\n'
 
+
+missing_audit_output="$($0 "$bin" --fixture missing-audit)"
+printf '%s
+' "$missing_audit_output"
+assert_output missing-audit "$missing_audit_output"
+printf 'PASS: foreground daemon refuses live microVM without explicit audit_id before runner launch
+'
 
 runtime_alert_output="$($0 "$bin" --fixture runtime-alert-ordering)"
 printf '%s\n' "$runtime_alert_output"

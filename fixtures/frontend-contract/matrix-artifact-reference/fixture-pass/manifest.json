@@ -1,0 +1,21 @@
+{
+  "daemon_events_path": "evidence/lab/matrix/fixture-pass/daemon-events.jsonl",
+  "ended_at": "2026-06-30T07:10:39Z",
+  "fixture_mode": true,
+  "host_mutation": false,
+  "matrix_run_id": "fixture-pass",
+  "mode": "host-safe",
+  "out_dir": "evidence/lab/matrix/fixture-pass",
+  "release_eligible": false,
+  "row_count": 1,
+  "rows": [
+    {
+      "artifact_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/matrix-run.json",
+      "outcome": "PASS",
+      "reason": "fixture pass row",
+      "scenario_id": "fixture-pass"
+    }
+  ],
+  "schema": "zig-scheduler/vm-harness-matrix-index/v1",
+  "started_at": "2026-06-30T07:10:38Z"
+}

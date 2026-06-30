@@ -1,0 +1,490 @@
+{
+  "$schema": "https://meta.open-rpc.org/",
+  "openrpc": "1.4.0",
+  "info": {
+    "title": "zig-scheduler daemon JSON-RPC API",
+    "version": "1.0.0",
+    "description": "Backend-only local Unix-domain socket JSON-RPC 2.0 contract for zig-scheduler-daemon. Adds no frontend, HTTP, SSE, browser bridge, generated client, UI, simulator, host attach, release approval, or production deployment approval."
+  },
+  "servers": [
+    {
+      "name": "local-uds-jsonrpc",
+      "url": "unix://{state_dir}/{socket_path}",
+      "summary": "One JSON-RPC request per line over a local Unix-domain socket under --state-dir",
+      "variables": {
+        "state_dir": {
+          "default": ".zig-cache/tmp/zig-scheduler-daemon",
+          "description": "Relative daemon state directory."
+        },
+        "socket_path": {
+          "default": "daemon.sock",
+          "description": "Relative socket path inside state_dir."
+        }
+      }
+    }
+  ],
+  "methods": [
+    {
+      "name": "daemon.version",
+      "summary": "Return daemon and public schema versions.",
+      "params": [],
+      "result": {
+        "name": "daemon_version",
+        "schema": {
+          "$ref": "#/components/schemas/DaemonVersionResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method"
+      ]
+    },
+    {
+      "name": "targets.list",
+      "summary": "List active target/action/rollback IDs restored from the journal.",
+      "params": [],
+      "result": {
+        "name": "targets_list",
+        "schema": {
+          "$ref": "#/components/schemas/TargetsListResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method"
+      ]
+    },
+    {
+      "name": "actions.submit",
+      "summary": "Dispatch an operator-action/v1 JSON string and return newly emitted daemon-event/v1 JSONL rows.",
+      "params": [
+        {
+          "name": "action_json",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "Serialized zig-scheduler/operator-action/v1 object."
+          }
+        }
+      ],
+      "result": {
+        "name": "events_result",
+        "schema": {
+          "$ref": "#/components/schemas/EventsResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        },
+        {
+          "$ref": "#/components/errors/ActionJsonRequired"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-action-schema": "zig-scheduler/operator-action/v1",
+      "x-event-schema": "zig-scheduler/daemon-event/v1",
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method",
+        "action_json_required"
+      ]
+    },
+    {
+      "name": "actions.rollback",
+      "summary": "Rollback alias lane; the embedded action must be rollback or rollback_lab_run.",
+      "params": [
+        {
+          "name": "action_json",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "Serialized rollback/rollback_lab_run operator-action/v1 object."
+          }
+        }
+      ],
+      "result": {
+        "name": "events_result",
+        "schema": {
+          "$ref": "#/components/schemas/EventsResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        },
+        {
+          "$ref": "#/components/errors/ActionJsonRequired"
+        },
+        {
+          "$ref": "#/components/errors/RpcActionMismatch"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-action-schema": "zig-scheduler/operator-action/v1",
+      "x-event-schema": "zig-scheduler/daemon-event/v1",
+      "x-accepted-actions": [
+        "rollback",
+        "rollback_lab_run"
+      ],
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method",
+        "action_json_required",
+        "rpc_action_mismatch"
+      ]
+    },
+    {
+      "name": "actions.stop",
+      "summary": "Stop alias lane; the embedded action must be stop or stop_lab_run.",
+      "params": [
+        {
+          "name": "action_json",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "Serialized stop/stop_lab_run operator-action/v1 object."
+          }
+        }
+      ],
+      "result": {
+        "name": "events_result",
+        "schema": {
+          "$ref": "#/components/schemas/EventsResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        },
+        {
+          "$ref": "#/components/errors/ActionJsonRequired"
+        },
+        {
+          "$ref": "#/components/errors/RpcActionMismatch"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-action-schema": "zig-scheduler/operator-action/v1",
+      "x-event-schema": "zig-scheduler/daemon-event/v1",
+      "x-accepted-actions": [
+        "stop",
+        "stop_lab_run"
+      ],
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method",
+        "action_json_required",
+        "rpc_action_mismatch"
+      ]
+    },
+    {
+      "name": "events.replay",
+      "summary": "Return persisted daemon-event/v1 JSONL rows with source seq >= from_event_seq.",
+      "params": [
+        {
+          "name": "from_event_seq",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "events_result",
+        "schema": {
+          "$ref": "#/components/schemas/EventsResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-event-schema": "zig-scheduler/daemon-event/v1",
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method"
+      ]
+    },
+    {
+      "name": "events.follow",
+      "summary": "API v1 deterministic one-shot follow equivalent to events.replay for the same cursor; not a live stream.",
+      "params": [
+        {
+          "name": "from_event_seq",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "events_result",
+        "schema": {
+          "$ref": "#/components/schemas/EventsResult"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRpcVersion"
+        },
+        {
+          "$ref": "#/components/errors/MalformedRpc"
+        },
+        {
+          "$ref": "#/components/errors/UnknownRpcMethod"
+        }
+      ],
+      "x-host-mutation": false,
+      "x-event-schema": "zig-scheduler/daemon-event/v1",
+      "x-follow-semantics": "replay-equivalent-v1",
+      "x-error-incident-codes": [
+        "malformed_rpc",
+        "invalid_rpc_version",
+        "unknown_rpc_method"
+      ]
+    }
+  ],
+  "components": {
+    "schemas": {
+      "DaemonVersionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "daemon",
+          "jsonrpc",
+          "event_schema",
+          "action_schema",
+          "runtime_sample_schema",
+          "host_mutation"
+        ],
+        "properties": {
+          "daemon": {
+            "const": "zig-scheduler-daemon"
+          },
+          "jsonrpc": {
+            "const": "2.0"
+          },
+          "event_schema": {
+            "const": "zig-scheduler/daemon-event/v1"
+          },
+          "action_schema": {
+            "const": "zig-scheduler/operator-action/v1"
+          },
+          "runtime_sample_schema": {
+            "const": "zig-scheduler/runtime-sample/v1"
+          },
+          "host_mutation": {
+            "const": false
+          }
+        }
+      },
+      "TargetsListResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "active_targets",
+          "host_mutation"
+        ],
+        "properties": {
+          "active_targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveTarget"
+            }
+          },
+          "host_mutation": {
+            "const": false
+          }
+        }
+      },
+      "ActiveTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action_id",
+          "target_id",
+          "rollback_id"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "rollback_id": {
+            "type": "string"
+          }
+        }
+      },
+      "EventsResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "events_jsonl",
+          "host_mutation"
+        ],
+        "properties": {
+          "events_jsonl": {
+            "type": "string",
+            "description": "Newline-delimited serialized daemon-event/v1 rows."
+          },
+          "host_mutation": {
+            "const": false
+          }
+        }
+      },
+      "RpcErrorData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "incident_code",
+          "reason",
+          "state",
+          "status",
+          "host_mutation"
+        ],
+        "properties": {
+          "incident_code": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "const": "refused_host"
+          },
+          "status": {
+            "const": "REFUSE"
+          },
+          "host_mutation": {
+            "const": false
+          }
+        }
+      }
+    },
+    "errors": {
+      "MalformedRpc": {
+        "code": -32700,
+        "message": "parse_error",
+        "data": {
+          "incident_code": "malformed_rpc",
+          "reason": "malformed_rpc",
+          "state": "refused_host",
+          "status": "REFUSE",
+          "host_mutation": false
+        }
+      },
+      "InvalidRpcVersion": {
+        "code": -32600,
+        "message": "invalid_request",
+        "data": {
+          "incident_code": "invalid_rpc_version",
+          "reason": "invalid_rpc_version",
+          "state": "refused_host",
+          "status": "REFUSE",
+          "host_mutation": false
+        }
+      },
+      "UnknownRpcMethod": {
+        "code": -32601,
+        "message": "method_not_found",
+        "data": {
+          "incident_code": "unknown_rpc_method",
+          "reason": "unknown_rpc_method",
+          "state": "refused_host",
+          "status": "REFUSE",
+          "host_mutation": false
+        }
+      },
+      "ActionJsonRequired": {
+        "code": -32602,
+        "message": "invalid_params",
+        "data": {
+          "incident_code": "action_json_required",
+          "reason": "action_json_required",
+          "state": "refused_host",
+          "status": "REFUSE",
+          "host_mutation": false
+        }
+      },
+      "RpcActionMismatch": {
+        "code": -32602,
+        "message": "invalid_params",
+        "data": {
+          "incident_code": "rpc_action_mismatch",
+          "reason": "rpc_action_mismatch",
+          "state": "refused_host",
+          "status": "REFUSE",
+          "host_mutation": false
+        }
+      }
+    }
+  },
+  "x-jsonrpc-version": "2.0",
+  "x-transport": "local Unix-domain socket JSON-RPC, one request per line",
+  "x-backend-only": true,
+  "x-host-mutation": false,
+  "x-build-wiring-todo10": "Wire qa/openrpc_contract_check.py --contract docs/control/daemon-openrpc.json --daemon src/daemon_main.zig --docs docs/control into the backend contract build target in Todo 10; build.zig is intentionally not edited by Todo 1."
+}

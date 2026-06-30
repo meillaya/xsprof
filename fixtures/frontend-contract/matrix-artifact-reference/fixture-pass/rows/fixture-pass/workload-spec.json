@@ -1,0 +1,23 @@
+{
+  "capability_artifact_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/workload-capability.json",
+  "host_mutation": false,
+  "host_safe_fixture_only": true,
+  "missing_prereq": "",
+  "name": "cpu-smoke",
+  "release_eligible": false,
+  "required_tools": [
+    "builtin-churn"
+  ],
+  "runner": "qa/vm/workload_capability_probe.sh",
+  "scenario_id": "fixture-pass",
+  "schema": "zig-scheduler/workload-fixture/v1",
+  "threshold_source": "fixture",
+  "thresholds": {
+    "calibration_status": "placeholder",
+    "fixture_status": "deterministic",
+    "production_capacity_claim": false,
+    "source": "fixture"
+  },
+  "vm_marker_required_for_live_run": true,
+  "workload_class": "cpu-smoke"
+}

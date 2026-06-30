@@ -151,6 +151,29 @@ def require_forbidden(schema: JsonObject, names: tuple[str, ...], context: str) 
         raise SchemaDriftError(f"{context} forbidden missing: {', '.join(missing)}")
 
 
+def require_action_conditional(schema: JsonObject, action: str, required: tuple[str, ...], context: str) -> None:
+    clauses = schema.get("allOf")
+    if not isinstance(clauses, list):
+        raise SchemaDriftError(f"{context}.allOf missing action-specific required clauses")
+    for clause in clauses:
+        if not isinstance(clause, dict):
+            continue
+        raw_if = clause.get("if")
+        raw_then = clause.get("then")
+        if not isinstance(raw_if, dict) or not isinstance(raw_then, dict):
+            continue
+        raw_props = raw_if.get("properties")
+        if not isinstance(raw_props, dict):
+            continue
+        raw_action = raw_props.get("action")
+        if isinstance(raw_action, dict) and raw_action.get("const") == action:
+            missing = sorted(set(required) - string_set(raw_then.get("required"), f"{context}.allOf[{action}].then.required"))
+            if missing:
+                raise SchemaDriftError(f"{context} {action} required missing: {', '.join(missing)}")
+            return
+    raise SchemaDriftError(f"{context} missing conditional required clause for {action}")
+
+
 def require_const(props: JsonObject, name: str, expected: JsonValue, context: str) -> None:
     if obj(props.get(name), f"{context}.{name}").get("const") != expected:
         raise SchemaDriftError(f"{context}.{name} const drifted")
@@ -170,6 +193,8 @@ def validate_all(protocol: Path, schemas: Path) -> None:
     require_const(op_props, "schema", facts.operator_schema, OPERATOR_FILE)
     require_enum(op_props, "action", facts.actions, OPERATOR_FILE)
     require_forbidden(op, FORBIDDEN_ACTION_FIELDS, OPERATOR_FILE)
+    require_action_conditional(op, "run_lab_microvm_live", ("action_id", "target_id", "audit_id", "rollback_id"), OPERATOR_FILE)
+    require_action_conditional(op, "partial_attach", ("audit_id", "rollback_id"), OPERATOR_FILE)
 
     daemon = load_schema(schemas, DAEMON_FILE)
     daemon_props = properties(daemon, ("schema", "event", "status", "host_mutation"), DAEMON_FILE)

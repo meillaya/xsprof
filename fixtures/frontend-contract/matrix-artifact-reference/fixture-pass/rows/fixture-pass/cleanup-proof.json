@@ -1,0 +1,12 @@
+{
+  "host_mutation": false,
+  "owned_qemu_leftovers": false,
+  "owned_temp_leftovers": false,
+  "qemu_scan_after": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/qemu-process-scan-after.txt",
+  "qemu_scan_before": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/qemu-process-scan-before.txt",
+  "scenario_id": "fixture-pass",
+  "schema": "zig-scheduler/cleanup-proof/v1",
+  "status": "PASS",
+  "temp_scan_after": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/temp-scan-after.txt",
+  "temp_scan_before": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/temp-scan-before.txt"
+}

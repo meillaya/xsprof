@@ -1,0 +1,8 @@
+{
+  "host_mutation": false,
+  "ops": "none",
+  "scenario_id": "fixture-pass",
+  "scheduler_state": "disabled",
+  "schema": "zig-scheduler/rollback-proof/v1",
+  "status": "PASS"
+}

@@ -83,6 +83,7 @@ fn runSocket(allocator: std.mem.Allocator, io: std.Io, environ: std.process.Envi
     const socket_path = options.socket_path orelse return error.InvalidArgs;
     var dir = try std.Io.Dir.cwd().createDirPathOpen(io, options.state_dir, .{});
     defer dir.close(io);
+    try linux.control.daemon.validateStateDirPermissions(try dir.stat(io));
 
     var output: std.ArrayList(u8) = .empty;
     defer output.deinit(allocator);
@@ -110,8 +111,10 @@ fn runSocket(allocator: std.mem.Allocator, io: std.Io, environ: std.process.Envi
     const address = try net.UnixAddress.init(socket_path);
     var server = try address.listen(io, .{});
     defer server.deinit(io);
+    try setSocketPermissions(io, socket_path);
     var client = try server.accept(io);
     defer client.close(io);
+    try validatePeerCredentials(client);
 
     var read_buffer: [8192]u8 = undefined;
     var reader = client.reader(io, &read_buffer);
@@ -140,6 +143,35 @@ fn removeSocketPathIfPresent(io: std.Io, socket_path: []const u8) !void {
     };
     if (stat.kind != .unix_domain_socket) return error.InvalidSocketPath;
     try std.Io.Dir.cwd().deleteFile(io, socket_path);
+}
+
+fn setSocketPermissions(io: std.Io, socket_path: []const u8) !void {
+    try std.Io.Dir.cwd().setFilePermissions(io, socket_path, .fromMode(0o600), .{});
+    const stat = try std.Io.Dir.cwd().statFile(io, socket_path, .{ .follow_symlinks = false });
+    if (stat.kind != .unix_domain_socket) return error.InvalidSocketPath;
+    if (stat.permissions.toMode() & 0o177 != 0) return error.InvalidSocketPath;
+}
+
+const PeerCred = extern struct {
+    pid: std.os.linux.pid_t,
+    uid: std.os.linux.uid_t,
+    gid: std.os.linux.gid_t,
+};
+
+fn validatePeerCredentials(client: net.Stream) !void {
+    if (@import("builtin").target.os.tag != .linux) return;
+    var cred: PeerCred = undefined;
+    var len: std.os.linux.socklen_t = @sizeOf(PeerCred);
+    const rc = std.os.linux.getsockopt(
+        client.socket.handle,
+        std.os.linux.SOL.SOCKET,
+        std.os.linux.SO.PEERCRED,
+        @as([*]u8, @ptrCast(&cred)),
+        &len,
+    );
+    if (std.os.linux.errno(rc) != .SUCCESS) return error.AccessDenied;
+    if (len != @sizeOf(PeerCred)) return error.AccessDenied;
+    if (cred.uid != std.os.linux.geteuid()) return error.AccessDenied;
 }
 
 fn appendReplayEventsFile(allocator: std.mem.Allocator, output: *std.ArrayList(u8), file_bytes: []const u8, from_event_seq: usize) !void {
@@ -263,6 +295,14 @@ fn isReplayEventSchemaField(name: []const u8) bool {
         "events_hash",
         "nr_rejected",
         "cgroup_membership_digest",
+        "sample_loss",
+        "dsq_depth",
+        "queue_latency",
+        "fairness",
+        "task_counts",
+        "scheduler_counters",
+        "sched_ext_observation",
+        "benchmark_histograms",
         "workload_alive",
         "host_mutation",
         "git_sha",
@@ -483,4 +523,14 @@ test "daemon executable links control module" {
     _ = try linux.control.daemon.parseArgs(&.{ "--foreground", "--state-dir", ".omo/evidence/task-T08-state" });
     _ = try linux.control.daemon.parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/socket-state", "--socket", ".zig-cache/tmp/socket-state/daemon.sock" });
     try std.testing.expectError(error.InvalidSocketPath, linux.control.daemon.parseArgs(&.{ "--foreground", "--state-dir", ".zig-cache/tmp/socket-state", "--socket", ".zig-cache/tmp/not-in-state.sock" }));
+}
+
+test "daemon socket permission and peer credential guards accept private same-uid socketpair" {
+    if (@import("builtin").target.os.tag != .linux) return error.SkipZigTest;
+    var fds: [2]std.os.linux.fd_t = undefined;
+    const rc = std.os.linux.socketpair(std.os.linux.AF.UNIX, std.os.linux.SOCK.STREAM | std.os.linux.SOCK.CLOEXEC, 0, &fds);
+    if (std.os.linux.errno(rc) != .SUCCESS) return error.SkipZigTest;
+    defer _ = std.os.linux.close(fds[0]);
+    defer _ = std.os.linux.close(fds[1]);
+    try validatePeerCredentials(.{ .socket = .{ .handle = fds[0], .address = undefined } });
 }
