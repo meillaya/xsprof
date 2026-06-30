@@ -1,5 +1,5 @@
 {
-  "generated_for": "vm-harness-matrix-incident-api-hardening task 8 host-safe matrix/release gate wiring",
+  "generated_for": "backend-stable-api-before-frontend task 9 evidence manifest/protected VM proof provenance gate",
   "schema_version": 1,
   "sources": [
     {
@@ -48,19 +48,25 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "851c19b5ea783e3c0df72bc86d335473cf50857adcb48fcf4cc16f3d4f999900"
+      "sha256": "5996e57eff3f844238292753d20883adb8a7528e3e78e387bd016dcc279e1fd5"
+    },
+    {
+      "path": ".github/workflows/manual-vm-proof.yml",
+      "purpose": "protected manual VM proof workflow contract",
+      "required": true,
+      "sha256": "51bdb68b4c59c7f67c43cdaf4fe922171ce72896f5420b3af94515e084b1f61b"
     },
     {
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "2d02dfee5e55c1f77e7cd8fa272d1c184b0dd9f52669968a797e530706e0c327"
+      "sha256": "8587d22fe6cd7256e8ad8d08f7ffd4ce773f4617f002a73fd5c31670f5c50860"
     },
     {
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "60b0c9e048f84efbbcc112abba1d19dbd515582aefae02af6eaccd8d09d998ba"
+      "sha256": "84d664f8bb2282048d7351fbe627870bcdc7f0c6959df1c423362b4033cf5857"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -84,13 +90,13 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "1d7edbf26a124d3a790fc28945fad4e9f5a32f4c74dc0614c2fceaae54aff5e1"
+      "sha256": "897556a8e159c9e849f1bc903e7925538cfc4944f4fb03907011bad9f7c8a760"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "fb17c1b995c0ddfeb382500d39b2b5030c26c40a4cc4e2fa5afbedb03e69fae9"
+      "sha256": "2c10750898bafe716dd2231c56adc7172b91620a7dd8bdd3d2f9e27b7af49482"
     },
     {
       "path": "docs/security/threat-model.md",
@@ -108,7 +114,7 @@
       "path": "packaging/build_package.sh",
       "purpose": "package build source and manifest generator",
       "required": true,
-      "sha256": "6e3585aac26da2154835aba572d083c029c337c57f7875be78e2d72c8be8c994"
+      "sha256": "c5566cce992391868f4fbd7d80c5e6e773e79d73a0bf7c6702cc27d1481cd4e2"
     },
     {
       "path": "packaging/config/default.toml",
@@ -141,6 +147,12 @@
       "sha256": "83c06d61e91b42c525d83529ba36f75b8bafd05a2ab69a8bb59974fde636e719"
     },
     {
+      "path": "schemas/control/evidence-manifest.v1.schema.json",
+      "purpose": "evidence-manifest v1 proof bundle schema",
+      "required": true,
+      "sha256": "a7691b4bdaed1b261bce1dfff0eae405901c1841ba001e4df23189090cd8fa59"
+    },
+    {
       "path": "qa/clean_archive_check.sh",
       "purpose": "clean archive and fresh clone reproducibility gate",
       "required": true,
@@ -162,19 +174,49 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "aae89effef4903e0691ef881638519e4ab16cb916e15492258c35650b658ff6b"
+      "sha256": "c96026403f8fc815079b32affe00795308720f3eafb79c6b6ab0e457ef33bff0"
+    },
+    {
+      "path": "qa/manual_vm_proof_ci_check.py",
+      "purpose": "manual VM proof workflow and provenance static checker",
+      "required": true,
+      "sha256": "b3826c2c15905cc770234d5ff1e46c12397ceb3fa5031d8c02c9a62eafdb606d"
+    },
+    {
+      "path": "qa/manual_vm_proof_ci_selftest.py",
+      "purpose": "manual VM proof workflow checker self-test fixtures",
+      "required": true,
+      "sha256": "00074f0c2abe2bbf994b1cb80a64757bfacf3431d36e9c816a69811bf804c5a0"
+    },
+    {
+      "path": "qa/evidence_manifest_check.py",
+      "purpose": "evidence-manifest v1 provenance validator",
+      "required": true,
+      "sha256": "26526f066b888cf4b2f1e6d668d269474330bf6c9a16d5c5eea6233bfe54ca48"
+    },
+    {
+      "path": "qa/evidence_manifest_selftest.py",
+      "purpose": "evidence-manifest v1 validator self-test fixtures",
+      "required": true,
+      "sha256": "5552d3ba43cbd407540c6f62863339ff3997997babd6f7ad848b6813dfd57442"
     },
     {
       "path": "qa/matrix_run_contract_check.py",
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
-      "sha256": "dec778a05baf729aee54920c72d885a36fecfd52f34285da81913733f535a159"
+      "sha256": "8473fc1118e290bb3cdb44f768b59d46f6c5fe7cfac9c7c10bff9a7806871a70"
+    },
+    {
+      "path": "qa/schema_compatibility_schema_rules.py",
+      "purpose": "schema compatibility structural rules shared by control schema gates",
+      "required": true,
+      "sha256": "6a53b7f4cad401cc1d971736ec44e1a75a4e5f8bad3608629e03ef27f0abe262"
     },
     {
       "path": "qa/no_frontend_root.sh",
       "purpose": "root frontend and UI artifact exclusion gate",
       "required": true,
-      "sha256": "62518368c86aeae28c732bb5ccad1c629c46f6b62ea01f6e0852b79f83358271"
+      "sha256": "4a595ebdfcd95582ae13df7e373ecab44aa5c457adf7600c7f3e615a4f253ce2"
     },
     {
       "path": "qa/no_host_mutation.sh",
@@ -228,25 +270,25 @@
       "path": "qa/vm/contract_check.sh",
       "purpose": "disposable VM execution contract validator",
       "required": true,
-      "sha256": "731cf16bc08f4090d4421c682decc1aacdb47ae2e9a261c9cae831e6c5e01acd"
+      "sha256": "5180ec53a237626da7b9b866129f114223bcc9c45312116517672d2abbfb161e"
     },
     {
       "path": "qa/vm/execution_contract.json",
       "purpose": "disposable VM execution contract source",
       "required": true,
-      "sha256": "1096366fde8103f9fa38413d2eb77082867ee0b4669a2048071e8e60ba1973ae"
+      "sha256": "d05f7d9ce7867f657efe31be55f7749649df310f6949d92eda159e7e6372dbfa"
     },
     {
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "8e4f9336384b73c6efac9d7ea70dd5b82a35ac465f9b91deec338c5566ae4094"
+      "sha256": "480623fa854c5431528dfc6b5b41d948a3bf213607f71f9f9216e254af71d802"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",
       "purpose": "VM workload catalog and matrix fixture validator",
       "required": true,
-      "sha256": "c16468d62a2361331ee02e2d9b66b7ad07576f97bf925e4736a5a12b5d875fbb"
+      "sha256": "1575832e3ab59531f7fb18fd2d2a2114c40ff095697a9ce34ef6c6d2b8d874ef"
     }
   ]
 }

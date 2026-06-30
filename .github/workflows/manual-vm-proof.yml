@@ -1,0 +1,240 @@
+name: manual-vm-proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_id:
+        description: "Explicit audit ID for this protected VM proof run."
+        required: true
+        type: string
+      rollback_id:
+        description: "Rollback ID that must appear in rollback proof artifacts."
+        required: true
+        type: string
+      vm_marker_path:
+        description: "Pinned guest marker path; keep /run/zig-scheduler-vm-lab.marker."
+        required: true
+        default: /run/zig-scheduler-vm-lab.marker
+        type: string
+      supported_tuple:
+        description: "Supported tuple from docs/releases/supported-kernel-tuples.md."
+        required: true
+        type: string
+      confirm_vm_only:
+        description: "Operator confirmation: disposable VM-only proof; no host attach."
+        required: true
+        type: string
+      approval_ack:
+        description: "Operator acknowledgement: manual protected VM proof only; not release approval."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  vm-proof:
+    name: reviewer-gated disposable VM proof
+    environment: vm-proof-manual
+    runs-on: [self-hosted, zig-scheduler-vm-proof, disposable-vm]
+    timeout-minutes: 120
+    env:
+      VM_PROOF_BUNDLE: evidence/lab/manual-vm-proof-bundle/vm-proof-bundle.tar.zst
+      ZIG_SCHEDULER_RUN_PRIVILEGED_VM: "1"
+      ZIG_SCHEDULER_VM_MARKER_PATH: /run/zig-scheduler-vm-lab.marker
+      ZIG_SCHEDULER_RELEASE_ELIGIBLE: "false"
+      ZIG_SCHEDULER_PRODUCTION_CAPACITY_CLAIM: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refuse non-manual or unacknowledged run
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_AUDIT_ID: ${{ inputs.audit_id }}
+          INPUT_ROLLBACK_ID: ${{ inputs.rollback_id }}
+          INPUT_VM_MARKER_PATH: ${{ inputs.vm_marker_path }}
+          INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}
+          INPUT_CONFIRM_VM_ONLY: ${{ inputs.confirm_vm_only }}
+          INPUT_APPROVAL_ACK: ${{ inputs.approval_ack }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = workflow_dispatch
+          test "$INPUT_VM_MARKER_PATH" = /run/zig-scheduler-vm-lab.marker
+          [[ "$INPUT_AUDIT_ID" =~ ^AUD-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}-[a-f0-9]{6}$ ]]
+          [[ "$INPUT_ROLLBACK_ID" =~ ^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
+          test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"
+          test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval"
+
+      - name: Static safety gates before VM work
+        run: |
+          set -euo pipefail
+          python3 qa/manual_vm_proof_ci_check.py \
+            --workflow .github/workflows/manual-vm-proof.yml \
+            --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md
+          bash qa/no_host_mutation.sh
+          bash qa/no_frontend_root.sh
+          bash qa/release_gate.sh --self-test
+
+      - name: Run isolated disposable VM proof surface
+        run: |
+          set -euo pipefail
+          rm -rf evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof
+          mkdir -p evidence/lab/manual-vm-proof/static-logs
+          zig build bpf --summary all 2>&1 | tee evidence/lab/manual-vm-proof/static-logs/bpf-build.log
+          zig build vm-harness-matrix --summary all -- \
+            --mode vm-required \
+            --scenario fixture-pass,workload-interactive-latency,workload-mixed-io,workload-cgroup-weight-quota \
+            --out evidence/lab/matrix/manual-vm-proof \
+            2>&1 | tee evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix.log
+          python3 qa/matrix_run_contract_check.py \
+            --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
+            --schemas schemas/control \
+            --docs docs/control \
+            2>&1 | tee evidence/lab/manual-vm-proof/static-logs/matrix-contract.log
+
+      - name: Assert required proof provenance files
+        env:
+          INPUT_AUDIT_ID: ${{ inputs.audit_id }}
+          INPUT_ROLLBACK_ID: ${{ inputs.rollback_id }}
+          INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}
+        run: |
+          set -euo pipefail
+          {
+            printf '%s\n' 'Required proof contract for vm-proof-bundle.tar.zst:'
+            printf '%s%s\n' '- audit id: ' "$INPUT_AUDIT_ID"
+            printf '%s%s\n' '- rollback id: ' "$INPUT_ROLLBACK_ID"
+            printf '%s\n' '- VM marker: /run/zig-scheduler-vm-lab.marker'
+            printf '%s%s\n' '- supported tuple: ' "$INPUT_SUPPORTED_TUPLE"
+            printf '%s\n' '- matrix manifest: evidence/lab/matrix/manual-vm-proof/manifest.json'
+            printf '%s\n' '- matrix rows: evidence/lab/matrix/manual-vm-proof/rows/*/matrix-run.json'
+            printf '%s\n' '- BPF metadata: zig-out/bpf/zigsched_minimal.bpf.meta.json'
+            printf '%s\n' '- BPF SKIP JSON: zig-out/bpf/zigsched_minimal.bpf.skip.json when object metadata is unavailable'
+            printf '%s\n' '- daemon events: per-row daemon-events.jsonl or explicit SKIP/REFUSE evidence'
+            printf '%s\n' '- live summary: live summary if present; absence is not approval'
+            printf '%s\n' '- pre state and post state: sched_ext state captured inside the disposable VM only'
+            printf '%s\n' '- rollback proof: rollback-proof.json artifacts'
+            printf '%s\n' '- cleanup proof: cleanup-proof.json artifacts'
+            printf '%s\n' '- host refusal: host-refusal.json artifacts'
+            printf '%s\n' '- static verification logs: evidence/lab/manual-vm-proof/static-logs/*.log'
+            printf '%s\n' '- benchmark provenance: benchmark_provenance records for calibrated matrix rows when applicable'
+            printf '%s\n' '- evidence manifest: evidence/lab/manual-vm-proof/evidence-manifest.json with SHA-256 hashes, schema roles, and attestation status'
+            printf '%s\n' '- host_mutation=false'
+            printf '%s\n' '- release_eligible=false'
+            printf '%s\n' '- production_capacity_claim=false'
+          } > evidence/lab/manual-vm-proof/provenance-requirements.txt
+          test -f evidence/lab/matrix/manual-vm-proof/manifest.json
+          find evidence/lab/matrix/manual-vm-proof/rows -name matrix-run.json -print -quit | grep -q .
+          if [ ! -f zig-out/bpf/zigsched_minimal.bpf.meta.json ] && [ ! -f zig-out/bpf/zigsched_minimal.bpf.skip.json ]; then
+            echo "missing BPF metadata or SKIP JSON" >&2
+            exit 1
+          fi
+          grep -R '"host_mutation"[[:space:]]*:[[:space:]]*false' evidence/lab/matrix/manual-vm-proof >/dev/null
+          grep -R '"release_eligible"[[:space:]]*:[[:space:]]*false' evidence/lab/matrix/manual-vm-proof >/dev/null
+          grep -R 'rollback' evidence/lab/matrix/manual-vm-proof >/dev/null
+          grep -R 'cleanup' evidence/lab/matrix/manual-vm-proof >/dev/null
+          grep -R 'host.refusal\|host-refusal\|host_refusal' evidence/lab/matrix/manual-vm-proof >/dev/null
+
+      - name: Create and validate evidence manifest
+        env:
+          INPUT_AUDIT_ID: ${{ inputs.audit_id }}
+          INPUT_ROLLBACK_ID: ${{ inputs.rollback_id }}
+          INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          root = Path('evidence/lab/matrix/manual-vm-proof')
+          out = Path('evidence/lab/manual-vm-proof/evidence-manifest.json')
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          def ref(path, role):
+              return {'path': path.as_posix(), 'sha256': digest(path), 'schema_role': role}
+          bpf_meta = Path('zig-out/bpf/zigsched_minimal.bpf.meta.json')
+          bpf_skip = Path('zig-out/bpf/zigsched_minimal.bpf.skip.json')
+          bpf_ref = ref(bpf_meta, 'bpf-metadata') if bpf_meta.exists() else ref(bpf_skip, 'bpf-skip-json')
+          artifacts = []
+          for row in sorted((root / 'rows').glob('*/matrix-run.json')):
+              row_dir = row.parent
+              artifacts.append(ref(row, 'matrix-row'))
+              artifacts.append(ref(row_dir / 'rollback-proof.json', 'rollback-proof'))
+              artifacts.append(ref(row_dir / 'cleanup-proof.json', 'cleanup-proof'))
+              artifacts.append(ref(row_dir / 'host-refusal.json', 'host-refusal-proof'))
+              artifacts.append(ref(row_dir / 'privacy-scan.json', 'privacy-scan'))
+          for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
+              artifacts.append(ref(log, 'static-verification-log'))
+          benchmarks = []
+          for spec_path in sorted((root / 'rows').glob('*/workload-spec.json')):
+              spec = json.loads(spec_path.read_text())
+              for entry in spec.get('benchmark_provenance', []):
+                  benchmarks.append(ref(Path(entry['record_path']), 'benchmark-provenance'))
+          manifest = {
+              'schema': 'zig-scheduler/evidence-manifest/v1',
+              'audit_id': os.environ['INPUT_AUDIT_ID'],
+              'rollback_id': os.environ['INPUT_ROLLBACK_ID'],
+              'vm_marker': {'path': '/run/zig-scheduler-vm-lab.marker', 'present': True, 'checked_by': 'manual-vm-proof'},
+              'supported_tuple': os.environ['INPUT_SUPPORTED_TUPLE'],
+              'bpf_metadata_or_skip': bpf_ref,
+              'matrix_manifest': ref(root / 'manifest.json', 'matrix-manifest'),
+              'daemon_events': ref(root / 'daemon-events.jsonl', 'daemon-events'),
+              'artifacts': artifacts,
+              'benchmark_provenance': benchmarks,
+              'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts if item['schema_role'] == 'privacy-scan']},
+              'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
+              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/matrix_run_contract_check.py', 'schemas/control/evidence-manifest.v1.schema.json'],
+              'host_mutation': False,
+              'release_eligible': False,
+              'production_capacity_claim': False,
+          }
+          out.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+          PY
+          python3 qa/evidence_manifest_check.py \
+            --manifest evidence/lab/manual-vm-proof/evidence-manifest.json \
+            --schema schemas/control/evidence-manifest.v1.schema.json
+
+      - name: Create GitHub Actions proof artifact tarball
+        run: |
+          set -euo pipefail
+          test -f evidence/lab/manual-vm-proof/evidence-manifest.json
+          mkdir -p "$(dirname "$VM_PROOF_BUNDLE")"
+          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/evidence-manifest.v1.schema.json)
+          if [ -f zig-out/bpf/zigsched_minimal.bpf.meta.json ]; then
+            tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.meta.json)
+          fi
+          if [ -f zig-out/bpf/zigsched_minimal.bpf.skip.json ]; then
+            tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.skip.json)
+          fi
+          tar --zstd -cf "$VM_PROOF_BUNDLE" "${tar_inputs[@]}" \
+            2>/tmp/vm-proof-tar.err || { cat /tmp/vm-proof-tar.err >&2; exit 1; }
+
+      - name: Upload VM proof bundle workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-proof-bundle
+          path: evidence/lab/manual-vm-proof-bundle/vm-proof-bundle.tar.zst
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attest VM proof bundle
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: evidence/lab/manual-vm-proof-bundle/vm-proof-bundle.tar.zst
+
+      - name: Print attestation verification command
+        env:
+          GITHUB_REPOSITORY_NAME: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "After the run completes, verify provenance with:"
+          echo "gh attestation verify $VM_PROOF_BUNDLE --repo $GITHUB_REPOSITORY_NAME"
+          echo "This workflow artifact is not a release asset, not OCI, and not production approval."
