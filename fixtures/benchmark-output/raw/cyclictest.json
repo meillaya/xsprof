@@ -1,0 +1,7 @@
+{
+  "file_version": 1,
+  "thread": {
+    "0": { "cycles": 1000, "min": 7, "avg": 12.5, "max": 44 },
+    "1": { "cycles": 1000, "min": 8, "avg": 13.0, "max": 47 }
+  }
+}

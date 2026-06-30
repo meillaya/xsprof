@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import hashlib
 import json
 import re
@@ -24,6 +25,11 @@ from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
 
 from qa.daemon_event_contract_check import ContractError as DaemonEventContractError
 from qa.daemon_event_contract_check import validate as validate_daemon_event_stream
+from qa.matrix_benchmark_provenance import MatrixBenchmarkProvenanceError
+from qa.matrix_benchmark_provenance import validate_entries as validate_benchmark_provenance_entries
+from qa.matrix_benchmark_provenance_selftest import BENCHMARK_PROVENANCE_SELF_TEST_CASES
+from qa.matrix_benchmark_provenance_selftest import MatrixBenchmarkSelfTestError
+from qa.matrix_benchmark_provenance_selftest import apply_case as apply_benchmark_provenance_self_test_case
 from qa.runtime_sample_check import RuntimeSampleError, good_sample as runtime_good_sample
 from qa.runtime_sample_check import validate_file as validate_runtime_sample_file
 
@@ -70,7 +76,7 @@ ROLLBACK_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "sc
 CLEANUP_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "owned_qemu_leftovers", "owned_temp_leftovers", "qemu_scan_before", "qemu_scan_after", "temp_scan_before", "temp_scan_after", "host_mutation"))
 HOST_REFUSAL_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "reason", "no_bpf_load_attach", "no_cgroup_write", "no_sys_write", "no_proc_write", "host_mutation"))
 VM_MARKER_PROOF_FIELDS: Final = frozenset(("schema", "path", "required", "present", "evidence_mode", "host_mutation"))
-WORKLOAD_SPEC_FIELDS: Final = frozenset(("schema", "name", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "capability_artifact_path", "runner", "vm_marker_required_for_live_run", "host_safe_fixture_only", "missing_prereq", "host_mutation", "release_eligible"))
+WORKLOAD_SPEC_FIELDS: Final = frozenset(("schema", "name", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "benchmark_provenance", "capability_artifact_path", "runner", "vm_marker_required_for_live_run", "host_safe_fixture_only", "missing_prereq", "host_mutation", "release_eligible"))
 WORKLOAD_THRESHOLD_FIELDS: Final = frozenset(("source", "fixture_status", "calibration_status", "production_capacity_claim"))
 WORKLOAD_CAPABILITY_FIELDS: Final = frozenset(("schema", "scenario_id", "workload_class", "required_tools", "threshold_source", "mode", "status", "typed_outcome", "missing_prereq", "vm_marker_required_for_live_run", "fixture_mode", "runner", "host_mutation", "release_eligible"))
 WORKLOAD_TOOL_NAMES: Final = frozenset(("stress-ng", "cyclictest", "perf", "taskset", "chrt", "hackbench-like", "fio", "cpu-hotplug-online-control", "builtin-churn"))
@@ -330,7 +336,7 @@ def validate_docs(docs: Path) -> None:
         text_value = (docs / DOC_FILE).read_text().lower()
     except FileNotFoundError as exc:
         raise MatrixRunContractError(f"missing doc: {docs / DOC_FILE}") from exc
-    for needle in (SCHEMA, "standalone", "not a daemon-event", "host_mutation", "release_eligible", "relative", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path"):
+    for needle in (SCHEMA, "standalone", "not a daemon-event", "host_mutation", "release_eligible", "relative", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path", "benchmark_provenance"):
         require(needle.lower() in text_value, f"{DOC_FILE} missing required text: {needle}")
 
 
@@ -420,7 +426,14 @@ def validate_workload_thresholds(thresholds: JsonObject, source: str, context: s
     require(thresholds.get("production_capacity_claim") is False, f"{context}.production_capacity_claim must be false")
 
 
-def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: str, expected: WorkloadScenarioMetadata | None, context: str) -> str | None:
+def validate_workload_benchmark_provenance(value: JsonValue | None, manifest_root: Path | None, context: str) -> None:
+    try:
+        validate_benchmark_provenance_entries(value, manifest_root, context)
+    except MatrixBenchmarkProvenanceError as exc:
+        raise MatrixRunContractError(str(exc)) from exc
+
+
+def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: str, expected: WorkloadScenarioMetadata | None, context: str, manifest_root: Path | None = None) -> str | None:
     require_only_fields(spec, WORKLOAD_SPEC_FIELDS, context)
     require({"schema", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "vm_marker_required_for_live_run", "host_mutation", "release_eligible"}.issubset(spec), f"{context} missing required workload spec fields")
     require(spec.get("schema") == WORKLOAD_SPEC_SCHEMA, f"{context}.schema unsupported")
@@ -436,6 +449,10 @@ def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: s
     if expected is not None:
         require_expected_threshold_source(threshold_source, expected, f"{context}.threshold_source")
     validate_workload_thresholds(obj(spec.get("thresholds"), f"{context}.thresholds"), threshold_source, f"{context}.thresholds")
+    benchmark_provenance = spec.get("benchmark_provenance")
+    if threshold_source == "calibrated":
+        require(benchmark_provenance is not None, f"{context}.benchmark_provenance required when threshold_source is calibrated")
+    validate_workload_benchmark_provenance(benchmark_provenance, manifest_root, f"{context}.benchmark_provenance")
     require(spec.get("vm_marker_required_for_live_run") is True, f"{context}.vm_marker_required_for_live_run must be true")
     require(spec.get("host_mutation") is False, f"{context}.host_mutation must be false")
     require(spec.get("release_eligible") is False, f"{context}.release_eligible must be false")
@@ -750,7 +767,7 @@ def validate_manifest_workload_artifacts(row: JsonObject, manifest_root: Path, s
     require(file_sha256(spec_path) == expected_sha, f"{context}.workload.spec_sha256 does not match referenced workload spec")
     spec = load_json(spec_path)
     reject_workload_artifact_private(spec, f"{context}.workload.spec")
-    capability_path_value = validate_workload_spec(spec, scenario_id, workload_class, expected, f"{context}.workload.spec")
+    capability_path_value = validate_workload_spec(spec, scenario_id, workload_class, expected, f"{context}.workload.spec", manifest_root)
     if capability_path_value is None:
         raise MatrixRunContractError(f"{context}.workload.spec.capability_artifact_path is required in manifest mode")
     capability_path = Path(capability_path_value)
@@ -879,6 +896,10 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject) -> Path:
         "host_mutation": False,
         "release_eligible": False,
     })
+    bench_raw_path = row_dir / "bench" / "perf-bench-sched-messaging.txt"
+    bench_raw_path.parent.mkdir()
+    _ = bench_raw_path.write_text("# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
+    benchmark_record_path = row_dir / "benchmark-provenance.json"
     workload["spec_sha256"] = write_json_digest(row_dir / "workload-spec.json", {
         "schema": WORKLOAD_SPEC_SCHEMA,
         "name": expected.workload_class,
@@ -887,6 +908,29 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject) -> Path:
         "required_tools": list(expected.required_tools),
         "threshold_source": "fixture",
         "thresholds": {"source": "fixture", "fixture_status": "deterministic", "calibration_status": "placeholder", "production_capacity_claim": False},
+        "benchmark_provenance": [{
+            "record_path": benchmark_record_path.as_posix(),
+            "record_sha256": write_json_digest(benchmark_record_path, {
+                "schema": "zig-scheduler/benchmark-output/v1",
+                "status": "RECORDED",
+                "tool": "perf",
+                "command_family": "perf_bench_sched_messaging",
+                "output_path": bench_raw_path.as_posix(),
+                "output_sha256": file_sha256(bench_raw_path),
+                "vm_evidence": (run_root / "manifest.json").as_posix(),
+                "metrics": {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123},
+                "units": {"groups": "count", "processes": "count", "total_time_seconds": "seconds"},
+                "sample_count": 1,
+                "run_count": 1,
+                "host_mutation": False,
+                "release_eligible": False,
+                "production_capacity_claim": False,
+                "hard_thresholds_enforced": False,
+                "threshold_status": "record_only",
+                "privacy_sanitized": True,
+            }),
+            "record_only": True,
+        }],
         "capability_artifact_path": capability_path.as_posix(),
         "vm_marker_required_for_live_run": True,
         "host_mutation": False,
@@ -1155,6 +1199,11 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
                 workload["spec_sha256"] = file_sha256(spec_path)
                 write_json(artifact_path, row_data)
                 assert_invalid_manifest(manifest_path, name)
+            case _ if name in BENCHMARK_PROVENANCE_SELF_TEST_CASES:
+                try:
+                    apply_benchmark_provenance_self_test_case(name, manifest_path, artifact_path, assert_invalid_manifest)
+                except MatrixBenchmarkSelfTestError as exc:
+                    raise MatrixRunContractError(str(exc)) from exc
             case "workload-uncataloged-scenario":
                 row_data = load_json(artifact_path)
                 row_data["scenario_id"] = "workload-uncataloged"
@@ -1280,52 +1329,60 @@ def run_self_test() -> None:
             _ = validate(args)
             assert_invalid_fixture_gate(args, name, good)
     MATRIX_BASE.mkdir(parents=True, exist_ok=True)
-    host_safe_root = MATRIX_BASE / "selftest-host-safe-fixture-pass"
-    if host_safe_root.exists():
-        shutil.rmtree(host_safe_root)
-    host_safe_root.mkdir(parents=True)
     try:
-        host_safe_manifest = write_host_safe_fixture_pass_self_test_pack(host_safe_root, good)
-        _ = validate_manifest(host_safe_manifest)
-        print("PASS self-test accepts host-safe fixture PASS without VM marker claim")
+        host_safe_root = MATRIX_BASE / "selftest-host-safe-fixture-pass"
+        if host_safe_root.exists():
+            shutil.rmtree(host_safe_root)
+        host_safe_root.mkdir(parents=True)
+        try:
+            host_safe_manifest = write_host_safe_fixture_pass_self_test_pack(host_safe_root, good)
+            _ = validate_manifest(host_safe_manifest)
+            print("PASS self-test accepts host-safe fixture PASS without VM marker claim")
+        finally:
+            shutil.rmtree(host_safe_root)
+        for index, name in enumerate((
+            "root-outside-matrix",
+            "absolute-artifact-path",
+            "artifact-outside-run-root",
+            "duplicate-scenario",
+            "duplicate-artifact",
+            "row-count-mismatch",
+            "manifest-out-dir-mismatch",
+            "manifest-run-id-basename-mismatch",
+            "row-run-id-manifest-mismatch",
+            "row-internal-path-outside-root",
+            "missing-proof-artifact",
+            "invalid-runtime-sample-artifact",
+            "host-safe-vm-live-claim",
+            "forged-pass-host-refusal-no-marker",
+            "forged-fixture-mode-false-fixture-pass",
+            "host-safe-fixture-mode-false-fixture-pass",
+            "vm-live-missing-marker-proof",
+            "vm-live-marker-proof-mismatch",
+            "malicious-workload-spec-token",
+            "malicious-capability-token",
+            "false-private-fields-found",
+            "workload-spec-class-mismatch",
+            "workload-spec-required-tools-mismatch",
+            "workload-mixed-metadata-canonical-mismatch",
+            "workload-spec-threshold-source-mismatch",
+            "workload-benchmark-provenance-missing",
+            "workload-calibrated-benchmark-provenance-absent",
+            "workload-benchmark-provenance-malformed",
+            "workload-benchmark-provenance-claim",
+            "workload-uncataloged-scenario",
+            "workload-capability-required-tools-mismatch",
+            "workload-capability-threshold-source-mismatch",
+            "workload-capability-missing-prereq-mismatch",
+            "workload-capability-outcome-mismatch",
+            "workload-capability-pass-missing-prereq",
+            "workload-capability-skip-empty-missing-prereq",
+            "extra-property",
+        )):
+            run_manifest_self_test_case(good, name, index)
     finally:
-        shutil.rmtree(host_safe_root)
-    for index, name in enumerate((
-        "root-outside-matrix",
-        "absolute-artifact-path",
-        "artifact-outside-run-root",
-        "duplicate-scenario",
-        "duplicate-artifact",
-        "row-count-mismatch",
-        "manifest-out-dir-mismatch",
-        "manifest-run-id-basename-mismatch",
-        "row-run-id-manifest-mismatch",
-        "row-internal-path-outside-root",
-        "missing-proof-artifact",
-        "invalid-runtime-sample-artifact",
-        "host-safe-vm-live-claim",
-        "forged-pass-host-refusal-no-marker",
-        "forged-fixture-mode-false-fixture-pass",
-        "host-safe-fixture-mode-false-fixture-pass",
-        "vm-live-missing-marker-proof",
-        "vm-live-marker-proof-mismatch",
-        "malicious-workload-spec-token",
-        "malicious-capability-token",
-        "false-private-fields-found",
-        "workload-spec-class-mismatch",
-        "workload-spec-required-tools-mismatch",
-        "workload-mixed-metadata-canonical-mismatch",
-        "workload-spec-threshold-source-mismatch",
-        "workload-uncataloged-scenario",
-        "workload-capability-required-tools-mismatch",
-        "workload-capability-threshold-source-mismatch",
-        "workload-capability-missing-prereq-mismatch",
-        "workload-capability-outcome-mismatch",
-        "workload-capability-pass-missing-prereq",
-        "workload-capability-skip-empty-missing-prereq",
-        "extra-property",
-    )):
-        run_manifest_self_test_case(good, name, index)
+        with suppress(OSError):
+            MATRIX_BASE.rmdir()
 
 
 def run(argv: list[str]) -> int:

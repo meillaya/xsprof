@@ -1,0 +1,10 @@
+{
+  "fio version": "fio-3.36",
+  "jobs": [
+    {
+      "jobname": "mixed-io-calibration",
+      "read": { "iops": 1200.5, "bw_bytes": 4096000, "lat_ns": { "mean": 90000 } },
+      "write": { "iops": 800.25, "bw_bytes": 2048000, "lat_ns": { "mean": 140000 } }
+    }
+  ]
+}

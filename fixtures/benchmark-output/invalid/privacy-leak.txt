@@ -1,0 +1,2 @@
+Total time: 0.123 [sec]
+password=secret

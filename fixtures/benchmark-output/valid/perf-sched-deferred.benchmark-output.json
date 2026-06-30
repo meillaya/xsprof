@@ -1,0 +1,19 @@
+{
+  "command_family": "perf_sched",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {},
+  "output_path": "evidence/lab/run/bench/perf-sched.txt",
+  "output_sha256": "c5ae1dc6a6b52c2233d800054793e2a8032981430a7467d14b1ef321f740c51e",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 0,
+  "sample_count": 0,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "UNSUPPORTED_DEFERRED",
+  "threshold_status": "record_only",
+  "tool": "perf",
+  "units": {},
+  "vm_evidence": "evidence/lab/run/summary.json"
+}

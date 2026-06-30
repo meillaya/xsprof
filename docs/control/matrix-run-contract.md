@@ -16,6 +16,7 @@ The artifact schema string and JSON Schema `$id` are both `zig-scheduler/matrix-
 - Host-refusal-only rows use `evidence_mode=host-refusal-only`, keep `vm_marker.present=false`, and must not report `PASS`.
 - Stale or dirty git state is rejected by the contract (`git.status` must be `current`, `expected_sha` must match `actual_sha`, and `dirty=false`).
 - Privacy scans must pass with `private_fields_found=false`; docs and fixtures are inert data and must not execute external text.
+- Workload calibration may reference `benchmark-output/v1` records through row-local workload specs. These references are record-only provenance: the matrix checker verifies the referenced record hash and reuses `qa/benchmark_output_check.py` validation, but no benchmark record can create PASS/FAIL thresholds, release eligibility, production-capacity claims, or scheduler-performance claims.
 - The manifest and nested contract objects are closed shapes (`additionalProperties=false`); extra unexpected properties are invalid even if all required fields are present.
 
 ## Outcomes
@@ -30,7 +31,7 @@ The artifact schema string and JSON Schema `$id` are both `zig-scheduler/matrix-
 
 ## Required fields
 
-The v1 manifest requires matrix run ID, scenario ID, outcome, kernel tuple, supported tuple status, VM marker facts, BPF ABI version, policy object/hash metadata, workload spec/hash, action ID, audit ID, rollback ID, pre/post scheduler state, pre/post cgroup state, runtime sample path, incident path, rollback proof path, cleanup proof path, host refusal proof path, privacy scan, git state, `release_eligible=false`, and `host_mutation=false`.
+The v1 manifest requires matrix run ID, scenario ID, outcome, kernel tuple, supported tuple status, VM marker facts, BPF ABI version, policy object/hash metadata, workload spec/hash, action ID, audit ID, rollback ID, pre/post scheduler state, pre/post cgroup state, runtime sample path, incident path, rollback proof path, cleanup proof path, host refusal proof path, privacy scan, git state, `release_eligible=false`, and `host_mutation=false`. Workload specs may include `benchmark_provenance` entries with `record_path`, `record_sha256`, and `record_only=true`; in manifest mode each path must stay under the matrix run directory and must validate as `benchmark-output/v1`.
 
 ## Validation
 
@@ -40,4 +41,7 @@ Run:
 python3 qa/matrix_run_contract_check.py --fixtures fixtures/matrix-run --schemas schemas/control --docs docs/control
 ```
 
-The checker validates committed valid fixtures and confirms fixtures under `fixtures/matrix-run/invalid/` are rejected. Manifest mode additionally dereferences daemon events, runtime samples, incident evidence, rollback proof, cleanup proof, host refusal proof, workload capability/spec files, and privacy reports instead of trusting path strings. The invalid fixtures cover malformed JSON, invalid outcome, stale and dirty git, missing VM marker on a VM-live row, absolute and traversing artifact paths, missing rollback proof, missing cleanup proof, missing cleanup proof on both `SKIP` and `REFUSE`, missing host refusal proof, privacy failure, extra unexpected properties, `host_mutation=true`, and `release_eligible=true`.
+The checker validates committed valid fixtures and confirms fixtures under `fixtures/matrix-run/invalid/` are rejected. Manifest mode additionally dereferences daemon events, runtime samples, incident evidence, rollback proof, cleanup proof, host refusal proof, workload capability/spec files, benchmark provenance records, and privacy reports instead of trusting path strings. The invalid fixtures cover malformed JSON, invalid outcome, stale and dirty git, missing VM marker on a VM-live row, absolute and traversing artifact paths, missing rollback proof, missing cleanup proof, missing cleanup proof on both `SKIP` and `REFUSE`, missing host refusal proof, privacy failure, missing/malformed/claim-bearing benchmark provenance in manifest artifacts, extra unexpected properties, `host_mutation=true`, and `release_eligible=true`.
+
+
+Manual protected VM proof bundles wrap the matrix manifest in `zig-scheduler/evidence-manifest/v1` (`evidence-manifest.json`). That bundle-level evidence manifest is validated by `qa/evidence_manifest_check.py` with `schemas/control/evidence-manifest.v1.schema.json` and records SHA-256 hashes plus schema roles for the matrix manifest, matrix rows, BPF metadata or BPF SKIP JSON, daemon events, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, static verification logs, audit id, rollback id, VM marker, supported tuple, and attestation status. It preserves the same non-release guarantees: `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.

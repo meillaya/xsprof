@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zig-scheduler/benchmark-output/v1",
+  "title": "Record-only VM benchmark output calibration record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "tool",
+    "command_family",
+    "output_path",
+    "output_sha256",
+    "vm_evidence",
+    "metrics",
+    "units",
+    "sample_count",
+    "run_count",
+    "host_mutation",
+    "release_eligible",
+    "production_capacity_claim",
+    "hard_thresholds_enforced",
+    "threshold_status",
+    "privacy_sanitized"
+  ],
+  "properties": {
+    "schema": { "const": "zig-scheduler/benchmark-output/v1" },
+    "status": { "enum": ["RECORDED", "UNSUPPORTED_DEFERRED"] },
+    "tool": { "enum": ["cyclictest", "fio", "perf", "rtla"] },
+    "command_family": { "enum": ["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched"] },
+    "output_path": { "type": "string", "minLength": 1 },
+    "output_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "vm_evidence": { "type": "string", "minLength": 1 },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "sample_count": { "type": "integer", "minimum": 0 },
+    "run_count": { "type": "integer", "minimum": 0 },
+    "host_mutation": { "const": false },
+    "release_eligible": { "const": false },
+    "production_capacity_claim": { "const": false },
+    "hard_thresholds_enforced": { "const": false },
+    "threshold_status": { "const": "record_only" },
+    "privacy_sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "RECORDED" } } },
+      "then": { "properties": { "sample_count": { "minimum": 1 }, "run_count": { "minimum": 1 } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "UNSUPPORTED_DEFERRED" } } },
+      "then": { "properties": { "sample_count": { "const": 0 }, "run_count": { "const": 0 }, "metrics": { "maxProperties": 0 }, "units": { "maxProperties": 0 } } }
+    }
+  ]
+}

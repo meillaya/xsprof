@@ -1,0 +1,1 @@
+rtla timerlat summary redacted; unsupported for benchmark-output/v1 parser

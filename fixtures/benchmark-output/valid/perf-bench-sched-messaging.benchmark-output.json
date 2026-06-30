@@ -1,0 +1,27 @@
+{
+  "command_family": "perf_bench_sched_messaging",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {
+    "groups": 10.0,
+    "processes": 400.0,
+    "total_time_seconds": 0.123
+  },
+  "output_path": "evidence/lab/run/bench/perf-bench-sched-messaging.txt",
+  "output_sha256": "36cebffa314ac575060091209fa6d7992085c631663ec2262276e34d0bb4d48b",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 1,
+  "sample_count": 1,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "RECORDED",
+  "threshold_status": "record_only",
+  "tool": "perf",
+  "units": {
+    "groups": "count",
+    "processes": "count",
+    "total_time_seconds": "seconds"
+  },
+  "vm_evidence": "evidence/lab/run/summary.json"
+}

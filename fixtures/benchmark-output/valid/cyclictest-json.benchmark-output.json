@@ -1,0 +1,31 @@
+{
+  "command_family": "cyclictest",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {
+    "cycles": 2000.0,
+    "latency_avg_us_avg": 12.75,
+    "latency_max_us": 47.0,
+    "latency_min_us_avg": 7.5,
+    "threads": 2
+  },
+  "output_path": "evidence/lab/run/bench/cyclictest.json",
+  "output_sha256": "075b38a601fbdf2c562c343b95956c2dcbc54a64b95dd17896800f013bfad098",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 2,
+  "sample_count": 2000,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "RECORDED",
+  "threshold_status": "record_only",
+  "tool": "cyclictest",
+  "units": {
+    "cycles": "count",
+    "latency_avg_us_avg": "us",
+    "latency_max_us": "us",
+    "latency_min_us_avg": "us",
+    "threads": "count"
+  },
+  "vm_evidence": "evidence/lab/run/summary.json"
+}

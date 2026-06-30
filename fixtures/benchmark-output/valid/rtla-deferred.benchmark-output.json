@@ -1,0 +1,19 @@
+{
+  "command_family": "rtla",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {},
+  "output_path": "evidence/lab/run/bench/rtla.txt",
+  "output_sha256": "2d30b617d9e7c94912c2632cd9b076d7dc122162ea1c68d022768d46706c5a80",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 0,
+  "sample_count": 0,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "UNSUPPORTED_DEFERRED",
+  "threshold_status": "record_only",
+  "tool": "rtla",
+  "units": {},
+  "vm_evidence": "evidence/lab/run/summary.json"
+}

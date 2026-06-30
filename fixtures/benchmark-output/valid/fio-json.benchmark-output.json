@@ -1,0 +1,35 @@
+{
+  "command_family": "fio",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {
+    "jobs": 1,
+    "read_bw_bytes": 4096000.0,
+    "read_iops": 1200.5,
+    "read_lat_ns_mean_avg": 90000.0,
+    "write_bw_bytes": 2048000.0,
+    "write_iops": 800.25,
+    "write_lat_ns_mean_avg": 140000.0
+  },
+  "output_path": "evidence/lab/run/bench/fio.json",
+  "output_sha256": "08201f968988cfa85742d07e3a7d032dab8b5f86e548a79716bd5ebc79aeaee9",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 1,
+  "sample_count": 1,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "RECORDED",
+  "threshold_status": "record_only",
+  "tool": "fio",
+  "units": {
+    "jobs": "count",
+    "read_bw_bytes": "bytes_per_second",
+    "read_iops": "iops",
+    "read_lat_ns_mean_avg": "ns",
+    "write_bw_bytes": "bytes_per_second",
+    "write_iops": "iops",
+    "write_lat_ns_mean_avg": "ns"
+  },
+  "vm_evidence": "evidence/lab/run/summary.json"
+}
