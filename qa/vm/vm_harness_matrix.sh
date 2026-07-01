@@ -684,6 +684,7 @@ import subprocess
 import sys
 from pathlib import Path
 summary_path = Path(sys.argv[1])
+expected_live_summary = summary_path.parent / "live" / "summary.json"
 try:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 except (OSError, json.JSONDecodeError):
@@ -702,14 +703,17 @@ for key in required:
     if not isinstance(value, str) or not value.startswith("evidence/lab/matrix/"):
         raise SystemExit(1)
 live_summary = Path(str(summary.get("live_summary", "")))
+if live_summary != expected_live_summary:
+    raise SystemExit(1)
 try:
     live = json.loads(live_summary.read_text(encoding="utf-8"))
 except (OSError, json.JSONDecodeError):
     raise SystemExit(1)
-if live.get("status") == "PASS" and live.get("evidence_mode") == "vm-live":
-    check = subprocess.run(("python3", "qa/live_behavior_check.py", "--bundle", live_summary.as_posix()), capture_output=True, text=True)
-    if check.returncode != 0:
-        raise SystemExit(1)
+if live.get("status") != "PASS" or live.get("evidence_mode") != "vm-live":
+    raise SystemExit(1)
+check = subprocess.run(("python3", "qa/live_behavior_check.py", "--bundle", live_summary.as_posix()), capture_output=True, text=True)
+if check.returncode != 0:
+    raise SystemExit(1)
 if live.get("git_dirty") is not False:
     raise SystemExit(1)
 live_git_sha = live.get("git_sha")

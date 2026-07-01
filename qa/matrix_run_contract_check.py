@@ -517,10 +517,11 @@ def validate_workload_semantics(spec: JsonObject, scenario_id: str, context: str
 
 
 def workload_semantic_fields(scenario_id: str) -> JsonObject:
-    return {
-        "workload-cgroup-weight-quota": {"cgroup_semantics": dict(CGROUP_WORKLOAD_SEMANTICS)},
-        "workload-cpu-hotplug": {"cpu_hotplug_semantics": dict(CPU_HOTPLUG_SEMANTICS)},
-    }.get(scenario_id, {})
+    if scenario_id == "workload-cgroup-weight-quota":
+        return {"cgroup_semantics": dict(CGROUP_WORKLOAD_SEMANTICS)}
+    if scenario_id == "workload-cpu-hotplug":
+        return {"cpu_hotplug_semantics": dict(CPU_HOTPLUG_SEMANTICS)}
+    return {}
 
 
 def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: str, expected: WorkloadScenarioMetadata | None, context: str, manifest_root: Path | None = None) -> str | None:
@@ -761,19 +762,24 @@ def validate_live_backend_summary_consistency(row: JsonObject, artifact_path: Pa
     scenario_id = text(row.get("scenario_id"), f"{context}.scenario_id")
     if scenario_id != "live-backend":
         return
-    backend_summary_path = artifact_path.parent / "backend" / "summary.json"
-    if not backend_summary_path.is_file():
-        return
-    backend_summary = load_json(backend_summary_path)
-    live_summary_value = backend_summary.get("live_summary")
-    if not isinstance(live_summary_value, str):
-        return
-    live_summary_path = Path(live_summary_value)
-    if not live_summary_path.is_file():
-        return
-    live_summary = load_json(live_summary_path)
     outcome = text(row.get("outcome"), f"{context}.outcome")
     evidence_mode = text(row.get("evidence_mode"), f"{context}.evidence_mode")
+    if outcome != "PASS" or evidence_mode != "vm-live":
+        return
+    backend_summary_path = artifact_path.parent / "backend" / "summary.json"
+    require(backend_summary_path.is_file(), f"{context} live-backend PASS row is missing backend summary artifact")
+    backend_summary = load_json(backend_summary_path)
+    require(text(backend_summary.get("schema"), f"{context}.backend_summary.schema") == "zig-scheduler/vm-backend-run/v1", f"{context} backend summary schema must be vm-backend-run/v1")
+    require(text(backend_summary.get("status"), f"{context}.backend_summary.status") == "PASS", f"{context} backend summary must be PASS")
+    require(backend_summary.get("host_mutation") is False, f"{context} backend summary host_mutation must be false")
+    live_summary_value = backend_summary.get("live_summary")
+    if not isinstance(live_summary_value, str) or live_summary_value == "":
+        raise MatrixRunContractError(f"{context} live-backend PASS row requires backend/live/summary.json live summary path")
+    live_summary_path = Path(live_summary_value)
+    expected_live_summary_path = backend_summary_path.parent / "live" / "summary.json"
+    require(live_summary_path == expected_live_summary_path, f"{context} live summary must point to the canonical backend/live/summary.json bundle")
+    require(live_summary_path.is_file(), f"{context} live summary bundle is missing: {live_summary_path}")
+    live_summary = load_json(live_summary_path)
     if live_summary.get("git_dirty") is True:
         require(outcome != "PASS" and evidence_mode != "vm-live", f"{context} dirty live backend summary cannot back a PASS vm-live matrix row")
     live_git_sha = live_summary.get("git_sha")
@@ -1539,6 +1545,53 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
                 write_json(live_dir / "summary.json", {"schema": "zig-scheduler/run-all-lab/v1", "status": "PASS", "git_sha": "abcdef012345", "git_dirty": True, "host_mutation": False})
                 write_json(backend_dir / "summary.json", {"schema": "zig-scheduler/vm-backend-run/v1", "status": "PASS", "live_summary": (live_dir / "summary.json").as_posix(), "host_mutation": False})
                 assert_invalid_manifest(live_manifest, name, "dirty live backend summary cannot back")
+            case "live-backend-missing-live-summary-artifact":
+                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                live_rows = load_json(live_manifest).get("rows")
+                if not isinstance(live_rows, list):
+                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                backend_dir = live_artifact_path.parent / "backend"
+                backend_dir.mkdir(parents=True, exist_ok=True)
+                write_json(
+                    backend_dir / "summary.json",
+                    {
+                        "schema": "zig-scheduler/vm-backend-run/v1",
+                        "status": "PASS",
+                        "host_mutation": False,
+                    },
+                )
+                assert_invalid_manifest(live_manifest, name, "live-backend PASS row requires backend/live/summary.json live summary path")
+            case "live-backend-noncanonical-live-summary-path":
+                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                live_rows = load_json(live_manifest).get("rows")
+                if not isinstance(live_rows, list):
+                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                backend_dir = live_artifact_path.parent / "backend"
+                observe_dir = backend_dir / "live" / "observe-partial"
+                observe_dir.mkdir(parents=True, exist_ok=True)
+                write_json(
+                    observe_dir / "summary.json",
+                    {
+                        "schema": "zig-scheduler/observe-partial-summary/v1",
+                        "status": "PASS",
+                        "evidence_mode": "vm-live",
+                        "host_mutation": False,
+                    },
+                )
+                write_json(
+                    backend_dir / "summary.json",
+                    {
+                        "schema": "zig-scheduler/vm-backend-run/v1",
+                        "status": "PASS",
+                        "live_summary": (observe_dir / "summary.json").as_posix(),
+                        "host_mutation": False,
+                    },
+                )
+                assert_invalid_manifest(live_manifest, name, "canonical backend/live/summary.json bundle")
             case "live-backend-fake-unavailable-counter":
                 live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
                 live_rows = load_json(live_manifest).get("rows")
@@ -1659,6 +1712,8 @@ def run_self_test() -> None:
             "live-backend-missing-host-refusal-proof-artifact",
             "live-backend-daemon-events-outside-root",
             "live-backend-dirty-summary-masked-pass",
+            "live-backend-missing-live-summary-artifact",
+            "live-backend-noncanonical-live-summary-path",
             "live-backend-fake-unavailable-counter",
             "extra-property",
         )):
