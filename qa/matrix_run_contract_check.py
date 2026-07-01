@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
 
 from qa.daemon_event_contract_check import ContractError as DaemonEventContractError
 from qa.daemon_event_contract_check import validate as validate_daemon_event_stream
+from qa.live_behavior_check import LiveBehaviorError
+from qa.live_behavior_check import validate_bundle as validate_live_behavior_bundle
 from qa.matrix_benchmark_provenance import MatrixBenchmarkProvenanceError
 from qa.matrix_benchmark_provenance import validate_entries as validate_benchmark_provenance_entries
 from qa.matrix_benchmark_provenance_selftest import BENCHMARK_PROVENANCE_SELF_TEST_CASES
@@ -692,6 +694,11 @@ def validate_live_backend_summary_consistency(row: JsonObject, artifact_path: Pa
     actual_sha = text(git.get("actual_sha"), f"{context}.git.actual_sha")
     if isinstance(live_git_sha, str) and live_git_sha and not live_git_sha.startswith(actual_sha):
         require(outcome != "PASS" and evidence_mode != "vm-live", f"{context} stale live backend summary cannot back a PASS vm-live matrix row")
+    if outcome == "PASS" and evidence_mode == "vm-live":
+        try:
+            validate_live_behavior_bundle(live_summary_path)
+        except LiveBehaviorError as exc:
+            raise MatrixRunContractError(f"{context} live backend summary failed nested live behavior validation: {exc}") from exc
 
 
 def validate_vm_marker_proof(data: JsonObject, marker_required: bool, marker_present: bool, evidence_mode: str, context: str) -> None:
@@ -1395,6 +1402,28 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
                 write_json(live_dir / "summary.json", {"schema": "zig-scheduler/run-all-lab/v1", "status": "PASS", "git_sha": "abcdef012345", "git_dirty": True, "host_mutation": False})
                 write_json(backend_dir / "summary.json", {"schema": "zig-scheduler/vm-backend-run/v1", "status": "PASS", "live_summary": (live_dir / "summary.json").as_posix(), "host_mutation": False})
                 assert_invalid_manifest(live_manifest, name, "dirty live backend summary cannot back")
+            case "live-backend-fake-unavailable-counter":
+                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                live_rows = load_json(live_manifest).get("rows")
+                if not isinstance(live_rows, list):
+                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                backend_dir = live_artifact_path.parent / "backend"
+                live_dir = backend_dir / "live"
+                from qa.live_behavior_check import write_bundle as write_live_behavior_bundle
+
+                _ = write_live_behavior_bundle(live_dir, fake_unavailable_counter=True)
+                write_json(
+                    backend_dir / "summary.json",
+                    {
+                        "schema": "zig-scheduler/vm-backend-run/v1",
+                        "status": "PASS",
+                        "live_summary": (live_dir / "summary.json").as_posix(),
+                        "host_mutation": False,
+                    },
+                )
+                assert_invalid_manifest(live_manifest, name, "claims numeric value while events are unavailable")
             case "extra-property":
                 manifest["unexpected_field_not_in_schema"] = "reject"
                 write_json(manifest_path, manifest)
@@ -1490,6 +1519,7 @@ def run_self_test() -> None:
             "live-backend-missing-host-refusal-proof-artifact",
             "live-backend-daemon-events-outside-root",
             "live-backend-dirty-summary-masked-pass",
+            "live-backend-fake-unavailable-counter",
             "extra-property",
         )):
             run_manifest_self_test_case(good, name, index)

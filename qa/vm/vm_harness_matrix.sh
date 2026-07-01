@@ -604,6 +604,7 @@ live_backend_pass_shape() {
   [ -f "$summary" ] || return 1
   python3 - "$summary" <<'PY'
 import json
+import subprocess
 import sys
 from pathlib import Path
 summary_path = Path(sys.argv[1])
@@ -629,6 +630,10 @@ try:
     live = json.loads(live_summary.read_text(encoding="utf-8"))
 except (OSError, json.JSONDecodeError):
     raise SystemExit(1)
+if live.get("status") == "PASS" and live.get("evidence_mode") == "vm-live":
+    check = subprocess.run(("python3", "qa/live_behavior_check.py", "--bundle", live_summary.as_posix()), capture_output=True, text=True)
+    if check.returncode != 0:
+        raise SystemExit(1)
 if live.get("git_dirty") is not False:
     raise SystemExit(1)
 live_git_sha = live.get("git_sha")
@@ -646,6 +651,7 @@ live_backend_refusal_reason() {
   [ -f "$summary" ] || { printf 'live backend summary unavailable'; return 0; }
   python3 - "$summary" <<'PY'
 import json
+import subprocess
 import sys
 from pathlib import Path
 summary_path = Path(sys.argv[1])
@@ -663,6 +669,12 @@ try:
 except (OSError, json.JSONDecodeError):
     print("live backend live summary malformed")
     raise SystemExit(0)
+if live.get("status") == "PASS" and live.get("evidence_mode") == "vm-live":
+    check = subprocess.run(("python3", "qa/live_behavior_check.py", "--bundle", live_summary), capture_output=True, text=True)
+    if check.returncode != 0:
+        message = (check.stderr or check.stdout).strip()
+        print(f"nested live behavior validation failed: {message}" if message else "nested live behavior validation failed")
+        raise SystemExit(0)
 if live.get("git_dirty") is True:
     print("live backend dirty git state refused")
     raise SystemExit(0)
