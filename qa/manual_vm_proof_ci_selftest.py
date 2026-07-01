@@ -110,6 +110,7 @@ jobs:
           out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
           PY
           python3 qa/runner_substrate_proof_check.py --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json --schema schemas/control/runner-substrate-proof.v1.schema.json
+      - run: echo "manifest_outcome = runner_outcome 'outcome': manifest_outcome 'present': marker_present benchmark_provenance = { 'status': 'not_applicable' 'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED'] PASS evidence manifest requires benchmark_provenance records runner_substrate_proof outcome is missing or unsupported"
       - run: python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
       - run: |
           tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json qa/runner_substrate_proof_check.py runner-substrate-proof.json)
@@ -159,6 +160,9 @@ def run_self_test() -> None:
     expect_reject("release claim", workflow.replace("release_eligible=false", "release_eligible=true"), docs)
     expect_reject("missing attestation", workflow.replace("actions/attest-build-provenance@v2", "actions/upload-artifact@v4"), docs)
     expect_reject("missing evidence manifest", workflow.replace("evidence-manifest.json", "evidence-manifest.txt"), docs)
+    expect_reject("evidence manifest omits explicit outcome", workflow.replace("'outcome': manifest_outcome", "'schema': 'zig-scheduler/evidence-manifest/v1'"), docs)
+    expect_reject("evidence manifest hardcodes VM marker present", workflow.replace("'present': marker_present", "'present': True"), docs)
+    expect_reject("evidence manifest omits benchmark not-applicable status", workflow.replace("'status': 'not_applicable'", "'status': 'missing'"), docs)
     expect_reject("real-host attach allowance", workflow.replace("static verification logs", "static verification logs bpftool prog load"), docs)
     expect_reject("direct input interpolation in run", workflow.replace('"$INPUT_AUDIT_ID"', '"${{ inputs.audit_id }}"', 1), docs)
     expect_reject("direct input interpolation in run shorthand", workflow.replace("      - run: echo 'audit id", "      - run: echo \"${{ inputs.audit_id }}\"\n      - run: echo 'audit id", 1), docs)

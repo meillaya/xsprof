@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "schema",
+    "outcome",
     "audit_id",
     "rollback_id",
     "vm_marker",

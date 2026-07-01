@@ -157,6 +157,18 @@ def validate_workflow(path: Path) -> None:
     require("schemas/control/runner-substrate-proof.v1.schema.json" in text, "workflow must include the runner substrate proof schema")
     require("qa/runner_substrate_proof_check.py" in text, "workflow must validate runner substrate proof")
     require("runner-substrate-proof.json" in text, "workflow must produce runner-substrate-proof.json")
+
+    for manifest_gate in (
+        "manifest_outcome = runner_outcome",
+        "'outcome': manifest_outcome",
+        "'present': marker_present",
+        "benchmark_provenance = {",
+        "'status': 'not_applicable'",
+        "'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED']",
+        "PASS evidence manifest requires benchmark_provenance records",
+        "runner_substrate_proof outcome is missing or unsupported",
+    ):
+        require(contains(text, manifest_gate), f"workflow missing outcome-aware evidence manifest gate: {manifest_gate}")
     for proof_gate in tuple("""protected-environment-review.json|reviewer_signal['reviewer_status'] != 'approved'|qemu_supports_kvm|qemu_version == ''|qemu_unavailable_reason = 'qemu-system-x86_64 version unavailable'|qemu['unavailable_reason'] = qemu_unavailable_reason|not release.startswith(expected_release)|config_sha256 == '' or config_sha256 == '0' * 64|not btf_available|not sched_ext_available|bpf_role != 'bpf-metadata'|outcome = 'PASS' if not unavailable else 'SKIP'""".split("|")):
         require(contains(text, proof_gate), f"workflow missing PASS substrate gate: {proof_gate}")
     require("release_eligible=false" in text, "workflow must keep release_eligible=false")

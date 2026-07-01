@@ -20,7 +20,7 @@ from qa.evidence_manifest_check import JsonObject, JsonValue, ManifestError, fil
 
 SCHEMA: Final[str] = "zig-scheduler/evidence-manifest/v1"
 VM_MARKER: Final[str] = "/run/zig-scheduler-vm-lab.marker"
-Mutator = Literal["missing-hash", "absolute-path", "traversing-path", "missing-marker", "missing-rollback", "missing-cleanup", "missing-host-refusal", "host-mutation", "release-eligible", "production-claim", "untracked-source", "missing-attestation", "pass-benchmark-not-applicable", "refuse-benchmark-missing-outcome"]
+Mutator = Literal["missing-hash", "absolute-path", "traversing-path", "missing-marker", "missing-rollback", "missing-cleanup", "missing-host-refusal", "host-mutation", "release-eligible", "production-claim", "untracked-source", "missing-attestation", "pass-benchmark-not-applicable", "refuse-benchmark-missing-outcome", "missing-outcome"]
 
 
 def write_json(path: Path, data: JsonObject) -> None:
@@ -78,6 +78,8 @@ def mutate(data: JsonObject, mutator: Mutator) -> None:
         case "traversing-path":
             if isinstance(matrix_manifest, dict):
                 matrix_manifest["path"] = "evidence/../manifest.json"
+        case "missing-outcome":
+            del data["outcome"]
         case "missing-marker":
             data["vm_marker"] = {"path": VM_MARKER, "present": False, "checked_by": "manual-vm-proof"}
         case "missing-rollback":
@@ -168,7 +170,7 @@ def run_self_test(schema: Path) -> None:
     refuse = good_manifest(root / "refuse-na", outcome="REFUSE", benchmark_applicable=False)
     validate_manifest(refuse, schema)
     print("PASS accept REFUSE evidence manifest with benchmark_provenance not_applicable")
-    cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"), ("PASS benchmark_provenance not_applicable", "pass-benchmark-not-applicable"), ("REFUSE benchmark_provenance missing outcome", "refuse-benchmark-missing-outcome"))
+    cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing outcome", "missing-outcome"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"), ("PASS benchmark_provenance not_applicable", "pass-benchmark-not-applicable"), ("REFUSE benchmark_provenance missing outcome", "refuse-benchmark-missing-outcome"))
     for label, mutator in cases:
         expect_reject(good, schema, label, mutator)
     privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug")

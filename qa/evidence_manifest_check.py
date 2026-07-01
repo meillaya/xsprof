@@ -221,8 +221,7 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     data = load_json(path)
     only_fields(data, FIELDS, str(path))
     require(data.get("schema") == SCHEMA, "unsupported evidence manifest schema")
-    raw_outcome = data.get("outcome")
-    outcome = text(raw_outcome, "outcome") if raw_outcome is not None else "PASS"
+    outcome = text(data.get("outcome"), "outcome")
     require(outcome in OUTCOMES, "outcome is unsupported")
     require(data.get("host_mutation") is False, "manifest.host_mutation must be false")
     require(data.get("release_eligible") is False, "manifest.release_eligible must be false")

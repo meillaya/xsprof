@@ -83,7 +83,7 @@ ENUM_RULES: Final[tuple[EnumRule, ...]] = (
 FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
     ("daemon-event.v1.schema.json", ("required",), ("schema", "event", "status", "host_mutation")),
-    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
+    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("evidence-manifest.v1.schema.json", ("properties", "vm_marker", "required"), ("path", "present", "checked_by")),
     ("evidence-manifest.v1.schema.json", ("properties", "benchmark_provenance", "oneOf", "1", "required"), ("status", "reason", "applies_to_outcomes")),
     ("evidence-manifest.v1.schema.json", ("properties", "privacy_scan", "required"), ("status", "private_fields_found", "artifact_paths")),

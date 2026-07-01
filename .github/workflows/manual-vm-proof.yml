@@ -363,23 +363,66 @@ jobs:
           for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
               artifacts.append(ref(log, 'static-verification-log'))
           runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          matrix_manifest = json.loads((root / 'manifest.json').read_text())
+          matrix_outcomes = []
+          marker_values = []
+          for entry in matrix_manifest.get('rows', []):
+              outcome = str(entry.get('outcome', ''))
+              if outcome:
+                  matrix_outcomes.append(outcome)
+              artifact_path = Path(str(entry.get('artifact_path', '')))
+              if artifact_path.is_file():
+                  row_data = json.loads(artifact_path.read_text())
+                  marker = row_data.get('vm_marker', {})
+                  if isinstance(marker, dict) and isinstance(marker.get('present'), bool):
+                      marker_values.append(marker['present'])
+          if not matrix_outcomes:
+              raise SystemExit('matrix manifest rows must include at least one outcome')
+          runner_data = json.loads(runner_substrate.read_text())
+          runner_outcome = str(runner_data.get('proof_outcome', ''))
+          if runner_outcome not in {'PASS', 'SKIP', 'REFUSE'}:
+              raise SystemExit('runner_substrate_proof outcome is missing or unsupported')
+          if runner_outcome != 'PASS':
+              manifest_outcome = runner_outcome
+          elif 'REFUSE' in matrix_outcomes:
+              manifest_outcome = 'REFUSE'
+          elif 'SKIP' in matrix_outcomes:
+              manifest_outcome = 'SKIP'
+          elif any(item in {'FAIL', 'INCIDENT', 'BLOCKED'} for item in matrix_outcomes):
+              manifest_outcome = 'BLOCKED'
+          elif all(item == 'PASS' for item in matrix_outcomes):
+              manifest_outcome = 'PASS'
+          else:
+              raise SystemExit('matrix manifest rows contain unsupported outcome values')
+          marker_present = any(marker_values) if manifest_outcome != 'PASS' else bool(marker_values) and all(marker_values)
           benchmarks = []
           for spec_path in sorted((root / 'rows').glob('*/workload-spec.json')):
               spec = json.loads(spec_path.read_text())
               for entry in spec.get('benchmark_provenance', []):
                   benchmarks.append(ref(Path(entry['record_path']), 'benchmark-provenance'))
+          if benchmarks:
+              benchmark_provenance = benchmarks
+          elif manifest_outcome == 'PASS':
+              raise SystemExit('PASS evidence manifest requires benchmark_provenance records')
+          else:
+              benchmark_provenance = {
+                  'status': 'not_applicable',
+                  'reason': 'manual VM proof outcome did not reach calibrated benchmark artifact production',
+                  'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED'],
+              }
           manifest = {
               'schema': 'zig-scheduler/evidence-manifest/v1',
+              'outcome': manifest_outcome,
               'audit_id': os.environ['INPUT_AUDIT_ID'],
               'rollback_id': os.environ['INPUT_ROLLBACK_ID'],
-              'vm_marker': {'path': '/run/zig-scheduler-vm-lab.marker', 'present': True, 'checked_by': 'manual-vm-proof'},
+              'vm_marker': {'path': '/run/zig-scheduler-vm-lab.marker', 'present': marker_present, 'checked_by': 'manual-vm-proof'},
               'supported_tuple': os.environ['INPUT_SUPPORTED_TUPLE'],
               'bpf_metadata_or_skip': bpf_ref,
               'matrix_manifest': ref(root / 'manifest.json', 'matrix-manifest'),
               'daemon_events': ref(root / 'daemon-events.jsonl', 'daemon-events'),
               'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
               'artifacts': artifacts,
-              'benchmark_provenance': benchmarks,
+              'benchmark_provenance': benchmark_provenance,
               'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts if item['schema_role'] == 'privacy-scan']},
               'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
               'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
