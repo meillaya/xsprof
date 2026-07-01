@@ -371,7 +371,32 @@ def write_json(path: Path, payload: dict) -> str:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-def benchmark_record() -> dict | None:
+def workload_semantics() -> dict:
+    cgroup = {
+        "cpu.weight": "callback-observed",
+        "cpu.max": "deferred",
+        "cpu.max.burst": "deferred",
+        "cpuset.cpus": "observed-constraints",
+        "cpuset.cpus.effective": "observed-constraints",
+        "cpu.pressure": "observed-or-deferred",
+        "uclamp": "observed-or-deferred",
+        "cgroup.type.domain": "observed",
+        "cgroup.type.threaded": "observed",
+        "allowed-mask": "rejected",
+    }
+    hotplug = {
+        "cpu.hotplug.offline": "fallback-observed",
+        "cpu.hotplug.online": "fallback-observed",
+        "cpuset.cpus": "observed-constraints",
+        "cpuset.cpus.effective": "observed-constraints",
+        "allowed-mask": "rejected",
+    }
+    return {
+        "workload-cgroup-weight-quota": {"cgroup_semantics": cgroup},
+        "workload-cpu-hotplug": {"cpu_hotplug_semantics": hotplug},
+    }.get(scenario, {})
+
+def benchmark_record() -> list[dict]:
     if threshold_source != "record-only":
         return None
     bench_dir = row_dir / "benchmark-provenance"

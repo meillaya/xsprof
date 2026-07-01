@@ -1,4 +1,11 @@
 {
+  "cpu_hotplug_semantics": {
+    "allowed-mask": "rejected",
+    "cpu.hotplug.offline": "fallback-observed",
+    "cpu.hotplug.online": "fallback-observed",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints"
+  },
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [

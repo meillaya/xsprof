@@ -6,6 +6,18 @@
       "record_sha256": "25c87bb3a4bd062dfb213cfc3300fae05224da6b56f39bd41b3991d19fdde248"
     }
   ],
+  "cgroup_semantics": {
+    "allowed-mask": "rejected",
+    "cgroup.type.domain": "observed",
+    "cgroup.type.threaded": "observed",
+    "cpu.max": "deferred",
+    "cpu.max.burst": "deferred",
+    "cpu.pressure": "observed-or-deferred",
+    "cpu.weight": "callback-observed",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints",
+    "uclamp": "observed-or-deferred"
+  },
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [

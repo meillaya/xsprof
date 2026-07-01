@@ -65,6 +65,6 @@
   "workload": {
     "name": "cgroup-weight-quota-pressure",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-cgroup-weight-quota.json",
-    "spec_sha256": "859265803f724339dd83e9eb011d66e6c236685c6d48672c99ba50d3cd57d3dd"
+    "spec_sha256": "f2b35a746072083aa7f646a053faefc7e316f2c053509228e2cc8959c3a994d7"
   }
 }

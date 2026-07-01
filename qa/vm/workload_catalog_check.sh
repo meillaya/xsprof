@@ -46,14 +46,35 @@ allowed_spec_fields = {
     "required_tools",
     "threshold_source",
     "thresholds",
+    "cgroup_semantics",
+    "cpu_hotplug_semantics",
     "benchmark_provenance",
     "vm_marker_required_for_live_run",
     "host_mutation",
     "release_eligible",
 }
-required_spec_fields = allowed_spec_fields - {"benchmark_provenance"}
+required_spec_fields = allowed_spec_fields - {"benchmark_provenance", "cgroup_semantics", "cpu_hotplug_semantics"}
 allowed_threshold_fields = {"source", "fixture_status", "calibration_status", "production_capacity_claim"}
 allowed_benchmark_provenance_fields = {"record_path", "record_sha256", "record_only"}
+expected_cgroup_semantics = {
+    "cpu.weight": "callback-observed",
+    "cpu.max": "deferred",
+    "cpu.max.burst": "deferred",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints",
+    "cpu.pressure": "observed-or-deferred",
+    "uclamp": "observed-or-deferred",
+    "cgroup.type.domain": "observed",
+    "cgroup.type.threaded": "observed",
+    "allowed-mask": "rejected",
+}
+expected_hotplug_semantics = {
+    "cpu.hotplug.offline": "fallback-observed",
+    "cpu.hotplug.online": "fallback-observed",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints",
+    "allowed-mask": "rejected",
+}
 private_needles = ("cmdline", "command_line", "argv", "environment", "env", "secret", "api_key", "token", "password", "authorization", "bearer")
 private_path = re.compile(r"(^|[\s=:])/(?:home|root|etc|proc|sys|var|tmp)/")
 sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
@@ -128,6 +149,23 @@ def validate_benchmark_provenance(spec: dict, spec_path: Path, threshold_source:
         if record_sha256 != digest:
             fail(f"{context}.record_sha256 mismatch")
 
+def validate_semantics(spec: dict, spec_path: Path, scenario: str) -> None:
+    if scenario == "workload-cgroup-weight-quota":
+        semantics = spec.get("cgroup_semantics")
+        if semantics != expected_cgroup_semantics:
+            fail(f"{spec_path} cgroup_semantics mismatch")
+        if "cpu_hotplug_semantics" in spec:
+            fail(f"{spec_path} cpu_hotplug_semantics only belongs to workload-cpu-hotplug")
+    elif scenario == "workload-cpu-hotplug":
+        semantics = spec.get("cpu_hotplug_semantics")
+        if semantics != expected_hotplug_semantics:
+            fail(f"{spec_path} cpu_hotplug_semantics mismatch")
+        if "cgroup_semantics" in spec:
+            fail(f"{spec_path} cgroup_semantics only belongs to workload-cgroup-weight-quota")
+    else:
+        if "cgroup_semantics" in spec or "cpu_hotplug_semantics" in spec:
+            fail(f"{spec_path} semantics fields are only allowed for cgroup/hotplug scenarios")
+
 for scenario, (workload_class, tools, threshold_source) in expected.items():
     spec_path = Path("fixtures/matrix-run/workload-specs") / f"{scenario}.json"
     row_path = Path("fixtures/matrix-run") / f"{scenario}.json"
@@ -160,6 +198,7 @@ for scenario, (workload_class, tools, threshold_source) in expected.items():
         fail(f"{spec_path} thresholds fields mismatch")
     if thresholds.get("source") != threshold_source or thresholds.get("production_capacity_claim") is not False:
         fail(f"{spec_path} thresholds are unsafe")
+    validate_semantics(spec, spec_path, scenario)
     validate_benchmark_provenance(spec, spec_path, threshold_source)
     row = load_object(row_path)
     workload = row.get("workload")

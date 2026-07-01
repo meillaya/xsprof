@@ -53,6 +53,25 @@ def bad_weight_policy_abi() -> JsonObject:
 
 
 
+def sched_ext_state_sample(sequence: int, phase: str, state: str, ops: str, enable_seq: str, task_ext: str = "unavailable") -> JsonObject:
+    sample = good_sample()
+    sample["sequence"] = sequence
+    sample["sched_ext_phase"] = phase
+    sample["state"] = {"status": "present", "value": state}
+    sample["ops"] = {"status": "present", "value": ops}
+    sample["enable_seq"] = {"status": "present", "value": enable_seq}
+    sample["task_ext_enabled"] = {"status": "present", "value": task_ext} if task_ext in {"true", "false"} else {"status": "unknown", "value": task_ext}
+    if phase in {"after_rollback", "after_scheduler_exit", "after_watchdog_disable", "after_forced_disable"}:
+        sample["teardown_state"] = {"status": "present", "value": phase}
+        sample["rollback_state"] = {"status": "present", "value": "scheduler_disabled"}
+    return sample
+
+
+def write_samples(path: Path, samples: list[JsonObject]) -> Path:
+    _ = path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in samples))
+    return path
+
+
 def validate_public_schema_lockstep() -> None:
     schema = json.loads(PUBLIC_SCHEMA_PATH.read_text())
     if not isinstance(schema, dict):
@@ -79,6 +98,15 @@ def self_test() -> None:
     shutil.rmtree(SELF_TEST_ROOT, ignore_errors=True)
     SELF_TEST_ROOT.mkdir(parents=True)
     _ = validate_file(write_sample(SELF_TEST_ROOT / "good.jsonl", good_sample()))
+    _ = validate_file(write_samples(SELF_TEST_ROOT / "sched-ext-state-normal-rollback.jsonl", [
+        sched_ext_state_sample(0, "before_attach", "disabled", "none", "41"),
+        sched_ext_state_sample(1, "during_attach", "enabled", "zigsched_minimal", "42", "true"),
+        sched_ext_state_sample(2, "after_attach", "enabled", "zigsched_minimal", "42", "true"),
+        sched_ext_state_sample(3, "after_rollback", "disabled", "none", "42"),
+        sched_ext_state_sample(4, "after_scheduler_exit", "disabled", "none", "42"),
+        sched_ext_state_sample(5, "after_watchdog_disable", "disabled", "none", "43"),
+        sched_ext_state_sample(6, "after_forced_disable", "unknown", "unknown", "43"),
+    ]))
 
     accepted = good_sample()
     accepted["policy_abi"] = good_policy_abi("d" * 64)
@@ -110,6 +138,7 @@ def self_test() -> None:
         ("command_line", "raw-command.jsonl", "/usr/bin/demo --token secret", "raw command line"),
         ("private_command_lines_sampled", "private-flag.jsonl", True, "private command lines flag"),
         ("enable_seq", "malformed-sched-ext-fact.jsonl", {"status": "present", "value": "not-a-number"}, "malformed sched_ext fact"),
+        ("nr_rejected", "negative-nr-rejected.jsonl", {"status": "present", "value": "-1"}, "negative sched_ext counter fact"),
         ("debug_dump", "raw-debug-path.jsonl", {"status": "present", "value": "/sys/kernel/debug/sched_ext/dump"}, "raw debug dump path"),
         ("cgroup_membership_digest", "invalid-cgroup-digest.jsonl", "not-a-sha256", "invalid cgroup digest"),
         ("cgroup_membership_digest", "zero-cgroup-digest.jsonl", "0" * 64, "zero cgroup digest"),
@@ -126,6 +155,17 @@ def self_test() -> None:
         sample = good_sample()
         sample[field] = value
         reject(write_sample(SELF_TEST_ROOT / name, sample), label)
+    reject(write_samples(SELF_TEST_ROOT / "stale-enable-seq.jsonl", [
+        sched_ext_state_sample(0, "during_attach", "enabled", "zigsched_minimal", "42", "true"),
+        sched_ext_state_sample(1, "after_rollback", "disabled", "none", "41"),
+    ]), "stale enable_seq semantics")
+    reject(write_samples(SELF_TEST_ROOT / "after-rollback-live-ops.jsonl", [
+        sched_ext_state_sample(0, "during_attach", "enabled", "zigsched_minimal", "42", "true"),
+        sched_ext_state_sample(1, "after_rollback", "disabled", "zigsched_minimal", "42"),
+    ]), "after rollback live root ops")
+    reject(write_samples(SELF_TEST_ROOT / "before-attach-enabled.jsonl", [
+        sched_ext_state_sample(0, "before_attach", "enabled", "zigsched_minimal", "42", "true"),
+    ]), "before attach enabled state")
     reject_rows(runtime_alert_rows(True, "runtime_nr_rejected_nonzero"), "nr_rejected incident ordering")
     reject_rows(runtime_alert_rows(True, "runtime_workload_dead"), "workload dead incident ordering")
     validate_alert_order(runtime_alert_rows(False, "runtime_nr_rejected_nonzero"), "nr_rejected-good-order")

@@ -1,0 +1,83 @@
+{
+  "action_id": "ACT-sched-ext-state-watchdog-disable",
+  "audit_id": "AUD-20260629T120000Z-scx-watchdog-disable",
+  "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "cleanup_proof_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/cleanup-proof.json",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/daemon-events.jsonl",
+  "evidence_mode": "fixture",
+  "git": {
+    "actual_sha": "302cead",
+    "dirty": false,
+    "expected_sha": "302cead",
+    "status": "current"
+  },
+  "host_mutation": false,
+  "host_refusal_proof_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/host-refusal.json",
+  "incident_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/incident.json",
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf": "present",
+    "kernel_release": "6.12.0-lab",
+    "kvm": "available",
+    "sched_ext": "available"
+  },
+  "matrix_run_id": "MR-20260629-SCX_WATCHDOG_DISABLE",
+  "outcome": "PASS",
+  "policy": {
+    "name": "zigsched_minimal",
+    "object_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/policy.o",
+    "object_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_path": "bpf/zigsched_minimal.bpf.c",
+    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "post_cgroup_state": {
+    "cleanup": "complete",
+    "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "vm_only": true
+  },
+  "post_scheduler_state": {
+    "disable_reason": "watchdog_stall",
+    "enable_seq": "43",
+    "ops": "none",
+    "rollback_state": "scheduler_disabled",
+    "root_ops": "none",
+    "sched_ext": "disabled",
+    "task_ext_enabled": "false",
+    "teardown_state": "watchdog_stall"
+  },
+  "pre_cgroup_state": {
+    "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "vm_only": true
+  },
+  "pre_scheduler_state": {
+    "disable_reason": "not_applicable",
+    "enable_seq": "42",
+    "ops": "zigsched_minimal",
+    "root_ops": "zigsched_minimal",
+    "sched_ext": "enabled",
+    "task_ext_enabled": "true"
+  },
+  "privacy_scan": {
+    "private_fields_found": false,
+    "report_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/privacy-scan.json",
+    "status": "PASS"
+  },
+  "release_eligible": false,
+  "rollback_id": "RB-sched-ext-state-watchdog-disable",
+  "rollback_proof_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/rollback-proof.json",
+  "runtime_sample_path": "evidence/lab/matrix-fixtures/sched-ext-state-watchdog-disable/runtime-sample.jsonl",
+  "scenario_id": "sched-ext-state-watchdog-disable",
+  "schema": "zig-scheduler/matrix-run/v1",
+  "supported_tuple_status": "supported",
+  "vm_marker": {
+    "checked_by": "qa/vm/marker-check",
+    "path": "/run/zig-scheduler-vm-lab.marker",
+    "present": false,
+    "required": false
+  },
+  "workload": {
+    "name": "sched-ext-state-proof",
+    "spec_path": "fixtures/matrix-run/workload-specs/sched-ext-state-watchdog-disable.json",
+    "spec_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  }
+}

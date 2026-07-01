@@ -24,6 +24,7 @@ from qa.runtime_sample_sched_ext import (
     validate_cgroup_semantic_labels,
     validate_sched_ext_facts,
     validate_sched_ext_phase,
+    validate_sched_ext_sequence,
     validate_task_ext_enabled,
     validate_teardown_rollback,
 )
@@ -158,8 +159,10 @@ def validate_sample(row: JsonObject, index: int) -> None:
 
 
 def validate_file(path: Path) -> None:
-    for index, row in enumerate(load_jsonl(path)):
+    rows = load_jsonl(path)
+    for index, row in enumerate(rows):
         validate_sample(row, index)
+    validate_sched_ext_sequence(rows)
 
 
 def validate_alert_order(rows: list[JsonObject], label: str) -> None:

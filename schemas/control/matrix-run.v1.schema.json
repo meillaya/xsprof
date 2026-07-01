@@ -1,9 +1,413 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "zig-scheduler/matrix-run/v1",
-  "title": "zig-scheduler VM harness matrix run evidence v1",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "properties": {
+    "action_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "audit_id": {
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "bpf_abi_version": {
+      "const": "zigsched-bpf-abi-v1"
+    },
+    "cleanup_proof_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "daemon_event_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "evidence_mode": {
+      "enum": [
+        "vm-live",
+        "host-refusal-only",
+        "fixture"
+      ],
+      "type": "string"
+    },
+    "git": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_sha": {
+          "minLength": 7,
+          "type": "string"
+        },
+        "dirty": {
+          "const": false
+        },
+        "expected_sha": {
+          "minLength": 7,
+          "type": "string"
+        },
+        "status": {
+          "const": "current"
+        }
+      },
+      "required": [
+        "expected_sha",
+        "actual_sha",
+        "status",
+        "dirty"
+      ],
+      "type": "object"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "host_refusal_proof_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "incident_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "kernel_tuple": {
+      "additionalProperties": false,
+      "properties": {
+        "arch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "btf": {
+          "enum": [
+            "present",
+            "missing",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "kernel_release": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kvm": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "sched_ext": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kernel_release",
+        "arch",
+        "btf",
+        "kvm",
+        "sched_ext"
+      ],
+      "type": "object"
+    },
+    "matrix_run_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "SKIP",
+        "REFUSE",
+        "INCIDENT",
+        "FAIL"
+      ],
+      "type": "string"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "object_path": {
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "object_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_path": {
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "object_path",
+        "object_sha256",
+        "source_path",
+        "source_sha256"
+      ],
+      "type": "object"
+    },
+    "post_cgroup_state": {
+      "type": "object"
+    },
+    "post_scheduler_state": {
+      "additionalProperties": false,
+      "properties": {
+        "disable_reason": {
+          "enum": [
+            "normal_unregister",
+            "scheduler_exit",
+            "watchdog_stall",
+            "watchdog_error",
+            "sysrq_forced_disable",
+            "not_applicable",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "enable_seq": {
+          "pattern": "^(?:[0-9]+|unavailable)$",
+          "type": "string"
+        },
+        "ops": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rollback_state": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "root_ops": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sched_ext": {
+          "enum": [
+            "disabled",
+            "enabled",
+            "enabling",
+            "disabling",
+            "unknown",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "task_ext_enabled": {
+          "enum": [
+            "true",
+            "false",
+            "unknown",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "teardown_state": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sched_ext",
+        "ops"
+      ],
+      "type": "object"
+    },
+    "pre_cgroup_state": {
+      "type": "object"
+    },
+    "pre_scheduler_state": {
+      "additionalProperties": false,
+      "properties": {
+        "disable_reason": {
+          "enum": [
+            "normal_unregister",
+            "scheduler_exit",
+            "watchdog_stall",
+            "watchdog_error",
+            "sysrq_forced_disable",
+            "not_applicable",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "enable_seq": {
+          "pattern": "^(?:[0-9]+|unavailable)$",
+          "type": "string"
+        },
+        "ops": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rollback_state": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "root_ops": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sched_ext": {
+          "enum": [
+            "disabled",
+            "enabled",
+            "enabling",
+            "disabling",
+            "unknown",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "task_ext_enabled": {
+          "enum": [
+            "true",
+            "false",
+            "unknown",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "teardown_state": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sched_ext",
+        "ops"
+      ],
+      "type": "object"
+    },
+    "privacy_scan": {
+      "additionalProperties": false,
+      "properties": {
+        "private_fields_found": {
+          "const": false
+        },
+        "report_path": {
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "status": {
+          "const": "PASS"
+        }
+      },
+      "required": [
+        "status",
+        "private_fields_found",
+        "report_path"
+      ],
+      "type": "object"
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "rollback_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "rollback_proof_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "runtime_sample_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "scenario_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "zig-scheduler/matrix-run/v1"
+    },
+    "supported_tuple_status": {
+      "enum": [
+        "supported",
+        "unsupported",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "vm_marker": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_by": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required",
+        "present",
+        "path",
+        "checked_by"
+      ],
+      "type": "object"
+    },
+    "workload": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "spec_path": {
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "spec_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "spec_path",
+        "spec_sha256"
+      ],
+      "type": "object"
+    }
+  },
   "required": [
     "schema",
     "matrix_run_id",
@@ -34,293 +438,6 @@
     "release_eligible",
     "host_mutation"
   ],
-  "properties": {
-    "schema": {
-      "const": "zig-scheduler/matrix-run/v1"
-    },
-    "matrix_run_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 96,
-      "pattern": "^[A-Za-z0-9_.-]+$"
-    },
-    "scenario_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 96,
-      "pattern": "^[A-Za-z0-9_.-]+$"
-    },
-    "outcome": {
-      "type": "string",
-      "enum": [
-        "PASS",
-        "SKIP",
-        "REFUSE",
-        "INCIDENT",
-        "FAIL"
-      ]
-    },
-    "evidence_mode": {
-      "type": "string",
-      "enum": [
-        "vm-live",
-        "host-refusal-only",
-        "fixture"
-      ]
-    },
-    "kernel_tuple": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kernel_release",
-        "arch",
-        "btf",
-        "kvm",
-        "sched_ext"
-      ],
-      "properties": {
-        "kernel_release": {
-          "type": "string",
-          "minLength": 1
-        },
-        "arch": {
-          "type": "string",
-          "minLength": 1
-        },
-        "btf": {
-          "type": "string",
-          "enum": [
-            "present",
-            "missing",
-            "unknown"
-          ]
-        },
-        "kvm": {
-          "type": "string",
-          "enum": [
-            "available",
-            "unavailable",
-            "unknown"
-          ]
-        },
-        "sched_ext": {
-          "type": "string",
-          "enum": [
-            "available",
-            "unavailable",
-            "unknown"
-          ]
-        }
-      }
-    },
-    "supported_tuple_status": {
-      "type": "string",
-      "enum": [
-        "supported",
-        "unsupported",
-        "unknown"
-      ]
-    },
-    "vm_marker": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "required",
-        "present",
-        "path",
-        "checked_by"
-      ],
-      "properties": {
-        "required": {
-          "type": "boolean"
-        },
-        "present": {
-          "type": "boolean"
-        },
-        "path": {
-          "type": "string",
-          "minLength": 1
-        },
-        "checked_by": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "bpf_abi_version": {
-      "type": "string",
-      "minLength": 1
-    },
-    "policy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "object_path",
-        "object_sha256",
-        "source_path",
-        "source_sha256"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "object_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-        },
-        "object_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "source_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-        },
-        "source_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
-    "workload": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "spec_path",
-        "spec_sha256"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "spec_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-        },
-        "spec_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
-    "action_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 96,
-      "pattern": "^[A-Za-z0-9_.-]+$"
-    },
-    "audit_id": {
-      "type": "string",
-      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"
-    },
-    "rollback_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 96,
-      "pattern": "^[A-Za-z0-9_.-]+$"
-    },
-    "pre_scheduler_state": {
-      "type": "object"
-    },
-    "post_scheduler_state": {
-      "type": "object"
-    },
-    "pre_cgroup_state": {
-      "type": "object"
-    },
-    "post_cgroup_state": {
-      "type": "object"
-    },
-    "runtime_sample_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    },
-    "incident_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    },
-    "rollback_proof_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    },
-    "cleanup_proof_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    },
-    "host_refusal_proof_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    },
-    "privacy_scan": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "private_fields_found",
-        "report_path"
-      ],
-      "properties": {
-        "status": {
-          "const": "PASS"
-        },
-        "private_fields_found": {
-          "const": false
-        },
-        "report_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-        }
-      }
-    },
-    "git": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "expected_sha",
-        "actual_sha",
-        "status",
-        "dirty"
-      ],
-      "properties": {
-        "expected_sha": {
-          "type": "string",
-          "minLength": 7
-        },
-        "actual_sha": {
-          "type": "string",
-          "minLength": 7
-        },
-        "status": {
-          "const": "current"
-        },
-        "dirty": {
-          "const": false
-        }
-      }
-    },
-    "release_eligible": {
-      "const": false
-    },
-    "host_mutation": {
-      "const": false
-    },
-    "daemon_event_path": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
-    }
-  }
+  "title": "zig-scheduler VM harness matrix run evidence v1",
+  "type": "object"
 }

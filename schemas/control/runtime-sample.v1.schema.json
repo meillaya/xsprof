@@ -1,187 +1,96 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/control/runtime-sample.v1.schema.json",
-  "title": "zig-scheduler runtime sample v1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema",
-    "sequence",
-    "state",
-    "ops",
-    "enable_seq",
-    "events",
-    "events_hash",
-    "nr_rejected",
-    "debug_dump",
-    "policy_abi",
-    "cgroup_membership_digest",
-    "workload_alive",
-    "private_command_lines_sampled"
-  ],
-  "properties": {
-    "schema": {
-      "const": "zig-scheduler/runtime-sample/v1"
-    },
-    "sequence": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "git_sha": {
-      "type": "string"
-    },
-    "state": {
-      "$ref": "#/$defs/fact"
-    },
-    "ops": {
-      "$ref": "#/$defs/fact"
-    },
-    "enable_seq": {
-      "$ref": "#/$defs/fact"
-    },
-    "events": {
-      "$ref": "#/$defs/fact"
-    },
-    "events_hash": {
-      "type": "string",
-      "minLength": 1
-    },
-    "nr_rejected": {
-      "$ref": "#/$defs/fact"
-    },
-    "debug_dump": {
-      "$ref": "#/$defs/digest_fact"
-    },
-    "root_ops": {
-      "$ref": "#/$defs/fact"
-    },
-    "scheduler_events": {
-      "$ref": "#/$defs/fact"
-    },
-    "policy_counters": {
-      "$ref": "#/$defs/policy_counters"
-    },
-    "sample_loss": {
-      "$ref": "#/$defs/sample_loss"
-    },
-    "policy_abi": {
-      "$ref": "#/$defs/policy_abi"
-    },
-    "cgroup_membership_digest": {
-      "type": "string",
-      "pattern": "^(?!0{64}$)[0-9a-f]{64}$"
-    },
-    "cgroup_membership_status": {
-      "$ref": "#/$defs/fact"
-    },
-    "workload": {
-      "$ref": "#/$defs/fact"
-    },
-    "workload_alive": {
-      "type": "boolean"
-    },
-    "sample_source_event": {
-      "type": "string"
-    },
-    "observation_source": {
-      "type": "string",
-      "enum": [
-        "vm_guest_sched_ext",
-        "vm_serial_sched_ext",
-        "vm_fixture_sched_ext"
-      ]
-    },
-    "private_command_lines_sampled": {
-      "const": false
-    },
-    "dsq_depth": {
-      "$ref": "#/$defs/dsq_depth"
-    },
-    "queue_latency": {
-      "$ref": "#/$defs/queue_latency"
-    },
-    "fairness": {
-      "$ref": "#/$defs/fairness"
-    },
-    "task_counts": {
-      "$ref": "#/$defs/task_counts"
-    },
-    "scheduler_counters": {
-      "$ref": "#/$defs/scheduler_counters"
-    },
-    "sched_ext_observation": {
-      "$ref": "#/$defs/sched_ext_observation"
-    },
-    "benchmark_histograms": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/benchmark_histogram_ref"
-      }
-    },
-    "sched_ext_phase": {
-      "type": "string",
-      "enum": [
-        "before_attach",
-        "during_attach",
-        "after_rollback"
-      ]
-    },
-    "task_ext_enabled": {
-      "$ref": "#/$defs/task_ext_enabled_fact"
-    },
-    "teardown_state": {
-      "$ref": "#/$defs/fact"
-    },
-    "rollback_state": {
-      "$ref": "#/$defs/fact"
-    },
-    "cgroup_semantic_labels": {
-      "$ref": "#/$defs/cgroup_policy_semantics"
-    }
-  },
-  "forbiddenProperties": [
-    "command_line",
-    "cmdline",
-    "argv",
-    "env",
-    "environment",
-    "secret",
-    "api_key"
-  ],
   "$defs": {
-    "fact": {
-      "type": "object",
+    "benchmark_histogram_ref": {
       "additionalProperties": false,
-      "required": [
-        "status",
-        "value"
-      ],
       "properties": {
-        "status": {
-          "type": "string",
-          "minLength": 1
-        },
-        "value": {
+        "histogram_id": {
+          "minLength": 1,
           "type": "string"
-        }
-      }
-    },
-    "digest_fact": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "value"
-      ],
-      "properties": {
-        "status": {
-          "type": "string",
-          "minLength": 1
         },
-        "value": {
+        "record_only": {
+          "const": true
+        },
+        "record_path": {
+          "minLength": 1,
+          "not": {
+            "pattern": "(^/|\\.\\.)"
+          },
+          "type": "string"
+        },
+        "record_sha256": {
+          "pattern": "^(?!0{64}$)[0-9a-f]{64}$",
           "type": "string"
         }
       },
+      "required": [
+        "record_path",
+        "record_sha256",
+        "histogram_id",
+        "record_only"
+      ],
+      "type": "object"
+    },
+    "cgroup_policy_semantics": {
+      "additionalProperties": false,
+      "properties": {
+        "cgroup.lifecycle": {
+          "const": "observed"
+        },
+        "cgroup.move": {
+          "const": "observed"
+        },
+        "cgroup_set_idle": {
+          "const": "refused"
+        },
+        "cpu.max": {
+          "const": "deferred"
+        },
+        "cpu.pressure": {
+          "const": "observed-only"
+        },
+        "cpu.weight": {
+          "const": "callback-observed"
+        },
+        "cpuset.cpus": {
+          "const": "observed-only"
+        },
+        "cpuset.cpus.effective": {
+          "const": "observed-only"
+        },
+        "uclamp": {
+          "const": "deferred"
+        }
+      },
+      "required": [
+        "cpu.weight",
+        "cgroup.lifecycle",
+        "cgroup.move",
+        "cpuset.cpus",
+        "cpuset.cpus.effective",
+        "cpu.pressure",
+        "cpu.max",
+        "uclamp",
+        "cgroup_set_idle"
+      ],
+      "type": "object"
+    },
+    "counter_map": {
+      "additionalProperties": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minProperties": 1,
+      "propertyNames": {
+        "minLength": 1,
+        "not": {
+          "pattern": "(^/|\\.\\.)"
+        },
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "digest_fact": {
+      "additionalProperties": false,
       "allOf": [
         {
           "if": {
@@ -199,65 +108,140 @@
             }
           }
         }
-      ]
-    },
-    "policy_counters": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "nr_rejected",
-        "dispatch_failed",
-        "fallback",
-        "fatal"
       ],
       "properties": {
-        "nr_rejected": {
-          "type": "integer",
-          "minimum": 0
+        "status": {
+          "minLength": 1,
+          "type": "string"
         },
-        "dispatch_failed": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "fallback": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "fatal": {
-          "type": "integer",
-          "minimum": 0
+        "value": {
+          "type": "string"
         }
-      }
-    },
-    "sample_loss": {
-      "type": "object",
-      "additionalProperties": false,
+      },
       "required": [
-        "lost_samples",
-        "backpressure_dropped"
+        "status",
+        "value"
       ],
+      "type": "object"
+    },
+    "dsq_depth": {
+      "additionalProperties": false,
       "properties": {
-        "lost_samples": {
-          "type": "integer",
-          "minimum": 0
+        "global": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "backpressure_dropped": {
-          "type": "integer",
-          "minimum": 0
+        "local": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "ring_buffer_overruns": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "reader_lag_events": {
-          "type": "integer",
-          "minimum": 0
+        "shared": {
+          "minimum": 0,
+          "type": "integer"
         }
-      }
+      },
+      "required": [
+        "global",
+        "local",
+        "shared"
+      ],
+      "type": "object"
+    },
+    "fact": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "value"
+      ],
+      "type": "object"
+    },
+    "fairness": {
+      "additionalProperties": false,
+      "properties": {
+        "max_wait_us": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "starved_tasks": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "watch",
+            "starved",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "starved_tasks",
+        "max_wait_us"
+      ],
+      "type": "object"
     },
     "policy_abi": {
-      "type": "object",
       "additionalProperties": false,
+      "properties": {
+        "abi_label": {
+          "enum": [
+            "zigsched-bpf-abi-v3"
+          ],
+          "type": "string"
+        },
+        "abi_version": {
+          "enum": [
+            3
+          ],
+          "type": "integer"
+        },
+        "btf_required": {
+          "type": "boolean"
+        },
+        "cgroup_semantics": {
+          "$ref": "#/$defs/cgroup_policy_semantics"
+        },
+        "host_mutation": {
+          "const": false
+        },
+        "object_sha256": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "policy_name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "production_claim": {
+          "const": false
+        },
+        "release_eligible": {
+          "const": false
+        },
+        "struct_ops": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "vm_only": {
+          "const": true
+        }
+      },
       "required": [
         "policy_name",
         "policy_version",
@@ -265,195 +249,92 @@
         "object_sha256",
         "btf_required"
       ],
-      "properties": {
-        "policy_name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "policy_version": {
-          "type": "string",
-          "minLength": 1
-        },
-        "struct_ops": {
-          "type": "string",
-          "minLength": 1
-        },
-        "object_sha256": {
-          "type": "string",
-          "minLength": 1
-        },
-        "btf_required": {
-          "type": "boolean"
-        },
-        "abi_version": {
-          "type": "integer",
-          "enum": [
-            3
-          ]
-        },
-        "abi_label": {
-          "type": "string",
-          "enum": [
-            "zigsched-bpf-abi-v3"
-          ]
-        },
-        "cgroup_semantics": {
-          "$ref": "#/$defs/cgroup_policy_semantics"
-        },
-        "vm_only": {
-          "const": true
-        },
-        "host_mutation": {
-          "const": false
-        },
-        "production_claim": {
-          "const": false
-        },
-        "release_eligible": {
-          "const": false
-        }
-      }
+      "type": "object"
     },
-    "dsq_depth": {
-      "type": "object",
+    "policy_counters": {
       "additionalProperties": false,
-      "required": [
-        "global",
-        "local",
-        "shared"
-      ],
       "properties": {
-        "global": {
-          "type": "integer",
-          "minimum": 0
+        "dispatch_failed": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "local": {
-          "type": "integer",
-          "minimum": 0
+        "fallback": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "shared": {
-          "type": "integer",
-          "minimum": 0
+        "fatal": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nr_rejected": {
+          "minimum": 0,
+          "type": "integer"
         }
-      }
+      },
+      "required": [
+        "nr_rejected",
+        "dispatch_failed",
+        "fallback",
+        "fatal"
+      ],
+      "type": "object"
     },
     "queue_latency": {
-      "type": "object",
       "additionalProperties": false,
+      "properties": {
+        "max_us": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "p50_us": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "p95_us": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "p99_us": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
       "required": [
         "p50_us",
         "p95_us",
         "p99_us",
         "max_us"
       ],
-      "properties": {
-        "p50_us": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "p95_us": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "p99_us": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "max_us": {
-          "type": "integer",
-          "minimum": 0
-        }
-      }
+      "type": "object"
     },
-    "fairness": {
-      "type": "object",
+    "sample_loss": {
       "additionalProperties": false,
-      "required": [
-        "state",
-        "starved_tasks",
-        "max_wait_us"
-      ],
       "properties": {
-        "state": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "watch",
-            "starved",
-            "unknown"
-          ]
+        "backpressure_dropped": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "starved_tasks": {
-          "type": "integer",
-          "minimum": 0
+        "lost_samples": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "max_wait_us": {
-          "type": "integer",
-          "minimum": 0
-        }
-      }
-    },
-    "counter_map": {
-      "type": "object",
-      "minProperties": 1,
-      "propertyNames": {
-        "type": "string",
-        "minLength": 1,
-        "not": {
-          "pattern": "(^/|\\.\\.)"
+        "reader_lag_events": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ring_buffer_overruns": {
+          "minimum": 0,
+          "type": "integer"
         }
       },
-      "additionalProperties": {
-        "type": "integer",
-        "minimum": 0
-      }
-    },
-    "task_counts": {
-      "type": "object",
-      "additionalProperties": false,
       "required": [
-        "by_cgroup_digest",
-        "by_class"
+        "lost_samples",
+        "backpressure_dropped"
       ],
-      "properties": {
-        "by_cgroup_digest": {
-          "$ref": "#/$defs/counter_map"
-        },
-        "by_class": {
-          "$ref": "#/$defs/counter_map"
-        }
-      }
-    },
-    "scheduler_counters": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "context_switches",
-        "wakeups",
-        "migrations"
-      ],
-      "properties": {
-        "context_switches": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "wakeups": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "migrations": {
-          "type": "integer",
-          "minimum": 0
-        }
-      }
+      "type": "object"
     },
     "sched_ext_observation": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "dump",
-        "tracepoints"
-      ],
       "properties": {
         "dump": {
           "$ref": "#/$defs/digest_fact"
@@ -461,103 +342,54 @@
         "tracepoints": {
           "$ref": "#/$defs/counter_map"
         }
-      }
-    },
-    "benchmark_histogram_ref": {
-      "type": "object",
-      "additionalProperties": false,
+      },
       "required": [
-        "record_path",
-        "record_sha256",
-        "histogram_id",
-        "record_only"
+        "dump",
+        "tracepoints"
       ],
-      "properties": {
-        "record_path": {
-          "type": "string",
-          "minLength": 1,
-          "not": {
-            "pattern": "(^/|\\.\\.)"
-          }
-        },
-        "record_sha256": {
-          "type": "string",
-          "pattern": "^(?!0{64}$)[0-9a-f]{64}$"
-        },
-        "histogram_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "record_only": {
-          "const": true
-        }
-      }
+      "type": "object"
     },
-    "cgroup_policy_semantics": {
-      "type": "object",
+    "scheduler_counters": {
       "additionalProperties": false,
-      "required": [
-        "cpu.weight",
-        "cgroup.lifecycle",
-        "cgroup.move",
-        "cpuset.cpus",
-        "cpuset.cpus.effective",
-        "cpu.pressure",
-        "cpu.max",
-        "uclamp",
-        "cgroup_set_idle"
-      ],
       "properties": {
-        "cpu.weight": {
-          "const": "callback-observed"
+        "context_switches": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "cgroup.lifecycle": {
-          "const": "observed"
+        "migrations": {
+          "minimum": 0,
+          "type": "integer"
         },
-        "cgroup.move": {
-          "const": "observed"
-        },
-        "cpuset.cpus": {
-          "const": "observed-only"
-        },
-        "cpuset.cpus.effective": {
-          "const": "observed-only"
-        },
-        "cpu.pressure": {
-          "const": "observed-only"
-        },
-        "cpu.max": {
-          "const": "deferred"
-        },
-        "uclamp": {
-          "const": "deferred"
-        },
-        "cgroup_set_idle": {
-          "const": "refused"
-        }
-      }
-    },
-    "task_ext_enabled_fact": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "value"
-      ],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "present",
-            "missing",
-            "unreadable",
-            "unknown"
-          ]
-        },
-        "value": {
-          "type": "string"
+        "wakeups": {
+          "minimum": 0,
+          "type": "integer"
         }
       },
+      "required": [
+        "context_switches",
+        "wakeups",
+        "migrations"
+      ],
+      "type": "object"
+    },
+    "task_counts": {
+      "additionalProperties": false,
+      "properties": {
+        "by_cgroup_digest": {
+          "$ref": "#/$defs/counter_map"
+        },
+        "by_class": {
+          "$ref": "#/$defs/counter_map"
+        }
+      },
+      "required": [
+        "by_cgroup_digest",
+        "by_class"
+      ],
+      "type": "object"
+    },
+    "task_ext_enabled_fact": {
+      "additionalProperties": false,
       "allOf": [
         {
           "if": {
@@ -602,7 +434,179 @@
             }
           }
         }
-      ]
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "present",
+            "missing",
+            "unreadable",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "value"
+      ],
+      "type": "object"
     }
-  }
+  },
+  "$id": "schemas/control/runtime-sample.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "forbiddenProperties": [
+    "command_line",
+    "cmdline",
+    "argv",
+    "env",
+    "environment",
+    "secret",
+    "api_key"
+  ],
+  "properties": {
+    "benchmark_histograms": {
+      "items": {
+        "$ref": "#/$defs/benchmark_histogram_ref"
+      },
+      "type": "array"
+    },
+    "cgroup_membership_digest": {
+      "pattern": "^(?!0{64}$)[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "cgroup_membership_status": {
+      "$ref": "#/$defs/fact"
+    },
+    "cgroup_semantic_labels": {
+      "$ref": "#/$defs/cgroup_policy_semantics"
+    },
+    "debug_dump": {
+      "$ref": "#/$defs/digest_fact"
+    },
+    "dsq_depth": {
+      "$ref": "#/$defs/dsq_depth"
+    },
+    "enable_seq": {
+      "$ref": "#/$defs/fact"
+    },
+    "events": {
+      "$ref": "#/$defs/fact"
+    },
+    "events_hash": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "fairness": {
+      "$ref": "#/$defs/fairness"
+    },
+    "git_sha": {
+      "type": "string"
+    },
+    "nr_rejected": {
+      "$ref": "#/$defs/fact"
+    },
+    "observation_source": {
+      "enum": [
+        "vm_guest_sched_ext",
+        "vm_serial_sched_ext",
+        "vm_fixture_sched_ext"
+      ],
+      "type": "string"
+    },
+    "ops": {
+      "$ref": "#/$defs/fact"
+    },
+    "policy_abi": {
+      "$ref": "#/$defs/policy_abi"
+    },
+    "policy_counters": {
+      "$ref": "#/$defs/policy_counters"
+    },
+    "private_command_lines_sampled": {
+      "const": false
+    },
+    "queue_latency": {
+      "$ref": "#/$defs/queue_latency"
+    },
+    "rollback_state": {
+      "$ref": "#/$defs/fact"
+    },
+    "root_ops": {
+      "$ref": "#/$defs/fact"
+    },
+    "sample_loss": {
+      "$ref": "#/$defs/sample_loss"
+    },
+    "sample_source_event": {
+      "type": "string"
+    },
+    "sched_ext_observation": {
+      "$ref": "#/$defs/sched_ext_observation"
+    },
+    "sched_ext_phase": {
+      "enum": [
+        "before_attach",
+        "during_attach",
+        "after_attach",
+        "after_rollback",
+        "after_scheduler_exit",
+        "after_watchdog_disable",
+        "after_forced_disable"
+      ],
+      "type": "string"
+    },
+    "scheduler_counters": {
+      "$ref": "#/$defs/scheduler_counters"
+    },
+    "scheduler_events": {
+      "$ref": "#/$defs/fact"
+    },
+    "schema": {
+      "const": "zig-scheduler/runtime-sample/v1"
+    },
+    "sequence": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "state": {
+      "$ref": "#/$defs/fact"
+    },
+    "task_counts": {
+      "$ref": "#/$defs/task_counts"
+    },
+    "task_ext_enabled": {
+      "$ref": "#/$defs/task_ext_enabled_fact"
+    },
+    "teardown_state": {
+      "$ref": "#/$defs/fact"
+    },
+    "workload": {
+      "$ref": "#/$defs/fact"
+    },
+    "workload_alive": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema",
+    "sequence",
+    "state",
+    "ops",
+    "enable_seq",
+    "events",
+    "events_hash",
+    "nr_rejected",
+    "debug_dump",
+    "policy_abi",
+    "cgroup_membership_digest",
+    "workload_alive",
+    "private_command_lines_sampled"
+  ],
+  "title": "zig-scheduler runtime sample v1",
+  "type": "object"
 }

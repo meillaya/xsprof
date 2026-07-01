@@ -39,14 +39,15 @@ JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dic
 JsonObject: TypeAlias = dict[str, JsonValue]
 
 SCHEMA: Final = "zig-scheduler/matrix-run/v1"
+MATRIX_BPF_ABI_VERSION: Final = "zigsched-bpf-abi-v1"
 SCHEMA_FILE: Final = "matrix-run.v1.schema.json"
 DOC_FILE: Final = "matrix-run-contract.md"
 VM_MARKER: Final = "/run/zig-scheduler-vm-lab.marker"
 OUTCOMES: Final = frozenset({"PASS", "SKIP", "REFUSE", "INCIDENT", "FAIL"})
 EVIDENCE_MODES: Final = frozenset({"vm-live", "host-refusal-only", "fixture"})
 TUPLE_STATUS: Final = frozenset({"supported", "unsupported", "unknown"})
-REQUIRED_FIXTURES: Final = frozenset({"pass.json", "live-backend.json", "skip-unsupported-tuple.json", "host-refusal-only.json", "incident-verifier-reject.json", "rollback-failure.json", "cleanup-residue.json", "workload-cpu-saturation.json", "workload-interactive-latency.json", "workload-scheduler-affinity-churn.json", "workload-fork-ipc-pressure.json", "workload-mixed-io.json", "workload-cgroup-weight-quota.json", "workload-cpu-hotplug.json"})
-REQUIRED_INVALID_FIXTURES: Final = frozenset({"host-mutation-true.json", "release-eligible-true.json", "invalid-outcome.json", "stale-git.json", "dirty-git.json", "missing-vm-marker.json", "unsafe-absolute-path.json", "unsafe-traversal-path.json", "missing-rollback-proof.json", "missing-cleanup-proof.json", "missing-cleanup-proof-on-skip.json", "missing-cleanup-proof-on-refuse.json", "missing-host-refusal-proof.json", "privacy-failed.json", "malformed.json", "extra-property.json"})
+REQUIRED_FIXTURES: Final = frozenset({"pass.json", "live-backend.json", "skip-unsupported-tuple.json", "host-refusal-only.json", "incident-verifier-reject.json", "rollback-failure.json", "cleanup-residue.json", "workload-cpu-saturation.json", "workload-interactive-latency.json", "workload-scheduler-affinity-churn.json", "workload-fork-ipc-pressure.json", "workload-mixed-io.json", "workload-cgroup-weight-quota.json", "workload-cpu-hotplug.json", "sched-ext-state-normal-rollback.json", "sched-ext-state-scheduler-exit.json", "sched-ext-state-watchdog-disable.json", "sched-ext-state-forced-disable.json"})
+REQUIRED_INVALID_FIXTURES: Final = frozenset({"host-mutation-true.json", "release-eligible-true.json", "invalid-outcome.json", "stale-git.json", "dirty-git.json", "missing-vm-marker.json", "unsafe-absolute-path.json", "unsafe-traversal-path.json", "missing-rollback-proof.json", "missing-cleanup-proof.json", "missing-cleanup-proof-on-skip.json", "missing-cleanup-proof-on-refuse.json", "missing-host-refusal-proof.json", "privacy-failed.json", "unsupported-bpf-abi-version.json", "malformed.json", "extra-property.json", "missing-sched-ext-state.json", "stale-enable-seq.json", "private-debug-dump.json"})
 PATH_FIELDS: Final = ("runtime_sample_path", "daemon_event_path", "incident_path", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path")
 ROW_FIELDS: Final = frozenset(("schema", "matrix_run_id", "scenario_id", "outcome", "evidence_mode", "kernel_tuple", "supported_tuple_status", "vm_marker", "bpf_abi_version", "policy", "workload", "action_id", "audit_id", "rollback_id", "pre_scheduler_state", "post_scheduler_state", "pre_cgroup_state", "post_cgroup_state", "runtime_sample_path", "daemon_event_path", "incident_path", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path", "privacy_scan", "git", "release_eligible", "host_mutation"))
 KERNEL_TUPLE_FIELDS: Final = frozenset(("kernel_release", "arch", "btf", "kvm", "sched_ext"))
@@ -69,6 +70,9 @@ SCHEMA_PATH_FIELDS: Final = (("runtime_sample_path",), ("daemon_event_path",), (
 PRIVATE_NEEDLES: Final = ("cmdline", "command_line", "argv", "environment", "secret", "api_key", "token", "password", "authorization", "bearer")
 WORKLOAD_PRIVATE_NEEDLES: Final = PRIVATE_NEEDLES + ("command", "env", "cwd", "pid", "ppid")
 PRIVATE_PATH_RE: Final = re.compile(r"(^|[\s=:])/(?:home|root|etc|proc|sys|var|tmp)/")
+SCHED_STATES: Final = frozenset({"disabled", "enabled", "enabling", "disabling", "unknown", "unavailable"})
+SCHED_DISABLE_REASONS: Final = frozenset({"normal_unregister", "scheduler_exit", "watchdog_stall", "watchdog_error", "sysrq_forced_disable", "not_applicable", "unavailable"})
+SCHED_STATE_FIELDS: Final = frozenset({"sched_ext", "ops", "enable_seq", "root_ops", "task_ext_enabled", "disable_reason", "teardown_state", "rollback_state"})
 CLAIM_TEXT_RE: Final = re.compile(r"\b(?:production|release|performance)[\s_-]+(?:ready|eligible|approved|claim|slo|sla|guarantee|baseline|capacity)\b", re.IGNORECASE)
 WORKLOAD_SPEC_SCHEMA: Final = "zig-scheduler/workload-fixture/v1"
 WORKLOAD_CAPABILITY_SCHEMA: Final = "zig-scheduler/workload-capability/v1"
@@ -79,12 +83,32 @@ ROLLBACK_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "sc
 CLEANUP_PROOF_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "owned_qemu_leftovers", "owned_temp_leftovers", "qemu_scan_before", "qemu_scan_after", "temp_scan_before", "temp_scan_after", "host_mutation"))
 HOST_REFUSAL_FIELDS: Final = frozenset(("schema", "scenario_id", "status", "reason", "no_bpf_load_attach", "no_cgroup_write", "no_sys_write", "no_proc_write", "host_mutation"))
 VM_MARKER_PROOF_FIELDS: Final = frozenset(("schema", "path", "required", "present", "evidence_mode", "host_mutation"))
-WORKLOAD_SPEC_FIELDS: Final = frozenset(("schema", "name", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "benchmark_provenance", "capability_artifact_path", "runner", "vm_marker_required_for_live_run", "host_safe_fixture_only", "missing_prereq", "host_mutation", "release_eligible"))
+WORKLOAD_SPEC_FIELDS: Final = frozenset(("schema", "name", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "benchmark_provenance", "capability_artifact_path", "runner", "vm_marker_required_for_live_run", "host_safe_fixture_only", "missing_prereq", "cgroup_semantics", "cpu_hotplug_semantics", "host_mutation", "release_eligible"))
 WORKLOAD_THRESHOLD_FIELDS: Final = frozenset(("source", "fixture_status", "calibration_status", "production_capacity_claim"))
 WORKLOAD_CAPABILITY_FIELDS: Final = frozenset(("schema", "scenario_id", "workload_class", "required_tools", "threshold_source", "mode", "status", "typed_outcome", "missing_prereq", "vm_marker_required_for_live_run", "fixture_mode", "runner", "host_mutation", "release_eligible"))
 WORKLOAD_TOOL_NAMES: Final = frozenset(("stress-ng", "cyclictest", "perf", "taskset", "chrt", "hackbench-like", "fio", "cpu-hotplug-online-control", "builtin-churn"))
 WORKLOAD_THRESHOLD_SOURCES: Final = frozenset(("fixture", "calibrated", "deferred", "record-only", "uncalibrated"))
 WORKLOAD_CAPABILITY_MODES: Final = frozenset(("host-safe", "auto", "vm-required"))
+
+CGROUP_WORKLOAD_SEMANTICS: Final[JsonObject] = {
+    "cpu.weight": "callback-observed",
+    "cpu.max": "deferred",
+    "cpu.max.burst": "deferred",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints",
+    "cpu.pressure": "observed-or-deferred",
+    "uclamp": "observed-or-deferred",
+    "cgroup.type.domain": "observed",
+    "cgroup.type.threaded": "observed",
+    "allowed-mask": "rejected",
+}
+CPU_HOTPLUG_SEMANTICS: Final[JsonObject] = {
+    "cpu.hotplug.offline": "fallback-observed",
+    "cpu.hotplug.online": "fallback-observed",
+    "cpuset.cpus": "observed-constraints",
+    "cpuset.cpus.effective": "observed-constraints",
+    "allowed-mask": "rejected",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,6 +236,8 @@ def reject_private(value: JsonValue, context: str) -> None:
         case str():
             lowered = value.lower()
             require(not any(needle in lowered for needle in PRIVATE_NEEDLES), f"privacy-unsafe text in {context}")
+            require(PRIVATE_PATH_RE.search(value) is None, f"privacy-unsafe path in {context}")
+            require(CLAIM_TEXT_RE.search(value) is None, f"claim-unsafe text in {context}")
         case None | bool() | int() | float():
             return
 
@@ -233,6 +259,32 @@ def reject_workload_artifact_private(value: JsonValue, context: str) -> None:
             require(PRIVATE_PATH_RE.search(value) is None, f"privacy-unsafe workload path in {context}")
         case None | bool() | int() | float():
             return
+
+
+def require_sched_enable_seq(value: JsonValue | None, context: str) -> int | None:
+    raw = text(value, context)
+    if raw == "unavailable":
+        return None
+    require(raw.isdecimal(), f"{context} must be a nonnegative integer string or unavailable")
+    return int(raw)
+
+
+def validate_scheduler_state(state: JsonObject, context: str) -> int | None:
+    require_only_fields(state, SCHED_STATE_FIELDS, context)
+    require({"sched_ext", "ops"}.issubset(state), f"{context} missing sched_ext/ops state")
+    sched_ext = text(state.get("sched_ext"), f"{context}.sched_ext")
+    require(sched_ext in SCHED_STATES, f"{context}.sched_ext invalid")
+    ops = text(state.get("ops"), f"{context}.ops")
+    reject_private(ops, f"{context}.ops")
+    enable_seq = require_sched_enable_seq(state.get("enable_seq", "unavailable"), f"{context}.enable_seq")
+    if "task_ext_enabled" in state:
+        task_ext = text(state.get("task_ext_enabled"), f"{context}.task_ext_enabled")
+        require(task_ext in {"true", "false", "unknown", "unavailable"}, f"{context}.task_ext_enabled invalid")
+    if "disable_reason" in state:
+        reason = text(state.get("disable_reason"), f"{context}.disable_reason")
+        require(reason in SCHED_DISABLE_REASONS, f"{context}.disable_reason invalid")
+    reject_private(state, context)
+    return enable_seq
 
 
 def require_safe_path(value: JsonValue | None, context: str) -> str:
@@ -323,6 +375,8 @@ def validate_schema_file(schemas: Path) -> None:
     if not isinstance(evidence_modes, list):
         raise MatrixRunContractError(f"{SCHEMA_FILE}.properties.evidence_mode.enum must be a list")
     require(frozenset(item for item in evidence_modes if isinstance(item, str)) == EVIDENCE_MODES, f"{SCHEMA_FILE}.properties.evidence_mode.enum must match checker evidence modes")
+    bpf_abi_schema = obj(properties.get("bpf_abi_version"), f"{SCHEMA_FILE}.properties.bpf_abi_version")
+    require(bpf_abi_schema.get("const") == MATRIX_BPF_ABI_VERSION, f"{SCHEMA_FILE}.properties.bpf_abi_version.const must match checker")
     for path_field in SCHEMA_PATH_FIELDS:
         schema_node = properties
         field_context = ".".join(path_field)
@@ -355,6 +409,7 @@ def validate_row(row: JsonObject, context: str) -> None:
     require(text(row.get("supported_tuple_status"), f"{context}.supported_tuple_status") in TUPLE_STATUS, f"{context}.supported_tuple_status invalid")
     require(row.get("host_mutation") is False, f"{context}.host_mutation must be false")
     require(row.get("release_eligible") is False, f"{context}.release_eligible must be false")
+    require(row.get("bpf_abi_version") == MATRIX_BPF_ABI_VERSION, f"{context}.bpf_abi_version must be {MATRIX_BPF_ABI_VERSION}")
     require_identifier(row, "matrix_run_id", RUN_ID_RE, context)
     for field in ("scenario_id", "action_id", "rollback_id"):
         require_identifier(row, field, ID_RE, context)
@@ -362,7 +417,11 @@ def validate_row(row: JsonObject, context: str) -> None:
     require_identifier(row, "audit_id", AUDIT_RE, context)
     for field in PATH_FIELDS:
         _ = require_safe_path(row.get(field), f"{context}.{field}")
-    for field in ("pre_scheduler_state", "post_scheduler_state", "pre_cgroup_state", "post_cgroup_state"):
+    pre_enable_seq = validate_scheduler_state(obj(row.get("pre_scheduler_state"), f"{context}.pre_scheduler_state"), f"{context}.pre_scheduler_state")
+    post_enable_seq = validate_scheduler_state(obj(row.get("post_scheduler_state"), f"{context}.post_scheduler_state"), f"{context}.post_scheduler_state")
+    if pre_enable_seq is not None and post_enable_seq is not None:
+        require(post_enable_seq >= pre_enable_seq, f"{context}.post_scheduler_state.enable_seq is stale")
+    for field in ("pre_cgroup_state", "post_cgroup_state"):
         _ = obj(row.get(field), f"{context}.{field}")
     kernel_tuple = obj(row.get("kernel_tuple"), f"{context}.kernel_tuple")
     require_only_fields(kernel_tuple, KERNEL_TUPLE_FIELDS, f"{context}.kernel_tuple")
@@ -437,6 +496,33 @@ def validate_workload_benchmark_provenance(value: JsonValue | None, manifest_roo
         raise MatrixRunContractError(str(exc)) from exc
 
 
+def validate_semantics_exact(value: JsonValue | None, expected: JsonObject, context: str) -> None:
+    semantics = obj(value, context)
+    require(set(semantics) == set(expected), f"{context} keys must match Todo 7 VM-only semantics")
+    for knob, expected_label in expected.items():
+        require(semantics.get(knob) == expected_label, f"{context}.{knob} must be {expected_label}")
+
+
+def validate_workload_semantics(spec: JsonObject, scenario_id: str, context: str) -> None:
+    match scenario_id:  # noqa: MATCH_OK — workload scenario IDs are runtime strings and default rejects unexpected semantics fields.
+        case "workload-cgroup-weight-quota":
+            validate_semantics_exact(spec.get("cgroup_semantics"), CGROUP_WORKLOAD_SEMANTICS, f"{context}.cgroup_semantics")
+            require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
+        case "workload-cpu-hotplug":
+            validate_semantics_exact(spec.get("cpu_hotplug_semantics"), CPU_HOTPLUG_SEMANTICS, f"{context}.cpu_hotplug_semantics")
+            require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
+        case _:
+            require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
+            require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
+
+
+def workload_semantic_fields(scenario_id: str) -> JsonObject:
+    return {
+        "workload-cgroup-weight-quota": {"cgroup_semantics": dict(CGROUP_WORKLOAD_SEMANTICS)},
+        "workload-cpu-hotplug": {"cpu_hotplug_semantics": dict(CPU_HOTPLUG_SEMANTICS)},
+    }.get(scenario_id, {})
+
+
 def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: str, expected: WorkloadScenarioMetadata | None, context: str, manifest_root: Path | None = None) -> str | None:
     require_only_fields(spec, WORKLOAD_SPEC_FIELDS, context)
     require({"schema", "workload_class", "scenario_id", "required_tools", "threshold_source", "thresholds", "vm_marker_required_for_live_run", "host_mutation", "release_eligible"}.issubset(spec), f"{context} missing required workload spec fields")
@@ -453,6 +539,7 @@ def validate_workload_spec(spec: JsonObject, scenario_id: str, workload_class: s
     if expected is not None:
         require_expected_threshold_source(threshold_source, expected, f"{context}.threshold_source")
     validate_workload_thresholds(obj(spec.get("thresholds"), f"{context}.thresholds"), threshold_source, f"{context}.thresholds")
+    validate_workload_semantics(spec, scenario_id, context)
     benchmark_provenance = spec.get("benchmark_provenance")
     if threshold_source == "calibrated":
         require(benchmark_provenance is not None, f"{context}.benchmark_provenance required when threshold_source is calibrated")
@@ -862,6 +949,13 @@ def invalid_self_test_rows(good: JsonObject) -> dict[str, JsonObject | str]:
     refuse_without_cleanup["vm_marker"] = {"required": False, "present": False, "path": VM_MARKER, "checked_by": "self-test"}
     extra_property = dict(good)
     extra_property["unexpected_field_not_in_schema"] = "must be rejected"
+    missing_sched_state = clone_object(good)
+    del obj(missing_sched_state["pre_scheduler_state"], "self-test missing pre_scheduler_state")["sched_ext"]
+    stale_enable_seq = clone_object(good)
+    obj(stale_enable_seq["pre_scheduler_state"], "self-test stale pre_scheduler_state")["enable_seq"] = "42"
+    obj(stale_enable_seq["post_scheduler_state"], "self-test stale post_scheduler_state")["enable_seq"] = "41"
+    private_debug_dump = clone_object(good)
+    obj(private_debug_dump["post_scheduler_state"], "self-test private post_scheduler_state")["ops"] = "/sys/kernel/debug/sched_ext/root"
     return {
         "host-mutation-true.json": host_mutation,
         "release-eligible-true.json": release_eligible,
@@ -877,8 +971,12 @@ def invalid_self_test_rows(good: JsonObject) -> dict[str, JsonObject | str]:
         "missing-cleanup-proof-on-refuse.json": without_field(refuse_without_cleanup, "cleanup_proof_path"),
         "missing-host-refusal-proof.json": without_field(good, "host_refusal_proof_path"),
         "privacy-failed.json": privacy_failed,
+        "unsupported-bpf-abi-version.json": dict(good, bpf_abi_version="zigsched-bpf-abi-v3"),
         "malformed.json": '{ "schema": "zig-scheduler/matrix-run/v1",',
         "extra-property.json": extra_property,
+        "missing-sched-ext-state.json": missing_sched_state,
+        "stale-enable-seq.json": stale_enable_seq,
+        "private-debug-dump.json": private_debug_dump,
     }
 
 
@@ -946,7 +1044,7 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
     bench_raw_path.parent.mkdir()
     _ = bench_raw_path.write_text("# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
     benchmark_record_path = row_dir / "benchmark-provenance.json"
-    workload["spec_sha256"] = write_json_digest(row_dir / "workload-spec.json", {
+    workload_spec: JsonObject = {
         "schema": WORKLOAD_SPEC_SCHEMA,
         "name": workload_class,
         "workload_class": workload_class,
@@ -981,7 +1079,9 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
         "vm_marker_required_for_live_run": True,
         "host_mutation": False,
         "release_eligible": False,
-    })
+    }
+    workload_spec.update(workload_semantic_fields(scenario))
+    workload["spec_sha256"] = write_json_digest(row_dir / "workload-spec.json", workload_spec)
     write_json(row_dir / "vm-marker-proof.json", {"schema": "zig-scheduler/vm-marker-proof/v1", "path": VM_MARKER, "required": True, "present": True, "evidence_mode": "vm-live", "host_mutation": False})
     write_json(row_dir / "incident.json", {"schema": "zig-scheduler/matrix-incident/v1", "scenario_id": scenario, "outcome": "PASS", "reason": "self-test", "host_mutation": False, "release_eligible": False})
     write_json(row_dir / "rollback-proof.json", {"schema": "zig-scheduler/rollback-proof/v1", "scenario_id": scenario, "status": "PASS", "scheduler_state": "disabled", "ops": "none", "host_mutation": False})
@@ -1256,6 +1356,43 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
                 workload["spec_sha256"] = file_sha256(spec_path)
                 write_json(artifact_path, row_data)
                 assert_invalid_manifest(manifest_path, name)
+            case "workload-cgroup-semantic-label-mismatch":
+                cgroup_manifest = write_manifest_self_test_pack(run_root, good, "workload-cgroup-weight-quota")
+                cgroup_rows = load_json(cgroup_manifest).get("rows")
+                if not isinstance(cgroup_rows, list):
+                    raise MatrixRunContractError("cgroup semantic self-test setup produced non-list rows")
+                cgroup_artifact_path = Path(text(obj(cgroup_rows[0], "cgroup semantic manifest row").get("artifact_path"), "cgroup semantic artifact_path"))
+                row_data = load_json(cgroup_artifact_path)
+                workload = obj(row_data.get("workload"), "cgroup semantic workload")
+                spec_path = Path(text(workload.get("spec_path"), "cgroup semantic workload.spec_path"))
+                spec_data = load_json(spec_path)
+                semantics = obj(spec_data.get("cgroup_semantics"), "cgroup semantic workload.spec.cgroup_semantics")
+                semantics["cpu.weight"] = "honored"
+                write_json(spec_path, spec_data)
+                workload["spec_sha256"] = file_sha256(spec_path)
+                write_json(cgroup_artifact_path, row_data)
+                assert_invalid_manifest(cgroup_manifest, name, "cgroup_semantics.cpu.weight must be callback-observed")
+            case "workload-cpu-hotplug-semantic-label-mismatch":
+                hotplug_manifest = write_manifest_self_test_pack(run_root, good, "workload-cpu-hotplug")
+                hotplug_rows = load_json(hotplug_manifest).get("rows")
+                if not isinstance(hotplug_rows, list):
+                    raise MatrixRunContractError("hotplug semantic self-test setup produced non-list rows")
+                hotplug_artifact_path = Path(text(obj(hotplug_rows[0], "hotplug semantic manifest row").get("artifact_path"), "hotplug semantic artifact_path"))
+                row_data = load_json(hotplug_artifact_path)
+                workload = obj(row_data.get("workload"), "hotplug semantic workload")
+                spec_path = Path(text(workload.get("spec_path"), "hotplug semantic workload.spec_path"))
+                spec_data = load_json(spec_path)
+                semantics = obj(spec_data.get("cpu_hotplug_semantics"), "hotplug semantic workload.spec.cpu_hotplug_semantics")
+                semantics["allowed-mask"] = "accepted"
+                write_json(spec_path, spec_data)
+                workload["spec_sha256"] = file_sha256(spec_path)
+                write_json(hotplug_artifact_path, row_data)
+                assert_invalid_manifest(hotplug_manifest, name, "cpu_hotplug_semantics.allowed-mask must be rejected")
+            case "unsupported-bpf-abi-drift":
+                row_data = load_json(artifact_path)
+                row_data["bpf_abi_version"] = "zigsched-bpf-abi-v3"
+                write_json(artifact_path, row_data)
+                assert_invalid_manifest(manifest_path, name, "bpf_abi_version must be zigsched-bpf-abi-v1")
             case _ if name in BENCHMARK_PROVENANCE_SELF_TEST_CASES:
                 try:
                     apply_benchmark_provenance_self_test_case(name, manifest_path, artifact_path, assert_invalid_manifest)
@@ -1503,6 +1640,9 @@ def run_self_test() -> None:
             "workload-spec-required-tools-mismatch",
             "workload-mixed-metadata-canonical-mismatch",
             "workload-spec-threshold-source-mismatch",
+            "workload-cgroup-semantic-label-mismatch",
+            "workload-cpu-hotplug-semantic-label-mismatch",
+            "unsupported-bpf-abi-drift",
             "workload-benchmark-provenance-missing",
             "workload-calibrated-benchmark-provenance-absent",
             "workload-benchmark-provenance-malformed",
