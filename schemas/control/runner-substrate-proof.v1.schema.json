@@ -109,8 +109,15 @@
           "minLength": 1
         },
         "run_url": {
-          "type": "string",
-          "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$"
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$"
+            },
+            {
+              "const": "unavailable"
+            }
+          ]
         }
       }
     },

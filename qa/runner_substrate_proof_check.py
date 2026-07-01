@@ -28,6 +28,7 @@ DEFAULT_FIXTURES: Final[Path] = Path("fixtures/runner-substrate-proof")
 SAFE_PATH_RE: Final[re.Pattern[str]] = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$")
 SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 RUN_URL_RE: Final[re.Pattern[str]] = re.compile(r"^https://github\.com/.+/actions/runs/[0-9]+$")
+RUN_URL_UNAVAILABLE: Final[str] = "unavailable"
 TUPLE_RE: Final[re.Pattern[str]] = re.compile(r"^linux-(?P<release>6\.(1[2-9]|[2-9][0-9])([.]\d+)?)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$")
 PLACEHOLDER_SHA_VALUES: Final[frozenset[str]] = frozenset(("0" * 64, "1" * 64))
 REQUIRED_LABELS: Final[frozenset[str]] = frozenset(("self-hosted", "zig-scheduler-vm-proof", "disposable-vm"))
@@ -81,10 +82,6 @@ def parse_args(argv: list[str]) -> Args:
     return Args(mode, proof, fixtures, schema)
 
 
-def load_json(path: Path) -> JsonObject:
-    return load_json_object(path)
-
-
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise RunnerProofError(message)
@@ -129,10 +126,7 @@ def enum_text(value: JsonValue | None, allowed: frozenset[str], context: str) ->
 def strings(value: JsonValue | None, context: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not value:
         raise RunnerProofError(f"{context} must be a non-empty list")
-    out: list[str] = []
-    for index, item in enumerate(value):
-        out.append(text(item, f"{context}[{index}]"))
-    return tuple(out)
+    return tuple(text(item, f"{context}[{index}]") for index, item in enumerate(value))
 
 
 def object_field(data: JsonObject, field: str, context: str) -> JsonObject:
@@ -143,7 +137,7 @@ def object_field(data: JsonObject, field: str, context: str) -> JsonObject:
 
 
 def validate_schema_file(path: Path) -> None:
-    schema = load_json(path)
+    schema = load_json_object(path)
     require(schema.get("$id") == SCHEMA, "runner substrate schema $id mismatch")
 
 
@@ -168,7 +162,12 @@ def validate_environment(data: JsonObject, outcome: Outcome) -> None:
     require(env.get("protected") is True, "protected_environment.protected must be true")
     _ = text(env.get("required_reviewers"), "protected_environment.required_reviewers")
     status_raw = enum_text(env.get("reviewer_status"), frozenset(("approved", "not_exposed_by_github_actions_runtime", "unavailable")), "protected_environment.reviewer_status")
-    require(RUN_URL_RE.fullmatch(text(env.get("run_url"), "protected_environment.run_url")) is not None, "protected_environment.run_url must be a GitHub Actions run URL")
+    run_url = text(env.get("run_url"), "protected_environment.run_url")
+    if run_url == RUN_URL_UNAVAILABLE:
+        require(outcome != "PASS", "PASS proof requires a GitHub Actions run URL")
+        require(status_raw != "approved", "approved reviewer proof requires a GitHub Actions run URL")
+    else:
+        require(RUN_URL_RE.fullmatch(run_url) is not None, "protected_environment.run_url must be a GitHub Actions run URL or unavailable for SKIP/REFUSE")
     if status_raw == "approved":
         _ = text(env.get("reviewer_identity"), "protected_environment.reviewer_identity")
     else:
@@ -236,7 +235,7 @@ def validate_attestation(data: JsonObject, outcome: Outcome) -> None:
 
 def validate_proof(path: Path, schema_path: Path) -> None:
     validate_schema_file(schema_path)
-    data = load_json(path)
+    data = load_json_object(path)
     only_fields(data, ROOT_FIELDS, str(path))
     require(data.get("schema") == SCHEMA, "unsupported runner substrate schema")
     require(data.get("host_mutation") is False, "proof.host_mutation must be false")
@@ -285,12 +284,7 @@ def validate_fixtures(root: Path, schema: Path) -> None:
 def run_self_test(schema: Path) -> None:
     from qa.runner_substrate_proof_selftest import run_self_test as run
 
-    run(
-        schema,
-        validate_fixtures=validate_fixtures,
-        validate_proof=validate_proof,
-        load_json=load_json,
-    )
+    run(schema, validate_fixtures=validate_fixtures, validate_proof=validate_proof, load_json=load_json_object)
 
 
 def main(argv: list[str]) -> int:

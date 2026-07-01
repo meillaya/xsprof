@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "ab28e3797d9c4e9f5aeddf84bd25f4effdf29a471c25bae40e941976c4e3670e"
+      "sha256": "a0270f1ff811bdc3833eb2eb9bbbcd0f61eded5625ef795e1f436bf1c5a21dab"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "df3fe806dd9c154a2eeba325bdcb0f3f127e66e0b13d471b72e73a091ec400d1"
+      "sha256": "7803af13aa5c059f85c03485da05b2a303e726464932cd0fec5635c9c6ed34ce"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -192,7 +192,7 @@
       "path": "schemas/control/runner-substrate-proof.v1.schema.json",
       "purpose": "protected runner substrate proof schema",
       "required": true,
-      "sha256": "ed4a0acfb5f804ebe70225be7f112d69ad740d5e024a979462710292eab82bbe"
+      "sha256": "5ae2710dea3e96e8278aa8ba7d3cbfc9e4a4738c4892d1e7ab598bb7cdb4a2fe"
     },
     {
       "path": "schemas/control/runtime-sample.v1.schema.json",
@@ -402,7 +402,7 @@
       "path": "qa/runner_substrate_proof_check.py",
       "purpose": "protected runner substrate proof validator",
       "required": true,
-      "sha256": "3bde28f88788a0a74f5deb0706d92799bfa0bd28c96e26fb57503fb40f7b6561"
+      "sha256": "3581f78b8808f7573f675f01d901b40818942c04cf07cd5cacc7b33d9d4369f7"
     },
     {
       "path": "qa/runner_substrate_proof_common.py",
