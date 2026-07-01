@@ -64,4 +64,4 @@ Before enabling or approving the `manual-vm-proof` `workflow_dispatch` lane, rev
 
 A local static checker PASS does not prove that required reviewers approved the GitHub protected environment; approval must be read from the GitHub run/environment record.
 
-- [ ] `evidence-manifest.json` was validated with `qa/evidence_manifest_check.py` and records SHA-256 hashes, schema roles, audit id, rollback id, VM marker, supported tuple, BPF metadata or BPF SKIP JSON, daemon events, matrix manifest, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, and attestation status.
+- [ ] `evidence-manifest.json` was validated with `qa/evidence_manifest_check.py` and records an explicit outcome, SHA-256 hashes, schema roles, audit id, rollback id, VM marker, supported tuple, BPF metadata or BPF SKIP JSON, daemon events, matrix manifest, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, and attestation status.
