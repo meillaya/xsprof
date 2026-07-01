@@ -11,6 +11,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 | `zig-scheduler/runtime-sample/v1` | `schemas/control/runtime-sample.v1.schema.json` | Public runtime sample input. |
 | `zig-scheduler/matrix-run/v1` | `schemas/control/matrix-run.v1.schema.json` | Standalone VM harness evidence artifact referenced by daemon events; not embedded into daemon-event/v1. |
 | `zig-scheduler/benchmark-output/v1` | `schemas/control/benchmark-output.v1.schema.json` | Record-only benchmark provenance artifact for VM/lab evidence; release-ineligible and not a production capacity claim. |
+| `zig-scheduler/evidence-manifest/v1` | `schemas/control/evidence-manifest.v1.schema.json` | Protected VM proof bundle hash index for PASS and fail-closed SKIP/REFUSE/BLOCKED evidence; release-ineligible and not a production capacity claim. |
 
 ## Compatibility guarantees
 
@@ -32,6 +33,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 | runtime-sample/v1 | replay/runtime stream | yes | Validated by runtime replay and contract pack checks. |
 | matrix-run/v1 | daemon-event/v1 artifact reference | yes | The daemon event carries a relative `evidence/lab/matrix/<run-id>/manifest.json` artifact path; the referenced manifest is deep-validated by `qa/matrix_run_contract_check.py`. |
 | benchmark-output/v1 | VM/lab evidence and benchmark fixture validators | yes | Validated by `qa/benchmark_output_check.py`; rows remain record-only with `release_eligible=false`, `production_capacity_claim=false`, and `hard_thresholds_enforced=false`. |
+| evidence-manifest/v1 | protected manual VM proof bundle | yes | Validated by `qa/evidence_manifest_check.py`; PASS keeps marker and benchmark artifact hashes, while SKIP/REFUSE/BLOCKED may explicitly mark benchmark provenance not applicable without fabricating records. |
 | daemon-event/v1 fixture pack | backend consumer harness | yes | No frontend implementation: `qa/consumer_contract_check.py` derives client/store lifecycle state from documented event rows only and refuses success on stale/duplicate targets, missing rollback/cleanup terminal incidents, dotted namespace wire reasons, lost streams, or matrix references that fail deep manifest validation. |
 | any v2+ | current daemon | no | Must refuse until a v2 compatibility plan exists. |
 
@@ -45,6 +47,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 - 2026-06-29: `runtime-sample/v1` added optional mature scheduler observation fields for DSQ depth, queue latency, fairness/starvation, redacted cgroup/class task counts, context-switch/wakeup/migration counters, normalized sched_ext dump/tracepoint counts, record-only benchmark histogram references, and expanded sample-loss/backpressure counters. Required v1 fields and schema strings are unchanged; raw debug dumps, host paths, command lines, argv, environment, and secrets remain forbidden.
 - 2026-06-30: `runtime-sample/v1` `policy_abi` added optional ABI-v3 cgroup-policy metadata. Legacy v1 `policy_abi` rows remain forward-compatible, while rows declaring `abi_version=3` must carry exact cgroup semantics, VM-only/host-mutation false flags, and no production/release claims.
 - 2026-06-30: `runtime-sample/v1` added optional protected-VM sched_ext evidence fields: `sched_ext_phase`, `task_ext_enabled`, `teardown_state`, `rollback_state`, and `cgroup_semantic_labels`. `task_ext_enabled` is an actual task `ext.enabled` fact when readable (`present` with `true`/`false`), or an explicit unavailable/unknown fact when task-level evidence cannot be read; global sched_ext state is not a substitute.
+- 2026-07-01: `matrix-run/v1` scheduler-state proof rows now freeze `sched_ext` and `ops` as required nested fields, and `evidence-manifest/v1` adds optional `outcome` plus explicit `benchmark_provenance.status=not_applicable` for SKIP/REFUSE/BLOCKED proof bundles. Existing PASS manifests remain valid when they keep marker proof and benchmark artifact references.
 
 ## Required gates
 

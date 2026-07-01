@@ -14,6 +14,7 @@ The API pack freezes the root backend surface future clients can consume without
 | operator actions | `zig-scheduler/operator-action/v1` | Client-submitted commands such as preflight, VM-lab run, stop, rollback, and incident drill. |
 | runtime samples | `zig-scheduler/runtime-sample/v1` | Privacy-filtered VM runtime observation input converted into daemon event rows. |
 | matrix artifacts | `zig-scheduler/matrix-run/v1` | Standalone VM harness evidence manifests referenced by daemon events through relative artifact paths. |
+| proof bundle manifests | `zig-scheduler/evidence-manifest/v1` | Protected VM proof hash indexes for PASS and fail-closed SKIP/REFUSE/BLOCKED bundles; not release or production approval. |
 
 ## Transports
 
@@ -106,7 +107,7 @@ states:
 | Release-ineligible state | `release-ineligible.jsonl` | Validation and unsafe incident rows keep eligibility withheld; the fixture must not contain `PASS`. |
 | JSON-RPC contract refusals | `rpc-invalid-version.jsonl`, `rpc-action-mismatch.jsonl`, `rpc-missing-action-json.jsonl` | Local socket errors remain client-visible refusal rows with underscore-only reason codes and `host_mutation=false`. |
 | Replay row refusals | `replay-row-bad-version.jsonl`, `replay-row-nonmonotonic-seq.jsonl`, `replay-row-host-mutation-true.jsonl` | Bad replay input is refused rather than normalized into v1; fixtures document the refusal reasons without embedding invalid event rows in the stable pack. |
-| Matrix artifact reference | `matrix-artifact-reference.jsonl` | A daemon validation row points at `evidence/lab/matrix/<run-id>/manifest.json`; consumers validate that manifest with `qa/matrix_run_contract_check.py` before treating matrix evidence as proof. |
+| Matrix artifact reference | `matrix-artifact-reference.jsonl` | A daemon validation row points at `evidence/lab/matrix/<run-id>/manifest.json`; consumers validate that manifest with `qa/matrix_run_contract_check.py` before treating matrix evidence as proof. Referenced runtime samples must keep sched_ext sequence facts coherent across rollback/disable samples. |
 | BPF/libbpf/scx incidents | `bpf-object-metadata-missing.jsonl`, `libbpf-load-failed.jsonl`, `scx-register-failed.jsonl` | VM-lab BPF and sched_ext failures are unsafe incidents, not host retries or production blockers hidden from clients. |
 | Workload/runtime quality incidents | `workload-capability-missing.jsonl`, `runtime-sample-loss.jsonl` | Missing VM workload capabilities REFUSE/SKIP visibly, and sample loss becomes an unsafe incident after the last accepted runtime sample. |
 | Missing live attestation | `missing-attestation.jsonl` | Missing required live VM attestation is an unsafe backend incident with `host_mutation=false`; it is not inferred as success from log text. |
@@ -169,6 +170,19 @@ example `invalid_rpc_version`, `replay_row_nonmonotonic_seq`,
 
 This preserves existing v1 compatibility while letting docs and future UX group
 incidents by phase/source without renaming stable daemon-event rows.
+
+## Protected proof bundle manifests
+
+`evidence-manifest/v1` is a backend proof-bundle index, not a UI data model and
+not a release approval. Consumers that receive a protected manual VM proof bundle
+must validate `evidence-manifest.json` with `qa/evidence_manifest_check.py`
+before displaying it as evidence. PASS manifests require VM-marker proof and
+hash-matched benchmark provenance artifacts. Fail-closed `SKIP`, `REFUSE`, and
+`BLOCKED` manifests may instead carry
+`benchmark_provenance.status=not_applicable` with a reason, so clients must not
+invent benchmark records or infer success from absent measurements. All bundle
+manifests keep `host_mutation=false`, `release_eligible=false`, and
+`production_capacity_claim=false`.
 
 ## Lifecycle model
 
