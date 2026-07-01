@@ -398,50 +398,96 @@ def workload_semantics() -> dict:
 
 def benchmark_record() -> list[dict]:
     if threshold_source != "record-only":
-        return None
+        return []
     bench_dir = row_dir / "benchmark-provenance"
+    records = []
+
+    def add_record(family: str, tool: str, raw_name: str, raw_text: str, metrics: dict, units: dict, sample_count: int, run_count: int, status: str = "RECORDED") -> None:
+        raw = bench_dir / raw_name
+        write_text(raw, raw_text)
+        record_path = bench_dir / f"{family}.benchmark-output.json"
+        record_sha = write_json(record_path, {
+            "schema": "zig-scheduler/benchmark-output/v1",
+            "status": status,
+            "tool": tool,
+            "command_family": family,
+            "output_path": raw.as_posix(),
+            "output_sha256": hashlib.sha256(raw.read_bytes()).hexdigest(),
+            "vm_evidence": (row_dir / "matrix-run.json").as_posix(),
+            "metrics": metrics,
+            "units": units,
+            "sample_count": sample_count,
+            "run_count": run_count,
+            "host_mutation": False,
+            "release_eligible": False,
+            "production_capacity_claim": False,
+            "hard_thresholds_enforced": False,
+            "threshold_status": "record_only",
+            "privacy_sanitized": True,
+        })
+        records.append({"record_path": record_path.as_posix(), "record_sha256": record_sha, "record_only": True})
+
+    def add_stress_ng() -> None:
+        add_record(
+            "stress_ng",
+            "stress-ng",
+            "stress-ng.txt",
+            "stress-ng: metrc: [123] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s\n"
+            "stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)\n"
+            "stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52\n",
+            {"stressors": 1, "bogo_ops": 2400.0, "real_time_seconds": 10.0, "usr_time_seconds": 19.5, "sys_time_seconds": 0.25},
+            {"stressors": "count", "bogo_ops": "count", "real_time_seconds": "seconds", "usr_time_seconds": "seconds", "sys_time_seconds": "seconds"},
+            1,
+            1,
+        )
+
+    def add_perf_messaging() -> None:
+        add_record(
+            "perf_bench_sched_messaging",
+            "perf",
+            "perf-bench-sched-messaging.txt",
+            "# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n",
+            {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123},
+            {"groups": "count", "processes": "count", "total_time_seconds": "seconds"},
+            1,
+            1,
+        )
+
+    def add_deferred(family: str, tool: str, raw_name: str, raw_text: str) -> None:
+        add_record(family, tool, raw_name, raw_text, {}, {}, 0, 0, "UNSUPPORTED_DEFERRED")
+
     if scenario == "workload-mixed-io":
-        raw = bench_dir / "fio.json"
-        write_text(raw, json.dumps({"jobs": [{"read": {"iops": 1, "bw_bytes": 2, "lat_ns": {"mean": 3}}, "write": {"iops": 4, "bw_bytes": 5, "lat_ns": {"mean": 6}}}]}, sort_keys=True) + "\n")
-        metrics = {"jobs": 1, "read_bw_bytes": 2.0, "read_iops": 1.0, "read_lat_ns_mean_avg": 3.0, "write_bw_bytes": 5.0, "write_iops": 4.0, "write_lat_ns_mean_avg": 6.0}
-        units = {"jobs": "count", "read_bw_bytes": "bytes_per_second", "read_iops": "iops", "read_lat_ns_mean_avg": "ns", "write_bw_bytes": "bytes_per_second", "write_iops": "iops", "write_lat_ns_mean_avg": "ns"}
-        tool = "fio"
-        family = "fio"
+        add_record(
+            "fio",
+            "fio",
+            "fio.json",
+            json.dumps({"jobs": [{"read": {"iops": 1, "bw_bytes": 2, "lat_ns": {"mean": 3}}, "write": {"iops": 4, "bw_bytes": 5, "lat_ns": {"mean": 6}}}]}, sort_keys=True) + "\n",
+            {"jobs": 1, "read_bw_bytes": 2.0, "read_iops": 1.0, "read_lat_ns_mean_avg": 3.0, "write_bw_bytes": 5.0, "write_iops": 4.0, "write_lat_ns_mean_avg": 6.0},
+            {"jobs": "count", "read_bw_bytes": "bytes_per_second", "read_iops": "iops", "read_lat_ns_mean_avg": "ns", "write_bw_bytes": "bytes_per_second", "write_iops": "iops", "write_lat_ns_mean_avg": "ns"},
+            1,
+            1,
+        )
     elif scenario == "workload-interactive-latency":
-        raw = bench_dir / "cyclictest.txt"
-        write_text(raw, "T: 0 ( 123) P:80 I:1000 C:100 Min:1 Act:2 Avg:3 Max:4\n")
-        metrics = {"threads": 1, "cycles": 100.0, "latency_min_us_avg": 1.0, "latency_avg_us_avg": 3.0, "latency_max_us": 4.0}
-        units = {"threads": "count", "cycles": "count", "latency_min_us_avg": "us", "latency_avg_us_avg": "us", "latency_max_us": "us"}
-        tool = "cyclictest"
-        family = "cyclictest"
-    else:
-        raw = bench_dir / "perf-bench-sched-messaging.txt"
-        write_text(raw, "# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
-        metrics = {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123}
-        units = {"groups": "count", "processes": "count", "total_time_seconds": "seconds"}
-        tool = "perf"
-        family = "perf_bench_sched_messaging"
-    record_path = bench_dir / f"{family}.benchmark-output.json"
-    record_sha = write_json(record_path, {
-        "schema": "zig-scheduler/benchmark-output/v1",
-        "status": "RECORDED",
-        "tool": tool,
-        "command_family": family,
-        "output_path": raw.as_posix(),
-        "output_sha256": hashlib.sha256(raw.read_bytes()).hexdigest(),
-        "vm_evidence": (row_dir / "matrix-run.json").as_posix(),
-        "metrics": metrics,
-        "units": units,
-        "sample_count": 1,
-        "run_count": 1,
-        "host_mutation": False,
-        "release_eligible": False,
-        "production_capacity_claim": False,
-        "hard_thresholds_enforced": False,
-        "threshold_status": "record_only",
-        "privacy_sanitized": True,
-    })
-    return {"record_path": record_path.as_posix(), "record_sha256": record_sha, "record_only": True}
+        add_record(
+            "cyclictest",
+            "cyclictest",
+            "cyclictest.txt",
+            "T: 0 ( 123) P:80 I:1000 C:100 Min:1 Act:2 Avg:3 Max:4\n",
+            {"threads": 1, "cycles": 100.0, "latency_min_us_avg": 1.0, "latency_avg_us_avg": 3.0, "latency_max_us": 4.0},
+            {"threads": "count", "cycles": "count", "latency_min_us_avg": "us", "latency_avg_us_avg": "us", "latency_max_us": "us"},
+            100,
+            1,
+        )
+        add_perf_messaging()
+        add_deferred("rtla", "rtla", "rtla.txt", "rtla timerlat summary redacted; unsupported for benchmark-output/v1 parser\n")
+        add_deferred("perf_sched", "perf", "perf-sched.txt", "perf sched latency summary redacted; unsupported for benchmark-output/v1 parser\n")
+    elif scenario in {"workload-cpu-saturation", "workload-cgroup-weight-quota", "workload-scheduler-affinity-churn"}:
+        add_stress_ng()
+        if scenario == "workload-scheduler-affinity-churn":
+            add_deferred("perf_sched", "perf", "perf-sched.txt", "perf sched latency summary redacted; unsupported for benchmark-output/v1 parser\n")
+    elif scenario == "workload-fork-ipc-pressure":
+        add_perf_messaging()
+    return records
 
 policy = row_dir / "policy.o"
 policy_sha = write_text(policy, f"matrix fixture policy object\nscenario={scenario}\n")
@@ -486,8 +532,9 @@ workload_spec = {
     "release_eligible": False,
 }
 provenance = benchmark_record()
-if provenance is not None:
-    workload_spec["benchmark_provenance"] = [provenance]
+if provenance:
+    workload_spec["benchmark_provenance"] = provenance
+workload_spec.update(workload_semantics())
 workload_sha = write_json(workload, workload_spec)
 runtime = row_dir / "runtime-sample.jsonl"
 cgroup_digest = hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()

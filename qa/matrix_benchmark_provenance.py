@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
 
 from qa.benchmark_output_model import BenchmarkOutputError
+from qa.benchmark_output_privacy import reject_private_leaks
 from qa.benchmark_output_validate import validate_record as validate_benchmark_output_record
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
@@ -126,5 +127,22 @@ def validate_record_references(record: JsonObject, manifest_root: Path, context:
     raw_output_path = Path(require_safe_path(record.get("output_path"), f"{context}.output_path"))
     require_descendant(raw_output_path, manifest_root, f"{context}.output_path")
     require(file_sha256(raw_output_path) == text(record.get("output_sha256"), f"{context}.output_sha256"), f"{context}.output_sha256 does not match referenced raw benchmark output")
+    validate_raw_output_privacy(raw_output_path, f"{context}.output_path")
     vm_evidence_path = Path(require_safe_path(record.get("vm_evidence"), f"{context}.vm_evidence"))
     require_descendant(vm_evidence_path, manifest_root, f"{context}.vm_evidence")
+
+
+def validate_raw_output_privacy(path: Path, context: str) -> None:
+    try:
+        raw_text = path.read_text()
+    except FileNotFoundError as exc:
+        raise MatrixBenchmarkProvenanceError(f"missing referenced artifact: {path}") from exc
+    try:
+        reject_private_leaks(raw_text, context)
+        try:
+            parsed = json_loader.loads(raw_text, parse_constant=reject_constant)
+        except json.JSONDecodeError:
+            return
+        reject_private_leaks(parsed, context)
+    except BenchmarkOutputError as exc:
+        raise MatrixBenchmarkProvenanceError(f"{context} privacy/claim unsafe raw benchmark output: {exc}") from exc

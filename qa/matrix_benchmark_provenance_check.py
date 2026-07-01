@@ -19,6 +19,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from qa.matrix_benchmark_provenance import MatrixBenchmarkProvenanceError
+from qa.matrix_benchmark_provenance import load_json
 from qa.matrix_benchmark_provenance import validate_entries
 
 JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
@@ -39,11 +40,9 @@ def copied_fixture(root: Path) -> tuple[Path, Path]:
     record = root / "records" / "stress-ng.benchmark-output.json"
     raw.parent.mkdir(parents=True, exist_ok=True)
     record.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile("fixtures/benchmark-output/raw/stress-ng.txt", raw)
-    shutil.copyfile("fixtures/benchmark-output/valid/stress-ng.benchmark-output.json", record)
-    data = json.loads(record.read_text())
-    if not isinstance(data, dict):
-        raise MatrixBenchmarkProvenanceError("copied benchmark record must be an object")
+    _ = shutil.copyfile("fixtures/benchmark-output/raw/stress-ng.txt", raw)
+    _ = shutil.copyfile("fixtures/benchmark-output/valid/stress-ng.benchmark-output.json", record)
+    data = load_json(record)
     data["output_path"] = raw.as_posix()
     data["output_sha256"] = file_sha256(raw)
     data["vm_evidence"] = (root / "summary.json").as_posix()
@@ -87,11 +86,18 @@ def self_test() -> None:
         _ = raw.write_text(raw.read_text() + "stress-ng: info: stale raw mutation\n")
         expect_reject("stale raw output hash", [stale_raw], root)
 
-        _ = copied_fixture(root)
+        raw, record = copied_fixture(root)
+        raw_privacy = dict(entry)
+        _ = raw.write_text(raw.read_text() + "password=secret\n")
+        record_data = load_json(record)
+        record_data["output_sha256"] = file_sha256(raw)
+        write_json(record, record_data)
+        raw_privacy["record_sha256"] = file_sha256(record)
+        expect_reject("raw output privacy leak", [raw_privacy], root)
+
+        raw, record = copied_fixture(root)
         claim = dict(entry)
-        record_data = json.loads(record.read_text())
-        if not isinstance(record_data, dict):
-            raise MatrixBenchmarkProvenanceError("benchmark record must be an object")
+        record_data = load_json(record)
         record_data["production_capacity_claim"] = True
         write_json(record, record_data)
         claim["record_sha256"] = file_sha256(record)
