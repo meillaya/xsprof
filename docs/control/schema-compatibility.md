@@ -44,6 +44,7 @@ This backend-only document freezes client-visible v1 control schemas. It is a no
 - 2026-06-29: `benchmark-output/v1` is explicitly part of the frozen public schema/version matrix as a record-only lab evidence artifact; it does not make release eligibility, production capacity, or hard-threshold claims.
 - 2026-06-29: `runtime-sample/v1` added optional mature scheduler observation fields for DSQ depth, queue latency, fairness/starvation, redacted cgroup/class task counts, context-switch/wakeup/migration counters, normalized sched_ext dump/tracepoint counts, record-only benchmark histogram references, and expanded sample-loss/backpressure counters. Required v1 fields and schema strings are unchanged; raw debug dumps, host paths, command lines, argv, environment, and secrets remain forbidden.
 - 2026-06-30: `runtime-sample/v1` `policy_abi` added optional ABI-v3 cgroup-policy metadata. Legacy v1 `policy_abi` rows remain forward-compatible, while rows declaring `abi_version=3` must carry exact cgroup semantics, VM-only/host-mutation false flags, and no production/release claims.
+- 2026-06-30: `runtime-sample/v1` added optional protected-VM sched_ext evidence fields: `sched_ext_phase`, `task_ext_enabled`, `teardown_state`, `rollback_state`, and `cgroup_semantic_labels`. `task_ext_enabled` is an actual task `ext.enabled` fact when readable (`present` with `true`/`false`), or an explicit unavailable/unknown fact when task-level evidence cannot be read; global sched_ext state is not a substitute.
 
 ## Required gates
 

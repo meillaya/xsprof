@@ -1,0 +1,363 @@
+{
+  "$id": "zig-scheduler/runner-substrate-proof/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "proof_outcome",
+    "runner",
+    "protected_environment",
+    "qemu",
+    "dev_kvm",
+    "accel_mode",
+    "kernel_tuple",
+    "bpf_metadata",
+    "attestation",
+    "unavailable_reasons",
+    "host_mutation",
+    "release_eligible",
+    "production_capacity_claim"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zig-scheduler/runner-substrate-proof/v1"
+    },
+    "proof_outcome": {
+      "enum": [
+        "PASS",
+        "SKIP",
+        "REFUSE"
+      ]
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "labels",
+        "os",
+        "arch"
+      ],
+      "properties": {
+        "class": {
+          "enum": [
+            "self-hosted",
+            "unknown"
+          ]
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "protected_environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "protected",
+        "required_reviewers",
+        "reviewer_status",
+        "run_url"
+      ],
+      "properties": {
+        "name": {
+          "const": "vm-proof-manual"
+        },
+        "protected": {
+          "const": true
+        },
+        "required_reviewers": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewer_status": {
+          "enum": [
+            "approved",
+            "not_exposed_by_github_actions_runtime",
+            "unavailable"
+          ]
+        },
+        "reviewer_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$"
+        }
+      }
+    },
+    "qemu": {
+      "$ref": "#/$defs/statusPath"
+    },
+    "dev_kvm": {
+      "$ref": "#/$defs/statusPath"
+    },
+    "accel_mode": {
+      "enum": [
+        "kvm",
+        "tcg",
+        "unavailable"
+      ]
+    },
+    "kernel_tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported_tuple",
+        "release",
+        "arch",
+        "config_sha256",
+        "btf_available",
+        "sched_ext_available"
+      ],
+      "properties": {
+        "supported_tuple": {
+          "type": "string",
+          "pattern": "^linux-6\\.(1[2-9]|[2-9][0-9])([.]\\d+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$"
+        },
+        "release": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "const": "x86_64"
+        },
+        "config_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "btf_available": {
+          "type": "boolean"
+        },
+        "sched_ext_available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "bpf_metadata": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "status",
+        "workflow_uses",
+        "verify_command"
+      ],
+      "properties": {
+        "capability": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending-post-run-github-attestation",
+            "verified-by-operator",
+            "unavailable"
+          ]
+        },
+        "workflow_uses": {
+          "type": "string",
+          "pattern": "actions/attest-build-provenance"
+        },
+        "verify_command": {
+          "type": "string",
+          "pattern": "gh attestation verify"
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "unavailable_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "production_capacity_claim": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "schema_role"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema_role": {
+          "enum": [
+            "bpf-metadata",
+            "bpf-skip-json"
+          ]
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "statusPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "proof_outcome": {
+            "const": "PASS"
+          }
+        },
+        "required": [
+          "proof_outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "protected_environment": {
+            "properties": {
+              "reviewer_status": {
+                "const": "approved"
+              }
+            },
+            "required": [
+              "reviewer_identity"
+            ]
+          },
+          "qemu": {
+            "properties": {
+              "status": {
+                "const": "available"
+              }
+            },
+            "required": [
+              "version"
+            ]
+          },
+          "dev_kvm": {
+            "properties": {
+              "status": {
+                "const": "available"
+              }
+            }
+          },
+          "accel_mode": {
+            "const": "kvm"
+          },
+          "kernel_tuple": {
+            "properties": {
+              "btf_available": {
+                "const": true
+              },
+              "sched_ext_available": {
+                "const": true
+              },
+              "config_sha256": {
+                "not": {
+                  "enum": [
+                    "0000000000000000000000000000000000000000000000000000000000000000",
+                    "1111111111111111111111111111111111111111111111111111111111111111"
+                  ]
+                }
+              }
+            }
+          },
+          "bpf_metadata": {
+            "properties": {
+              "schema_role": {
+                "const": "bpf-metadata"
+              }
+            }
+          },
+          "unavailable_reasons": {
+            "maxItems": 0
+          },
+          "runner": {
+            "required": [
+              "group",
+              "name"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

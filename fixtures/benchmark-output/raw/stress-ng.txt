@@ -1,0 +1,4 @@
+stress-ng: metrc: [123] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s
+stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)
+stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52
+stress-ng: metrc: [123] vm               1800      10.00      9.10      0.80       180.00        181.82

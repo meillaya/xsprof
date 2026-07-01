@@ -28,9 +28,9 @@ zig fmt --check build.zig build.zig.zon $(find src -name '*.zig' -print)
 
 Default matrix and release-withheld gates are host-safe:
 
-- `zig build client-contract` now runs the backend client API fixture pack, `matrix-run/v1` fixtures, runtime sample self-test, control schema drift check, and daemon golden transcript check.
-- `zig build host-safe-gates` runs the workload catalog, root UI absence, no-host-mutation, wording/privacy, read-only security, Zig docs vendor, BPF ABI/repro, and release gate self-tests.
-- `zig build vm-harness-matrix` runs only the host-safe fixture row by default. On hosts without `/run/zig-scheduler-vm-lab.marker`, that row may report `PASS` only as `evidence_mode=fixture`, which proves contract fixture generation/validation and never VM-live execution. VM-required or prerequisite-missing rows must SKIP/REFUSE rather than mutating the host or claiming VM-live marker evidence. It writes ignored evidence under `evidence/lab/matrix/<run-id>` and validates the matrix contract without requiring QEMU, KVM, or a VM kernel.
+- `zig build client-contract` now runs the backend client API fixture pack, client/consumer adversarial self-tests, `matrix-run/v1` fixtures, runtime sample self-test, benchmark-output fixture validation, control schema drift, schema compatibility check/self-test, and daemon golden transcript checks.
+- `zig build host-safe-gates` runs the workload catalog, root UI absence, no-host-mutation, wording/privacy, read-only security, Zig docs vendor, BPF ABI/repro, governance manifest check/self-test, evidence-manifest self-test, manual VM proof static/self-tests, matrix-run fixture/self-tests, runner-substrate fixture/self-tests, benchmark-output self-test, benchmark provenance self-test, and release gate self-tests.
+- `zig build vm-harness-matrix` runs only the host-safe fixture row by default. On hosts without `/run/zig-scheduler-vm-lab.marker`, that row may report `PASS` only as `evidence_mode=fixture`, which proves contract fixture generation/validation and never VM-live execution. VM-required or prerequisite-missing rows must SKIP/REFUSE rather than mutating the host or claiming VM-live marker evidence. The default target writes a temporary ignored run under `evidence/lab/matrix/<run-id>`, validates it with `qa/matrix_run_contract_check.py --manifest`, and removes the temporary row before exit; explicit `--out` invocations remain operator-owned evidence. It does not require QEMU, KVM, or a VM kernel.
 - `qa/release_gate.sh --matrix-manifest evidence/lab/matrix/<run-id>/manifest.json ...` consumes a matrix manifest only after `qa/matrix_run_contract_check.py` proves every row has `host_mutation=false`, `release_eligible=false`, cleanup proof, rollback proof, host refusal proof, and safe relative artifact paths.
 
 `SKIP` means a prerequisite is absent or unsupported in the selected lane and no unsafe proof was attempted. `REFUSE` means a required unsafe or invalid prerequisite was requested and the harness intentionally declined it. `FAIL` means a checker or runner contract was violated and must fail the lane. Default CI may accept documented `SKIP`/`REFUSE` rows from host-safe fixture or missing-prerequisite scenarios, but must not reinterpret them as VM-live success or release approval.
@@ -92,6 +92,14 @@ python3 qa/daemon_golden_transcript_check.py --daemon zig-out/bin/zig-scheduler-
 python3 qa/perf_calibration_evidence_check.py --self-test
 python3 qa/benchmark_output_check.py --self-test
 python3 qa/benchmark_output_check.py --fixtures fixtures/benchmark-output --schema schemas/control/benchmark-output.v1.schema.json
+python3 qa/runner_substrate_proof_check.py --fixtures fixtures/runner-substrate-proof --schema schemas/control/runner-substrate-proof.v1.schema.json
+python3 qa/runner_substrate_proof_check.py --self-test
+python3 qa/matrix_benchmark_provenance_check.py --self-test
+python3 qa/governance_manifest_check.py --manifest fixtures/lab/governance-sources.json
+python3 qa/governance_manifest_check.py --self-test
+python3 qa/schema_compatibility_check.py --self-test
+python3 qa/frontend_contract_pack_check.py --self-test  # backend contract; no frontend implementation
+python3 qa/consumer_contract_check.py --self-test
 ```
 
 `benchmark-output/v1` is a record-only calibration contract. CI may validate parser behavior, committed fixtures, and matrix `benchmark_provenance` references, but those checks do not enforce performance thresholds and do not create release eligibility or production-capacity claims. Matrix provenance validation reuses `qa/benchmark_output_check.py`; malformed, missing, or claim-bearing benchmark records remain contract failures rather than performance failures.
@@ -104,13 +112,24 @@ On runners where QEMU KVM cannot initialize because of local resource limits, th
 
 The manual lane is intentionally reviewer-gated and isolated:
 
+The live backend matrix invocation used by the protected lane is:
+
+```bash
+zig build vm-harness-matrix -- \
+  --mode vm-required \
+  --scenario live-backend \
+  --out evidence/lab/matrix/<run-id>
+```
+
+That command is not a default CI command. It is valid only after protected-runner prerequisites are satisfied; otherwise the lane must emit `SKIP` or `REFUSE` evidence with `host_mutation=false` and package the failure-closed artifacts for review.
+
 - GitHub environment: `vm-proof-manual`, configured by repository owners as a protected environment with required reviewers and branch/tag restrictions before use.
 - Runner: self-hosted labels `self-hosted`, `zig-scheduler-vm-proof`, and `disposable-vm`; hosted runners such as `ubuntu-latest` are not acceptable for this lane.
 - Dispatch inputs: explicit audit id, rollback id, VM marker path `/run/zig-scheduler-vm-lab.marker`, and supported tuple from `docs/releases/supported-kernel-tuples.md`.
 - Artifact: GitHub Actions uploaded tarball `vm-proof-bundle.tar.zst` with explicit retention; it is not a release asset, not OCI, and not production approval.
 - Provenance: the workflow requests GitHub artifact attestation and prints a `gh attestation verify` command for post-run verification.
 
-The `vm-proof-bundle.tar.zst` contract contains or accounts for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when object metadata is unavailable, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated rows when applicable. Every included proof must preserve `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
+The `vm-proof-bundle.tar.zst` contract contains or accounts for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when object metadata is unavailable, protected-environment-review.json when externally curated reviewer evidence is available, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated rows when applicable. Every included proof must preserve `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
 
 Static protection is validated locally with:
 
@@ -123,3 +142,5 @@ python3 qa/manual_vm_proof_ci_check.py \
 This checker rejects unsafe default triggers, missing protected-environment/reviewer wording, untrusted runner labels, missing proof artifacts, release claims, production claims, and real-host attach allowances. A passing static check does not mean the protected environment was configured or that a human reviewer approved/executed the lane.
 
 The manual proof bundle must also include `evidence-manifest.json`, validated by `qa/evidence_manifest_check.py` against `schemas/control/evidence-manifest.v1.schema.json`. The evidence manifest is the machine-readable provenance index for the protected VM proof bundle: it lists artifact paths, SHA-256 hashes, schema roles, audit id, rollback id, VM marker, supported tuple, BPF metadata or BPF SKIP JSON, daemon events, matrix manifest, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, and attestation status. The manifest remains `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; it is not release approval and a local static pass does not prove the protected environment actually exists.
+
+Protected runner substrate proof is recorded as `runner-substrate-proof.json` and checked with `qa/runner_substrate_proof_check.py` against `schemas/control/runner-substrate-proof.v1.schema.json`. It records runner class, runner group, runner labels, protected environment reviewer status, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons. All paths in that proof are relative/non-traversing, `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; an unavailable QEMU, empty QEMU version, /dev/kvm, reviewer signal, kernel BTF metadata unavailable, sched_ext kernel substrate unavailable, unsupported kernel release, placeholder kernel config hash, TCG accel, BPF SKIP metadata, or attestation capability must be an explicit SKIP/REFUSE reason and never a fake PASS. PASS requires `reviewer_status=approved` from the GitHub run history or externally curated `protected-environment-review.json`; `not_exposed_by_github_actions_runtime` is never enough for PASS.

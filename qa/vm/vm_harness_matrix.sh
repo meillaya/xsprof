@@ -267,9 +267,7 @@ fixture_shape_or_vm_live() {
 
 workload_threshold_source() {
   case "$1" in
-    workload-cpu-saturation|workload-scheduler-affinity-churn|workload-fork-ipc-pressure) printf 'fixture' ;;
-    workload-interactive-latency|workload-mixed-io|workload-cgroup-weight-quota) printf 'calibrated' ;;
-    workload-cpu-hotplug) printf 'deferred' ;;
+    workload-cpu-saturation|workload-interactive-latency|workload-scheduler-affinity-churn|workload-fork-ipc-pressure|workload-mixed-io|workload-cgroup-weight-quota|workload-cpu-hotplug) printf 'record-only' ;;
     *) return 1 ;;
   esac
 }
@@ -347,7 +345,7 @@ write_matrix_row() {
     threshold_source_value="$(workload_threshold_source "$scenario")"
     if missing_prereq_value="$(workload_missing_prereq "$scenario")"; then :; else missing_prereq_value=""; fi
   fi
-  SCENARIO="$scenario" ROW_DIR="$row_dir" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" python3 - <<'PY'
+  SCENARIO="$scenario" ROW_DIR="$row_dir" EVENT_FILE="$event_file" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" LIVE_AUDIT_ID="${LIVE_AUDIT_ID:-}" LIVE_ROLLBACK_ID="${LIVE_ROLLBACK_ID:-}" python3 - <<'PY'
 import hashlib
 import json
 import os
@@ -374,7 +372,7 @@ def write_json(path: Path, payload: dict) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def benchmark_record() -> dict | None:
-    if threshold_source != "calibrated":
+    if threshold_source != "record-only":
         return None
     bench_dir = row_dir / "benchmark-provenance"
     if scenario == "workload-mixed-io":
@@ -453,7 +451,7 @@ workload_spec = {
     "scenario_id": scenario,
     "required_tools": workload_tools,
     "threshold_source": threshold_source,
-    "thresholds": {"source": threshold_source, "fixture_status": "deterministic", "calibration_status": "placeholder", "production_capacity_claim": False},
+    "thresholds": {"source": threshold_source, "fixture_status": "deterministic", "calibration_status": "uncalibrated", "production_capacity_claim": False},
     "capability_artifact_path": capability.as_posix(),
     "runner": "qa/vm/workload_capability_probe.sh",
     "vm_marker_required_for_live_run": True,
@@ -532,13 +530,14 @@ row = {
     "policy": {"name": "zigsched_minimal", "object_path": policy.as_posix(), "object_sha256": policy_sha, "source_path": "bpf/zigsched_minimal.bpf.c", "source_sha256": source_sha},
     "workload": {"name": workload_class, "spec_path": workload.as_posix(), "spec_sha256": workload_sha},
     "action_id": "ACT-" + scenario,
-    "audit_id": "AUD-20260629T120000Z-" + scenario,
-    "rollback_id": "RB-" + scenario,
+    "audit_id": os.environ.get("LIVE_AUDIT_ID") or "AUD-20260629T120000Z-" + scenario,
+    "rollback_id": os.environ.get("LIVE_ROLLBACK_ID") or "RB-" + scenario,
     "pre_scheduler_state": state,
     "post_scheduler_state": state,
     "pre_cgroup_state": cgroup,
     "post_cgroup_state": cgroup,
     "runtime_sample_path": runtime.as_posix(),
+    "daemon_event_path": str(Path(os.environ["EVENT_FILE"])),
     "incident_path": incident.as_posix(),
     "rollback_proof_path": rollback.as_posix(),
     "cleanup_proof_path": cleanup.as_posix(),
@@ -600,8 +599,108 @@ run_fixture_scenario() {
   fi
 }
 
+live_backend_pass_shape() {
+  local summary="$1"
+  [ -f "$summary" ] || return 1
+  python3 - "$summary" <<'PY'
+import json
+import sys
+from pathlib import Path
+summary_path = Path(sys.argv[1])
+try:
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+if summary.get("schema") != "zig-scheduler/vm-backend-run/v1":
+    raise SystemExit(1)
+if summary.get("status") != "PASS" or summary.get("host_mutation") is not False:
+    raise SystemExit(1)
+if summary.get("vm_kind") != "qemu-vm" or summary.get("vm_marker_present") is not True:
+    raise SystemExit(1)
+if summary.get("vm_marker_path") != "/run/zig-scheduler-vm-lab.marker":
+    raise SystemExit(1)
+required = ("daemon_events", "cleanup_receipt", "staging_manifest", "live_summary")
+for key in required:
+    value = summary.get(key)
+    if not isinstance(value, str) or not value.startswith("evidence/lab/matrix/"):
+        raise SystemExit(1)
+live_summary = Path(str(summary.get("live_summary", "")))
+try:
+    live = json.loads(live_summary.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+if live.get("git_dirty") is not False:
+    raise SystemExit(1)
+live_git_sha = live.get("git_sha")
+if not isinstance(live_git_sha, str) or not live_git_sha.startswith(summary.get("audit_id", "").split("-")[-2]):
+    raise SystemExit(1)
+for key in ("audit_id", "rollback_id"):
+    if not isinstance(summary.get(key), str) or not summary[key]:
+        raise SystemExit(1)
+print("PASS vm-live supported present available available true true live_backend_completed {} {}".format(summary["audit_id"], summary["rollback_id"]))
+PY
+}
+
+live_backend_refusal_reason() {
+  local summary="$1"
+  [ -f "$summary" ] || { printf 'live backend summary unavailable'; return 0; }
+  python3 - "$summary" <<'PY'
+import json
+import sys
+from pathlib import Path
+summary_path = Path(sys.argv[1])
+try:
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print("live backend summary malformed")
+    raise SystemExit(0)
+live_summary = summary.get("live_summary")
+if not isinstance(live_summary, str):
+    print("live backend live_summary path missing")
+    raise SystemExit(0)
+try:
+    live = json.loads(Path(live_summary).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print("live backend live summary malformed")
+    raise SystemExit(0)
+if live.get("git_dirty") is True:
+    print("live backend dirty git state refused")
+    raise SystemExit(0)
+if live.get("git_dirty") is not False:
+    print("live backend git_dirty missing or invalid")
+    raise SystemExit(0)
+print("live backend refused or unavailable")
+PY
+}
+
+overlay_live_backend_artifacts() {
+  local row_dir="$1" backend_summary="$2"
+  BACKEND_SUMMARY="$backend_summary" ROW_DIR="$row_dir" python3 - <<'PY'
+import json
+import shutil
+from pathlib import Path
+import os
+
+summary_path = Path(os.environ["BACKEND_SUMMARY"])
+row_dir = Path(os.environ["ROW_DIR"])
+if not summary_path.is_file():
+    raise SystemExit(0)
+summary = json.loads(summary_path.read_text(encoding="utf-8"))
+if summary.get("status") != "PASS":
+    raise SystemExit(0)
+live_summary = Path(str(summary.get("live_summary", "")))
+if not live_summary.is_file():
+    raise SystemExit(0)
+runtime = live_summary.parent / "observe-partial" / "runtime-samples.jsonl"
+if runtime.is_file():
+    shutil.copyfile(runtime, row_dir / "runtime-sample.jsonl")
+PY
+}
+
 run_live_backend() {
-  local scenario="live-backend" row_dir="$out_dir/rows/live-backend" backend_dir="$row_dir/backend" runner_rc outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason row_path
+  local scenario="live-backend" row_dir backend_dir runner_rc outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason row_path shape live_audit_id live_rollback_id
+  row_dir="$out_dir/rows/live-backend"
+  backend_dir="$row_dir/backend"
   mkdir -p "$row_dir"
   emit_event stage_started STARTED "$scenario" "$backend_dir" "delegating to qa/vm/vm_lab_backend.sh"
   set +e
@@ -613,18 +712,20 @@ run_live_backend() {
     runner_rc=$?
   fi
   set -e
-  if [ "$runner_rc" -eq 0 ]; then
-    outcome=PASS; evidence_mode=vm-live; tuple_status=supported; btf=present; kvm=available; sched_ext=available; marker_present=true; marker_required=true; reason="live backend completed"
+  if [ "$runner_rc" -eq 0 ] && shape="$(live_backend_pass_shape "$backend_dir/summary.json")"; then
+    read -r outcome evidence_mode tuple_status btf kvm sched_ext marker_present marker_required reason live_audit_id live_rollback_id <<< "$shape"
   elif [ "$runner_rc" -eq 124 ]; then
     outcome=INCIDENT; evidence_mode=host-refusal-only; tuple_status=unknown; btf=unknown; kvm=unknown; sched_ext=unknown; marker_present=false; marker_required=false; reason="live backend timeout"
     final_rc=1
   else
-    outcome=REFUSE; evidence_mode=host-refusal-only; tuple_status=unknown; btf=unknown; kvm=unknown; sched_ext=unknown; marker_present=false; marker_required=false; reason="live backend refused or unavailable"
+    outcome=REFUSE; evidence_mode=host-refusal-only; tuple_status=unknown; btf=unknown; kvm=unknown; sched_ext=unknown; marker_present=false; marker_required=false; reason="$(live_backend_refusal_reason "$backend_dir/summary.json")"
     [ "$mode" = vm-required ] && final_rc=1
   fi
-  outcome="$(write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason" "$fixture_mode")"
+  outcome="$(LIVE_AUDIT_ID="${live_audit_id:-}" LIVE_ROLLBACK_ID="${live_rollback_id:-}" write_matrix_row "$scenario" "$row_dir" "$outcome" "$evidence_mode" "$tuple_status" "$btf" "$kvm" "$sched_ext" "$marker_present" "$marker_required" "$reason" "$fixture_mode")"
+  overlay_live_backend_artifacts "$row_dir" "$backend_dir/summary.json"
   row_path="$row_dir/matrix-run.json"
   emit_event validation "$outcome" "$scenario" "$row_path" "$reason"
+  emit_event rollback PASS "$scenario" "$row_dir/rollback-proof.json" "rollback proof recorded"
   emit_event cleanup PASS "$scenario" "$row_dir/cleanup-proof.json" "cleanup proof recorded"
   append_manifest_row "$scenario" "$outcome" "$row_path" "$reason"
 }

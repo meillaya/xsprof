@@ -1,0 +1,56 @@
+{
+  "accel_mode": "kvm",
+  "attestation": {
+    "capability": "available",
+    "status": "pending-post-run-github-attestation",
+    "verify_command": "gh attestation verify evidence/lab/manual-vm-proof-bundle/vm-proof-bundle.tar.zst --repo example/zig-scheduler",
+    "workflow_uses": "actions/attest-build-provenance@v2"
+  },
+  "bpf_metadata": {
+    "path": "fixtures/runner-substrate-proof/valid/bpf-meta.json",
+    "schema_role": "bpf-metadata",
+    "sha256": "71da4ef90bf87fe68c935fe38b26647d81f185069f1ce9ddf05edd61ceadff75"
+  },
+  "dev_kvm": {
+    "path": "dev/kvm",
+    "status": "available"
+  },
+  "host_mutation": false,
+  "kernel_tuple": {
+    "arch": "x86_64",
+    "btf_available": true,
+    "config_sha256": "03e703ca1b2498b4822a9fe8959f698657d4d19621d47c1658653df7fda3ecb9",
+    "release": "6.12.0-vm-lab",
+    "sched_ext_available": true,
+    "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only"
+  },
+  "production_capacity_claim": false,
+  "proof_outcome": "PASS",
+  "protected_environment": {
+    "name": "vm-proof-manual",
+    "protected": true,
+    "required_reviewers": "configured-by-repository-owners",
+    "reviewer_identity": "repo-owner-reviewed",
+    "reviewer_status": "approved",
+    "run_url": "https://github.com/example/zig-scheduler/actions/runs/123456789"
+  },
+  "qemu": {
+    "path": "usr/bin/qemu-system-x86_64",
+    "status": "available",
+    "version": "QEMU emulator version 8.2.0"
+  },
+  "release_eligible": false,
+  "runner": {
+    "arch": "X64",
+    "class": "self-hosted",
+    "group": "vm-proof-runners",
+    "labels": [
+      "self-hosted",
+      "zig-scheduler-vm-proof",
+      "disposable-vm"
+    ],
+    "os": "Linux"
+  },
+  "schema": "zig-scheduler/runner-substrate-proof/v1",
+  "unavailable_reasons": []
+}

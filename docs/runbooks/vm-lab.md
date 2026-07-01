@@ -259,19 +259,50 @@ zig build vm-harness-matrix --summary all
 
 `client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`; without a real VM marker, that row is `PASS` with `evidence_mode=fixture`, while vm-required marker-missing rows fail closed as `REFUSE` and prerequisite-missing rows remain `SKIP`/`REFUSE`. None of these default build targets require QEMU/KVM or VM kernel inputs.
 
+The canonical protected live row is:
+
+```bash
+zig build vm-harness-matrix -- \
+  --mode vm-required \
+  --scenario live-backend \
+  --out evidence/lab/matrix/<run-id>
+```
+
+That row invokes `qa/vm/vm_lab_backend.sh --mode vm-required`, and the backend stages BPF metadata before delegating real disposable-VM execution to `qa/vm/run_microvm_live_lab.sh`. If QEMU, `/dev/kvm`, a trusted kernel image, Nix/busybox staging, or the supported tuple is unavailable, the row must still leave a manifest with a validated `SKIP` or `REFUSE` artifact and `host_mutation=false`; it must not fall back to loading or attaching sched_ext on the host. On a capable protected runner, a PASS row must be `evidence_mode=vm-live`, include a row-local VM marker proof, and retain rollback, cleanup, host-refusal, runtime-sample, daemon-event, and privacy artifacts under the matrix run root.
+
+Protected live operator checklist:
+
+1. Confirm the run is on the protected `vm-proof-manual` environment and an isolated self-hosted runner with `zig-scheduler-vm-proof` and `disposable-vm` labels; ordinary hosts and hosted CI must stop at host-safe gates.
+2. Capture runner substrate proof (`runner-substrate-proof.json`) before trusting a PASS. Unavailable QEMU, `/dev/kvm`, BTF, sched_ext kernel support, protected-reviewer signal, BPF object metadata, or artifact attestation is first-class `SKIP`/`REFUSE` evidence, not success.
+3. Run the canonical command above and keep all artifacts under `evidence/lab/matrix/<run-id>/`, especially `manifest.json`, `rows/live-backend/matrix-run.json`, `runner-substrate-proof.json`, row-local VM marker proof, `rollback-proof.json`, `cleanup-proof.json`, `host-refusal.json`, runtime samples, daemon events, privacy scan, and benchmark provenance records.
+4. Validate the matrix manifest and bundle manifest before review:
+
+   ```bash
+   python3 qa/matrix_run_contract_check.py --manifest evidence/lab/matrix/<run-id>/manifest.json --schemas schemas/control --docs docs/control
+   python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
+   ```
+
+5. Verify artifact attestation from the GitHub run before treating the uploaded bundle as protected provenance:
+
+   ```bash
+   gh attestation verify vm-proof-bundle.tar.zst --repo <owner>/<repo>
+   ```
+
+A local PASS from these static checks only means the artifacts are shaped for review. It does not approve a release, does not approve production use, does not add frontend work, and does not allow host attach or host scheduler/cgroup mutation.
+
 ## VM workload scenario catalog
 
 Workload catalog rows are matrix-run fixtures and VM-only execution plans. They do **not** run stressors on the host, do **not** load or attach sched_ext on the host, and do **not** write host cgroups, affinities, priorities, `/sys`, or `/proc`. The read-only capability checker is `qa/vm/workload_capability_probe.sh`; the matrix integration is `qa/vm/vm_harness_matrix.sh --scenario <id> --fixture`. Live workload execution remains disposable-VM-only and requires `/run/zig-scheduler-vm-lab.marker` plus the listed tools.
 
 | Scenario ID | Workload class | Required tools / prereqs | Threshold source | Typed SKIP / REFUSE conditions | Artifact paths |
 | --- | --- | --- | --- | --- | --- |
-| `workload-cpu-saturation` | CPU saturation | `stress-ng` | `fixture` | Missing `stress-ng`; VM-required mode returns `REFUSE`, host-safe/auto returns `SKIP` when forced by the probe. | `rows/<scenario>/workload-spec.json`, `workload-capability.json`, `runtime-sample.jsonl`, `incident.json`, `rollback-proof.json`, `cleanup-proof.json`, `host-refusal.json`, `privacy-scan.json` |
-| `workload-interactive-latency` | Interactive latency probe | `cyclictest`, `perf` | `calibrated` | Missing `cyclictest` or `perf`; calibration is a placeholder until VM-live record-only evidence is produced. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
-| `workload-scheduler-affinity-churn` | Scheduler / affinity churn | `stress-ng`, `taskset`, `chrt` | `fixture` | Missing any listed tool; live use is VM-only because affinity and scheduling knobs are mutation surfaces. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
-| `workload-fork-ipc-pressure` | Bounded fork / IPC pressure | `hackbench` or a `perf bench sched messaging`-like fallback (`hackbench-like`) | `fixture` | Missing hackbench-like tool; process pressure remains bounded and VM-only. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
-| `workload-mixed-io` | Mixed I/O | `fio` | `calibrated` | Missing `fio`; no production throughput claim is inferred from fixture or calibration rows. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
-| `workload-cgroup-weight-quota` | cgroup weight / quota pressure | `stress-ng` | `calibrated` | Missing `stress-ng`; cgroup writes remain VM-live-only behind the VM marker and are always refused on the host. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
-| `workload-cpu-hotplug` | CPU hotplug / offline where supported | VM CPU online control (`cpu-hotplug-online-control`) | `deferred` | Missing writable VM CPU online control or unsupported topology; host CPU hotplug/offline is always refused. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-cpu-saturation` | CPU saturation | `stress-ng` | `record-only` | Missing `stress-ng`; VM-required mode returns `REFUSE`, host-safe/auto returns `SKIP` when forced by the probe. | `rows/<scenario>/workload-spec.json`, `workload-capability.json`, `runtime-sample.jsonl`, `incident.json`, `rollback-proof.json`, `cleanup-proof.json`, `host-refusal.json`, `privacy-scan.json` |
+| `workload-interactive-latency` | Interactive latency probe | `cyclictest`, `perf` | `record-only` | Missing `cyclictest` or `perf`; calibration remains uncalibrated until separately proven by VM-live evidence. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-scheduler-affinity-churn` | Scheduler / affinity churn | `stress-ng`, `taskset`, `chrt` | `record-only` | Missing any listed tool; live use is VM-only because affinity and scheduling knobs are mutation surfaces. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-fork-ipc-pressure` | Bounded fork / IPC pressure | `hackbench` or a `perf bench sched messaging`-like fallback (`hackbench-like`) | `record-only` | Missing hackbench-like tool; process pressure remains bounded and VM-only. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-mixed-io` | Mixed I/O | `fio` | `record-only` | Missing `fio`; no production throughput claim is inferred from fixture or record rows. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-cgroup-weight-quota` | cgroup weight / quota pressure | `stress-ng` | `record-only` | Missing `stress-ng`; cgroup writes remain VM-live-only behind the VM marker and are always refused on the host. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
+| `workload-cpu-hotplug` | CPU hotplug / offline where supported | VM CPU online control (`cpu-hotplug-online-control`) | `record-only` | Missing writable VM CPU online control or unsupported topology; host CPU hotplug/offline is always refused. | Same per-row artifact set under `evidence/lab/matrix/<run-id>/rows/<scenario>/` |
 
 Capability discovery examples:
 
@@ -282,7 +313,7 @@ ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL=stress-ng \
     --scenario workload-cpu-saturation --out evidence/lab/matrix/<run-id>-missing-workload
 ```
 
-The `workload-spec.json` hash is recorded in the row's `workload.spec_sha256`; `workload-capability.json` records prerequisite status, `threshold_source` (`fixture`, `calibrated`, or `deferred`), and typed missing-prereq state. Fixture thresholds are deterministic contract placeholders. Calibrated thresholds must come from VM-live record-only calibration evidence and remain `production_capacity_claim=false`; matrix manifests reference that evidence with `benchmark_provenance` records validated by the benchmark-output checker. Deferred thresholds are explicit gaps, not pass/fail performance results.
+The `workload-spec.json` hash is recorded in the row's `workload.spec_sha256`; `workload-capability.json` records prerequisite status, `threshold_source=record-only`, and typed missing-prereq state. Thresholds remain uncalibrated record evidence until a later VM-only proof explicitly promotes them; `benchmark_provenance` records are validated by the benchmark-output checker as record-only artifacts and cannot become pass/fail performance results, production-capacity claims, release eligibility, or scheduler-performance claims.
 
 Privacy rules: workload artifacts may record scenario IDs, tool names, threshold-source labels, bounded counters, and relative artifact paths only. They must not include command lines, argv, environments, secrets, API keys, tokens, passwords, bearer strings, or private process data. Every matrix row also carries a `privacy-scan.json` with `private_fields_found=false`, `host_mutation=false`, and `release_eligible=false`.
 
@@ -292,7 +323,9 @@ The repository includes `.github/workflows/manual-vm-proof.yml` as an opt-in `wo
 
 The manual dispatch requires the operator to provide an audit id, rollback id, VM marker path `/run/zig-scheduler-vm-lab.marker`, and supported tuple. The workflow is allowed to run VM-required proof commands only on that isolated runner; it must not be interpreted as real-host attach permission. The uploaded proof is the GitHub Actions artifact `vm-proof-bundle.tar.zst`; it is not a release asset, not OCI, not production approval, and keeps `release_eligible=false`, `host_mutation=false`, and `production_capacity_claim=false`.
 
-`vm-proof-bundle.tar.zst` is the pinned manual proof artifact type. It must contain or explicitly account for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when the object is skipped, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated matrix rows. Missing QEMU/KVM/kernel prerequisites remain `SKIP` or `REFUSE`; they are not success and are not release approval.
+The protected workflow runs the same canonical `live-backend` matrix command. A non-zero matrix command is reviewable only when it left a valid manifest and the `live-backend` row is explicitly `SKIP` or `REFUSE`; the workflow validates that manifest before packaging evidence so unavailable substrate is recorded as proof of fail-closed behavior rather than silently discarded.
+
+`vm-proof-bundle.tar.zst` is the pinned manual proof artifact type. It must contain or explicitly account for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when the object is skipped, protected-environment-review.json when externally curated reviewer evidence is available, daemon events, live summary if present, static verification logs, and benchmark provenance for record-only matrix rows. Missing QEMU/KVM/kernel prerequisites remain `SKIP` or `REFUSE`; they are not success and are not release approval. PASS requires KVM accel, supported kernel release, non-placeholder kernel config hash, BTF, sched_ext, BPF object metadata, and explicit protected-environment reviewer approval.
 
 Post-run provenance review is manual and evidence-based:
 
@@ -307,3 +340,5 @@ python3 qa/manual_vm_proof_ci_check.py --workflow .github/workflows/manual-vm-pr
 Do not claim this run was approved or executed by a human unless the GitHub run history and protected-environment review record show that approval. Static local validation only proves the workflow/provenance contract is safe to review.
 
 Manual protected VM proof bundles now carry `evidence-manifest.json` beside the matrix output. Operators should validate it with `python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json` before treating the bundle as lab evidence. The manifest records SHA-256 hashes and schema roles for the matrix manifest, matrix rows, BPF metadata or BPF SKIP JSON, daemon events, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, static verification logs, audit id, rollback id, VM marker, supported tuple, and attestation status. It does not make the proof release eligible or production approved.
+
+Protected runner substrate proof is recorded as `runner-substrate-proof.json` and checked with `qa/runner_substrate_proof_check.py` against `schemas/control/runner-substrate-proof.v1.schema.json`. It records runner class, runner group, runner labels, protected environment reviewer status, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons. All paths in that proof are relative/non-traversing, `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; an unavailable QEMU, empty QEMU version, /dev/kvm, reviewer signal, kernel BTF metadata unavailable, sched_ext kernel substrate unavailable, unsupported kernel release, placeholder kernel config hash, TCG accel, BPF SKIP metadata, or attestation capability must be an explicit SKIP/REFUSE reason and never a fake PASS. PASS requires `reviewer_status=approved` from the GitHub run history or externally curated `protected-environment-review.json`; `not_exposed_by_github_actions_runtime` is never enough for PASS.

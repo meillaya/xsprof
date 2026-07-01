@@ -17,6 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from qa.manual_vm_proof_flow import ManualVmProofFlowError, validate_qemu_proof_semantics
+else:
+    from .manual_vm_proof_flow import ManualVmProofFlowError, validate_qemu_proof_semantics
+
 WORKFLOW_PATH: Final = Path(".github/workflows/manual-vm-proof.yml")
 DEFAULT_DOCS: Final[tuple[Path, ...]] = (
     Path("docs/ci.md"),
@@ -24,44 +30,8 @@ DEFAULT_DOCS: Final[tuple[Path, ...]] = (
     Path("docs/releases/governance-gate.md"),
     Path("docs/security/review-checklist.md"),
 )
-REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = (
-    "matrix manifest",
-    "matrix rows",
-    "bpf metadata",
-    "bpf skip json",
-    "daemon events",
-    "live summary",
-    "static verification logs",
-    "audit id",
-    "rollback id",
-    "vm marker",
-    "supported tuple",
-    "pre state",
-    "post state",
-    "rollback proof",
-    "cleanup proof",
-    "host refusal",
-    "benchmark provenance",
-    "evidence manifest",
-    "SHA-256 hashes",
-    "attestation status",
-)
-REQUIRED_DOC_TERMS: Final[tuple[str, ...]] = (
-    "workflow_dispatch",
-    "manual-vm-proof",
-    "vm-proof-bundle.tar.zst",
-    "protected environment",
-    "required reviewers",
-    "self-hosted",
-    "zig-scheduler-vm-proof",
-    "disposable-vm",
-    "release_eligible=false",
-    "not a release asset",
-    "not production approval",
-    "gh attestation verify",
-    "evidence-manifest.json",
-    "qa/evidence_manifest_check.py",
-)
+REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = tuple("""matrix manifest|matrix rows|bpf metadata|bpf skip json|daemon events|live summary|static verification logs|audit id|rollback id|vm marker|supported tuple|pre state|post state|rollback proof|cleanup proof|host refusal|benchmark provenance|evidence manifest|SHA-256 hashes|attestation status|runner substrate proof|runner class|runner group|runner labels|protected environment reviewer|run URL|QEMU path|QEMU version|/dev/kvm status|accel mode|kernel tuple|unavailable reasons|protected-environment-review.json|kernel BTF metadata unavailable|sched_ext kernel substrate unavailable""".split("|"))
+REQUIRED_DOC_TERMS: Final[tuple[str, ...]] = tuple("""workflow_dispatch|manual-vm-proof|vm-proof-bundle.tar.zst|protected environment|required reviewers|self-hosted|zig-scheduler-vm-proof|disposable-vm|release_eligible=false|not a release asset|not production approval|gh attestation verify|evidence-manifest.json|qa/evidence_manifest_check.py|qa/runner_substrate_proof_check.py|runner-substrate-proof.json""".split("|"))
 FORBIDDEN_TRIGGER_RE: Final = re.compile(r"^\s*(push|pull_request|pull_request_target|schedule):", re.MULTILINE)
 FORBIDDEN_RELEASE_RE: Final = re.compile(
     r"(\bgh\s+release\b|actions/create-release|softprops/action-gh-release|upload-release-asset|release_eligible\s*[:=]\s*true|\bproduction[_ -]?ready\b|\bpublish release\b)",
@@ -132,7 +102,7 @@ def shell_run_blocks(text: str) -> tuple[str, ...]:
     lines = text.splitlines()
     index = 0
     while index < len(lines):
-        match = re.match(r"^(?P<indent>\s*)run:\s*(?P<body>.*)$", lines[index])
+        match = re.match(r"^(?P<indent>\s*)(?:-\s*)?run:\s*(?P<body>.*)$", lines[index])
         if match is None:
             index += 1
             continue
@@ -164,25 +134,16 @@ def validate_workflow(path: Path) -> None:
         require(contains(text, permission), f"workflow missing permission: {permission}")
     for required_input in ("audit_id", "rollback_id", "vm_marker_path", "supported_tuple", "confirm_vm_only", "approval_ack"):
         require(contains(text, required_input), f"workflow missing dispatch input: {required_input}")
-    for block in shell_run_blocks(text):
+    run_blocks = shell_run_blocks(text)
+    for block in run_blocks:
         require(DIRECT_INPUT_IN_RUN_RE.search(block) is None, "workflow run blocks must not interpolate workflow_dispatch inputs directly; pass inputs through step env and quote shell variables")
-    for env_mapping in (
-        "INPUT_AUDIT_ID: ${{ inputs.audit_id }}",
-        "INPUT_ROLLBACK_ID: ${{ inputs.rollback_id }}",
-        "INPUT_VM_MARKER_PATH: ${{ inputs.vm_marker_path }}",
-        "INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}",
-        "INPUT_CONFIRM_VM_ONLY: ${{ inputs.confirm_vm_only }}",
-        "INPUT_APPROVAL_ACK: ${{ inputs.approval_ack }}",
-    ):
+    try:
+        validate_qemu_proof_semantics(text)
+    except ManualVmProofFlowError as exc:
+        raise ManualVmProofError(str(exc)) from exc
+    for env_mapping in tuple("""INPUT_AUDIT_ID: ${{ inputs.audit_id }}|INPUT_ROLLBACK_ID: ${{ inputs.rollback_id }}|INPUT_VM_MARKER_PATH: ${{ inputs.vm_marker_path }}|INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}|INPUT_CONFIRM_VM_ONLY: ${{ inputs.confirm_vm_only }}|INPUT_APPROVAL_ACK: ${{ inputs.approval_ack }}""".split("|")):
         require(contains(text, env_mapping), f"workflow missing safe step env input mapping: {env_mapping}")
-    for validation in (
-        'test "$INPUT_VM_MARKER_PATH" = /run/zig-scheduler-vm-lab.marker',
-        '[[ "$INPUT_AUDIT_ID" =~ ^AUD-',
-        '[[ "$INPUT_ROLLBACK_ID" =~ ^RB-',
-        '[[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-',
-        'test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"',
-        'test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval"',
-    ):
+    for validation in tuple("""test "$INPUT_VM_MARKER_PATH" = /run/zig-scheduler-vm-lab.marker|[[ "$INPUT_AUDIT_ID" =~ ^AUD-|[[ "$INPUT_ROLLBACK_ID" =~ ^RB-|[[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-|test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"|test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval""".split("|")):
         require(contains(text, validation), f"workflow missing strict quoted input validation: {validation}")
     require("/run/zig-scheduler-vm-lab.marker" in text, "workflow must pin VM marker path")
     require("vm-proof-bundle.tar.zst" in text, "workflow must upload vm-proof-bundle.tar.zst")
@@ -193,6 +154,11 @@ def validate_workflow(path: Path) -> None:
     require("evidence-manifest.json" in text, "workflow must produce evidence-manifest.json")
     require("qa/evidence_manifest_check.py" in text, "workflow must validate the evidence manifest")
     require("schemas/control/evidence-manifest.v1.schema.json" in text, "workflow must include the evidence manifest schema")
+    require("schemas/control/runner-substrate-proof.v1.schema.json" in text, "workflow must include the runner substrate proof schema")
+    require("qa/runner_substrate_proof_check.py" in text, "workflow must validate runner substrate proof")
+    require("runner-substrate-proof.json" in text, "workflow must produce runner-substrate-proof.json")
+    for proof_gate in tuple("""protected-environment-review.json|reviewer_signal['reviewer_status'] != 'approved'|qemu_supports_kvm|qemu_version == ''|qemu_unavailable_reason = 'qemu-system-x86_64 version unavailable'|qemu['unavailable_reason'] = qemu_unavailable_reason|not release.startswith(expected_release)|config_sha256 == '' or config_sha256 == '0' * 64|not btf_available|not sched_ext_available|bpf_role != 'bpf-metadata'|outcome = 'PASS' if not unavailable else 'SKIP'""".split("|")):
+        require(contains(text, proof_gate), f"workflow missing PASS substrate gate: {proof_gate}")
     require("release_eligible=false" in text, "workflow must keep release_eligible=false")
     require("production_capacity_claim=false" in text, "workflow must keep production_capacity_claim=false")
     require("host_mutation=false" in text, "workflow must require host_mutation=false evidence")

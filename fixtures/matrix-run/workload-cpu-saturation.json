@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-workload-cpu-saturation",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-cpu-saturation/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/workload-cpu-saturation/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,12 +59,12 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "cpu-saturation",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-cpu-saturation.json",
-    "spec_sha256": "f78256b006b8c1978294dd87087fbfda61f9f759f434f54ea9cfeca728e5d51b"
+    "spec_sha256": "6c2b4a891bc9d99eca5464c3525d8a683e70adb3a34ed9440ffca5955d957142"
   }
 }

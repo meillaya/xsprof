@@ -13,6 +13,7 @@ from qa.benchmark_output_model import (
     PERF_PROCS_RE,
     PERF_TIME_RE,
     SCHEMA,
+    STRESS_NG_METRIC_RE,
     BenchmarkOutputError,
     CommandFamily,
     JsonObject,
@@ -28,7 +29,7 @@ def num(value: JsonValue, context: str) -> float:
     raise BenchmarkOutputError(f"{context} must be nonnegative number")
 
 
-def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "perf", "rtla"]:
+def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "perf", "rtla", "stress-ng"]:
     match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
         case "cyclictest":
             return "cyclictest"
@@ -38,6 +39,8 @@ def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "per
             return "perf"
         case "rtla":
             return "rtla"
+        case "stress_ng":
+            return "stress-ng"
 
 
 def parse_cyclictest_json(data: JsonObject) -> tuple[JsonObject, JsonObject, int, int]:
@@ -113,6 +116,29 @@ def parse_perf_messaging(text: str) -> tuple[JsonObject, JsonObject, int, int]:
     return metrics, units, 1, 1
 
 
+def parse_stress_ng(text: str) -> tuple[JsonObject, JsonObject, int, int]:
+    rows = [match for match in (STRESS_NG_METRIC_RE.search(line) for line in text.splitlines()) if match is not None]
+    if not rows:
+        raise BenchmarkOutputError("stress-ng metrics output missing stressor rows")
+    metrics: JsonObject = {"stressors": len(rows)}
+    units: JsonObject = {"stressors": "count"}
+    total_bogo_ops = total_real_time = total_usr_time = total_sys_time = 0.0
+    for row in rows:
+        total_bogo_ops += float(row.group("bogo_ops"))
+        total_real_time += float(row.group("real_time_seconds"))
+        total_usr_time += float(row.group("usr_time_seconds"))
+        total_sys_time += float(row.group("sys_time_seconds"))
+    metrics["bogo_ops"] = total_bogo_ops
+    metrics["real_time_seconds"] = total_real_time
+    metrics["usr_time_seconds"] = total_usr_time
+    metrics["sys_time_seconds"] = total_sys_time
+    units["bogo_ops"] = "count"
+    units["real_time_seconds"] = "seconds"
+    units["usr_time_seconds"] = "seconds"
+    units["sys_time_seconds"] = "seconds"
+    return metrics, units, len(rows), 1
+
+
 def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Status, JsonObject, JsonObject, int, int]:
     match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
         case "cyclictest":
@@ -126,6 +152,9 @@ def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Stat
             return "RECORDED", metrics, units, samples, runs
         case "perf_bench_sched_messaging":
             metrics, units, samples, runs = parse_perf_messaging(read_text(input_path))
+            return "RECORDED", metrics, units, samples, runs
+        case "stress_ng":
+            metrics, units, samples, runs = parse_stress_ng(read_text(input_path))
             return "RECORDED", metrics, units, samples, runs
         case "rtla" | "perf_sched":
             _ = read_text(input_path)

@@ -90,6 +90,12 @@ def run_self_test(args: Args, validate_pack: Callable[[Args], None]) -> None:
             sample["seq"] = 2
             rows[:] = [incident, sample]
 
+        def miss_terminal_after_failure(rows: list[JsonObject]) -> None:
+            rows[:] = rows[:2]
+
+        def remove_incident_after_failure(rows: list[JsonObject]) -> None:
+            rows[:] = [row for row in rows if row.get("event") != "incident"]
+
         def missing_matrix_manifest(rows: list[JsonObject]) -> None:
             missing_path = "evidence/lab/matrix/frontend-contract-selftest-missing/manifest.json"
             rows[0]["artifact"] = missing_path
@@ -143,10 +149,16 @@ def run_self_test(args: Args, validate_pack: Callable[[Args], None]) -> None:
         assert_rejected("schema extra field", "incident.jsonl", lambda rows: rows[0].__setitem__("unexpected_contract_field", "bad"))
         assert_rejected("host_mutation true", "incident.jsonl", lambda rows: rows[0].__setitem__("host_mutation", True))
         assert_rejected("nonmonotonic seq", "incident.jsonl", lambda rows: rows[0].__setitem__("seq", 2))
+        assert_rejected("stale target accepted", "stale-target.jsonl", lambda rows: rows[0].__setitem__("status", "PASS"))
+        assert_rejected("duplicate target accepted", "duplicate-target.jsonl", lambda rows: rows[0].__setitem__("status", "PASS"))
         assert_rejected("absolute artifact path", "incident.jsonl", lambda rows: rows[0].__setitem__("artifact", "/tmp/escape.json"))
         assert_rejected("traversing artifact path", "incident.jsonl", lambda rows: rows[0].__setitem__("artifact", "../escape.json"))
         assert_rejected("nested absolute artifact path", "incident.jsonl", lambda rows: rows[0].__setitem__("artifact_paths", ["/tmp/escape.json"]))
         assert_rejected("nested traversing artifact path", "incident.jsonl", lambda rows: rows[0].__setitem__("artifact_paths", {"runtime": ["../escape.json"]}))
+        assert_rejected("rollback failure missing terminal incident", "rollback-failure.jsonl", miss_terminal_after_failure)
+        assert_rejected("cleanup residue missing terminal incident", "cleanup-residue.jsonl", miss_terminal_after_failure)
+        assert_rejected("rollback failure without incident", "rollback-failure.jsonl", remove_incident_after_failure)
+        assert_rejected("cleanup residue without incident", "cleanup-residue.jsonl", remove_incident_after_failure)
         assert_rejected("release-ineligible marked PASS", "release-ineligible.jsonl", lambda rows: rows[0].__setitem__("status", "PASS"))
         assert_rejected("release-ineligible approved state", "release-ineligible.jsonl", lambda rows: rows[0].__setitem__("state", "release_approved"))
         assert_rejected("release-ineligible proof success", "release-ineligible.jsonl", lambda rows: rows[0].__setitem__("artifact", "evidence/releases/lab/release-approved-proof-success.json"))

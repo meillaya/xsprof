@@ -20,6 +20,7 @@ REQUIRED_SCENARIOS: Final = (
     "replay-row-bad-version", "replay-row-nonmonotonic-seq", "replay-row-host-mutation-true",
     "matrix-artifact-reference", "bpf-object-metadata-missing", "libbpf-load-failed",
     "scx-register-failed", "workload-capability-missing", "runtime-sample-loss",
+    "missing-attestation",
 )
 PREREQUISITE_SCENARIOS: Final = {
     "qemu-unavailable": "qemu_untrusted_or_unavailable",
@@ -53,6 +54,17 @@ WORKLOAD_SCENARIOS: Final = {
     "workload-capability-missing": "workload_capability_missing",
     "runtime-sample-loss": "runtime_sample_loss",
 }
+ATTESTATION_SCENARIOS: Final = {
+    "missing-attestation": "missing_attestation",
+}
+FAILED_PROOF_SCENARIOS: Final = {
+    "rollback-failure": ("rollback", "rollback_failure"),
+    "cleanup-residue": ("cleanup", "cleanup_residue"),
+}
+TARGET_REFUSAL_SCENARIOS: Final = {
+    "stale-target": "stale_target",
+    "duplicate-target": "duplicate_target",
+}
 DOTTED_NAMESPACE_LABELS: Final = (
     "rpc.invalid_version",
     "rpc.action_mismatch",
@@ -66,6 +78,7 @@ DOTTED_NAMESPACE_LABELS: Final = (
     "bpf.scx_register_failed",
     "workload.capability_missing",
     "runtime.sample_loss",
+    "attestation.missing",
     "governance.release_ineligible",
 )
 RELEASE_INELIGIBLE_FORBIDDEN_TEXT: Final = (
@@ -133,6 +146,19 @@ def reject_pass(rows: list[JsonObject], scenario: str) -> None:
             raise ContractPackError(f"{scenario} must not claim PASS")
 
 
+def require_failed_proof_incident(rows: list[JsonObject], scenario: str, failed_event: str, expected_reason: str) -> None:
+    failed_index: int | None = None
+    for index, row in enumerate(rows):
+        if row.get("event") == failed_event and row.get("status") == "FAIL" and row.get("reason") == expected_reason:
+            failed_index = index
+            break
+    if failed_index is None:
+        raise ContractPackError(f"{scenario} missing failed {failed_event} row for {expected_reason}")
+    later_rows = rows[failed_index + 1 :]
+    if not any(is_reasoned_terminal(row, expected_reason) for row in later_rows):
+        raise ContractPackError(f"{scenario} missing terminal incident after failed {failed_event}")
+
+
 def string_values(value: JsonValue) -> Iterator[str]:
     if isinstance(value, str):
         yield value
@@ -193,6 +219,21 @@ def validate_scenario_semantics(name: str, rows: list[JsonObject]) -> None:
         require_reasoned_terminal(rows, name, reason)
         if not any(isinstance(row.get("artifact"), str) and ("/workloads/" in str(row.get("artifact")) or "/runtime/" in str(row.get("artifact"))) for row in rows):
             raise ContractPackError(f"{name} missing workload/runtime artifact")
+    if name in ATTESTATION_SCENARIOS:
+        reason = ATTESTATION_SCENARIOS[name]
+        require_reasoned_terminal(rows, name, reason)
+        reject_pass(rows, name)
+        if not any(isinstance(row.get("artifact"), str) and "/missing-attestation/" in str(row.get("artifact")) for row in rows):
+            raise ContractPackError(f"{name} missing live attestation artifact")
+    if name in FAILED_PROOF_SCENARIOS:
+        failed_event, reason = FAILED_PROOF_SCENARIOS[name]
+        require_failed_proof_incident(rows, name, failed_event, reason)
+    if name in TARGET_REFUSAL_SCENARIOS:
+        reason = TARGET_REFUSAL_SCENARIOS[name]
+        require_reasoned_terminal(rows, name, reason)
+        reject_pass(rows, name)
+        if not any(row.get("event") == "refusal" and row.get("status") in {"REFUSE", "refused"} for row in rows):
+            raise ContractPackError(f"{name} must be a visible target refusal")
     if name == "dsq-perf-fairness-gate":
         reject_pass(rows, name)
         reject_forbidden_strings(rows, name, RELEASE_PROOF_FORBIDDEN_TEXT)

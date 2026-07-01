@@ -12,6 +12,7 @@
     "bpf_metadata_or_skip",
     "matrix_manifest",
     "daemon_events",
+    "runner_substrate",
     "artifacts",
     "benchmark_provenance",
     "privacy_scan",
@@ -39,6 +40,7 @@
     "bpf_metadata_or_skip": {"$ref": "#/$defs/artifactRef"},
     "matrix_manifest": {"$ref": "#/$defs/artifactRef"},
     "daemon_events": {"$ref": "#/$defs/artifactRef"},
+    "runner_substrate": {"$ref": "#/$defs/artifactRef"},
     "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifactRef"}},
     "benchmark_provenance": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifactRef"}},
     "privacy_scan": {

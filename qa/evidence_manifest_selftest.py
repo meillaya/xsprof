@@ -9,9 +9,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 import json
 import shutil
 from typing import Final, Literal
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from qa.evidence_manifest_check import JsonObject, JsonValue, ManifestError, file_sha, load_json, validate_manifest
 
@@ -29,9 +32,9 @@ def ref(path: Path, role: str) -> JsonObject:
     return {"path": path.as_posix(), "sha256": file_sha(path), "schema_role": role}
 
 
-def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path]:
+def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path]:
     rows = root / "rows" / "fixture-pass"
-    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark"):
+    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof"):
         write_json(rows / f"{name}.json", {"schema": f"zig-scheduler/{name}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     log = root / "static-logs" / "matrix.log"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -42,13 +45,13 @@ def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path]:
     write_json(bpf, {"schema": "zig-scheduler/bpf-skip/v1", "host_mutation": False})
     manifest = root / "manifest.json"
     write_json(manifest, {"schema": "zig-scheduler/vm-harness-matrix-index/v1", "host_mutation": False, "release_eligible": False})
-    return rows, log, daemon, bpf, manifest
+    return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json"
 
 
 def good_manifest(root: Path) -> Path:
-    rows, log, daemon, bpf, manifest = write_artifacts(root)
+    rows, log, daemon, bpf, manifest, runner = write_artifacts(root)
     out = root / "evidence-manifest.json"
-    write_json(out, {"schema": SCHEMA, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "artifacts": [ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": [ref(rows / "benchmark.json", "benchmark-provenance")], "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(out, {"schema": SCHEMA, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "artifacts": [ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": [ref(rows / "benchmark.json", "benchmark-provenance")], "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return out
 
 
@@ -104,6 +107,49 @@ def expect_reject(path: Path, schema: Path, label: str, mutator: Mutator) -> Non
     raise ManifestError(f"expected rejection did not occur: {label}")
 
 
+def update_artifact_hash(data: JsonObject, role: str, path: Path) -> None:
+    artifacts = data.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ManifestError("self-test fixture missing artifacts")
+    for item in artifacts:
+        if isinstance(item, dict) and item.get("schema_role") == role:
+            item["sha256"] = file_sha(path)
+            return
+    raise ManifestError(f"self-test fixture missing artifact role: {role}")
+
+
+def expect_privacy_key_reject(path: Path, schema: Path, key: str) -> None:
+    data = load_json(path)
+    privacy_artifact = path.parent / "rows" / "fixture-pass" / "privacy-scan.json"
+    privacy_data = load_json(privacy_artifact)
+    privacy_data[key] = "secret-token"
+    write_json(privacy_artifact, privacy_data)
+    update_artifact_hash(data, "privacy-scan", privacy_artifact)
+    bad = path.with_name(f"bad-privacy-{key}.json")
+    write_json(bad, data)
+    try:
+        validate_manifest(bad, schema)
+    except ManifestError as exc:
+        print(f"PASS reject privacy key {key}: {exc}")
+        return
+    raise ManifestError(f"expected rejection did not occur: privacy key {key}")
+
+
+def expect_static_log_privacy_reject(path: Path, schema: Path) -> None:
+    data = load_json(path)
+    log = path.parent / "static-logs" / "matrix.log"
+    _ = log.write_text("static verification logs\npassword=leaked-secret\n")
+    update_artifact_hash(data, "static-verification-log", log)
+    bad = path.with_name("bad-static-log-secret.json")
+    write_json(bad, data)
+    try:
+        validate_manifest(bad, schema)
+    except ManifestError as exc:
+        print(f"PASS reject static log secret: {exc}")
+        return
+    raise ManifestError("expected rejection did not occur: static log secret")
+
+
 def run_self_test(schema: Path) -> None:
     root = Path("evidence/lab/evidence-manifest-self-test")
     shutil.rmtree(root, ignore_errors=True)
@@ -113,5 +159,30 @@ def run_self_test(schema: Path) -> None:
     cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"))
     for label, mutator in cases:
         expect_reject(good, schema, label, mutator)
+    privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug")
+    for key in privacy_cases:
+        expect_privacy_key_reject(good_manifest(root / f"privacy-{key}"), schema, key)
+    expect_static_log_privacy_reject(good_manifest(root / "static-log-secret"), schema)
     shutil.rmtree(root, ignore_errors=True)
-    print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, flags, tracked sources, and attestation rejected when unsafe")
+    print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, normalized privacy keys, static log text privacy, flags, tracked sources, and attestation rejected when unsafe")
+
+
+def parse_args(argv: list[str]) -> Path:
+    if len(argv) == 2 and argv[0] == "--schema":
+        return Path(argv[1])
+    if not argv:
+        return Path("schemas/control/evidence-manifest.v1.schema.json")
+    raise ManifestError("usage: evidence_manifest_selftest.py [--schema <path>]")
+
+
+def main(argv: list[str]) -> int:
+    try:
+        run_self_test(parse_args(argv))
+        return 0
+    except ManifestError as exc:
+        print(f"FAIL evidence manifest self-test: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

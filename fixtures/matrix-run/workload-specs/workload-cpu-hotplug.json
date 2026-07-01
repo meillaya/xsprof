@@ -6,12 +6,12 @@
   ],
   "scenario_id": "workload-cpu-hotplug",
   "schema": "zig-scheduler/workload-fixture/v1",
-  "threshold_source": "deferred",
+  "threshold_source": "record-only",
   "thresholds": {
-    "calibration_status": "placeholder",
+    "calibration_status": "uncalibrated",
     "fixture_status": "deterministic",
     "production_capacity_claim": false,
-    "source": "deferred"
+    "source": "record-only"
   },
   "vm_marker_required_for_live_run": true,
   "workload_class": "cpu-hotplug-offline"

@@ -52,6 +52,7 @@ This backend-only taxonomy documents stable client-visible incident/refusal code
 | `scx_register_failed` | incident | scx_gate | retry_after_fix | sched_ext registration failed in the VM lab; collect tuple/rollback/cleanup proof before rerun. |
 | `workload_capability_missing` | refusal | workload_gate | retry_after_lab_setup | Required VM workload tool or capability is unavailable; emit SKIP/REFUSE rather than falling back to host mutation. |
 | `runtime_sample_loss` | incident | runtime_alert | retry_with_replay | Runtime sample loss/backpressure makes proof incomplete; use replay or rerun after cleanup. |
+| `missing_attestation` | incident | attestation_gate | retry_after_lab_setup | Required live VM attestation is absent; do not treat the run as live proof until attestation is collected. |
 
 All incident/refusal rows and JSON-RPC errors preserve `host_mutation=false`.
 
@@ -76,4 +77,5 @@ fixtures.
 | bpf.scx_register_failed | VM-only sched_ext registration gate | `scx_register_failed` |
 | workload.capability_missing | VM workload prerequisite gate | `workload_capability_missing` |
 | runtime.sample_loss | runtime stream/sample quality gate | `runtime_sample_loss` |
+| attestation.missing | live VM attestation gate | `missing_attestation` |
 | governance.release_ineligible | release governance gate | `release_ineligible` |

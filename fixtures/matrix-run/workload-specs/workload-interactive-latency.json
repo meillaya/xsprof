@@ -4,6 +4,21 @@
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/cyclictest-json.benchmark-output.json",
       "record_sha256": "21382c92d8799c7069c2535e27df9f6b6787da44ad3adc58b418d783703be88f"
+    },
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/perf-bench-sched-messaging.benchmark-output.json",
+      "record_sha256": "e7e2b92ac22f25875104e4d60fdba1a30639c8c5be977467df509607864aa6e3"
+    },
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/perf-sched-deferred.benchmark-output.json",
+      "record_sha256": "0230b880ddd89e3d0ac4c822e3377a0031bf1f57e633ae7f2836b236fbcff143"
+    },
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/rtla-deferred.benchmark-output.json",
+      "record_sha256": "8f7ae73d1182588651b74321d477fc4661b250d779b6fe40802e0858db08ef21"
     }
   ],
   "host_mutation": false,
@@ -14,12 +29,12 @@
   ],
   "scenario_id": "workload-interactive-latency",
   "schema": "zig-scheduler/workload-fixture/v1",
-  "threshold_source": "calibrated",
+  "threshold_source": "record-only",
   "thresholds": {
-    "calibration_status": "placeholder",
+    "calibration_status": "uncalibrated",
     "fixture_status": "deterministic",
     "production_capacity_claim": false,
-    "source": "calibrated"
+    "source": "record-only"
   },
   "vm_marker_required_for_live_run": true,
   "workload_class": "interactive-latency"

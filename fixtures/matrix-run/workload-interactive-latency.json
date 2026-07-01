@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-workload-interactive-latency",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-interactive-latency/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/workload-interactive-latency/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,12 +59,12 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "interactive-latency",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-interactive-latency.json",
-    "spec_sha256": "784868d3821d4bdbd680c7daa3bc3f0f52398b85259e995cf786ca52a19bc9f2"
+    "spec_sha256": "df0edb847f5479e235eec7fe5e66103b6ddbe1e5b7d6af9f18938b1710309950"
   }
 }

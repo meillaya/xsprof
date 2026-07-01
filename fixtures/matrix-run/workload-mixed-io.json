@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-workload-mixed-io",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-mixed-io/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/workload-mixed-io/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,12 +59,12 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "mixed-io",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-mixed-io.json",
-    "spec_sha256": "c4214cc833db5cd2232665d9cffafa842d3a9d56e149b7783756de7e352ac36b"
+    "spec_sha256": "db77080e3fc620f39c2214c2957c0de5bd763ac5e039890f86e66f65275e4571"
   }
 }

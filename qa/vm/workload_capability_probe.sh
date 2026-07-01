@@ -67,9 +67,7 @@ workload_tools() {
 
 threshold_source() {
   case "$1" in
-    workload-cpu-saturation|workload-scheduler-affinity-churn|workload-fork-ipc-pressure) printf 'fixture' ;;
-    workload-interactive-latency|workload-mixed-io|workload-cgroup-weight-quota) printf 'calibrated' ;;
-    workload-cpu-hotplug) printf 'deferred' ;;
+    workload-cpu-saturation|workload-interactive-latency|workload-scheduler-affinity-churn|workload-fork-ipc-pressure|workload-mixed-io|workload-cgroup-weight-quota|workload-cpu-hotplug) printf 'record-only' ;;
     *) return 1 ;;
   esac
 }

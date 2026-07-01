@@ -109,6 +109,7 @@ states:
 | Matrix artifact reference | `matrix-artifact-reference.jsonl` | A daemon validation row points at `evidence/lab/matrix/<run-id>/manifest.json`; consumers validate that manifest with `qa/matrix_run_contract_check.py` before treating matrix evidence as proof. |
 | BPF/libbpf/scx incidents | `bpf-object-metadata-missing.jsonl`, `libbpf-load-failed.jsonl`, `scx-register-failed.jsonl` | VM-lab BPF and sched_ext failures are unsafe incidents, not host retries or production blockers hidden from clients. |
 | Workload/runtime quality incidents | `workload-capability-missing.jsonl`, `runtime-sample-loss.jsonl` | Missing VM workload capabilities REFUSE/SKIP visibly, and sample loss becomes an unsafe incident after the last accepted runtime sample. |
+| Missing live attestation | `missing-attestation.jsonl` | Missing required live VM attestation is an unsafe backend incident with `host_mutation=false`; it is not inferred as success from log text. |
 
 ## Runtime telemetry observation contract
 
@@ -159,12 +160,12 @@ values are client-visible.
 The incident taxonomy groups client-visible states by documentation labels such
 as `rpc.invalid_version`, `replay.nonmonotonic_seq`,
 `matrix.artifact_reference`, `bpf.libbpf_load_failed`,
-`workload.capability_missing`, and `governance.release_ineligible`. Those dotted
+`workload.capability_missing`, `attestation.missing`, and `governance.release_ineligible`. Those dotted
 labels are not v1 wire values. Future clients must continue to read the
 underscore-only `reason` values documented in `incident-taxonomy.md`, for
 example `invalid_rpc_version`, `replay_row_nonmonotonic_seq`,
 `matrix_artifact_referenced`, `libbpf_load_failed`,
-`workload_capability_missing`, and `release_ineligible`.
+`workload_capability_missing`, `missing_attestation`, and `release_ineligible`.
 
 This preserves existing v1 compatibility while letting docs and future UX group
 incidents by phase/source without renaming stable daemon-event rows.
@@ -184,7 +185,7 @@ An incident, failed rollback, cleanup residue, stale target, duplicate target,
 stale rollback ID, malformed action, stale git SHA, privacy rejection, runtime
 alert, VM prerequisite refusal, cgroup race, DSQ/perf fairness gate, JSON-RPC
 refusal, replay-row refusal, matrix artifact handoff, BPF/libbpf/scx incident,
-workload capability refusal, runtime sample loss, timeout, lost stream, or
+workload capability refusal, runtime sample loss, missing attestation, timeout, lost stream, or
 release-ineligible validation must be treated as
 unsafe/incomplete client state. It is not release proof and not production
 readiness.

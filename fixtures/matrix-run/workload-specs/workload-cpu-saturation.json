@@ -1,4 +1,11 @@
 {
+  "benchmark_provenance": [
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/stress-ng.benchmark-output.json",
+      "record_sha256": "25c87bb3a4bd062dfb213cfc3300fae05224da6b56f39bd41b3991d19fdde248"
+    }
+  ],
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [
@@ -6,12 +13,12 @@
   ],
   "scenario_id": "workload-cpu-saturation",
   "schema": "zig-scheduler/workload-fixture/v1",
-  "threshold_source": "fixture",
+  "threshold_source": "record-only",
   "thresholds": {
-    "calibration_status": "placeholder",
+    "calibration_status": "uncalibrated",
     "fixture_status": "deterministic",
     "production_capacity_claim": false,
-    "source": "fixture"
+    "source": "record-only"
   },
   "vm_marker_required_for_live_run": true,
   "workload_class": "cpu-saturation"

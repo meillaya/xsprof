@@ -1,0 +1,31 @@
+{
+  "command_family": "stress_ng",
+  "hard_thresholds_enforced": false,
+  "host_mutation": false,
+  "metrics": {
+    "bogo_ops": 4200.0,
+    "real_time_seconds": 20.0,
+    "stressors": 2,
+    "sys_time_seconds": 1.05,
+    "usr_time_seconds": 28.6
+  },
+  "output_path": "evidence/lab/run/bench/stress-ng.txt",
+  "output_sha256": "bd8b6a27e0d1a071d070123012aca03bfad16ef68b7763d5a69fa1ed02ea00d7",
+  "privacy_sanitized": true,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "run_count": 1,
+  "sample_count": 2,
+  "schema": "zig-scheduler/benchmark-output/v1",
+  "status": "RECORDED",
+  "threshold_status": "record_only",
+  "tool": "stress-ng",
+  "units": {
+    "bogo_ops": "count",
+    "real_time_seconds": "seconds",
+    "stressors": "count",
+    "sys_time_seconds": "seconds",
+    "usr_time_seconds": "seconds"
+  },
+  "vm_evidence": "evidence/lab/run/summary.json"
+}

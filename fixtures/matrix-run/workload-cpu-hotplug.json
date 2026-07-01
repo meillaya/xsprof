@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-workload-cpu-hotplug",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-cpu-hotplug/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/workload-cpu-hotplug/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,12 +59,12 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "cpu-hotplug-offline",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-cpu-hotplug.json",
-    "spec_sha256": "1a3141260aee5bd1b907b74281b523282ad436ae95c35d053d23c50a28046e1d"
+    "spec_sha256": "38ad0c05834bbf2f4b83bb11e0001c73d54b77b04a74663896db0acbaa53d258"
   }
 }

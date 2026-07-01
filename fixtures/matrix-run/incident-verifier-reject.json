@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-matrix-pass",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/incident/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/incident/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,8 +59,8 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "cpu-smoke",

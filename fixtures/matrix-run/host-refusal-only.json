@@ -3,6 +3,7 @@
   "audit_id": "AUD-20260629T120000Z-matrix-pass",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/refuse/cleanup-proof.json",
+  "daemon_event_path": "evidence/lab/refuse/daemon-events.jsonl",
   "evidence_mode": "host-refusal-only",
   "git": {
     "actual_sha": "302cead",

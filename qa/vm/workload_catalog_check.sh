@@ -21,7 +21,7 @@ for scenario in "${scenarios[@]}"; do
   grep -q "$scenario" "$runner" || { printf 'FAIL workload catalog: matrix runner missing %s\n' "$scenario" >&2; exit 1; }
   grep -q "$scenario" "$probe" || { printf 'FAIL workload catalog: probe missing %s\n' "$scenario" >&2; exit 1; }
 done
-for needle in stress-ng perf cyclictest fio hackbench-like cpu-hotplug-online-control fixture calibrated deferred SKIP REFUSE privacy; do
+for needle in stress-ng perf cyclictest fio hackbench-like cpu-hotplug-online-control record-only uncalibrated SKIP REFUSE privacy; do
   grep -qi "$needle" "$doc" || { printf 'FAIL workload catalog: doc missing %s\n' "$needle" >&2; exit 1; }
 done
 python3 - <<'PY'
@@ -31,13 +31,13 @@ import re
 from pathlib import Path
 
 expected = {
-    "workload-cpu-saturation": ("cpu-saturation", ("stress-ng",), "fixture"),
-    "workload-interactive-latency": ("interactive-latency", ("cyclictest", "perf"), "calibrated"),
-    "workload-scheduler-affinity-churn": ("scheduler-affinity-churn", ("stress-ng", "taskset", "chrt"), "fixture"),
-    "workload-fork-ipc-pressure": ("bounded-fork-ipc-pressure", ("hackbench-like",), "fixture"),
-    "workload-mixed-io": ("mixed-io", ("fio",), "calibrated"),
-    "workload-cgroup-weight-quota": ("cgroup-weight-quota-pressure", ("stress-ng",), "calibrated"),
-    "workload-cpu-hotplug": ("cpu-hotplug-offline", ("cpu-hotplug-online-control",), "deferred"),
+    "workload-cpu-saturation": ("cpu-saturation", ("stress-ng",), "record-only"),
+    "workload-interactive-latency": ("interactive-latency", ("cyclictest", "perf"), "record-only"),
+    "workload-scheduler-affinity-churn": ("scheduler-affinity-churn", ("stress-ng", "taskset", "chrt"), "record-only"),
+    "workload-fork-ipc-pressure": ("bounded-fork-ipc-pressure", ("hackbench-like",), "record-only"),
+    "workload-mixed-io": ("mixed-io", ("fio",), "record-only"),
+    "workload-cgroup-weight-quota": ("cgroup-weight-quota-pressure", ("stress-ng",), "record-only"),
+    "workload-cpu-hotplug": ("cpu-hotplug-offline", ("cpu-hotplug-online-control",), "record-only"),
 }
 allowed_spec_fields = {
     "schema",
@@ -57,7 +57,7 @@ allowed_benchmark_provenance_fields = {"record_path", "record_sha256", "record_o
 private_needles = ("cmdline", "command_line", "argv", "environment", "env", "secret", "api_key", "token", "password", "authorization", "bearer")
 private_path = re.compile(r"(^|[\s=:])/(?:home|root|etc|proc|sys|var|tmp)/")
 sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
-claim_text = re.compile(r"\b(?:production|release|performance)\s+(?:ready|eligible|approved|claim|slo|sla|guarantee|baseline|capacity)\b", re.IGNORECASE)
+claim_text = re.compile(r"\b(?:production|release|performance)[\s_-]+(?:ready|eligible|approved|claim|slo|sla|guarantee|baseline|capacity)\b", re.IGNORECASE)
 
 def fail(message: str) -> None:
     raise SystemExit(f"FAIL workload catalog: {message}")
@@ -96,12 +96,16 @@ def safe_relative_path(value, context: str) -> Path:
 
 def validate_benchmark_provenance(spec: dict, spec_path: Path, threshold_source: str) -> None:
     provenance = spec.get("benchmark_provenance")
-    if threshold_source != "calibrated":
+    if threshold_source not in {"calibrated", "record-only"}:
         if provenance is not None:
-            fail(f"{spec_path} benchmark_provenance is only allowed for calibrated workloads")
+            fail(f"{spec_path} benchmark_provenance is only allowed for calibrated or record-only workloads")
         return
-    if not isinstance(provenance, list) or not provenance:
+    if threshold_source == "calibrated" and (not isinstance(provenance, list) or not provenance):
         fail(f"{spec_path} calibrated workloads must include benchmark_provenance")
+    if provenance is None:
+        return
+    if not isinstance(provenance, list):
+        fail(f"{spec_path} benchmark_provenance must be a list")
     for index, entry in enumerate(provenance):
         context = f"{spec_path} benchmark_provenance[{index}]"
         if not isinstance(entry, dict):

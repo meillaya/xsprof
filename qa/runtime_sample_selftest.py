@@ -7,9 +7,12 @@ from typing import Final
 
 from qa.live_lab_evidence_check import self_test as live_evidence_self_test
 from qa.runtime_sample_core import JsonObject, JsonValue, RuntimeSampleError, good_sample, validate_alert_order, validate_file
-from qa.runtime_sample_policy_abi import good_policy_abi
+from qa.runtime_sample_policy_abi import SEMANTICS, good_policy_abi
 
 SELF_TEST_ROOT: Final = Path("evidence/lab/runtime-sample-check-self-test")
+PUBLIC_SCHEMA_PATH: Final = Path("schemas/control/runtime-sample.v1.schema.json")
+ENRICHED_FIELDS: Final[tuple[str, ...]] = ("sched_ext_phase", "task_ext_enabled", "teardown_state", "rollback_state", "cgroup_semantic_labels")
+PRIVATE_FIELDS: Final[tuple[str, ...]] = ("command_line", "cmdline", "argv", "env", "environment", "secret", "api_key")
 
 
 def reject(path: Path, label: str) -> None:
@@ -49,7 +52,30 @@ def bad_weight_policy_abi() -> JsonObject:
     return policy
 
 
+
+def validate_public_schema_lockstep() -> None:
+    schema = json.loads(PUBLIC_SCHEMA_PATH.read_text())
+    if not isinstance(schema, dict):
+        raise RuntimeSampleError("public runtime sample schema must be an object")
+    if schema.get("additionalProperties") is not False:
+        raise RuntimeSampleError("public runtime sample schema must reject additional properties")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise RuntimeSampleError("public runtime sample schema must declare properties")
+    sample_fields = set(good_sample())
+    missing_sample_fields = sorted(sample_fields - set(properties))
+    if missing_sample_fields:
+        raise RuntimeSampleError(f"public schema missing sample fields: {missing_sample_fields}")
+    missing_enriched_fields = sorted(field for field in ENRICHED_FIELDS if field not in properties)
+    if missing_enriched_fields:
+        raise RuntimeSampleError(f"public schema missing enriched fields: {missing_enriched_fields}")
+    forbidden = schema.get("forbiddenProperties")
+    if not isinstance(forbidden, list) or any(field not in forbidden for field in PRIVATE_FIELDS):
+        raise RuntimeSampleError("public schema must document private field rejection")
+
+
 def self_test() -> None:
+    validate_public_schema_lockstep()
     shutil.rmtree(SELF_TEST_ROOT, ignore_errors=True)
     SELF_TEST_ROOT.mkdir(parents=True)
     _ = validate_file(write_sample(SELF_TEST_ROOT / "good.jsonl", good_sample()))
@@ -57,12 +83,16 @@ def self_test() -> None:
     accepted = good_sample()
     accepted["policy_abi"] = good_policy_abi("d" * 64)
     _ = validate_file(write_sample(SELF_TEST_ROOT / "abi-v3-cgroup-policy.jsonl", accepted))
+    unavailable = good_sample()
+    unavailable["task_ext_enabled"] = {"status": "unknown", "value": "unavailable"}
+    _ = validate_file(write_sample(SELF_TEST_ROOT / "task-ext-unavailable.jsonl", unavailable))
     bad_policy_cases: tuple[tuple[str, JsonObject, str], ...] = (
         ("missing-abi-semantics.jsonl", {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_cgroup_abi_v3", "struct_ops": "zigsched_minimal_ops", "object_sha256": "unavailable", "btf_required": True, "abi_version": 3}, "missing ABI-v3 cgroup semantics"),
         ("mismatched-policy-version.jsonl", {**good_policy_abi(), "policy_version": "sched_ext_minimal_v1"}, "mismatched policy version"),
         ("bad-weight-semantics.jsonl", bad_weight_policy_abi(), "bad cpu.weight semantics"),
         ("host-mutation-policy.jsonl", {**good_policy_abi(), "host_mutation": True}, "policy ABI host mutation claim"),
         ("production-policy-claim.jsonl", {**good_policy_abi(), "production_claim": True}, "policy ABI production claim"),
+        ("release-policy-claim.jsonl", {**good_policy_abi(), "release_eligible": True}, "policy ABI release claim"),
     )
     for name, policy_abi, label in bad_policy_cases:
         sample = good_sample()
@@ -74,6 +104,9 @@ def self_test() -> None:
         reject(write_sample(SELF_TEST_ROOT / f"{field}-missing.jsonl", sample), label)
     overrides: tuple[tuple[str, str, JsonValue, str], ...] = (
         ("schema", "unsupported-schema.jsonl", "zig-scheduler/runtime-sample/v2", "unsupported schema drift"),
+        ("unexpected_future_field", "unknown-field-schema-drift.jsonl", "surprise", "unsupported field schema drift"),
+        ("production_claim", "top-level-production-claim.jsonl", True, "top-level production claim"),
+        ("release_eligible", "top-level-release-claim.jsonl", True, "top-level release claim"),
         ("command_line", "raw-command.jsonl", "/usr/bin/demo --token secret", "raw command line"),
         ("private_command_lines_sampled", "private-flag.jsonl", True, "private command lines flag"),
         ("enable_seq", "malformed-sched-ext-fact.jsonl", {"status": "present", "value": "not-a-number"}, "malformed sched_ext fact"),
@@ -84,6 +117,10 @@ def self_test() -> None:
         ("sched_ext_observation", "raw-sched-ext-dump.jsonl", {"dump": {"status": "present", "value": "task /proc/1/cmdline"}, "tracepoints": {"sched_switch": 1}}, "unredacted debug dump"),
         ("sched_ext_observation", "quote-injection-dump.jsonl", {"dump": {"status": "present", "value": "sha256:" + ("a" * 64) + ";bytes:128\",\"host_mutation\":true,\"x\":\""}, "tracepoints": {"sched_switch": 1}}, "quote injection digest summary"),
         ("sched_ext_observation", "control-injection-dump.jsonl", {"dump": {"status": "present", "value": "sha256:" + ("a" * 64) + ";bytes:128\nx"}, "tracepoints": {"sched_switch": 1}}, "control injection digest summary"),
+        ("cgroup_semantic_labels", "bad-cgroup-semantic-labels.jsonl", {"cpu.weight": "honored"}, "bad cgroup semantic labels"),
+        ("task_ext_enabled", "bad-task-ext-enabled.jsonl", {"status": "present", "value": "maybe"}, "bad task ext.enabled evidence"),
+        ("task_ext_enabled", "surrogate-task-ext-enabled.jsonl", {"status": "present", "value": "unknown"}, "surrogate task ext.enabled evidence"),
+        ("cgroup_semantic_labels", "wrong-cgroup-semantic-value.jsonl", {**SEMANTICS, "cpu.max": "observed-only"}, "wrong cgroup semantic value"),
     )
     for field, name, value, label in overrides:
         sample = good_sample()

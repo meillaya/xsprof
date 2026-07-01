@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, TypeAlias, assert_never
+from typing import Final, TypeAlias
 
 from qa.frontend_contract_pack_types import JsonObject, JsonValue, parse_json_object
 
@@ -34,7 +34,7 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
             "schema", "matrix_run_id", "scenario_id", "outcome", "evidence_mode", "kernel_tuple",
             "supported_tuple_status", "vm_marker", "bpf_abi_version", "policy", "workload", "action_id",
             "audit_id", "rollback_id", "pre_scheduler_state", "post_scheduler_state", "pre_cgroup_state",
-            "post_cgroup_state", "runtime_sample_path", "incident_path", "rollback_proof_path",
+            "post_cgroup_state", "runtime_sample_path", "daemon_event_path", "incident_path", "rollback_proof_path",
             "cleanup_proof_path", "host_refusal_proof_path", "privacy_scan", "git", "release_eligible", "host_mutation",
         ),
     ),
@@ -56,6 +56,15 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
             "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim",
         ),
     ),
+    (
+        "runner-substrate-proof.v1.schema.json",
+        "zig-scheduler/runner-substrate-proof/v1",
+        (
+            "schema", "proof_outcome", "runner", "protected_environment", "qemu", "dev_kvm",
+            "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons",
+            "host_mutation", "release_eligible", "production_capacity_claim",
+        ),
+    ),
 )
 
 ENUM_RULES: Final[tuple[EnumRule, ...]] = (
@@ -65,15 +74,16 @@ ENUM_RULES: Final[tuple[EnumRule, ...]] = (
     ("matrix-run.v1.schema.json", ("properties", "outcome"), ("PASS", "SKIP", "REFUSE", "INCIDENT", "FAIL")),
     ("matrix-run.v1.schema.json", ("properties", "evidence_mode"), ("vm-live", "host-refusal-only", "fixture")),
     ("matrix-run.v1.schema.json", ("properties", "supported_tuple_status"), ("supported", "unsupported", "unknown")),
+    ("runner-substrate-proof.v1.schema.json", ("properties", "proof_outcome"), ("PASS", "SKIP", "REFUSE")),
     ("benchmark-output.v1.schema.json", ("properties", "status"), ("RECORDED", "UNSUPPORTED_DEFERRED")),
-    ("benchmark-output.v1.schema.json", ("properties", "tool"), ("cyclictest", "fio", "perf", "rtla")),
-    ("benchmark-output.v1.schema.json", ("properties", "command_family"), ("cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched")),
+    ("benchmark-output.v1.schema.json", ("properties", "tool"), ("cyclictest", "fio", "perf", "rtla", "stress-ng")),
+    ("benchmark-output.v1.schema.json", ("properties", "command_family"), ("cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng")),
 )
 
 FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
     ("daemon-event.v1.schema.json", ("required",), ("schema", "event", "status", "host_mutation")),
-    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
+    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("evidence-manifest.v1.schema.json", ("properties", "vm_marker", "required"), ("path", "present", "checked_by")),
     ("evidence-manifest.v1.schema.json", ("properties", "privacy_scan", "required"), ("status", "private_fields_found", "artifact_paths")),
     ("evidence-manifest.v1.schema.json", ("properties", "attestation", "required"), ("status", "workflow_uses", "verify_command", "retention_days")),
@@ -81,7 +91,7 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("lab-evidence.v1.schema.json", ("required",), ("schema", "evidence_mode", "vm_marker_present", "vm_marker_path", "target_allowlisted", "audit_id", "rollback_id", "host_mutation", "mutation_evidence")),
     ("lab-evidence.v1.schema.json", ("properties", "mutation_evidence", "required"), ("cgroup.weight", "cpu.max", "uclamp", "topology.offline_cpu")),
     ("lab-evidence.v1.schema.json", ("$defs", "mutation", "required"), ("target", "pre_state", "post_state", "rollback_proof", "cleanup_proof")),
-    ("matrix-run.v1.schema.json", ("required",), ("schema", "matrix_run_id", "scenario_id", "outcome", "evidence_mode", "kernel_tuple", "supported_tuple_status", "vm_marker", "bpf_abi_version", "policy", "workload", "action_id", "audit_id", "rollback_id", "pre_scheduler_state", "post_scheduler_state", "pre_cgroup_state", "post_cgroup_state", "runtime_sample_path", "incident_path", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path", "privacy_scan", "git", "release_eligible", "host_mutation")),
+    ("matrix-run.v1.schema.json", ("required",), ("schema", "matrix_run_id", "scenario_id", "outcome", "evidence_mode", "kernel_tuple", "supported_tuple_status", "vm_marker", "bpf_abi_version", "policy", "workload", "action_id", "audit_id", "rollback_id", "pre_scheduler_state", "post_scheduler_state", "pre_cgroup_state", "post_cgroup_state", "runtime_sample_path", "daemon_event_path", "incident_path", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path", "privacy_scan", "git", "release_eligible", "host_mutation")),
     ("matrix-run.v1.schema.json", ("properties", "kernel_tuple", "required"), ("kernel_release", "arch", "btf", "kvm", "sched_ext")),
     ("matrix-run.v1.schema.json", ("properties", "vm_marker", "required"), ("required", "present", "path", "checked_by")),
     ("matrix-run.v1.schema.json", ("properties", "policy", "required"), ("name", "object_path", "object_sha256", "source_path", "source_sha256")),
@@ -95,6 +105,17 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("operator-action.v1.schema.json", ("allOf", "1", "then", "required"), ("audit_id", "rollback_id")),
     ("perf-calibration-evidence.v1.schema.json", ("required",), ("schema", "status", "evidence_mode", "source_bundle", "runtime_samples", "sample_count", "threshold_status", "hard_thresholds_enforced", "production_capacity_claim", "release_eligible", "host_mutation")),
     ("rollback-result.v1.schema.json", ("required",), ("schema", "rollback_id", "result", "idempotent", "host_mutation")),
+    ("runner-substrate-proof.v1.schema.json", ("required",), ("schema", "proof_outcome", "runner", "protected_environment", "qemu", "dev_kvm", "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons", "host_mutation", "release_eligible", "production_capacity_claim")),
+    ("runner-substrate-proof.v1.schema.json", ("properties", "runner", "required"), ("class", "labels", "os", "arch")),
+    ("runner-substrate-proof.v1.schema.json", ("properties", "protected_environment", "required"), ("name", "protected", "required_reviewers", "reviewer_status", "run_url")),
+    ("runner-substrate-proof.v1.schema.json", ("properties", "kernel_tuple", "required"), ("supported_tuple", "release", "arch", "config_sha256", "btf_available", "sched_ext_available")),
+    ("runner-substrate-proof.v1.schema.json", ("properties", "attestation", "required"), ("capability", "status", "workflow_uses", "verify_command")),
+    ("runner-substrate-proof.v1.schema.json", ("$defs", "artifactRef", "required"), ("path", "sha256", "schema_role")),
+    ("runner-substrate-proof.v1.schema.json", ("$defs", "statusPath", "required"), ("path", "status")),
+    ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "if", "required"), ("proof_outcome",)),
+    ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "then", "properties", "protected_environment", "required"), ("reviewer_identity",)),
+    ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "then", "properties", "qemu", "required"), ("version",)),
+    ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "then", "properties", "runner", "required"), ("group", "name")),
     ("runtime-sample.v1.schema.json", ("required",), ("schema", "sequence", "state", "ops", "enable_seq", "events", "events_hash", "nr_rejected", "debug_dump", "policy_abi", "cgroup_membership_digest", "workload_alive", "private_command_lines_sampled")),
     ("runtime-sample.v1.schema.json", ("$defs", "fact", "required"), ("status", "value")),
     ("runtime-sample.v1.schema.json", ("$defs", "digest_fact", "required"), ("status", "value")),
@@ -109,6 +130,7 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("runtime-sample.v1.schema.json", ("$defs", "scheduler_counters", "required"), ("context_switches", "wakeups", "migrations")),
     ("runtime-sample.v1.schema.json", ("$defs", "sched_ext_observation", "required"), ("dump", "tracepoints")),
     ("runtime-sample.v1.schema.json", ("$defs", "benchmark_histogram_ref", "required"), ("record_path", "record_sha256", "histogram_id", "record_only")),
+    ("runtime-sample.v1.schema.json", ("$defs", "task_ext_enabled_fact", "required"), ("status", "value")),
 )
 
 
@@ -193,8 +215,6 @@ def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tupl
                 found.extend(collect_required_paths(child, path + (str(index),)))
         case None | bool() | int() | float() | str():
             pass
-        case unreachable:
-            assert_never(unreachable)
     return tuple(found)
 
 

@@ -9,11 +9,11 @@ from typing import Final, Literal, TypeAlias
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
-CommandFamily: TypeAlias = Literal["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched"]
+CommandFamily: TypeAlias = Literal["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng"]
 Status: TypeAlias = Literal["RECORDED", "UNSUPPORTED_DEFERRED"]
 
 SCHEMA: Final = "zig-scheduler/benchmark-output/v1"
-SUPPORTED: Final[frozenset[str]] = frozenset({"cyclictest", "fio", "perf_bench_sched_messaging"})
+SUPPORTED: Final[frozenset[str]] = frozenset({"cyclictest", "fio", "perf_bench_sched_messaging", "stress_ng"})
 UNSUPPORTED: Final[frozenset[str]] = frozenset({"rtla", "perf_sched"})
 REQUIRED: Final[tuple[str, ...]] = (
     "schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units",
@@ -39,6 +39,15 @@ CYCLIC_LINE_RE: Final = re.compile(r"C:\s*(?P<cycles>\d+).*?Min:\s*(?P<min>\d+(?
 PERF_TIME_RE: Final = re.compile(r"Total time:\s*(?P<seconds>\d+(?:\.\d+)?)\s*\[sec\]")
 PERF_GROUPS_RE: Final = re.compile(r"#\s*(?P<groups>\d+)\s+groups")
 PERF_PROCS_RE: Final = re.compile(r"==\s*(?P<processes>\d+)\s+processes")
+STRESS_NG_METRIC_RE: Final = re.compile(
+    r"\b(?P<stressor>[A-Za-z0-9_-]+)\s+"
+    r"(?P<bogo_ops>\d+(?:\.\d+)?)\s+"
+    r"(?P<real_time_seconds>\d+(?:\.\d+)?)\s+"
+    r"(?P<usr_time_seconds>\d+(?:\.\d+)?)\s+"
+    r"(?P<sys_time_seconds>\d+(?:\.\d+)?)\s+"
+    r"(?P<bogo_ops_per_second>\d+(?:\.\d+)?)\s+"
+    r"(?P<bogo_ops_per_second_usr_sys_time>\d+(?:\.\d+)?)\s*",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +68,7 @@ class BenchmarkOutputError(Exception):
 
 def family(value: str) -> CommandFamily:
     match value:  # noqa: MATCH_OK — open CLI/schema string boundary; default raises typed rejection for unknown families.
-        case "cyclictest" | "fio" | "perf_bench_sched_messaging" | "rtla" | "perf_sched":
+        case "cyclictest" | "fio" | "perf_bench_sched_messaging" | "rtla" | "perf_sched" | "stress_ng":
             return value
         case _:
             raise BenchmarkOutputError(f"unsupported command family: {value}")

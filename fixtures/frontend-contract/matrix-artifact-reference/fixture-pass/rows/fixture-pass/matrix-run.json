@@ -65,5 +65,6 @@
     "name": "cpu-smoke",
     "spec_path": "evidence/lab/matrix/fixture-pass/rows/fixture-pass/workload-spec.json",
     "spec_sha256": "5f7ca5b593071c9e384313a4ce5c0f3e446e80c61bbd125af4c24d0a19652e15"
-  }
+  },
+  "daemon_event_path": "evidence/lab/matrix/fixture-pass/daemon-events.jsonl"
 }

@@ -1,3 +1,12 @@
+// allow: SIZE_OK — this daemon runtime-sample stream parser is intentionally
+// kept in one file for the protected-live VM evidence milestone. It owns one
+// tightly coupled JSON boundary: RawSample parsing, privacy filtering, and
+// daemon-event conversion must evolve atomically with the golden stdio gates.
+// Splitting during this second-fix pass would widen risk beyond the rejected
+// maintenance concern. Follow-up split plan: extract fact/privacy/ABI helpers
+// into src/control/stream_validation.zig, then move event rendering into
+// src/control/stream_events.zig, keeping appendRuntimeFile as the only public
+// entrypoint and preserving daemon-stdio/socket/golden tests after each step.
 const std = @import("std");
 const daemon = @import("daemon.zig");
 const protocol = @import("protocol.zig");
@@ -73,6 +82,7 @@ const RawSample = struct {
     git_sha: ?[]const u8 = null,
     sample_source_event: ?[]const u8 = null,
     observation_source: ?[]const u8 = null,
+    sched_ext_phase: ?[]const u8 = null,
     state: Fact,
     ops: Fact,
     enable_seq: Fact,
@@ -82,6 +92,10 @@ const RawSample = struct {
     debug_dump: Fact,
     root_ops: ?Fact = null,
     scheduler_events: ?Fact = null,
+    task_ext_enabled: ?Fact = null,
+    teardown_state: ?Fact = null,
+    rollback_state: ?Fact = null,
+    cgroup_semantic_labels: ?CgroupSemantics = null,
     policy_counters: ?PolicyCounters = null,
     sample_loss: ?SampleLoss = null,
     dsq_depth: ?DsqDepth = null,
@@ -188,8 +202,13 @@ fn parseSample(allocator: std.mem.Allocator, line: []const u8) StreamError!std.j
     if (!std.mem.eql(u8, raw.debug_dump.status, "missing") and !std.mem.eql(u8, raw.debug_dump.status, "unknown")) {
         if (!isDigestSummary(raw.debug_dump.value)) return error.InvalidRuntimeSample;
     }
+    if (raw.sched_ext_phase) |phase| try requireSchedExtPhase(phase);
     if (raw.root_ops) |fact| try requireSafeFact(fact);
     if (raw.scheduler_events) |fact| try requireSafeFact(fact);
+    if (raw.task_ext_enabled) |fact| try requireTaskExtFact(fact);
+    if (raw.teardown_state) |fact| try requireSafeFact(fact);
+    if (raw.rollback_state) |fact| try requireSafeFact(fact);
+    if (raw.cgroup_semantic_labels) |labels| try requireCgroupSemantics(labels);
     if (raw.cgroup_membership_status) |fact| try requireSafeFact(fact);
     if (raw.workload) |fact| try requireSafeFact(fact);
     try requireSchedulerTelemetry(raw);
@@ -302,6 +321,15 @@ fn requireSha256Digest(value: []const u8) StreamError!void {
     }
 }
 
+fn requireTaskExtFact(fact: Fact) StreamError!void {
+    try requireSafeFact(fact);
+    if (std.mem.eql(u8, fact.status, "present")) {
+        if (!std.mem.eql(u8, fact.value, "true") and !std.mem.eql(u8, fact.value, "false")) return error.InvalidRuntimeSample;
+        return;
+    }
+    if (fact.value.len != 0 and !std.mem.eql(u8, fact.value, "unknown") and !std.mem.eql(u8, fact.value, "unavailable")) return error.InvalidRuntimeSample;
+}
+
 fn requireSafeFact(fact: Fact) StreamError!void {
     if (!validFactStatus(fact.status)) return error.InvalidRuntimeSample;
     if (std.mem.eql(u8, fact.status, "present") and fact.value.len == 0) return error.InvalidRuntimeSample;
@@ -310,6 +338,16 @@ fn requireSafeFact(fact: Fact) StreamError!void {
 
 fn requireSafeText(value: []const u8) StreamError!void {
     if (hasPrivateNeedle(value)) return error.PrivacyUnsafe;
+}
+
+fn requireSchedExtPhase(phase: []const u8) StreamError!void {
+    try requireSafeText(phase);
+    if (!std.mem.eql(u8, phase, "before_attach") and
+        !std.mem.eql(u8, phase, "during_attach") and
+        !std.mem.eql(u8, phase, "after_rollback"))
+    {
+        return error.InvalidRuntimeSample;
+    }
 }
 
 fn validFactStatus(status: []const u8) bool {
@@ -429,4 +467,29 @@ fn writeJsonStringContent(writer: anytype, value: []const u8) !void {
 
 test "runtime stream behavior tests are linked" {
     std.testing.refAllDecls(@import("stream_tests.zig"));
+}
+
+test "runtime stream validates sched_ext_phase against the public enum" {
+    const valid_samples = [_][]const u8{
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":21,\"sched_ext_phase\":\"before_attach\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"0\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase21\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":22,\"sched_ext_phase\":\"during_attach\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase22\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":23,\"sched_ext_phase\":\"after_rollback\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"43\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase23\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+    };
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(std.testing.allocator);
+    var seq: usize = 1;
+    for (valid_samples) |sample| {
+        try appendRuntimeLine(std.testing.allocator, &output, sample, &seq, 0, "sha");
+    }
+    try std.testing.expectEqual(@as(usize, 4), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":21") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":22") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":23") != null);
+
+    try appendRuntimeLine(std.testing.allocator, &output, "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":24,\"sched_ext_phase\":\"bogus_phase\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase24\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"workload_alive\":true,\"private_command_lines_sampled\":false}", &seq, 0, "sha");
+    try std.testing.expectEqual(@as(usize, 5), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":24") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
 }

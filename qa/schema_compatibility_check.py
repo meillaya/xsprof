@@ -164,6 +164,35 @@ def remove_incident_drill(data: JsonObject) -> None:
     enum.remove("incident_drill")
 
 
+def remove_matrix_run_daemon_event_path(data: JsonObject) -> None:
+    required = data.get("required")
+    if not isinstance(required, list):
+        raise SchemaCompatibilityError("self-test matrix-run required list missing")
+    required.remove("daemon_event_path")
+
+
+def add_runner_pass_conditional_required_field(data: JsonObject) -> None:
+    all_of = data.get("allOf")
+    if not isinstance(all_of, list):
+        raise SchemaCompatibilityError("self-test runner-substrate allOf list missing")
+    pass_rule = all_of[0]
+    if not isinstance(pass_rule, dict):
+        raise SchemaCompatibilityError("self-test runner-substrate PASS rule missing")
+    then = pass_rule.get("then")
+    if not isinstance(then, dict):
+        raise SchemaCompatibilityError("self-test runner-substrate PASS then missing")
+    properties = then.get("properties")
+    if not isinstance(properties, dict):
+        raise SchemaCompatibilityError("self-test runner-substrate PASS properties missing")
+    runner = properties.get("runner")
+    if not isinstance(runner, dict):
+        raise SchemaCompatibilityError("self-test runner-substrate PASS runner rule missing")
+    required = runner.get("required")
+    if not isinstance(required, list):
+        raise SchemaCompatibilityError("self-test runner-substrate PASS runner required missing")
+    required.append("ephemeral_id")
+
+
 def mutate_missing_draft(schemas: Path, _docs: Path, _fixtures: Path) -> None:
     update_schema(schemas / "daemon-event.v1.schema.json", remove_draft)
 
@@ -198,6 +227,14 @@ def mutate_v2_fixture(_schemas: Path, _docs: Path, fixtures: Path) -> None:
     _ = fixture.write_text(fixture.read_text().replace(EVENT_SCHEMA, "zig-scheduler/daemon-event/v2", 1))
 
 
+def mutate_matrix_run_required_drift(schemas: Path, _docs: Path, _fixtures: Path) -> None:
+    update_schema(schemas / "matrix-run.v1.schema.json", remove_matrix_run_daemon_event_path)
+
+
+def mutate_runner_pass_conditional_required_drift(schemas: Path, _docs: Path, _fixtures: Path) -> None:
+    update_schema(schemas / "runner-substrate-proof.v1.schema.json", add_runner_pass_conditional_required_field)
+
+
 def mutate_zig_schema_enum_drift(schemas: Path, _docs: Path, _fixtures: Path) -> None:
     update_schema(schemas / "operator-action.v1.schema.json", remove_incident_drill)
 
@@ -209,7 +246,9 @@ def run_self_test(args: Args) -> None:
     expect_rejection("unsupported draft", args, mutate_unsupported_draft)
     expect_rejection("missing id", args, mutate_missing_id)
     expect_rejection("new required v1 field", args, mutate_new_required)
+    expect_rejection("matrix-run required field drift", args, mutate_matrix_run_required_drift)
     expect_rejection("new conditional required v1 field", args, mutate_new_conditional_required)
+    expect_rejection("runner PASS conditional required field drift", args, mutate_runner_pass_conditional_required_drift)
     expect_rejection("incident code without fixture", args, mutate_doc_only_incident)
     expect_rejection("v2 fixture row", args, mutate_v2_fixture)
     expect_rejection("Zig/schema enum drift", args, mutate_zig_schema_enum_drift)

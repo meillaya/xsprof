@@ -1,4 +1,11 @@
 {
+  "benchmark_provenance": [
+    {
+      "record_only": true,
+      "record_path": "fixtures/benchmark-output/valid/perf-bench-sched-messaging.benchmark-output.json",
+      "record_sha256": "e7e2b92ac22f25875104e4d60fdba1a30639c8c5be977467df509607864aa6e3"
+    }
+  ],
   "host_mutation": false,
   "release_eligible": false,
   "required_tools": [
@@ -6,12 +13,12 @@
   ],
   "scenario_id": "workload-fork-ipc-pressure",
   "schema": "zig-scheduler/workload-fixture/v1",
-  "threshold_source": "fixture",
+  "threshold_source": "record-only",
   "thresholds": {
-    "calibration_status": "placeholder",
+    "calibration_status": "uncalibrated",
     "fixture_status": "deterministic",
     "production_capacity_claim": false,
-    "source": "fixture"
+    "source": "record-only"
   },
   "vm_marker_required_for_live_run": true,
   "workload_class": "bounded-fork-ipc-pressure"

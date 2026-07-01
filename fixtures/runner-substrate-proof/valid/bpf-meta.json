@@ -1,0 +1,6 @@
+{
+  "schema": "zig-scheduler/bpf-metadata/v1",
+  "host_mutation": false,
+  "object": "zigsched_minimal.bpf.o",
+  "release_eligible": false
+}

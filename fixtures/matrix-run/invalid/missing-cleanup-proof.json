@@ -2,6 +2,7 @@
   "action_id": "ACT-pass-basic",
   "audit_id": "AUD-20260629T120000Z-matrix-pass",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
+  "daemon_event_path": "evidence/lab/pass/daemon-events.jsonl",
   "evidence_mode": "vm-live",
   "git": {
     "actual_sha": "302cead",

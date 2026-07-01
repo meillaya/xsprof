@@ -122,6 +122,18 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
     });
     consumer_contract_check.step.dependOn(&matrix_fixture.step);
 
+    const client_pack_self_test = b.addSystemCommand(&.{"python3"});
+    client_pack_self_test.addFileArg(b.path("qa/frontend_contract_pack_check.py"));
+    client_pack_self_test.addArg("--self-test");
+
+    const consumer_contract_self_test = b.addSystemCommand(&.{"python3"});
+    consumer_contract_self_test.addFileArg(b.path("qa/consumer_contract_check.py"));
+    consumer_contract_self_test.addArg("--self-test");
+
+    const schema_compatibility_self_test = b.addSystemCommand(&.{"python3"});
+    schema_compatibility_self_test.addFileArg(b.path("qa/schema_compatibility_check.py"));
+    schema_compatibility_self_test.addArg("--self-test");
+
     const matrix_fixture_cleanup = b.addSystemCommand(&.{"bash"});
     matrix_fixture_cleanup.has_side_effects = true;
     matrix_fixture_cleanup.addArgs(&.{
@@ -199,11 +211,14 @@ fn addClientContractStep(b: *Build, daemon_exe: *Compile) *Build.Step {
 
     const contract_step = b.step("client-contract", "Run backend client contract fixture pack check");
     contract_step.dependOn(&matrix_fixture_cleanup.step);
+    contract_step.dependOn(&client_pack_self_test.step);
+    contract_step.dependOn(&consumer_contract_self_test.step);
     contract_step.dependOn(&matrix_contract_check.step);
     contract_step.dependOn(&runtime_sample_check.step);
     contract_step.dependOn(&benchmark_output_check.step);
     contract_step.dependOn(&control_schema_check.step);
     contract_step.dependOn(&schema_compatibility_check.step);
+    contract_step.dependOn(&schema_compatibility_self_test.step);
     contract_step.dependOn(&daemon_golden_check.step);
     contract_step.dependOn(&golden_lifecycle_check.step);
     return contract_step;
@@ -279,6 +294,10 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
         "fixtures/lab/governance-sources.json",
     });
 
+    const governance_manifest_self_test = b.addSystemCommand(&.{"python3"});
+    governance_manifest_self_test.addFileArg(b.path("qa/governance_manifest_check.py"));
+    governance_manifest_self_test.addArg("--self-test");
+
     const evidence_manifest_self_test = b.addSystemCommand(&.{"python3"});
     evidence_manifest_self_test.addFileArg(b.path("qa/evidence_manifest_check.py"));
     evidence_manifest_self_test.addArg("--self-test");
@@ -299,9 +318,9 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
         "docs/security/review-checklist.md",
     });
 
-    const matrix_contract_self_test = b.addSystemCommand(&.{"python3"});
-    matrix_contract_self_test.addFileArg(b.path("qa/matrix_run_contract_check.py"));
-    matrix_contract_self_test.addArgs(&.{
+    const matrix_contract_fixture_check = b.addSystemCommand(&.{"python3"});
+    matrix_contract_fixture_check.addFileArg(b.path("qa/matrix_run_contract_check.py"));
+    matrix_contract_fixture_check.addArgs(&.{
         "--fixtures",
         "fixtures/matrix-run",
         "--schemas",
@@ -309,6 +328,27 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
         "--docs",
         "docs/control",
     });
+
+    const matrix_contract_self_test = b.addSystemCommand(&.{"python3"});
+    matrix_contract_self_test.addFileArg(b.path("qa/matrix_run_contract_check.py"));
+    matrix_contract_self_test.addArg("--self-test");
+
+    const runner_substrate_fixture_check = b.addSystemCommand(&.{"python3"});
+    runner_substrate_fixture_check.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
+    runner_substrate_fixture_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/runner-substrate-proof",
+        "--schema",
+        "schemas/control/runner-substrate-proof.v1.schema.json",
+    });
+
+    const runner_substrate_self_test = b.addSystemCommand(&.{"python3"});
+    runner_substrate_self_test.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
+    runner_substrate_self_test.addArg("--self-test");
+
+    const benchmark_provenance_self_test = b.addSystemCommand(&.{"python3"});
+    benchmark_provenance_self_test.addFileArg(b.path("qa/matrix_benchmark_provenance_check.py"));
+    benchmark_provenance_self_test.addArg("--self-test");
 
     const benchmark_self_test = b.addSystemCommand(&.{"python3"});
     benchmark_self_test.addFileArg(b.path("qa/benchmark_output_check.py"));
@@ -321,6 +361,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
         "rmdir evidence/lab/matrix 2>/dev/null || true",
     });
     host_safe_matrix_cleanup.step.dependOn(&release_gate.step);
+    host_safe_matrix_cleanup.step.dependOn(&matrix_contract_fixture_check.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_self_test.step);
 
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
@@ -334,11 +375,16 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&security_read_only.step);
     host_safe_gates.dependOn(&security_self_test.step);
     host_safe_gates.dependOn(&governance_manifest.step);
+    host_safe_gates.dependOn(&governance_manifest_self_test.step);
     host_safe_gates.dependOn(&evidence_manifest_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_static.step);
+    host_safe_gates.dependOn(&matrix_contract_fixture_check.step);
     host_safe_gates.dependOn(&matrix_contract_self_test.step);
+    host_safe_gates.dependOn(&runner_substrate_fixture_check.step);
+    host_safe_gates.dependOn(&runner_substrate_self_test.step);
     host_safe_gates.dependOn(&benchmark_self_test.step);
+    host_safe_gates.dependOn(&benchmark_provenance_self_test.step);
     host_safe_gates.dependOn(&host_safe_matrix_cleanup.step);
     return host_safe_gates;
 }
@@ -364,7 +410,7 @@ fn addVmHarnessMatrixStep(b: *Build) void {
     } else {
         vm_harness_matrix.addArgs(&.{
             "-c",
-            "run_id=\"zig-build-vm-harness-matrix-$(date -u +%Y%m%dT%H%M%SZ)-$$\"; bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out \"evidence/lab/matrix/${run_id}\"",
+            "run_id=\"zig-build-vm-harness-matrix-$(date -u +%Y%m%dT%H%M%SZ)-$$\"; out=\"evidence/lab/matrix/${run_id}\"; cleanup() { rm -rf \"$out\"; rmdir evidence/lab/matrix 2>/dev/null || true; }; trap cleanup EXIT; bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out \"$out\"; python3 qa/matrix_run_contract_check.py --manifest \"$out/manifest.json\" --schemas schemas/control --docs docs/control",
         });
     }
 

@@ -24,6 +24,7 @@
     "pre_cgroup_state",
     "post_cgroup_state",
     "runtime_sample_path",
+    "daemon_event_path",
     "incident_path",
     "rollback_proof_path",
     "cleanup_proof_path",
@@ -315,6 +316,11 @@
     },
     "host_mutation": {
       "const": false
+    },
+    "daemon_event_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
     }
   }
 }

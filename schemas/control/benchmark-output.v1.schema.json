@@ -26,8 +26,8 @@
   "properties": {
     "schema": { "const": "zig-scheduler/benchmark-output/v1" },
     "status": { "enum": ["RECORDED", "UNSUPPORTED_DEFERRED"] },
-    "tool": { "enum": ["cyclictest", "fio", "perf", "rtla"] },
-    "command_family": { "enum": ["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched"] },
+    "tool": { "enum": ["cyclictest", "fio", "perf", "rtla", "stress-ng"] },
+    "command_family": { "enum": ["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng"] },
     "output_path": { "type": "string", "minLength": 1 },
     "output_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "vm_evidence": { "type": "string", "minLength": 1 },

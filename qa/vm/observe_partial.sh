@@ -68,6 +68,7 @@ mkdir -p "$tmp/sys/kernel/sched_ext/root" "$tmp/sys/kernel/debug/sched_ext" "$tm
 printf 'zigsched dump pointer\n' > "$tmp/sys/kernel/debug/sched_ext/dump"
 sleep 30 &
 lab_pid=$!
+mkdir -p "$tmp/proc/$lab_pid"
 printf '%s\n' "$lab_pid" > "$tmp/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs"
 
 write_fact_set() {
@@ -76,16 +77,39 @@ write_fact_set() {
   local enable_seq="$3"
   local events="$4"
   local rejected="$5"
+  local task_ext="$6"
   printf '%s\n' "$state" > "$tmp/sys/kernel/sched_ext/state"
   printf '%s\n' "$ops" > "$tmp/sys/kernel/sched_ext/root/ops"
   printf '%s\n' "$enable_seq" > "$tmp/sys/kernel/sched_ext/enable_seq"
   printf '%s\n' "$events" > "$tmp/sys/kernel/sched_ext/events"
   printf '%s\n' "$rejected" > "$tmp/sys/kernel/sched_ext/nr_rejected"
+  printf 'se.exec_start                                : 1.000000\next.enabled                                  : %s\n' "$task_ext" > "$tmp/proc/$lab_pid/sched"
+}
+
+task_ext_enabled_fact() {
+  local sched_file="$tmp/proc/$lab_pid/sched"
+  local line value
+  if [ ! -r "$sched_file" ]; then
+    printf 'unknown unavailable\n'
+    return
+  fi
+  if ! line="$(grep -m1 -E '(^|[[:space:]])ext\.enabled[[:space:]]*:' "$sched_file")"; then
+    printf 'unknown unavailable\n'
+    return
+  fi
+  value="${line#*:}"
+  value="${value//[[:space:]]/}"
+  case "$value" in
+    1|true) printf 'present true\n' ;;
+    0|false) printf 'present false\n' ;;
+    *) printf 'unknown unknown\n' ;;
+  esac
 }
 
 sample_json() {
   local seq="$1"
-  local state ops enable_seq events events_hash rejected debug membership alive
+  local phase="$2"
+  local state ops enable_seq events events_hash rejected debug membership alive task_ext_status task_ext_value rollback_state
   state="$(cat "$tmp/sys/kernel/sched_ext/state")"
   ops="$(cat "$tmp/sys/kernel/sched_ext/root/ops")"
   enable_seq="$(cat "$tmp/sys/kernel/sched_ext/enable_seq")"
@@ -95,7 +119,9 @@ sample_json() {
   debug="sha256:$(sha256sum "$tmp/sys/kernel/debug/sched_ext/dump" | awk '{print $1}');bytes:$(wc -c < "$tmp/sys/kernel/debug/sched_ext/dump" | tr -d ' ')"
   membership="$(sha256sum "$tmp/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope/cgroup.procs" | awk '{print $1}')"
   if kill -0 "$lab_pid" >/dev/null 2>&1; then alive=true; else alive=false; fi
-  SEQ="$seq" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" EVENTS_HASH="$events_hash" REJECTED="$rejected" DEBUG_SUMMARY="$debug" MEMBERSHIP="$membership" ALIVE="$alive" python3 - <<'PY' >> "$jsonl"
+  read -r task_ext_status task_ext_value < <(task_ext_enabled_fact)
+  if [ "$phase" = "after_rollback" ]; then rollback_state=rolled_back; else rollback_state=not_applicable; fi
+  SEQ="$seq" PHASE="$phase" STATE="$state" OPS="$ops" ENABLE_SEQ="$enable_seq" EVENTS="$events" EVENTS_HASH="$events_hash" REJECTED="$rejected" DEBUG_SUMMARY="$debug" MEMBERSHIP="$membership" ALIVE="$alive" TASK_EXT_STATUS="$task_ext_status" TASK_EXT_VALUE="$task_ext_value" ROLLBACK_STATE="$rollback_state" python3 - <<'PY' >> "$jsonl"
 import json, os, re
 events = os.environ["EVENTS"]
 def counter(name):
@@ -105,6 +131,7 @@ print(json.dumps({
   "schema": "zig-scheduler/runtime-sample/v1",
   "sequence": int(os.environ["SEQ"]),
   "observation_source": "vm_fixture_sched_ext",
+  "sched_ext_phase": os.environ["PHASE"],
   "state": {"status": "present", "value": os.environ["STATE"]},
   "ops": {"status": "present", "value": os.environ["OPS"]},
   "root_ops": {"status": "present", "value": os.environ["OPS"]},
@@ -123,13 +150,44 @@ print(json.dumps({
   "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
   "policy_abi": {
     "policy_name": "zigsched_minimal",
-    "policy_version": "sched_ext_minimal_v1",
+    "policy_version": "sched_ext_cgroup_abi_v3",
     "struct_ops": "zigsched_minimal_ops",
     "object_sha256": "unavailable",
-    "btf_required": True
+    "btf_required": True,
+    "abi_version": 3,
+    "abi_label": "zigsched-bpf-abi-v3",
+    "cgroup_semantics": {
+      "cpu.weight": "callback-observed",
+      "cgroup.lifecycle": "observed",
+      "cgroup.move": "observed",
+      "cpuset.cpus": "observed-only",
+      "cpuset.cpus.effective": "observed-only",
+      "cpu.pressure": "observed-only",
+      "cpu.max": "deferred",
+      "uclamp": "deferred",
+      "cgroup_set_idle": "refused"
+    },
+    "vm_only": True,
+    "host_mutation": False,
+    "production_claim": False,
+    "release_eligible": False
+  },
+  "cgroup_semantic_labels": {
+    "cpu.weight": "callback-observed",
+    "cgroup.lifecycle": "observed",
+    "cgroup.move": "observed",
+    "cpuset.cpus": "observed-only",
+    "cpuset.cpus.effective": "observed-only",
+    "cpu.pressure": "observed-only",
+    "cpu.max": "deferred",
+    "uclamp": "deferred",
+    "cgroup_set_idle": "refused"
   },
   "cgroup_membership_digest": os.environ["MEMBERSHIP"],
   "cgroup_membership_status": {"status": "present", "value": "present"},
+  "task_ext_enabled": {"status": os.environ["TASK_EXT_STATUS"], "value": os.environ["TASK_EXT_VALUE"]},
+  "teardown_state": {"status": "present", "value": "attached" if os.environ["PHASE"] == "during_attach" else "detached"},
+  "rollback_state": {"status": "present", "value": os.environ["ROLLBACK_STATE"]},
   "workload": {"status": "present", "value": "alive" if os.environ["ALIVE"] == "true" else "not_alive"},
   "workload_alive": os.environ["ALIVE"] == "true",
   "private_command_lines_sampled": False
@@ -147,13 +205,14 @@ PY
 
 for seq in $(seq 0 $((samples - 1))); do
   if [ "$seq" -eq 0 ]; then
-    write_fact_set disabled none 41 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: pre-attach' 0
+    write_fact_set disabled none 41 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: pre-attach' 0 0
   elif [ "$seq" -eq $((samples - 1)) ]; then
-    write_fact_set disabled none 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: rolled-back' 0
+    write_fact_set disabled none 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: rolled-back' 0 0
   else
-    write_fact_set enabled zigsched_minimal 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: observing' 0
+    write_fact_set enabled zigsched_minimal 42 'nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0 phase: observing' 0 1
   fi
-  sample_json "$seq"
+  if [ "$seq" -eq 0 ]; then phase=before_attach; elif [ "$seq" -eq $((samples - 1)) ]; then phase=after_rollback; else phase=during_attach; fi
+  sample_json "$seq" "$phase"
   printf 'sample=%s state=%s\n' "$seq" "$(cat "$tmp/sys/kernel/sched_ext/state")" >> "$transcript"
 done
 
@@ -186,7 +245,12 @@ print(json.dumps({
     "root_ops": last["ops"],
     "enable_seq": last["enable_seq"],
     "events": last["events"],
-    "events_hash": last["events_hash"]
+    "events_hash": last["events_hash"],
+    "task_ext_enabled": last["task_ext_enabled"],
+    "teardown_state": last["teardown_state"],
+    "rollback_state": last["rollback_state"],
+    "policy_abi": last["policy_abi"],
+    "cgroup_semantic_labels": last["cgroup_semantic_labels"]
   },
   "transcript": os.environ["TRANSCRIPT"],
   "final_state": last["state"]["value"],

@@ -117,6 +117,26 @@
       "items": {
         "$ref": "#/$defs/benchmark_histogram_ref"
       }
+    },
+    "sched_ext_phase": {
+      "type": "string",
+      "enum": [
+        "before_attach",
+        "during_attach",
+        "after_rollback"
+      ]
+    },
+    "task_ext_enabled": {
+      "$ref": "#/$defs/task_ext_enabled_fact"
+    },
+    "teardown_state": {
+      "$ref": "#/$defs/fact"
+    },
+    "rollback_state": {
+      "$ref": "#/$defs/fact"
+    },
+    "cgroup_semantic_labels": {
+      "$ref": "#/$defs/cgroup_policy_semantics"
     }
   },
   "forbiddenProperties": [
@@ -516,6 +536,73 @@
           "const": "refused"
         }
       }
+    },
+    "task_ext_enabled_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "value"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "present",
+            "missing",
+            "unreadable",
+            "unknown"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "true",
+                  "false"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "missing",
+                  "unreadable",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "",
+                  "unknown",
+                  "unavailable"
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

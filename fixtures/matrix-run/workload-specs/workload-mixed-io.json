@@ -13,12 +13,12 @@
   ],
   "scenario_id": "workload-mixed-io",
   "schema": "zig-scheduler/workload-fixture/v1",
-  "threshold_source": "calibrated",
+  "threshold_source": "record-only",
   "thresholds": {
-    "calibration_status": "placeholder",
+    "calibration_status": "uncalibrated",
     "fixture_status": "deterministic",
     "production_capacity_claim": false,
-    "source": "calibrated"
+    "source": "record-only"
   },
   "vm_marker_required_for_live_run": true,
   "workload_class": "mixed-io"

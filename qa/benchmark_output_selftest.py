@@ -57,7 +57,14 @@ def self_test() -> None:
         _ = raw.write_text("# 2 groups == 80 processes run\nTotal time: 0.321 [sec]\n")
         record = build_record("perf_bench_sched_messaging", raw, "evidence/lab/run/bench/perf.txt", "evidence/lab/run/summary.json")
         validate_record(record)
-        print("PASS accept supported parsers: cyclictest fio perf_bench_sched_messaging")
+        stress_ng = root / "stress-ng.txt"
+        _ = stress_ng.write_text(
+            "stress-ng: metrc: [123] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s   bogo ops/s\n"
+            "stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)\n"
+            "stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52\n"
+        )
+        validate_record(build_record("stress_ng", stress_ng, "evidence/lab/run/bench/stress-ng.txt", "evidence/lab/run/summary.json"))
+        print("PASS accept supported parsers: cyclictest fio perf_bench_sched_messaging stress_ng")
         for label, key, value in (("host-mutation", "host_mutation", True), ("release", "release_eligible", True), ("production", "production_capacity_claim", True), ("threshold", "hard_thresholds_enforced", True), ("unsafe-path", "output_path", "/tmp/raw.txt")):
             expect_reject_record(label, record, key, value)
         metrics_value = record["metrics"]

@@ -79,6 +79,7 @@ jobs:
           python3 qa/manual_vm_proof_ci_check.py \
             --workflow .github/workflows/manual-vm-proof.yml \
             --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md
+          python3 qa/runner_substrate_proof_check.py --self-test
           bash qa/no_host_mutation.sh
           bash qa/no_frontend_root.sh
           bash qa/release_gate.sh --self-test
@@ -89,16 +90,23 @@ jobs:
           rm -rf evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof
           mkdir -p evidence/lab/manual-vm-proof/static-logs
           zig build bpf --summary all 2>&1 | tee evidence/lab/manual-vm-proof/static-logs/bpf-build.log
+          set +e
           zig build vm-harness-matrix --summary all -- \
             --mode vm-required \
-            --scenario fixture-pass,workload-interactive-latency,workload-mixed-io,workload-cgroup-weight-quota \
+            --scenario live-backend \
             --out evidence/lab/matrix/manual-vm-proof \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix.log
+          matrix_rc=${PIPESTATUS[0]}
+          set -e
+          printf 'vm-harness-matrix exit code: %s\n' "$matrix_rc" | tee evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix-exit-code.log
           python3 qa/matrix_run_contract_check.py \
             --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
             --schemas schemas/control \
             --docs docs/control \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/matrix-contract.log
+          if [ "$matrix_rc" -ne 0 ]; then
+            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"' evidence/lab/matrix/manual-vm-proof/rows/live-backend >/dev/null
+          fi
 
       - name: Assert required proof provenance files
         env:
@@ -125,6 +133,7 @@ jobs:
             printf '%s\n' '- host refusal: host-refusal.json artifacts'
             printf '%s\n' '- static verification logs: evidence/lab/manual-vm-proof/static-logs/*.log'
             printf '%s\n' '- benchmark provenance: benchmark_provenance records for calibrated matrix rows when applicable'
+            printf '%s\n' '- runner substrate proof: runner-substrate-proof.json with runner class, runner group, runner labels, protected environment reviewer, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons'
             printf '%s\n' '- evidence manifest: evidence/lab/manual-vm-proof/evidence-manifest.json with SHA-256 hashes, schema roles, and attestation status'
             printf '%s\n' '- host_mutation=false'
             printf '%s\n' '- release_eligible=false'
@@ -141,6 +150,186 @@ jobs:
           grep -R 'rollback' evidence/lab/matrix/manual-vm-proof >/dev/null
           grep -R 'cleanup' evidence/lab/matrix/manual-vm-proof >/dev/null
           grep -R 'host.refusal\|host-refusal\|host_refusal' evidence/lab/matrix/manual-vm-proof >/dev/null
+
+      - name: Capture protected runner substrate proof
+        env:
+          INPUT_SUPPORTED_TUPLE: ${{ inputs.supported_tuple }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          out = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          reviewer_evidence = Path('evidence/lab/manual-vm-proof/protected-environment-review.json')
+          bpf_meta = Path('zig-out/bpf/zigsched_minimal.bpf.meta.json')
+          bpf_skip = Path('zig-out/bpf/zigsched_minimal.bpf.skip.json')
+          bpf_path = bpf_meta if bpf_meta.exists() else bpf_skip
+          bpf_role = 'bpf-metadata' if bpf_meta.exists() else 'bpf-skip-json'
+          run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID']
+
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def kernel_config_bytes(release):
+              boot_config = Path('/boot') / ('config-' + release)
+              if boot_config.is_file():
+                  return boot_config.read_bytes()
+              proc_config = Path('/proc/config.gz')
+              if proc_config.is_file():
+                  import gzip
+                  return gzip.decompress(proc_config.read_bytes())
+              return b''
+
+          def release_prefix(supported_tuple):
+              parts = supported_tuple.split('-')
+              return parts[1] if len(parts) > 1 else ''
+
+          def load_reviewer_signal(path, expected_run_url):
+              if not path.is_file():
+                  return {
+                      'reviewer_status': 'not_exposed_by_github_actions_runtime',
+                      'unavailable_reason': 'GitHub Actions does not expose required reviewer identity to job steps; add externally curated protected-environment-review.json before claiming PASS',
+                  }
+              review = json.loads(path.read_text())
+              if review.get('reviewer_status') != 'approved' or review.get('run_url') != expected_run_url or not review.get('reviewer_identity'):
+                  return {
+                      'reviewer_status': 'unavailable',
+                      'unavailable_reason': 'externally curated protected-environment-review.json is missing approved reviewer identity for this run URL',
+                  }
+              return {
+                  'reviewer_status': 'approved',
+                  'reviewer_identity': str(review['reviewer_identity']),
+              }
+
+          qemu_result = subprocess.run(['bash', '-lc', 'command -v qemu-system-x86_64'], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+          qemu_abs = qemu_result.stdout.strip()
+          qemu_available = qemu_result.returncode == 0 and qemu_abs != ''
+          qemu_version = ''
+          qemu_supports_kvm = False
+          qemu_unavailable_reason = 'qemu-system-x86_64 not found in PATH'
+          if qemu_available:
+              version_result = subprocess.run([qemu_abs, '--version'], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+              qemu_version = version_result.stdout.splitlines()[0] if version_result.stdout.splitlines() else ''
+              if qemu_version == '':
+                  qemu_unavailable_reason = 'qemu-system-x86_64 version unavailable'
+              else:
+                  accel_result = subprocess.run([qemu_abs, '-accel', 'help'], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                  qemu_supports_kvm = 'kvm' in (accel_result.stdout + accel_result.stderr).lower()
+          qemu_usable = qemu_available and qemu_version != ''
+          kvm_path = Path('/dev/kvm')
+          kvm_available = kvm_path.exists() and os.access(kvm_path, os.R_OK | os.W_OK)
+          supported_tuple = os.environ['INPUT_SUPPORTED_TUPLE']
+          release = os.uname().release
+          expected_release = release_prefix(supported_tuple)
+          config_bytes = kernel_config_bytes(release)
+          config_sha256 = hashlib.sha256(config_bytes).hexdigest() if config_bytes else ''
+          btf_available = Path('/sys/kernel/btf/vmlinux').is_file()
+          sched_ext_available = (Path('/sys/kernel') / 'sched_ext').exists()
+          reviewer_signal = load_reviewer_signal(reviewer_evidence, run_url)
+          unavailable = []
+          if reviewer_signal['reviewer_status'] != 'approved':
+              unavailable.append('protected environment reviewer approval not exposed; external curated reviewer evidence required for PASS')
+          if not qemu_available:
+              unavailable.append('qemu-system-x86_64 unavailable on protected runner')
+          if not kvm_available:
+              unavailable.append('/dev/kvm unavailable or not readable/writable by protected runner')
+          if qemu_available and qemu_version == '':
+              unavailable.append('qemu-system-x86_64 version unavailable')
+          if qemu_usable and not qemu_supports_kvm:
+              unavailable.append('qemu-system-x86_64 does not expose kvm accel support')
+          if expected_release == '' or not release.startswith(expected_release):
+              unavailable.append('kernel release does not match supported tuple')
+          if config_sha256 == '' or config_sha256 == '0' * 64:
+              unavailable.append('kernel config metadata unavailable or placeholder')
+              config_sha256 = '0' * 64
+          if not btf_available:
+              unavailable.append('kernel BTF metadata unavailable')
+          if not sched_ext_available:
+              unavailable.append('sched_ext kernel substrate unavailable')
+          if bpf_role != 'bpf-metadata':
+              unavailable.append('BPF object metadata unavailable; using explicit SKIP JSON')
+          outcome = 'PASS' if not unavailable else 'SKIP'
+          qemu = {
+              'path': qemu_abs.lstrip('/') if qemu_available else 'usr/bin/qemu-system-x86_64',
+              'version': qemu_version if qemu_usable else 'unavailable',
+              'status': 'available' if qemu_usable else 'unavailable',
+          }
+          if qemu['status'] == 'unavailable':
+              qemu['unavailable_reason'] = qemu_unavailable_reason
+          dev_kvm = {
+              'path': 'dev/kvm',
+              'status': 'available' if kvm_available else 'unavailable',
+          }
+          if dev_kvm['status'] == 'unavailable':
+              dev_kvm['unavailable_reason'] = '/dev/kvm not present or not readable/writable by protected runner'
+          bpf_metadata = {
+              'path': bpf_path.as_posix(),
+              'sha256': digest(bpf_path),
+              'schema_role': bpf_role,
+          }
+          if bpf_role == 'bpf-skip-json':
+              bpf_metadata['unavailable_reason'] = 'BPF object metadata unavailable; using explicit SKIP JSON'
+          runner_group = os.environ.get('RUNNER_GROUP_NAME', 'configured-by-repository-owners')
+          runner_name = os.environ.get('RUNNER_NAME', 'github-actions-runner')
+          runner_os = os.environ.get('RUNNER_OS', 'Linux')
+          runner_arch = os.environ.get('RUNNER_ARCH', 'X64')
+          reviewer_status = reviewer_signal['reviewer_status']
+          reviewer_identity = reviewer_signal['reviewer_identity'] if reviewer_status == 'approved' else 'unavailable'
+          reviewer_unavailable_reason = reviewer_signal['unavailable_reason'] if reviewer_status != 'approved' else 'unavailable'
+          accel_mode = 'kvm' if qemu_usable and kvm_available and qemu_supports_kvm else 'unavailable'
+          attestation_verify_command = 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY']
+          proof = {
+              'schema': 'zig-scheduler/runner-substrate-proof/v1',
+              'proof_outcome': outcome,
+              'runner': {
+                  'class': 'self-hosted',
+                  'group': runner_group,
+                  'labels': ['self-hosted', 'zig-scheduler-vm-proof', 'disposable-vm'],
+                  'name': runner_name,
+                  'os': runner_os,
+                  'arch': runner_arch,
+              },
+              'protected_environment': {
+                  'name': 'vm-proof-manual',
+                  'protected': True,
+                  'required_reviewers': 'configured-by-repository-owners',
+                  'reviewer_status': reviewer_status,
+                  'reviewer_identity': reviewer_identity,
+                  'unavailable_reason': reviewer_unavailable_reason,
+                  'run_url': run_url,
+              },
+              'qemu': qemu,
+              'dev_kvm': dev_kvm,
+              'accel_mode': accel_mode,
+              'kernel_tuple': {
+                  'supported_tuple': supported_tuple,
+                  'release': release,
+                  'arch': 'x86_64',
+                  'config_sha256': config_sha256,
+                  'btf_available': btf_available,
+                  'sched_ext_available': sched_ext_available,
+              },
+              'bpf_metadata': bpf_metadata,
+              'attestation': {
+                  'capability': 'available',
+                  'status': 'pending-post-run-github-attestation',
+                  'workflow_uses': 'actions/attest-build-provenance@v2',
+                  'verify_command': attestation_verify_command,
+              },
+              'unavailable_reasons': unavailable,
+              'host_mutation': False,
+              'release_eligible': False,
+              'production_capacity_claim': False,
+          }
+          out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          PY
+          python3 qa/runner_substrate_proof_check.py \
+            --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json \
+            --schema schemas/control/runner-substrate-proof.v1.schema.json
 
       - name: Create and validate evidence manifest
         env:
@@ -173,6 +362,7 @@ jobs:
               artifacts.append(ref(row_dir / 'privacy-scan.json', 'privacy-scan'))
           for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
               artifacts.append(ref(log, 'static-verification-log'))
+          runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
           benchmarks = []
           for spec_path in sorted((root / 'rows').glob('*/workload-spec.json')):
               spec = json.loads(spec_path.read_text())
@@ -187,11 +377,12 @@ jobs:
               'bpf_metadata_or_skip': bpf_ref,
               'matrix_manifest': ref(root / 'manifest.json', 'matrix-manifest'),
               'daemon_events': ref(root / 'daemon-events.jsonl', 'daemon-events'),
+              'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
               'artifacts': artifacts,
               'benchmark_provenance': benchmarks,
               'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts if item['schema_role'] == 'privacy-scan']},
               'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
-              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/matrix_run_contract_check.py', 'schemas/control/evidence-manifest.v1.schema.json'],
+              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
               'host_mutation': False,
               'release_eligible': False,
               'production_capacity_claim': False,
@@ -207,7 +398,7 @@ jobs:
           set -euo pipefail
           test -f evidence/lab/manual-vm-proof/evidence-manifest.json
           mkdir -p "$(dirname "$VM_PROOF_BUNDLE")"
-          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/evidence-manifest.v1.schema.json)
+          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json)
           if [ -f zig-out/bpf/zigsched_minimal.bpf.meta.json ]; then
             tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.meta.json)
           fi

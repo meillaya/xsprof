@@ -1,31 +1,34 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Protocol, TypeAlias
+from typing import Final
 
 from qa.runtime_sample_digest import is_digest_summary
+from qa.runtime_sample_common import (
+    JsonObject,
+    JsonValue,
+    RuntimeSampleError,
+    optional_object,
+    reject_private_leaks,
+    require_bool,
+    require_int,
+    require_object,
+    require_string,
+    load_jsonl,
+    validate_fact,
+)
+from qa.runtime_sample_fields import ROOT_FIELDS
 from qa.runtime_sample_fixtures import good_sample as good_sample
 from qa.runtime_sample_policy_abi import PolicyAbiError, validate_policy_abi_contract
-
-JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
-JsonObject: TypeAlias = dict[str, JsonValue]
-
-
-class JsonLoader(Protocol):
-    def loads(self, text: str) -> JsonValue: ...
-
-
-if TYPE_CHECKING:
-    json_loader: JsonLoader
-else:
-    json_loader = json
+from qa.runtime_sample_sched_ext import (
+    validate_cgroup_semantic_labels,
+    validate_sched_ext_facts,
+    validate_sched_ext_phase,
+    validate_task_ext_enabled,
+    validate_teardown_rollback,
+)
 
 SAMPLE_SCHEMA: Final[str] = "zig-scheduler/runtime-sample/v1"
-FORBIDDEN_KEYS: Final[frozenset[str]] = frozenset({"command_line", "cmdline", "argv", "args", "environment", "env", "secret", "token", "api_key"})
-FORBIDDEN_TEXT: Final[tuple[str, ...]] = ("--token", "api_key=", "AWS_SECRET", "BEGIN PRIVATE KEY", "password=", "/proc/", "/sys/")
-FACT_STATUSES: Final[frozenset[str]] = frozenset({"present", "missing", "unreadable", "unknown"})
-SCHED_STATES: Final[frozenset[str]] = frozenset({"disabled", "enabled", "enabling", "disabling", "unknown", "unavailable"})
 COUNTERS: Final[tuple[str, ...]] = ("nr_rejected", "dispatch_failed", "fallback", "fatal")
 DSQ_DEPTH_FIELDS: Final[tuple[str, ...]] = ("global", "local", "shared")
 LATENCY_FIELDS: Final[tuple[str, ...]] = ("p50_us", "p95_us", "p99_us", "max_us")
@@ -33,100 +36,6 @@ SCHEDULER_COUNTER_FIELDS: Final[tuple[str, ...]] = ("context_switches", "wakeups
 FAIRNESS_STATES: Final[frozenset[str]] = frozenset({"ok", "watch", "starved", "unknown"})
 SHA256_ZERO: Final[str] = "0" * 64
 
-
-class RuntimeSampleError(Exception):
-    pass
-
-
-def load_jsonl(path: Path) -> list[JsonObject]:
-    rows: list[JsonObject] = []
-    try:
-        lines = path.read_text().splitlines()
-    except FileNotFoundError as exc:
-        raise RuntimeSampleError(f"missing JSONL file: {path}") from exc
-    for index, line in enumerate(lines, start=1):
-        if line.strip() == "":
-            continue
-        try:
-            raw = json_loader.loads(line)
-        except json.JSONDecodeError as exc:
-            raise RuntimeSampleError(f"invalid JSON on line {index}: {exc}") from exc
-        if not isinstance(raw, dict):
-            raise RuntimeSampleError(f"line {index} must contain a JSON object")
-        rows.append(raw)
-    if not rows:
-        raise RuntimeSampleError("runtime sample JSONL is empty")
-    return rows
-
-
-def require_string(data: JsonObject, field: str, context: str) -> str:
-    value = data.get(field)
-    if isinstance(value, str) and value != "":
-        return value
-    raise RuntimeSampleError(f"{context} missing non-empty string field: {field}")
-
-
-def require_bool(data: JsonObject, field: str, context: str) -> bool:
-    value = data.get(field)
-    if isinstance(value, bool):
-        return value
-    raise RuntimeSampleError(f"{context} missing bool field: {field}")
-
-
-def require_int(data: JsonObject, field: str, context: str) -> int:
-    value = data.get(field)
-    if isinstance(value, int):
-        return value
-    raise RuntimeSampleError(f"{context} missing int field: {field}")
-
-
-def require_object(data: JsonObject, field: str, context: str) -> JsonObject:
-    value = data.get(field)
-    if isinstance(value, dict):
-        return value
-    raise RuntimeSampleError(f"{context} missing object field: {field}")
-
-
-def optional_object(data: JsonObject, field: str, context: str) -> JsonObject | None:
-    value = data.get(field)
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        return value
-    raise RuntimeSampleError(f"{context} field must be an object when present: {field}")
-
-
-def validate_fact(data: JsonObject, field: str, context: str) -> JsonObject:
-    fact = require_object(data, field, context)
-    status = require_string(fact, "status", f"{context}.{field}")
-    if status not in FACT_STATUSES:
-        raise RuntimeSampleError(f"{context}.{field} has unsupported status: {status}")
-    value = fact.get("value")
-    if not isinstance(value, str) or (status == "present" and value == ""):
-        raise RuntimeSampleError(f"{context}.{field} has invalid value")
-    reject_private_leaks(value, f"{context}.{field}.value")
-    return fact
-
-
-def validate_sched_ext_facts(row: JsonObject, context: str) -> None:
-    state = validate_fact(row, "state", context)
-    state_value = str(state["value"]).strip()
-    if state["status"] == "present" and state_value not in SCHED_STATES:
-        raise RuntimeSampleError(f"{context}.state has unsupported sched_ext state: {state_value}")
-    _ = validate_fact(row, "ops", context)
-    _ = validate_fact(row, "enable_seq", context)
-    enable_value = str(require_object(row, "enable_seq", context)["value"]).strip()
-    if enable_value != "unavailable" and not enable_value.isdecimal():
-        raise RuntimeSampleError(f"{context}.enable_seq must be numeric or unavailable")
-    _ = validate_fact(row, "events", context)
-    _ = validate_fact(row, "nr_rejected", context)
-    debug_dump = validate_fact(row, "debug_dump", context)
-    debug_value = str(debug_dump["value"])
-    if debug_dump["status"] == "present" and not is_digest_summary(debug_value):
-        raise RuntimeSampleError(f"{context}.debug_dump must be a redacted digest summary")
-    for field in ("root_ops", "scheduler_events"):
-        if field in row:
-            _ = validate_fact(row, field, context)
 
 def validate_nonnegative_fields(data: JsonObject, fields: tuple[str, ...], context: str) -> None:
     for field in fields:
@@ -176,6 +85,13 @@ def validate_benchmark_refs(row: JsonObject, context: str) -> None:
             raise RuntimeSampleError(f"{ref_context}.record_only must be true")
 
 
+
+def validate_root_fields(row: JsonObject, context: str) -> None:
+    for field in row:
+        if field not in ROOT_FIELDS:
+            raise RuntimeSampleError(f"{context} has unsupported runtime sample field: {field}")
+
+
 def validate_scheduler_telemetry(row: JsonObject, context: str) -> None:
     for field, fields in (("dsq_depth", DSQ_DEPTH_FIELDS), ("queue_latency", LATENCY_FIELDS), ("scheduler_counters", SCHEDULER_COUNTER_FIELDS)):
         counters = optional_object(row, field, context)
@@ -215,31 +131,15 @@ def validate_digest(value: str, context: str) -> None:
         raise RuntimeSampleError(f"{context} must be a lowercase nonzero sha256 digest")
 
 
-def reject_private_leaks(value: JsonValue, context: str) -> None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            lowered = key.lower()
-            if lowered in FORBIDDEN_KEYS:
-                raise RuntimeSampleError(f"privacy-unsafe key in runtime sample: {context}.{key}")
-            reject_private_leaks(child, f"{context}.{key}")
-        return
-    if isinstance(value, list):
-        for index, child in enumerate(value):
-            reject_private_leaks(child, f"{context}[{index}]")
-        return
-    if isinstance(value, str):
-        for needle in FORBIDDEN_TEXT:
-            if needle in value:
-                raise RuntimeSampleError(f"privacy-unsafe text in runtime sample: {context}")
-
-
 def validate_sample(row: JsonObject, index: int) -> None:
     context = f"sample[{index}]"
     reject_private_leaks(row, context)
+    validate_root_fields(row, context)
     if require_string(row, "schema", context) != SAMPLE_SCHEMA:
         raise RuntimeSampleError(f"{context} has unsupported schema")
     _ = require_int(row, "sequence", context)
     validate_sched_ext_facts(row, context)
+    validate_sched_ext_phase(row, context)
     _ = require_string(row, "events_hash", context)
     digest = require_string(row, "cgroup_membership_digest", context)
     validate_digest(digest, f"{context}.cgroup_membership_digest")
@@ -250,6 +150,9 @@ def validate_sample(row: JsonObject, index: int) -> None:
     if require_bool(row, "private_command_lines_sampled", context):
         raise RuntimeSampleError(f"{context} sampled private command lines")
     validate_optional_counter_sets(row, context)
+    validate_task_ext_enabled(row, context)
+    validate_cgroup_semantic_labels(row, context)
+    validate_teardown_rollback(row, context)
     validate_scheduler_telemetry(row, context)
     validate_policy_abi(row, context)
 
@@ -257,7 +160,6 @@ def validate_sample(row: JsonObject, index: int) -> None:
 def validate_file(path: Path) -> None:
     for index, row in enumerate(load_jsonl(path)):
         validate_sample(row, index)
-
 
 
 def validate_alert_order(rows: list[JsonObject], label: str) -> None:

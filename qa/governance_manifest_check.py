@@ -15,59 +15,99 @@ import json
 import os
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 from typing import Final
 
 
 SCHEMA_VERSION: Final[int] = 1
 EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
-    ("AGENTS.md", "future-agent operator guidance and fail-closed invariants"),
-    ("README.md", "tracked project overview and governance entrypoint"),
-    ("WORKLOG.md", "historical checkpoints and current project posture"),
-    ("docs/adr/0001-sched-ext-production-claim-boundary.md", "sched_ext production claim boundary ADR"),
-    ("docs/adr/0002-loader-architecture.md", "loader architecture ADR for lab-scoped backend readiness"),
-    ("docs/adr/0003-non-vm-operation-gate.md", "non-VM operation governance design gate"),
-    ("docs/backend-capability-matrix.md", "backend capability matrix and milestone boundaries"),
-    ("docs/ci.md", "CI gate documentation for lab readiness checks"),
-    (".github/workflows/manual-vm-proof.yml", "protected manual VM proof workflow contract"),
-    ("docs/control/matrix-run-contract.md", "matrix-run v1 evidence contract documentation"),
-    ("docs/releases/governance-gate.md", "release governance gate and evidence matrix"),
-    ("docs/releases/supported-kernel-tuples.md", "supported VM lab kernel tuple matrix"),
-    ("docs/runbooks/sched-ext-fallback.md", "sched_ext fallback and rollback runbook"),
-    ("docs/runbooks/verifier-and-incident.md", "verifier and incident response runbook"),
-    ("docs/runbooks/vm-lab.md", "VM lab runbook for backend readiness evidence"),
-    ("docs/security/review-checklist.md", "security signoff and privacy review checklist"),
-    ("docs/security/threat-model.md", "scheduler backend threat model"),
-    ("packaging/README.md", "package operator safety and install scope documentation"),
-    ("packaging/build_package.sh", "package build source and manifest generator"),
-    ("packaging/config/default.toml", "default package configuration safety posture"),
-    ("packaging/systemd/zig-scheduler-daemon.service", "daemon systemd unit safety source"),
-    ("packaging/systemd/zig-scheduler-lab-mutation.service", "lab mutation systemd unit safety source"),
-    ("packaging/systemd/zig-scheduler-preflight.service", "preflight systemd unit safety source"),
-    ("schemas/control/matrix-run.v1.schema.json", "matrix-run v1 standalone evidence schema"),
-    ("schemas/control/evidence-manifest.v1.schema.json", "evidence-manifest v1 proof bundle schema"),
-    ("qa/clean_archive_check.sh", "clean archive and fresh clone reproducibility gate"),
-    ("qa/backend_capability_matrix_check.py", "backend capability matrix contract validator"),
-    ("qa/backend_capability_matrix_expected.json", "backend capability matrix expected contract source"),
-    ("qa/governance_manifest_check.py", "governance manifest schema and exact Task 11 source validator"),
-    ("qa/manual_vm_proof_ci_check.py", "manual VM proof workflow and provenance static checker"),
-    ("qa/manual_vm_proof_ci_selftest.py", "manual VM proof workflow checker self-test fixtures"),
-    ("qa/evidence_manifest_check.py", "evidence-manifest v1 provenance validator"),
-    ("qa/evidence_manifest_selftest.py", "evidence-manifest v1 validator self-test fixtures"),
-    ("qa/matrix_run_contract_check.py", "matrix-run v1 contract validator and self-test gate"),
-    ("qa/schema_compatibility_schema_rules.py", "schema compatibility structural rules shared by control schema gates"),
-    ("qa/no_frontend_root.sh", "root frontend and UI artifact exclusion gate"),
-    ("qa/no_host_mutation.sh", "host mutation denial gate"),
-    ("qa/package_defaults.sh", "package default safety inspection gate"),
-    ("qa/package_lifecycle_drill.sh", "package install upgrade uninstall lifecycle drill"),
-    ("qa/package_manifest_check.py", "package manifest semantic safety validator"),
-    ("qa/release_gate.sh", "release evidence gate consumed by lab/release checks"),
-    ("qa/security_gate.sh", "security profile gate consumed by governance checks"),
-    ("qa/unsafe_cli_matrix.sh", "unsafe CLI refusal matrix gate"),
-    ("qa/wording_audit.sh", "wording, contradiction, and prompt-injection audit gate"),
-    ("qa/vm/contract_check.sh", "disposable VM execution contract validator"),
-    ("qa/vm/execution_contract.json", "disposable VM execution contract source"),
-    ("qa/vm/vm_harness_matrix.sh", "canonical host-safe VM harness matrix runner"),
-    ("qa/vm/workload_catalog_check.sh", "VM workload catalog and matrix fixture validator"),
+    ('AGENTS.md', 'future-agent operator guidance and fail-closed invariants'),
+    ('build.zig', 'Zig build graph wiring for host-safe governance gates'),
+    ('README.md', 'tracked project overview and governance entrypoint'),
+    ('WORKLOG.md', 'historical checkpoints and current project posture'),
+    ('.github/workflows/manual-vm-proof.yml', 'protected manual VM proof workflow contract'),
+    ('docs/adr/0001-sched-ext-production-claim-boundary.md', 'sched_ext production claim boundary ADR'),
+    ('docs/adr/0002-loader-architecture.md', 'loader architecture ADR for lab-scoped backend readiness'),
+    ('docs/adr/0003-non-vm-operation-gate.md', 'non-VM operation governance design gate'),
+    ('docs/backend-capability-matrix.md', 'backend capability matrix and milestone boundaries'),
+    ('docs/ci.md', 'CI gate documentation for lab readiness checks'),
+    ('docs/control/frontend-api-pack.md', 'backend frontend-contract API pack documentation and no-frontend boundary'),
+    ('docs/control/incident-taxonomy.md', 'daemon incident taxonomy source for frontend contract fixtures'),
+    ('docs/control/matrix-run-contract.md', 'matrix-run v1 evidence contract documentation'),
+    ('docs/control/schema-compatibility.md', 'public schema compatibility policy for backend clients'),
+    ('docs/control/stream-semantics.md', 'daemon stream and runtime-sample replay semantics'),
+    ('docs/releases/governance-gate.md', 'release governance gate and evidence matrix'),
+    ('docs/releases/supported-kernel-tuples.md', 'supported VM lab kernel tuple matrix'),
+    ('docs/runbooks/sched-ext-fallback.md', 'sched_ext fallback and rollback runbook'),
+    ('docs/runbooks/verifier-and-incident.md', 'verifier and incident response runbook'),
+    ('docs/runbooks/vm-lab.md', 'VM lab runbook for backend readiness evidence'),
+    ('docs/security/review-checklist.md', 'security signoff and privacy review checklist'),
+    ('docs/security/threat-model.md', 'scheduler backend threat model'),
+    ('packaging/README.md', 'package operator safety and install scope documentation'),
+    ('packaging/build_package.sh', 'package build source and manifest generator'),
+    ('packaging/config/default.toml', 'default package configuration safety posture'),
+    ('packaging/systemd/zig-scheduler-daemon.service', 'daemon systemd unit safety source'),
+    ('packaging/systemd/zig-scheduler-lab-mutation.service', 'lab mutation systemd unit safety source'),
+    ('packaging/systemd/zig-scheduler-preflight.service', 'preflight systemd unit safety source'),
+    ('schemas/control/benchmark-output.v1.schema.json', 'benchmark-output v1 record-only evidence schema'),
+    ('schemas/control/evidence-manifest.v1.schema.json', 'evidence-manifest v1 proof bundle schema'),
+    ('schemas/control/matrix-run.v1.schema.json', 'matrix-run v1 standalone evidence schema'),
+    ('schemas/control/runner-substrate-proof.v1.schema.json', 'protected runner substrate proof schema'),
+    ('schemas/control/runtime-sample.v1.schema.json', 'runtime-sample v1 sched_ext observation schema'),
+    ('qa/backend_capability_matrix_check.py', 'backend capability matrix contract validator'),
+    ('qa/backend_capability_matrix_expected.json', 'backend capability matrix expected contract source'),
+    ('qa/benchmark_output_check.py', 'benchmark-output v1 validator entrypoint'),
+    ('qa/benchmark_output_io.py', 'benchmark-output JSON IO and privacy boundary'),
+    ('qa/benchmark_output_model.py', 'benchmark-output typed model and parser family source'),
+    ('qa/benchmark_output_parse.py', 'benchmark-output raw parser source'),
+    ('qa/benchmark_output_privacy.py', 'benchmark-output privacy and claim filter'),
+    ('qa/benchmark_output_selftest.py', 'benchmark-output validator adversarial self-test cases'),
+    ('qa/benchmark_output_validate.py', 'benchmark-output semantic validator'),
+    ('qa/clean_archive_check.sh', 'clean archive and fresh clone reproducibility gate'),
+    ('qa/consumer_contract_check.py', 'backend consumer contract lifecycle and incident validator'),
+    ('qa/daemon_event_contract_check.py', 'daemon event JSONL privacy and lifecycle validator'),
+    ('qa/evidence_manifest_check.py', 'evidence-manifest v1 provenance validator'),
+    ('qa/evidence_manifest_selftest.py', 'evidence-manifest v1 validator self-test fixtures'),
+    ('qa/frontend_contract_matrix_ref.py', 'frontend contract matrix artifact reference validator'),
+    ('qa/frontend_contract_pack_check.py', 'frontend contract pack validator entrypoint'),
+    ('qa/frontend_contract_pack_selftest.py', 'frontend contract pack adversarial self-test cases'),
+    ('qa/frontend_contract_pack_semantics.py', 'frontend contract event lifecycle semantic rules'),
+    ('qa/frontend_contract_pack_types.py', 'frontend contract typed fixture helpers'),
+    ('qa/governance_manifest_check.py', 'governance manifest schema and exact Task 11 source validator'),
+    ('qa/manual_vm_proof_ci_check.py', 'manual VM proof workflow and provenance static checker'),
+    ('qa/manual_vm_proof_ci_selftest.py', 'manual VM proof workflow checker self-test fixtures'),
+    ('qa/manual_vm_proof_flow.py', 'manual VM proof embedded flow static semantic checker'),
+    ('qa/matrix_benchmark_provenance.py', 'matrix workload benchmark provenance validator'),
+    ('qa/matrix_benchmark_provenance_check.py', 'matrix benchmark provenance self-test entrypoint'),
+    ('qa/matrix_benchmark_provenance_selftest.py', 'matrix benchmark provenance manifest mutation self-tests'),
+    ('qa/matrix_run_contract_check.py', 'matrix-run v1 contract validator and self-test gate'),
+    ('qa/no_frontend_root.sh', 'root frontend and UI artifact exclusion gate'),
+    ('qa/no_host_mutation.sh', 'host mutation denial gate'),
+    ('qa/package_defaults.sh', 'package default safety inspection gate'),
+    ('qa/package_lifecycle_drill.sh', 'package install upgrade uninstall lifecycle drill'),
+    ('qa/package_manifest_check.py', 'package manifest semantic safety validator'),
+    ('qa/release_gate.sh', 'release evidence gate consumed by lab/release checks'),
+    ('qa/runner_substrate_proof_check.py', 'protected runner substrate proof validator'),
+    ('qa/runner_substrate_proof_common.py', 'protected runner substrate proof shared JSON loader and error source'),
+    ('qa/runner_substrate_proof_selftest.py', 'protected runner substrate proof adversarial self-test cases'),
+    ('qa/runtime_sample_check.py', 'runtime-sample v1 validator entrypoint'),
+    ('qa/runtime_sample_common.py', 'runtime-sample shared parsing and primitive validators'),
+    ('qa/runtime_sample_core.py', 'runtime-sample core schema and alert semantics validator'),
+    ('qa/runtime_sample_digest.py', 'runtime-sample digest summary validator'),
+    ('qa/runtime_sample_fields.py', 'runtime-sample required field source of truth'),
+    ('qa/runtime_sample_fixtures.py', 'runtime-sample safe fixture generator'),
+    ('qa/runtime_sample_policy_abi.py', 'runtime-sample policy ABI contract validator'),
+    ('qa/runtime_sample_sched_ext.py', 'runtime-sample sched_ext kernel fact validator'),
+    ('qa/runtime_sample_selftest.py', 'runtime-sample adversarial self-test cases'),
+    ('qa/schema_compatibility_check.py', 'public schema compatibility validator'),
+    ('qa/schema_compatibility_schema_rules.py', 'schema compatibility structural rules shared by control schema gates'),
+    ('qa/security_gate.sh', 'security profile gate consumed by governance checks'),
+    ('qa/unsafe_cli_matrix.sh', 'unsafe CLI refusal matrix gate'),
+    ('qa/vm/contract_check.sh', 'disposable VM execution contract validator'),
+    ('qa/vm/execution_contract.json', 'disposable VM execution contract source'),
+    ('qa/vm/vm_harness_matrix.sh', 'canonical host-safe VM harness matrix runner'),
+    ('qa/vm/workload_catalog_check.sh', 'VM workload catalog and matrix fixture validator'),
+    ('qa/wording_audit.sh', 'wording, contradiction, and prompt-injection audit gate'),
 )
 EXPECTED_REQUIRED_SOURCE_PATHS: Final[frozenset[str]] = frozenset(
     path for path, _purpose in EXPECTED_REQUIRED_SOURCES
@@ -80,6 +120,7 @@ HEX_DIGITS: Final[frozenset[str]] = frozenset("0123456789abcdef")
 class Args:
     manifest: Path
     require_production_matrix: bool
+    self_test: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +136,8 @@ class ManifestError(Exception):
 
 
 def parse_args(argv: list[str]) -> Args:
+    if argv == ["--self-test"]:
+        return Args(Path("fixtures/lab/governance-sources.json"), False, True)
     if not argv:
         raise ManifestError("usage: governance_manifest_check.py --manifest <path>")
     manifest = Path("fixtures/lab/governance-sources.json")
@@ -110,9 +153,9 @@ def parse_args(argv: list[str]) -> Args:
         elif arg == "--require-production-matrix":
             require_production_matrix = True
         else:
-            raise ManifestError("usage: governance_manifest_check.py [--manifest <path>] [--require-production-matrix]")
+            raise ManifestError("usage: governance_manifest_check.py [--manifest <path>] [--require-production-matrix] | --self-test")
         index += 1
-    return Args(manifest=manifest, require_production_matrix=require_production_matrix)
+    return Args(manifest=manifest, require_production_matrix=require_production_matrix, self_test=False)
 
 
 def parse_manifest(path: Path) -> list[Source]:
@@ -269,8 +312,50 @@ def validate_production_matrix() -> None:
         raise ManifestError("current release summary must remain controlled_lab_pilot_candidate")
 
 
+def run_self_test() -> None:
+    manifest = Path("fixtures/lab/governance-sources.json")
+    sources = parse_manifest(manifest)
+    validate_sources(sources)
+    raw = json.loads(manifest.read_text())
+    if not isinstance(raw, dict):
+        raise ManifestError("self-test manifest fixture must be an object")
+    source_rows = raw.get("sources")
+    if not isinstance(source_rows, list) or not source_rows:
+        raise ManifestError("self-test manifest fixture must contain sources")
+    with TemporaryDirectory(prefix="zigsched-governance-manifest-") as tmp:
+        missing_path = Path(tmp) / "missing-source.json"
+        mutated = dict(raw)
+        mutated["sources"] = source_rows[1:]
+        missing_path.write_text(json.dumps(mutated, indent=2, sort_keys=True) + "\n")
+        try:
+            parse_manifest(missing_path)
+        except ManifestError as exc:
+            print(f"PASS governance manifest self-test rejected missing source: {exc}")
+        else:
+            raise ManifestError("self-test expected missing governance source rejection")
+
+        stale_path = Path(tmp) / "stale-hash.json"
+        stale = dict(raw)
+        stale_rows = list(source_rows)
+        first = dict(stale_rows[0])
+        first["sha256"] = "0" * 64
+        stale_rows[0] = first
+        stale["sources"] = stale_rows
+        stale_path.write_text(json.dumps(stale, indent=2, sort_keys=True) + "\n")
+        try:
+            validate_sources(parse_manifest(stale_path))
+        except ManifestError as exc:
+            print(f"PASS governance manifest self-test rejected stale hash: {exc}")
+        else:
+            raise ManifestError("self-test expected stale governance source hash rejection")
+    print("PASS governance manifest self-test: missing sources and stale hashes rejected")
+
+
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
+    if args.self_test:
+        run_self_test()
+        return 0
     sources = parse_manifest(args.manifest)
     validate_sources(sources)
     if args.require_production_matrix:

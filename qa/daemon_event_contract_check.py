@@ -7,7 +7,13 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Final, TypeAlias
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from qa.frontend_contract_pack_types import ContractPackError, parse_json_value
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -26,6 +32,7 @@ class Args:
     input: Path
     require_lifecycle: bool
     require_task9_lifecycle: bool
+    self_test: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,26 +47,38 @@ class ContractError(Exception):
     pass
 
 
+class ParsedArgs(argparse.Namespace):
+    input: Path
+    require_lifecycle: bool
+    require_task9_lifecycle: bool
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.input = Path()
+        self.require_lifecycle = False
+        self.require_task9_lifecycle = False
+
+
 def parse_args(argv: list[str]) -> Args:
+    if argv == ["--self-test"]:
+        return Args(input=Path(), require_lifecycle=False, require_task9_lifecycle=False, self_test=True)
     parser = argparse.ArgumentParser(description="Validate daemon event JSONL schema/privacy contracts.")
-    parser.add_argument("--input", required=True, type=Path)
-    parser.add_argument("--require-lifecycle", action="store_true")
-    parser.add_argument("--require-task9-lifecycle", action="store_true")
-    parsed = parser.parse_args(argv)
-    return Args(input=parsed.input, require_lifecycle=parsed.require_lifecycle, require_task9_lifecycle=parsed.require_task9_lifecycle)
+    _ = parser.add_argument("--input", required=True, type=Path)
+    _ = parser.add_argument("--require-lifecycle", action="store_true")
+    _ = parser.add_argument("--require-task9-lifecycle", action="store_true")
+    parsed = parser.parse_args(argv, namespace=ParsedArgs())
+    return Args(input=parsed.input, require_lifecycle=parsed.require_lifecycle, require_task9_lifecycle=parsed.require_task9_lifecycle, self_test=False)
 
 
 def parse_object(line: str, line_number: int) -> JsonObject:
     try:
-        loaded = json.loads(line)
-    except json.JSONDecodeError as exc:
+        loaded = parse_json_value(line, f"line {line_number}")
+    except ContractPackError as exc:
         raise ContractError(f"line {line_number}: invalid JSON: {exc}") from exc
     if not isinstance(loaded, dict):
         raise ContractError(f"line {line_number}: JSONL row is not an object")
     row: JsonObject = {}
     for key, value in loaded.items():
-        if not isinstance(key, str):
-            raise ContractError(f"line {line_number}: JSON object key is not a string")
         row[key] = value
     return row
 
@@ -200,7 +219,7 @@ def require_task9_lifecycle(path: Path) -> None:
     runtime_artifact = require_artifact(runtime, "runtime_sample")
     rollback_artifact = require_artifact(rollback, "rollback")
     for row, label in ((verifier, "verifier"), (attach, "attach")):
-        require_artifact(row, label)
+        _ = require_artifact(row, label)
     if runtime.raw.get("ops") != "zigsched_minimal":
         raise ContractError("runtime_sample does not show zigsched_minimal")
     validate_task9_runtime_samples(runtime_artifact)
@@ -277,12 +296,62 @@ def find_event(rows: list[EventRow], event: str) -> EventRow:
     raise ContractError(f"missing event: {event}")
 
 
+def write_self_test_rows(path: Path, rows: list[JsonObject]) -> None:
+    _ = path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+
+
+def run_self_test() -> None:
+    good: JsonObject = {
+        "schema": SCHEMA,
+        "seq": 1,
+        "event": "incident",
+        "status": "unsafe_to_assume",
+        "state": "unsafe_to_assume",
+        "reason": "missing_attestation",
+        "host_mutation": False,
+    }
+    with TemporaryDirectory(prefix="zigsched-daemon-event-contract-") as tmp:
+        root = Path(tmp)
+        good_path = root / "good.jsonl"
+        write_self_test_rows(good_path, [good])
+        validate(good_path, False)
+
+        def reject(label: str, row: JsonObject) -> None:
+            bad_path = root / f"{label}.jsonl"
+            write_self_test_rows(bad_path, [row])
+            try:
+                validate(bad_path, False)
+            except ContractError as exc:
+                print(f"PASS daemon self-test rejected {label}: {exc}")
+            else:
+                raise ContractError(f"self-test failed to reject {label}")
+
+        host_mutation: JsonObject = dict(good)
+        host_mutation["host_mutation"] = True
+        reject("host-mutation-true", host_mutation)
+
+        private_key: JsonObject = dict(good)
+        private_key["environment"] = "redacted"
+        reject("private-field", private_key)
+
+        private_text: JsonObject = dict(good)
+        private_text["state"] = "password=redacted"
+        reject("private-text", private_text)
+
+        bad_seq: JsonObject = dict(good)
+        bad_seq["seq"] = 2
+        reject("nonmonotonic-seq", bad_seq)
+
+
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     try:
-        validate(args.input, args.require_lifecycle)
-        if args.require_task9_lifecycle:
-            require_task9_lifecycle(args.input)
+        if args.self_test:
+            run_self_test()
+        else:
+            validate(args.input, args.require_lifecycle)
+            if args.require_task9_lifecycle:
+                require_task9_lifecycle(args.input)
     except ContractError as exc:
         print(f"FAIL daemon event contract: {exc}", file=sys.stderr)
         return 1

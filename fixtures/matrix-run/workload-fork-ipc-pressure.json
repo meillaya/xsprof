@@ -3,7 +3,8 @@
   "audit_id": "AUD-20260629T120000Z-workload-fork-ipc-pressure",
   "bpf_abi_version": "zigsched-bpf-abi-v1",
   "cleanup_proof_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/cleanup-proof.json",
-  "evidence_mode": "vm-live",
+  "daemon_event_path": "evidence/lab/matrix-fixtures/workload-fork-ipc-pressure/daemon-events.jsonl",
+  "evidence_mode": "fixture",
   "git": {
     "actual_sha": "302cead",
     "dirty": false,
@@ -58,12 +59,12 @@
   "vm_marker": {
     "checked_by": "qa/vm/marker-check",
     "path": "/run/zig-scheduler-vm-lab.marker",
-    "present": true,
-    "required": true
+    "present": false,
+    "required": false
   },
   "workload": {
     "name": "bounded-fork-ipc-pressure",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-fork-ipc-pressure.json",
-    "spec_sha256": "b1a6077a3eb4e57323c0e0348d8fce075ca3c6f2480a818a7643825b8617c8d1"
+    "spec_sha256": "08e11db01cf4c98a44685523c8b7159caa31e99f347de1410d85f6126ec338ef"
   }
 }

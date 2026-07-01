@@ -120,6 +120,7 @@ fixture-update: python3 tools/daemon_socket_rpc_test.py --output fixtures/fronte
 - `fixtures/frontend-contract/malformed-action.jsonl`
 - `fixtures/frontend-contract/malformed-runtime-sample.jsonl`
 - `fixtures/frontend-contract/matrix-artifact-reference.jsonl`
+- `fixtures/frontend-contract/missing-attestation.jsonl`
 - `fixtures/frontend-contract/observing.jsonl`
 - `fixtures/frontend-contract/privacy-rejection.jsonl`
 - `fixtures/frontend-contract/privacy-runtime-variant.jsonl`

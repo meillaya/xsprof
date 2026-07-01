@@ -1,0 +1,20 @@
+{
+  "host_mutation": false,
+  "host_safe_fixture_only": true,
+  "name": "backend-live-proof",
+  "release_eligible": false,
+  "required_tools": [
+    "builtin-churn"
+  ],
+  "scenario_id": "live-backend",
+  "schema": "zig-scheduler/workload-fixture/v1",
+  "threshold_source": "fixture",
+  "thresholds": {
+    "calibration_status": "placeholder",
+    "fixture_status": "deterministic",
+    "production_capacity_claim": false,
+    "source": "fixture"
+  },
+  "vm_marker_required_for_live_run": true,
+  "workload_class": "backend-live-proof"
+}
