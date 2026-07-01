@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Final
 
 from qa.live_lab_evidence_check import self_test as live_evidence_self_test
-from qa.runtime_sample_core import JsonObject, JsonValue, RuntimeSampleError, good_sample, validate_alert_order, validate_file
+from qa.runtime_sample_common import JsonObject, JsonValue, RuntimeSampleError, json_loader, require_object
+from qa.runtime_sample_core import good_sample, validate_alert_order, validate_file
 from qa.runtime_sample_policy_abi import SEMANTICS, good_policy_abi
 
 SELF_TEST_ROOT: Final = Path("evidence/lab/runtime-sample-check-self-test")
@@ -73,12 +74,12 @@ def write_samples(path: Path, samples: list[JsonObject]) -> Path:
 
 
 def validate_public_schema_lockstep() -> None:
-    schema = json.loads(PUBLIC_SCHEMA_PATH.read_text())
+    schema: JsonValue = json_loader.loads(PUBLIC_SCHEMA_PATH.read_text())
     if not isinstance(schema, dict):
         raise RuntimeSampleError("public runtime sample schema must be an object")
     if schema.get("additionalProperties") is not False:
         raise RuntimeSampleError("public runtime sample schema must reject additional properties")
-    properties = schema.get("properties")
+    properties: JsonValue = schema.get("properties")
     if not isinstance(properties, dict):
         raise RuntimeSampleError("public runtime sample schema must declare properties")
     sample_fields = set(good_sample())
@@ -88,7 +89,7 @@ def validate_public_schema_lockstep() -> None:
     missing_enriched_fields = sorted(field for field in ENRICHED_FIELDS if field not in properties)
     if missing_enriched_fields:
         raise RuntimeSampleError(f"public schema missing enriched fields: {missing_enriched_fields}")
-    forbidden = schema.get("forbiddenProperties")
+    forbidden: JsonValue = schema.get("forbiddenProperties")
     if not isinstance(forbidden, list) or any(field not in forbidden for field in PRIVATE_FIELDS):
         raise RuntimeSampleError("public schema must document private field rejection")
 
@@ -114,6 +115,15 @@ def self_test() -> None:
     unavailable = good_sample()
     unavailable["task_ext_enabled"] = {"status": "unknown", "value": "unavailable"}
     _ = validate_file(write_sample(SELF_TEST_ROOT / "task-ext-unavailable.jsonl", unavailable))
+    compound_key = good_sample()
+    task_counts = require_object(compound_key, "task_counts", "runtime sample self-test")
+    by_class = require_object(task_counts, "by_class", "runtime sample self-test.task_counts")
+    by_class["githubAccessToken"] = 1
+    reject(write_sample(SELF_TEST_ROOT / "compound-privacy-key.jsonl", compound_key), "compound privacy key")
+    case_variant = good_sample()
+    events = require_object(case_variant, "events", "runtime sample self-test")
+    events["value"] = "Password=secret"
+    reject(write_sample(SELF_TEST_ROOT / "case-variant-private-text.jsonl", case_variant), "case-variant private text")
     bad_policy_cases: tuple[tuple[str, JsonObject, str], ...] = (
         ("missing-abi-semantics.jsonl", {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_cgroup_abi_v3", "struct_ops": "zigsched_minimal_ops", "object_sha256": "unavailable", "btf_required": True, "abi_version": 3}, "missing ABI-v3 cgroup semantics"),
         ("mismatched-policy-version.jsonl", {**good_policy_abi(), "policy_version": "sched_ext_minimal_v1"}, "mismatched policy version"),

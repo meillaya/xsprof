@@ -276,13 +276,13 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "fe4888283a63fc7dc5c1e5c35b1accc101f3e058ccabd63b0990e1e92439fa9c"
+      "sha256": "9f0013a6cbc1580b340bfa6fd050f6cb15a52ec4160f64b1c499d7f9a993f15c"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
       "purpose": "evidence-manifest v1 validator self-test fixtures",
       "required": true,
-      "sha256": "71c3e4e37cf109d77fe2bceeffba2756d69551adc251655e7f2e36bd658f702c"
+      "sha256": "77bdf82c97b0bef374a3a2e0ec45bb15065580a611acce2bf5e01a46bad59b72"
     },
     {
       "path": "qa/frontend_contract_matrix_ref.py",
@@ -426,7 +426,7 @@
       "path": "qa/runtime_sample_common.py",
       "purpose": "runtime-sample shared parsing and primitive validators",
       "required": true,
-      "sha256": "66672c0c1f8ca616b177601dbcc442de94b9c3312aa700495d87ee4affca7efb"
+      "sha256": "5201f2b27b055b03676cb08937405eff3fb962453ac35d14a1454a68c2852398"
     },
     {
       "path": "qa/runtime_sample_core.py",
@@ -468,7 +468,7 @@
       "path": "qa/runtime_sample_selftest.py",
       "purpose": "runtime-sample adversarial self-test cases",
       "required": true,
-      "sha256": "e6b383ea15979e1954b3b9afbe6b714dfe5941b793ef7a0875350ce39227bce1"
+      "sha256": "5c220f272a20cf6c1055faad35bce54c786beafcdebe37fd526e6aae7a281123"
     },
     {
       "path": "qa/schema_compatibility_check.py",

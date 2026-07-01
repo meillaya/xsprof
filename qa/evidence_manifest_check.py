@@ -8,6 +8,7 @@
 # python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
 # python3 qa/evidence_manifest_check.py --self-test
 """Validate VM proof evidence-manifest/v1 bundles."""
+# noqa: SIZE_OK — this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ import sys
 from typing import Final, TypeAlias
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from qa.runtime_sample_common import private_key_has_pattern, private_key_tokens, private_text_contains
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -42,10 +45,8 @@ ATTEST_STATUSES: Final[frozenset[str]] = frozenset(("pending-post-run-github-att
 OUTCOMES: Final[frozenset[str]] = frozenset(("PASS", "SKIP", "REFUSE", "BLOCKED"))
 BENCHMARK_NA_OUTCOMES: Final[frozenset[str]] = frozenset(("SKIP", "REFUSE", "BLOCKED"))
 FORBIDDEN_PRIVATE_KEYS: Final[frozenset[str]] = frozenset(("access_token", "apikey", "api_key", "aws_secret", "command_line", "env", "environment", "password", "raw_debug", "secret", "token"))
-FORBIDDEN_PRIVATE_KEY_TOKENS: Final[frozenset[str]] = frozenset(
-    re.sub(r"[^a-z0-9]", "", key.lower()) for key in FORBIDDEN_PRIVATE_KEYS
-)
 FORBIDDEN_PRIVATE_TEXT: Final[tuple[str, ...]] = ("--token", "password=", "api_key=", "AWS_SECRET", "BEGIN PRIVATE KEY")
+FORBIDDEN_PRIVATE_KEY_PATTERNS: Final[frozenset[tuple[str, ...]]] = frozenset(private_key_tokens(key) for key in FORBIDDEN_PRIVATE_KEYS)
 TEXT_ARTIFACT_ROLES: Final[frozenset[str]] = frozenset(("static-verification-log",))
 TEXT_ARTIFACT_SUFFIXES: Final[frozenset[str]] = frozenset((".log", ".txt", ".md", ".out", ".err"))
 MAX_TEXT_ARTIFACT_BYTES: Final[int] = 1024 * 1024
@@ -162,8 +163,8 @@ def reject_claim_value(value: JsonValue, context: str) -> None:
     match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
         case dict():
             for key, child in value.items():
-                canonical_key = normalize_private_key(key)
-                require(canonical_key not in FORBIDDEN_PRIVATE_KEY_TOKENS, f"privacy-unsafe key in referenced artifact: {context}.{key}")
+                if private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
+                    raise ManifestError(f"privacy-unsafe key in referenced artifact: {context}.{key}")
                 if key == "host_mutation":
                     require(child is False, f"{context}.host_mutation must be false")
                 if key in {"release_eligible", "production_capacity_claim"}:
@@ -178,14 +179,8 @@ def reject_claim_value(value: JsonValue, context: str) -> None:
             return
 
 
-def normalize_private_key(key: str) -> str:
-    """Canonicalize private key spellings across snake/camel/kebab/compact forms."""
-    return re.sub(r"[^a-z0-9]", "", key.lower())
-
-
 def reject_private_text(value: str, context: str) -> None:
-    for needle in FORBIDDEN_PRIVATE_TEXT:
-        require(needle not in value, f"privacy-unsafe text in referenced artifact: {context}")
+    require(not private_text_contains(value), f"privacy-unsafe text in referenced artifact: {context}")
 
 
 def reject_text_artifact(path: Path, role: str) -> None:

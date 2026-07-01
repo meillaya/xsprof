@@ -149,7 +149,7 @@ def expect_privacy_key_reject(path: Path, schema: Path, key: str) -> None:
 def expect_static_log_privacy_reject(path: Path, schema: Path) -> None:
     data = load_json(path)
     log = path.parent / "static-logs" / "matrix.log"
-    _ = log.write_text("static verification logs\npassword=leaked-secret\n")
+    _ = log.write_text("static verification logs\nPassword=leaked-secret\n")
     update_artifact_hash(data, "static-verification-log", log)
     bad = path.with_name("bad-static-log-secret.json")
     write_json(bad, data)
@@ -173,12 +173,12 @@ def run_self_test(schema: Path) -> None:
     cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing outcome", "missing-outcome"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"), ("PASS benchmark_provenance not_applicable", "pass-benchmark-not-applicable"), ("REFUSE benchmark_provenance missing outcome", "refuse-benchmark-missing-outcome"))
     for label, mutator in cases:
         expect_reject(good, schema, label, mutator)
-    privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug")
+    privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug", "githubAccessToken", "privateCommandLine", "Password=secret")
     for key in privacy_cases:
         expect_privacy_key_reject(good_manifest(root / f"privacy-{key}"), schema, key)
     expect_static_log_privacy_reject(good_manifest(root / "static-log-secret"), schema)
     shutil.rmtree(root, ignore_errors=True)
-    print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, normalized privacy keys, static log text privacy, flags, tracked sources, and attestation rejected when unsafe")
+    print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, compound privacy keys, case-variant text privacy, flags, tracked sources, and attestation rejected when unsafe")
 
 
 def parse_args(argv: list[str]) -> Path:

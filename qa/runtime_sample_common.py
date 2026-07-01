@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Final, Protocol, TypeAlias
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
@@ -17,6 +19,7 @@ if TYPE_CHECKING:
 else:
     json_loader = json
 
+PRIVATE_KEY_TOKEN_RE: Final[re.Pattern[str]] = re.compile(r"[A-Z]+(?=[A-Z][a-z]|\d|$)|[A-Z]?[a-z]+|\d+")
 FORBIDDEN_KEYS: Final[frozenset[str]] = frozenset({"command_line", "cmdline", "argv", "args", "environment", "env", "secret", "token", "api_key"})
 CLAIM_KEYS: Final[frozenset[str]] = frozenset({"production_claim", "production_capacity_claim", "release_eligible", "release_eligible_live_proof"})
 FORBIDDEN_TEXT: Final[tuple[str, ...]] = ("--token", "api_key=", "AWS_SECRET", "BEGIN PRIVATE KEY", "password=", "/proc/", "/sys/")
@@ -97,11 +100,44 @@ def validate_fact(data: JsonObject, field: str, context: str) -> JsonObject:
     return fact
 
 
+def private_key_tokens(key: str) -> tuple[str, ...]:
+    tokens: list[str] = []
+    for chunk in re.split(r"[^0-9A-Za-z]+", key):
+        if chunk == "":
+            continue
+        tokens.extend(match.group(0).casefold() for match in PRIVATE_KEY_TOKEN_RE.finditer(chunk))
+    return tuple(tokens)
+
+
+def private_key_has_pattern(key: str, patterns: Iterable[tuple[str, ...]]) -> bool:
+    tokens = private_key_tokens(key)
+    return any(_contains_pattern(tokens, pattern) for pattern in patterns)
+
+
+def private_text_contains(value: str) -> bool:
+    lowered = value.casefold()
+    return any(needle in lowered for needle in FORBIDDEN_TEXT_NEEDLES)
+
+
+def _contains_pattern(tokens: tuple[str, ...], pattern: tuple[str, ...]) -> bool:
+    if len(pattern) > len(tokens):
+        return False
+    limit = len(tokens) - len(pattern) + 1
+    for index in range(limit):
+        if tokens[index : index + len(pattern)] == pattern:
+            return True
+    return False
+
+
+FORBIDDEN_KEY_PATTERNS: Final[frozenset[tuple[str, ...]]] = frozenset(private_key_tokens(key) for key in FORBIDDEN_KEYS)
+FORBIDDEN_TEXT_NEEDLES: Final[tuple[str, ...]] = tuple(needle.casefold() for needle in FORBIDDEN_TEXT)
+
+
 def reject_private_leaks(value: JsonValue, context: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
-            lowered = key.lower()
-            if lowered in FORBIDDEN_KEYS:
+            lowered = key.casefold()
+            if private_key_has_pattern(key, FORBIDDEN_KEY_PATTERNS):
                 raise RuntimeSampleError(f"privacy-unsafe key in runtime sample: {context}.{key}")
             if lowered in CLAIM_KEYS and child is True:
                 raise RuntimeSampleError(f"claim-unsafe flag in runtime sample: {context}.{key}")
@@ -111,7 +147,5 @@ def reject_private_leaks(value: JsonValue, context: str) -> None:
         for index, child in enumerate(value):
             reject_private_leaks(child, f"{context}[{index}]")
         return
-    if isinstance(value, str):
-        for needle in FORBIDDEN_TEXT:
-            if needle in value:
-                raise RuntimeSampleError(f"privacy-unsafe text in runtime sample: {context}")
+    if isinstance(value, str) and private_text_contains(value):
+        raise RuntimeSampleError(f"privacy-unsafe text in runtime sample: {context}")
