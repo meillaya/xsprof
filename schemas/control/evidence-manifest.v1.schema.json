@@ -23,62 +23,229 @@
     "production_capacity_claim"
   ],
   "properties": {
-    "schema": {"const": "zig-scheduler/evidence-manifest/v1"},
-    "audit_id": {"type": "string", "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"},
-    "rollback_id": {"type": "string", "pattern": "^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "schema": {
+      "const": "zig-scheduler/evidence-manifest/v1"
+    },
+    "audit_id": {
+      "type": "string",
+      "pattern": "^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$"
+    },
+    "rollback_id": {
+      "type": "string",
+      "pattern": "^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
     "vm_marker": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "present", "checked_by"],
+      "required": [
+        "path",
+        "present",
+        "checked_by"
+      ],
       "properties": {
-        "path": {"const": "/run/zig-scheduler-vm-lab.marker"},
-        "present": {"const": true},
-        "checked_by": {"type": "string", "minLength": 1}
+        "path": {
+          "const": "/run/zig-scheduler-vm-lab.marker"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "checked_by": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
-    "supported_tuple": {"type": "string", "pattern": "^linux-6\\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$"},
-    "bpf_metadata_or_skip": {"$ref": "#/$defs/artifactRef"},
-    "matrix_manifest": {"$ref": "#/$defs/artifactRef"},
-    "daemon_events": {"$ref": "#/$defs/artifactRef"},
-    "runner_substrate": {"$ref": "#/$defs/artifactRef"},
-    "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifactRef"}},
-    "benchmark_provenance": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifactRef"}},
+    "supported_tuple": {
+      "type": "string",
+      "pattern": "^linux-6\\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$"
+    },
+    "bpf_metadata_or_skip": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "matrix_manifest": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "daemon_events": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "runner_substrate": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/artifactRef"
+      }
+    },
+    "benchmark_provenance": {
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/artifactRef"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason",
+            "applies_to_outcomes"
+          ],
+          "properties": {
+            "status": {
+              "const": "not_applicable"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "applies_to_outcomes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "SKIP",
+                  "REFUSE",
+                  "BLOCKED"
+                ],
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
     "privacy_scan": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "private_fields_found", "artifact_paths"],
+      "required": [
+        "status",
+        "private_fields_found",
+        "artifact_paths"
+      ],
       "properties": {
-        "status": {"const": "PASS"},
-        "private_fields_found": {"const": false},
-        "artifact_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"}}
+        "status": {
+          "const": "PASS"
+        },
+        "private_fields_found": {
+          "const": false
+        },
+        "artifact_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          }
+        }
       }
     },
     "attestation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "workflow_uses", "verify_command", "retention_days"],
+      "required": [
+        "status",
+        "workflow_uses",
+        "verify_command",
+        "retention_days"
+      ],
       "properties": {
-        "status": {"enum": ["pending-post-run-github-attestation", "verified-by-operator"]},
-        "workflow_uses": {"type": "string", "pattern": "actions/attest-build-provenance"},
-        "verify_command": {"type": "string", "pattern": "gh attestation verify"},
-        "retention_days": {"type": "integer", "minimum": 1}
+        "status": {
+          "enum": [
+            "pending-post-run-github-attestation",
+            "verified-by-operator"
+          ]
+        },
+        "workflow_uses": {
+          "type": "string",
+          "pattern": "actions/attest-build-provenance"
+        },
+        "verify_command": {
+          "type": "string",
+          "pattern": "gh attestation verify"
+        },
+        "retention_days": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
-    "required_sources": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"}},
-    "host_mutation": {"const": false},
-    "release_eligible": {"const": false},
-    "production_capacity_claim": {"const": false}
+    "required_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+      }
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "production_capacity_claim": {
+      "const": false
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "SKIP",
+        "REFUSE",
+        "BLOCKED"
+      ],
+      "type": "string"
+    }
   },
   "$defs": {
     "artifactRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "sha256", "schema_role"],
+      "required": [
+        "path",
+        "sha256",
+        "schema_role"
+      ],
       "properties": {
-        "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
-        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "schema_role": {"type": "string", "minLength": 1}
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema_role": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "PASS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vm_marker": {
+            "properties": {
+              "present": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

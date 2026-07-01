@@ -30,14 +30,17 @@ SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 AUDIT_RE: Final[re.Pattern[str]] = re.compile(r"^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$")
 ROLLBACK_RE: Final[re.Pattern[str]] = re.compile(r"^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TUPLE_RE: Final[re.Pattern[str]] = re.compile(r"^linux-6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$")
-FIELDS: Final[frozenset[str]] = frozenset(("schema", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
+FIELDS: Final[frozenset[str]] = frozenset(("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
 MARKER_FIELDS: Final[frozenset[str]] = frozenset(("path", "present", "checked_by"))
+BENCHMARK_NA_FIELDS: Final[frozenset[str]] = frozenset(("status", "reason", "applies_to_outcomes"))
 PRIVACY_FIELDS: Final[frozenset[str]] = frozenset(("status", "private_fields_found", "artifact_paths"))
 ATTEST_FIELDS: Final[frozenset[str]] = frozenset(("status", "workflow_uses", "verify_command", "retention_days"))
 REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof"))
 BPF_ROLES: Final[frozenset[str]] = frozenset(("bpf-metadata", "bpf-skip-json"))
 ATTEST_STATUSES: Final[frozenset[str]] = frozenset(("pending-post-run-github-attestation", "verified-by-operator"))
+OUTCOMES: Final[frozenset[str]] = frozenset(("PASS", "SKIP", "REFUSE", "BLOCKED"))
+BENCHMARK_NA_OUTCOMES: Final[frozenset[str]] = frozenset(("SKIP", "REFUSE", "BLOCKED"))
 FORBIDDEN_PRIVATE_KEYS: Final[frozenset[str]] = frozenset(("access_token", "apikey", "api_key", "aws_secret", "command_line", "env", "environment", "password", "raw_debug", "secret", "token"))
 FORBIDDEN_PRIVATE_KEY_TOKENS: Final[frozenset[str]] = frozenset(
     re.sub(r"[^a-z0-9]", "", key.lower()) for key in FORBIDDEN_PRIVATE_KEYS
@@ -218,6 +221,9 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     data = load_json(path)
     only_fields(data, FIELDS, str(path))
     require(data.get("schema") == SCHEMA, "unsupported evidence manifest schema")
+    raw_outcome = data.get("outcome")
+    outcome = text(raw_outcome, "outcome") if raw_outcome is not None else "PASS"
+    require(outcome in OUTCOMES, "outcome is unsupported")
     require(data.get("host_mutation") is False, "manifest.host_mutation must be false")
     require(data.get("release_eligible") is False, "manifest.release_eligible must be false")
     require(data.get("production_capacity_claim") is False, "manifest.production_capacity_claim must be false")
@@ -228,7 +234,11 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     if not isinstance(marker, dict):
         raise ManifestError("vm_marker must be an object")
     only_fields(marker, MARKER_FIELDS, "vm_marker")
-    require(marker.get("path") == VM_MARKER and marker.get("present") is True, "VM marker proof is missing")
+    require(marker.get("path") == VM_MARKER, "VM marker path is invalid")
+    marker_present = marker.get("present")
+    require(isinstance(marker_present, bool), "vm_marker.present must be a boolean")
+    if outcome == "PASS":
+        require(marker_present is True, "VM marker proof is missing")
     roles: set[str] = set()
     artifact_paths: list[tuple[Path, str]] = []
     for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate"):
@@ -249,17 +259,35 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     missing = sorted(REQUIRED_ROLES - roles)
     require(not missing, "missing required artifact role(s): " + ", ".join(missing))
     benchmark = data.get("benchmark_provenance")
-    if not isinstance(benchmark, list) or not benchmark:
-        raise ManifestError("benchmark_provenance must be a non-empty list")
-    for index, item in enumerate(benchmark):
-        require(validate_ref(item, f"benchmark_provenance[{index}]") == "benchmark-provenance", f"benchmark_provenance[{index}] must use benchmark-provenance role")
-        if isinstance(item, dict):
-            artifact_paths.append((safe_path(item.get("path"), f"benchmark_provenance[{index}].path"), "benchmark-provenance"))
+    if isinstance(benchmark, list):
+        require(bool(benchmark), "benchmark_provenance must be a non-empty list")
+        for index, item in enumerate(benchmark):
+            require(validate_ref(item, f"benchmark_provenance[{index}]") == "benchmark-provenance", f"benchmark_provenance[{index}] must use benchmark-provenance role")
+            if isinstance(item, dict):
+                artifact_paths.append((safe_path(item.get("path"), f"benchmark_provenance[{index}].path"), "benchmark-provenance"))
+    elif isinstance(benchmark, dict):
+        validate_benchmark_not_applicable(benchmark, outcome)
+    else:
+        raise ManifestError("benchmark_provenance must be artifact references or a not-applicable object")
     validate_privacy(data.get("privacy_scan"))
     validate_attestation(data.get("attestation"))
     tracked_sources(data.get("required_sources"))
     for artifact_path, role in artifact_paths:
         reject_claims(artifact_path, role)
+
+
+def validate_benchmark_not_applicable(value: JsonObject, outcome: str) -> None:
+    only_fields(value, BENCHMARK_NA_FIELDS, "benchmark_provenance")
+    require(value.get("status") == "not_applicable", "benchmark_provenance.status must be not_applicable")
+    require(outcome in BENCHMARK_NA_OUTCOMES, "benchmark_provenance not_applicable is only valid for SKIP/REFUSE/BLOCKED")
+    reject_private_text(text(value.get("reason"), "benchmark_provenance.reason"), "benchmark_provenance.reason")
+    applies_to = value.get("applies_to_outcomes")
+    if not isinstance(applies_to, list) or not applies_to:
+        raise ManifestError("benchmark_provenance.applies_to_outcomes must be a non-empty list")
+    for index, item in enumerate(applies_to):
+        outcome_value = text(item, f"benchmark_provenance.applies_to_outcomes[{index}]")
+        require(outcome_value in BENCHMARK_NA_OUTCOMES, f"benchmark_provenance.applies_to_outcomes[{index}] is unsupported")
+    require(outcome in applies_to, "benchmark_provenance.applies_to_outcomes must include the manifest outcome")
 
 
 def validate_privacy(value: JsonValue | None) -> None:

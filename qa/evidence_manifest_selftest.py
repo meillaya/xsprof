@@ -20,7 +20,7 @@ from qa.evidence_manifest_check import JsonObject, JsonValue, ManifestError, fil
 
 SCHEMA: Final[str] = "zig-scheduler/evidence-manifest/v1"
 VM_MARKER: Final[str] = "/run/zig-scheduler-vm-lab.marker"
-Mutator = Literal["missing-hash", "absolute-path", "traversing-path", "missing-marker", "missing-rollback", "missing-cleanup", "missing-host-refusal", "host-mutation", "release-eligible", "production-claim", "untracked-source", "missing-attestation"]
+Mutator = Literal["missing-hash", "absolute-path", "traversing-path", "missing-marker", "missing-rollback", "missing-cleanup", "missing-host-refusal", "host-mutation", "release-eligible", "production-claim", "untracked-source", "missing-attestation", "pass-benchmark-not-applicable", "refuse-benchmark-missing-outcome"]
 
 
 def write_json(path: Path, data: JsonObject) -> None:
@@ -48,10 +48,14 @@ def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path]:
     return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json"
 
 
-def good_manifest(root: Path) -> Path:
+def good_manifest(root: Path, *, outcome: str = "PASS", benchmark_applicable: bool = True) -> Path:
     rows, log, daemon, bpf, manifest, runner = write_artifacts(root)
     out = root / "evidence-manifest.json"
-    write_json(out, {"schema": SCHEMA, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "artifacts": [ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": [ref(rows / "benchmark.json", "benchmark-provenance")], "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    benchmark: JsonValue = [ref(rows / "benchmark.json", "benchmark-provenance")]
+    if not benchmark_applicable:
+        benchmark = {"status": "not_applicable", "reason": "live proof refused before benchmark artifacts were produced", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}
+    marker_present = outcome == "PASS"
+    write_json(out, {"schema": SCHEMA, "outcome": outcome, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": marker_present, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "artifacts": [ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": benchmark, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return out
 
 
@@ -92,6 +96,11 @@ def mutate(data: JsonObject, mutator: Mutator) -> None:
             data["required_sources"] = ["qa/not-tracked-required-source.py"]
         case "missing-attestation":
             data["attestation"] = {"status": "pending-post-run-github-attestation"}
+        case "pass-benchmark-not-applicable":
+            data["benchmark_provenance"] = {"status": "not_applicable", "reason": "PASS cannot skip benchmarks", "applies_to_outcomes": ["REFUSE"]}
+        case "refuse-benchmark-missing-outcome":
+            data["outcome"] = "REFUSE"
+            data["benchmark_provenance"] = {"status": "not_applicable", "reason": "refused before benchmarks", "applies_to_outcomes": ["SKIP"]}
 
 
 def expect_reject(path: Path, schema: Path, label: str, mutator: Mutator) -> None:
@@ -156,7 +165,10 @@ def run_self_test(schema: Path) -> None:
     good = good_manifest(root)
     validate_manifest(good, schema)
     print("PASS accept complete evidence manifest")
-    cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"))
+    refuse = good_manifest(root / "refuse-na", outcome="REFUSE", benchmark_applicable=False)
+    validate_manifest(refuse, schema)
+    print("PASS accept REFUSE evidence manifest with benchmark_provenance not_applicable")
+    cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"), ("PASS benchmark_provenance not_applicable", "pass-benchmark-not-applicable"), ("REFUSE benchmark_provenance missing outcome", "refuse-benchmark-missing-outcome"))
     for label, mutator in cases:
         expect_reject(good, schema, label, mutator)
     privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug")
