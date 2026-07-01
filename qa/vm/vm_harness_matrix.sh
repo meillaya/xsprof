@@ -543,13 +543,16 @@ def fact(status: str, value: str) -> dict:
     return {"status": status, "value": value}
 
 def runtime_sample(index: int, scheduler_state: str, ops: str) -> dict:
+    global last_enable_seq
     enabled = scheduler_state == "enabled"
+    if enabled:
+        last_enable_seq = str(40 + index)
     return {
         "schema": "zig-scheduler/runtime-sample/v1",
         "sequence": index,
         "state": fact("present", scheduler_state),
         "ops": fact("present", ops),
-        "enable_seq": fact("present", str(40 + index) if enabled else "0"),
+        "enable_seq": fact("present", last_enable_seq if not enabled else str(40 + index)),
         "events": fact("present", "nr_rejected: 0"),
         "events_hash": hashlib.sha256(f"{scenario}:events:{index}".encode()).hexdigest(),
         "nr_rejected": fact("present", "0"),
@@ -564,8 +567,9 @@ def runtime_sample(index: int, scheduler_state: str, ops: str) -> dict:
         "workload": fact("present", "alive" if outcome == "PASS" else "not-started"),
         "workload_alive": outcome == "PASS",
         "private_command_lines_sampled": False,
-    }
+}
 
+last_enable_seq = "0"
 runtime_rows = (
     runtime_sample(0, "disabled", "none"),
     runtime_sample(1, "enabled", "zigsched_minimal"),
