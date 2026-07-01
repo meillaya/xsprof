@@ -17,6 +17,15 @@ pub const max_stream_events: usize = 64;
 const sample_schema = "zig-scheduler/runtime-sample/v1";
 const sha256_hex_len: usize = 64;
 const sha256_zero = "0" ** sha256_hex_len;
+const valid_sched_ext_phases = [_][]const u8{
+    "before_attach",
+    "during_attach",
+    "after_attach",
+    "after_rollback",
+    "after_scheduler_exit",
+    "after_watchdog_disable",
+    "after_forced_disable",
+};
 
 const Fact = struct {
     status: []const u8,
@@ -342,12 +351,10 @@ fn requireSafeText(value: []const u8) StreamError!void {
 
 fn requireSchedExtPhase(phase: []const u8) StreamError!void {
     try requireSafeText(phase);
-    if (!std.mem.eql(u8, phase, "before_attach") and
-        !std.mem.eql(u8, phase, "during_attach") and
-        !std.mem.eql(u8, phase, "after_rollback"))
-    {
-        return error.InvalidRuntimeSample;
+    for (valid_sched_ext_phases) |allowed| {
+        if (std.mem.eql(u8, phase, allowed)) return;
     }
+    return error.InvalidRuntimeSample;
 }
 
 fn validFactStatus(status: []const u8) bool {
@@ -473,7 +480,11 @@ test "runtime stream validates sched_ext_phase against the public enum" {
     const valid_samples = [_][]const u8{
         "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":21,\"sched_ext_phase\":\"before_attach\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"0\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase21\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
         "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":22,\"sched_ext_phase\":\"during_attach\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase22\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
-        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":23,\"sched_ext_phase\":\"after_rollback\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"43\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase23\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":23,\"sched_ext_phase\":\"after_attach\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase23\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":24,\"sched_ext_phase\":\"after_rollback\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"43\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase24\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":25,\"sched_ext_phase\":\"after_scheduler_exit\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"44\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase25\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":26,\"sched_ext_phase\":\"after_watchdog_disable\",\"state\":{\"status\":\"present\",\"value\":\"disabled\"},\"ops\":{\"status\":\"present\",\"value\":\"none\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"45\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase26\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
+        "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":27,\"sched_ext_phase\":\"after_forced_disable\",\"state\":{\"status\":\"present\",\"value\":\"unknown\"},\"ops\":{\"status\":\"present\",\"value\":\"unknown\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"46\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase27\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"workload_alive\":true,\"private_command_lines_sampled\":false}",
     };
     var output: std.ArrayList(u8) = .empty;
     defer output.deinit(std.testing.allocator);
@@ -481,15 +492,19 @@ test "runtime stream validates sched_ext_phase against the public enum" {
     for (valid_samples) |sample| {
         try appendRuntimeLine(std.testing.allocator, &output, sample, &seq, 0, "sha");
     }
-    try std.testing.expectEqual(@as(usize, 4), seq);
+    try std.testing.expectEqual(@as(usize, 8), seq);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") == null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":21") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":22") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":23") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":24") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":25") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":26") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":27") != null);
 
-    try appendRuntimeLine(std.testing.allocator, &output, "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":24,\"sched_ext_phase\":\"bogus_phase\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase24\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"workload_alive\":true,\"private_command_lines_sampled\":false}", &seq, 0, "sha");
-    try std.testing.expectEqual(@as(usize, 5), seq);
-    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":24") == null);
+    try appendRuntimeLine(std.testing.allocator, &output, "{\"schema\":\"zig-scheduler/runtime-sample/v1\",\"sequence\":28,\"sched_ext_phase\":\"bogus_phase\",\"state\":{\"status\":\"present\",\"value\":\"enabled\"},\"ops\":{\"status\":\"present\",\"value\":\"zigsched_minimal\"},\"enable_seq\":{\"status\":\"present\",\"value\":\"42\"},\"events\":{\"status\":\"present\",\"value\":\"nr_rejected: 0\"},\"events_hash\":\"phase28\",\"nr_rejected\":{\"status\":\"present\",\"value\":\"0\"},\"debug_dump\":{\"status\":\"missing\",\"value\":\"\"},\"policy_abi\":{\"policy_name\":\"zigsched_minimal\",\"policy_version\":\"sched_ext_minimal_v1\",\"struct_ops\":\"zigsched_minimal_ops\",\"object_sha256\":\"unavailable\",\"btf_required\":true},\"cgroup_membership_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"workload_alive\":true,\"private_command_lines_sampled\":false}", &seq, 0, "sha");
+    try std.testing.expectEqual(@as(usize, 9), seq);
+    try std.testing.expect(std.mem.indexOf(u8, output.items, "\"sample_sequence\":28") == null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "malformed_runtime_sample") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.items, "host_mutation\":false") != null);
 }
