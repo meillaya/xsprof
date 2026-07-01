@@ -47,6 +47,7 @@ BENCHMARK_NA_OUTCOMES: Final[frozenset[str]] = frozenset(("SKIP", "REFUSE", "BLO
 FORBIDDEN_PRIVATE_KEYS: Final[frozenset[str]] = frozenset(("access_token", "apikey", "api_key", "aws_secret", "command_line", "env", "environment", "password", "raw_debug", "secret", "token"))
 FORBIDDEN_PRIVATE_TEXT: Final[tuple[str, ...]] = ("--token", "password=", "api_key=", "AWS_SECRET", "BEGIN PRIVATE KEY")
 FORBIDDEN_PRIVATE_KEY_PATTERNS: Final[frozenset[tuple[str, ...]]] = frozenset(private_key_tokens(key) for key in FORBIDDEN_PRIVATE_KEYS)
+PRIVATE_SAFE_KEYS: Final[frozenset[str]] = frozenset(("protected_environment",))
 TEXT_ARTIFACT_ROLES: Final[frozenset[str]] = frozenset(("static-verification-log",))
 TEXT_ARTIFACT_SUFFIXES: Final[frozenset[str]] = frozenset((".log", ".txt", ".md", ".out", ".err"))
 MAX_TEXT_ARTIFACT_BYTES: Final[int] = 1024 * 1024
@@ -163,7 +164,7 @@ def reject_claim_value(value: JsonValue, context: str) -> None:
     match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
         case dict():
             for key, child in value.items():
-                if private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
+                if key not in PRIVATE_SAFE_KEYS and private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
                     raise ManifestError(f"privacy-unsafe key in referenced artifact: {context}.{key}")
                 if key == "host_mutation":
                     require(child is False, f"{context}.host_mutation must be false")

@@ -36,6 +36,19 @@ def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path]:
     rows = root / "rows" / "fixture-pass"
     for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof"):
         write_json(rows / f"{name}.json", {"schema": f"zig-scheduler/{name}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(
+        rows / "runner-substrate-proof.json",
+        {
+            "schema": "zig-scheduler/runner-substrate-proof/v1",
+            "host_mutation": False,
+            "release_eligible": False,
+            "production_capacity_claim": False,
+            "protected_environment": {
+                "name": "vm-proof-manual",
+                "reviewer_gate": "required",
+            },
+        },
+    )
     log = root / "static-logs" / "matrix.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     _ = log.write_text("static verification logs\n")
@@ -173,7 +186,7 @@ def run_self_test(schema: Path) -> None:
     cases: tuple[tuple[str, Mutator], ...] = (("missing hash", "missing-hash"), ("absolute path", "absolute-path"), ("traversing path", "traversing-path"), ("missing outcome", "missing-outcome"), ("missing VM marker", "missing-marker"), ("missing rollback proof", "missing-rollback"), ("missing cleanup proof", "missing-cleanup"), ("missing host refusal proof", "missing-host-refusal"), ("host_mutation=true", "host-mutation"), ("release_eligible=true", "release-eligible"), ("production_capacity_claim=true", "production-claim"), ("untracked required source", "untracked-source"), ("missing attestation/provenance fields", "missing-attestation"), ("PASS benchmark_provenance not_applicable", "pass-benchmark-not-applicable"), ("REFUSE benchmark_provenance missing outcome", "refuse-benchmark-missing-outcome"))
     for label, mutator in cases:
         expect_reject(good, schema, label, mutator)
-    privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug", "githubAccessToken", "privateCommandLine", "Password=secret")
+    privacy_cases: tuple[str, ...] = ("accessToken", "commandLine", "rawDebug", "githubAccessToken", "privateCommandLine", "Password=secret", "environment")
     for key in privacy_cases:
         expect_privacy_key_reject(good_manifest(root / f"privacy-{key}"), schema, key)
     expect_static_log_privacy_reject(good_manifest(root / "static-log-secret"), schema)
