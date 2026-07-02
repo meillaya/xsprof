@@ -61,7 +61,7 @@ Before enabling or approving the `manual-vm-proof` `workflow_dispatch` lane, rev
 - [ ] The bundle contains or accounts for pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON, daemon events, live summary if present, static verification logs, and benchmark provenance.
 - [ ] Every proof keeps `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
 - [ ] Provenance is checked with `gh attestation verify` and `python3 qa/manual_vm_proof_ci_check.py --workflow .github/workflows/manual-vm-proof.yml --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md`.
-- [ ] The protected-core suite command uses `--suite protected-core`, not a single `--scenario live-backend`; evidence contains `live-backend`, `workload-cpu-saturation`, `workload-cgroup-weight-quota`, and exactly one latency/churn row with explicit non-PASS reasons when applicable.
+- [ ] The protected-core suite command uses `--suite protected-core`, not a single `--scenario live-backend`; evidence contains `live-backend`, `workload-cpu-saturation`, `workload-cgroup-weight-quota`, and exactly one latency/churn row with explicit non-PASS reasons when applicable. Before PASS derivation, `qa/protected_core_suite_check.py` and `qa/protected_core_telemetry_check.py --manifest evidence/lab/matrix/manual-vm-proof/manifest.json` reject harness-generated protected-core telemetry in favor of VM-captured runtime samples.
 
 A local static checker PASS does not prove that required reviewers approved the GitHub protected environment; approval must be read from the GitHub run/environment record.
 

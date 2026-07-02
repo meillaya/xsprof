@@ -70,9 +70,21 @@ jobs:
           [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
           test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"
           test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval"
-      - run: echo 'audit id rollback id VM marker supported tuple pre state post state rollback proof cleanup proof host refusal matrix manifest matrix rows BPF metadata BPF SKIP JSON daemon events live summary static verification logs benchmark provenance evidence manifest SHA-256 hashes attestation status runner substrate proof runner cleanliness proof JIT config clean-machine boot no-reuse evidence removal receipt runner class runner group runner labels protected environment reviewer run URL QEMU path QEMU version /dev/kvm status accel mode kernel tuple unavailable reasons host_mutation=false release_eligible=false production_capacity_claim=false evidence-manifest.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json schemas/control/runner-cleanliness-proof.v1.schema.json qa/runner_substrate_proof_check.py qa/runner_cleanliness_proof_check.py runner-substrate-proof.json runner-cleanliness-proof.json protected-environment-review.json kernel BTF metadata unavailable sched_ext kernel substrate unavailable protected-core suite live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-interactive-latency workload-scheduler-affinity-churn exactly one latency/churn row'
+      - run: echo 'audit id rollback id VM marker supported tuple pre state post state rollback proof cleanup proof host refusal matrix manifest matrix rows BPF metadata BPF SKIP JSON daemon events live summary static verification logs benchmark provenance evidence manifest SHA-256 hashes attestation status runner substrate proof runner cleanliness proof JIT config clean-machine boot no-reuse evidence removal receipt runner class runner group runner labels protected environment reviewer run URL QEMU path QEMU version /dev/kvm status accel mode kernel tuple unavailable reasons host_mutation=false release_eligible=false production_capacity_claim=false evidence-manifest.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json schemas/control/runner-cleanliness-proof.v1.schema.json qa/runner_substrate_proof_check.py qa/runner_cleanliness_proof_check.py runner-substrate-proof.json runner-cleanliness-proof.json protected-environment-review.json kernel BTF metadata unavailable sched_ext kernel substrate unavailable protected-core suite protected-core telemetry live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-interactive-latency workload-scheduler-affinity-churn exactly one latency/churn row'
       - run: zig build vm-harness-matrix -- --mode vm-required --suite protected-core --out evidence/lab/matrix/manual
       - run: python3 qa/manual_vm_proof_ci_check.py --workflow .github/workflows/manual-vm-proof.yml --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md
+      - run: |
+          protected_core_pass_candidate=1
+          # protected_core_pass_candidate=0 is the packageable non-PASS branch emitted by the real workflow classifier.
+          protected_core_non_pass_reasons=evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt
+          non_pass_reason='workload-cpu-saturation=SKIP:explicit manual skip reason'
+          if [ "$protected_core_pass_candidate" = "1" ]; then
+            python3 qa/protected_core_suite_check.py --manifest evidence/lab/matrix/manual-vm-proof/manifest.json 2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            python3 qa/protected_core_telemetry_check.py --manifest evidence/lab/matrix/manual-vm-proof/manifest.json 2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          else
+            echo 'SKIP protected-core PASS validators: matrix outcome is non-PASS and will be packaged truthfully.' | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            echo "non_pass_reason: $non_pass_reason" | tee "$protected_core_non_pass_reasons" evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          fi
       - run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -110,7 +122,7 @@ jobs:
           out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
           PY
           python3 qa/runner_substrate_proof_check.py --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json --schema schemas/control/runner-substrate-proof.v1.schema.json
-      - run: echo "protected_core_pass manifest_outcome = runner_outcome 'outcome': manifest_outcome 'present': marker_present benchmark_provenance = { 'status': 'not_applicable' 'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED'] PASS evidence manifest requires benchmark_provenance records runner_substrate_proof outcome is missing or unsupported runner_cleanliness_proof outcome is missing or unsupported"
+      - run: echo "protected_core_pass protected_core_pass_candidate non-PASS protected-core row must include an explicit reason manifest_outcome = runner_outcome 'outcome': manifest_outcome 'present': marker_present benchmark_provenance = { 'status': 'not_applicable' 'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED'] PASS evidence manifest requires benchmark_provenance records runner_substrate_proof outcome is missing or unsupported runner_cleanliness_proof outcome is missing or unsupported"
       - run: python3 qa/runner_cleanliness_proof_check.py --proof evidence/lab/manual-vm-proof/runner-cleanliness-proof.json
       - run: echo "runner labels are not cleanliness proof ZIGSCHED_NO_REUSE_EVIDENCE ZIGSCHED_RUNNER_REMOVAL_RECEIPT no_reuse_status = 'PASS' removal_receipt = {'status': 'unavailable'} outcome = 'PASS' if no_reuse_status == 'PASS' and removal_receipt['status'] == 'removed' else 'SKIP'"
       - run: python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
@@ -139,7 +151,7 @@ def good_docs() -> str:
         "self-hosted zig-scheduler-vm-proof disposable-vm release_eligible=false not a release asset not production approval",
         "gh attestation verify ordinary CI stays host-safe audit id rollback id VM marker supported tuple pre state post state",
         "rollback proof cleanup proof host refusal matrix manifest matrix rows BPF metadata BPF SKIP JSON daemon events live summary",
-        "static verification logs benchmark provenance evidence manifest SHA-256 hashes attestation status runner substrate proof runner cleanliness proof JIT config clean-machine boot no-reuse evidence removal receipt runner class runner group runner labels protected environment reviewer run URL QEMU path QEMU version /dev/kvm status accel mode kernel tuple unavailable reasons protected-environment-review.json kernel BTF metadata unavailable sched_ext kernel substrate unavailable protected-core suite live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-interactive-latency workload-scheduler-affinity-churn exactly one latency/churn row evidence-manifest.json qa/evidence_manifest_check.py qa/runner_substrate_proof_check.py qa/runner_cleanliness_proof_check.py runner-substrate-proof.json runner-cleanliness-proof.json protected-environment-review.json",
+        "static verification logs benchmark provenance evidence manifest SHA-256 hashes attestation status runner substrate proof runner cleanliness proof JIT config clean-machine boot no-reuse evidence removal receipt runner class runner group runner labels protected environment reviewer run URL QEMU path QEMU version /dev/kvm status accel mode kernel tuple unavailable reasons protected-environment-review.json kernel BTF metadata unavailable sched_ext kernel substrate unavailable protected-core suite protected-core telemetry live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-interactive-latency workload-scheduler-affinity-churn exactly one latency/churn row evidence-manifest.json qa/evidence_manifest_check.py qa/protected_core_suite_check.py qa/protected_core_telemetry_check.py qa/runner_substrate_proof_check.py qa/runner_cleanliness_proof_check.py runner-substrate-proof.json runner-cleanliness-proof.json protected-environment-review.json",
     ))
 
 
@@ -158,6 +170,10 @@ def run_self_test() -> None:
     expect_reject("missing protected environment", workflow.replace("environment: vm-proof-manual", ""), docs)
     expect_reject("old single live-backend scenario", workflow.replace("--suite protected-core", "--scenario live-backend"), docs)
     expect_reject("missing protected-core PASS gate", workflow.replace("protected_core_pass", "legacy_single_row_pass"), docs)
+    expect_reject("missing protected-core suite validator", workflow.replace("python3 qa/protected_core_suite_check.py", "python3 qa/matrix_run_contract_check.py", 1), docs)
+    expect_reject("missing protected-core telemetry validator", workflow.replace("python3 qa/protected_core_telemetry_check.py", "python3 qa/runtime_sample_contract_check.py", 1), docs)
+    expect_reject("missing protected-core PASS candidate classifier", workflow.replace("protected_core_pass_candidate=1", "legacy_protected_core_flag=1", 1), docs)
+    expect_reject("missing packageable non-PASS validator skip branch", workflow.replace("SKIP protected-core PASS validators", "FAIL protected-core PASS validators", 1), docs)
     expect_reject("hosted runner", workflow.replace("[self-hosted, zig-scheduler-vm-proof, disposable-vm]", "ubuntu-latest"), docs)
     expect_reject("missing artifact bundle", workflow.replace("vm-proof-bundle.tar.zst", "vm-proof-bundle.zip"), docs)
     expect_reject("archive output inside archived input", workflow.replace("VM_PROOF_BUNDLE: evidence/lab/manual-vm-proof-bundle/vm-proof-bundle.tar.zst", "VM_PROOF_BUNDLE: evidence/lab/matrix/manual/vm-proof-bundle.tar.zst"), docs)

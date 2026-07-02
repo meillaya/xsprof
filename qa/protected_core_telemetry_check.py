@@ -33,6 +33,8 @@ REQUIRED_TELEMETRY: Final[tuple[str, ...]] = ("policy_counters", "sample_loss", 
 EVENT_COUNTER_RE: Final[re.Pattern[str]] = re.compile(r"(?:^|\s)nr_rejected\s*[:=]\s*([0-9]+)(?:\s|$)")
 SELF_ROOT: Final[Path] = Path("evidence/lab/protected-core-telemetry-self-test")
 CGROUP_SCENARIO: Final[str] = "workload-cgroup-weight-quota"
+VM_CAPTURED_OBSERVATION_SOURCES: Final[frozenset[str]] = frozenset({"vm_guest_sched_ext", "vm_serial_sched_ext"})
+HARNESS_GENERATED_OBSERVATION_SOURCES: Final[frozenset[str]] = frozenset({"vm_harness_matrix_row", "vm_fixture_sched_ext"})
 
 JsonRows: TypeAlias = list[JsonObject]
 
@@ -155,9 +157,31 @@ def validate_rows(rows: JsonRows, scenario: str | None, label: str) -> None:
         validate_row(row, index, scenario)
 
 
+def require_vm_captured_rows(rows: JsonRows, label: str) -> None:
+    for index, row in enumerate(rows):
+        context = f"{label}.sample[{index}]"
+        source = row.get("observation_source")
+        if source in HARNESS_GENERATED_OBSERVATION_SOURCES:
+            raise ProtectedCoreTelemetryError(f"{context}.observation_source is harness-generated synthetic telemetry: {source}")
+        require(isinstance(source, str) and source in VM_CAPTURED_OBSERVATION_SOURCES, f"{context}.observation_source must be VM-captured telemetry")
+        sample_event = row.get("sample_source_event")
+        require(isinstance(sample_event, str), f"{context}.sample_source_event must be present")
+        if not isinstance(sample_event, str):
+            raise ProtectedCoreTelemetryError(f"{context}.sample_source_event must be text")
+        require(sample_event != "", f"{context}.sample_source_event must be present")
+        require(not sample_event.startswith("matrix-"), f"{context}.sample_source_event must not be harness matrix fallback telemetry")
+
+
 def validate_input(path: Path, scenario: str | None) -> None:
     validate_file(path)
     validate_rows(load_jsonl(path), scenario, path.as_posix())
+
+
+def validate_vm_captured_input(path: Path, scenario: str | None) -> None:
+    validate_file(path)
+    rows = load_jsonl(path)
+    validate_rows(rows, scenario, path.as_posix())
+    require_vm_captured_rows(rows, path.as_posix())
 
 
 def safe_path(value: JsonValue | None, context: str) -> Path:
@@ -184,7 +208,7 @@ def validate_manifest(path: Path) -> None:
         row = load_json(safe_path(ref.get("artifact_path"), f"{path}.rows[{index}].artifact_path"))
         if row.get("evidence_mode") != "vm-live":
             continue
-        validate_input(safe_path(row.get("runtime_sample_path"), f"{path}.rows[{index}].runtime_sample_path"), scenario)
+        validate_vm_captured_input(safe_path(row.get("runtime_sample_path"), f"{path}.rows[{index}].runtime_sample_path"), scenario)
 
 
 def expect_reject(path: Path, label: str, scenario: str | None = None) -> None:
@@ -194,6 +218,15 @@ def expect_reject(path: Path, label: str, scenario: str | None = None) -> None:
         print(f"PASS reject {label}: {exc}")
         return
     raise ProtectedCoreTelemetryError(f"expected rejection did not occur: {label}")
+
+
+def expect_reject_vm_captured(path: Path, label: str, scenario: str | None = None) -> None:
+    try:
+        validate_vm_captured_input(path, scenario)
+    except (ProtectedCoreTelemetryError, RuntimeSampleError) as exc:
+        print(f"PASS reject {label}: {exc}")
+        return
+    raise ProtectedCoreTelemetryError(f"expected VM-captured telemetry rejection did not occur: {label}")
 
 
 def write_sample(path: Path, sample: JsonObject) -> Path:
@@ -206,6 +239,15 @@ def self_test() -> None:
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
     good = write_sample(SELF_ROOT / "good.jsonl", good_sample())
     validate_input(good, "live-backend")
+    harness_sample = good_sample()
+    harness_sample["observation_source"] = "vm_harness_matrix_row"
+    harness_sample["sample_source_event"] = "matrix-harness-generated-fallback"
+    harness = write_sample(SELF_ROOT / "harness-generated.jsonl", harness_sample)
+    expect_reject_vm_captured(harness, "harness-generated protected-core PASS telemetry")
+    vm_sample = good_sample()
+    vm_sample["observation_source"] = "vm_serial_sched_ext"
+    vm_sample["sample_source_event"] = "before"
+    validate_vm_captured_input(write_sample(SELF_ROOT / "vm-captured.jsonl", vm_sample), "live-backend")
     unavailable_events = good_sample()
     unavailable_events["events"] = {"status": "unknown", "value": "unavailable"}
     unavailable_events["nr_rejected"] = {"status": "present", "value": "0"}

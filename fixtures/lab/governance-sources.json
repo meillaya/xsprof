@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "883b45e9d3d663c1c0e91109e5fb7bc11d533e8da3561fa553bea14a4f4009dd"
+      "sha256": "2a0a97f4c513d7731f468f26bc621c05eed95d973801c242d746fdba847eaa2d"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "4651f63f901f5b6433d55ba8796c694f4cf1e591c1d52f55306c0af9f76c9b44"
+      "sha256": "b59ac147460b18feecc9a9f7b60f5d87f15207a5652e6588c33fe583a46149a0"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -120,13 +120,13 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "40357b605dd2cbdaeecc43993d3a4a8ca28d5bb4eb1b625ec5c81e3d6e9cad69"
+      "sha256": "f339c02a99f4eee2f14e9a2f03eafae32f575ce580c213a565dbe06a26565efb"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "323950a6e5722f401394437af81b165159d24b7a01670a483febbe1c518eb2b1"
+      "sha256": "f56f25756c1400945a63f69127ef48e8adb99eb02d4c3f61ac1408e0e16bcc6c"
     },
     {
       "path": "docs/security/threat-model.md",
@@ -336,13 +336,13 @@
       "path": "qa/manual_vm_proof_ci_check.py",
       "purpose": "manual VM proof workflow and provenance static checker",
       "required": true,
-      "sha256": "d03e1f2082c060150579f7a5236ab2181a2b039cb5c722a9e41994ddf8e85731"
+      "sha256": "6eec1aee35b1b3fdccb18322486383bcbf1dfa0299f3257f63e2ed616173ed25"
     },
     {
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "66a18adeff7ede21baf26ff210416c43a5cc635d934f2f59f2d0ebabc98500f1"
+      "sha256": "4b664e8e0136fe6195cec53ec26d6b353bf4c653d43735e461ef3b24c3520592"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",
@@ -378,13 +378,13 @@
       "path": "qa/protected_core_suite_check.py",
       "purpose": "protected core matrix suite validator",
       "required": true,
-      "sha256": "18f6fcd2705c08472511784b25be906f35cc4d580d03e6351c0a4042fd32ee69"
+      "sha256": "7d2a1ec45ff1105b2e290c9a62fb4af1292fc1068746b75f022a9f68d7e1776a"
     },
     {
       "path": "qa/protected_core_telemetry_check.py",
       "purpose": "protected core runtime telemetry normalization validator",
       "required": true,
-      "sha256": "afa72f5dda52f3437e30c5c9de2b7e095eea1c44aa37b204621e48d4c66ee4a6"
+      "sha256": "62b43f5b1e7339631ffb7d61352241cfaa5233dd8ae5eb46998e6568dc380390"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -564,7 +564,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "0578295db779c3bfabfbf265e8ece6c003bafdd675d0356a69f1e12c5451df87"
+      "sha256": "d32de6ac045357cb695c32b34a72f988ff52276b794038af3ca31d45eda0e961"
     },
     {
       "path": "qa/vm/workload_execution_check.py",

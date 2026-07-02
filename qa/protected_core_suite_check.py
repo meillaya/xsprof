@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from qa.matrix_run_contract_check import JsonObject, JsonValue, load_json, write_manifest_self_test_pack
 from qa.runtime_sample_common import RuntimeSampleError, load_jsonl
+from qa.protected_core_telemetry_check import ProtectedCoreTelemetryError, validate_vm_captured_input
 
 PROTECTED_REQUIRED_ROWS: Final[frozenset[str]] = frozenset(("live-backend", "workload-cpu-saturation", "workload-cgroup-weight-quota"))
 LATENCY_ROWS: Final[frozenset[str]] = frozenset(("workload-interactive-latency", "workload-scheduler-affinity-churn"))
@@ -115,9 +116,14 @@ def nonnegative_int(value: JsonValue | None, context: str) -> int:
 
 
 def string_list(value: JsonValue | None, context: str) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) and item != "" for item in value):
+    if not isinstance(value, list):
         raise ProtectedCoreSuiteError(f"{context} must be a string list")
-    return value
+    parsed: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or item == "":
+            raise ProtectedCoreSuiteError(f"{context} must be a string list")
+        parsed.append(item)
+    return parsed
 
 
 def validate_present_cgroup_evidence(policy_abi: JsonObject, context: str) -> bool:
@@ -143,6 +149,15 @@ def validate_present_cgroup_evidence(policy_abi: JsonObject, context: str) -> bo
     for field in ("fifo_insert_dispatch_coherent", "vtime_insert_dispatch_coherent", "dispatch_empty_accounted"):
         require(coherence.get(field) is True, f"{context}.dsq_counter_coherence.{field} must be true")
     return True
+
+
+def validate_vm_live_runtime_linkage(row: JsonObject, row_path: Path, scenario: str, context: str) -> None:
+    require(text(row.get("evidence_mode"), f"{context}.evidence_mode") == "vm-live", f"{context} protected-core PASS requires vm-live evidence mode")
+    marker = obj(row.get("vm_marker"), f"{context}.vm_marker")
+    require(marker.get("required") is True and marker.get("present") is True, f"{context}.vm_marker must prove a present required VM marker for PASS")
+    sample_path = safe_path(row.get("runtime_sample_path"), f"{context}.runtime_sample_path")
+    require_descendant(sample_path, row_path.parent, f"{context}.runtime_sample_path")
+    validate_vm_captured_input(sample_path, scenario)
 
 
 def validate_cgroup_abi_linkage(row: JsonObject, context: str) -> None:
@@ -177,8 +192,22 @@ def validate_manifest(path: Path) -> None:
         require_descendant(artifact_path, run_root, f"{path}.{scenario}.artifact_path")
         row = load_json(artifact_path)
         validate_row_local_artifacts(row, artifact_path, run_root, artifact_path.as_posix())
+        validate_vm_live_runtime_linkage(row, artifact_path, scenario, artifact_path.as_posix())
         if scenario == "workload-cgroup-weight-quota":
             validate_cgroup_abi_linkage(row, artifact_path.as_posix())
+
+
+def mark_self_test_row_vm_captured(row_path: Path) -> None:
+    row = load_json(row_path)
+    row["evidence_mode"] = "vm-live"
+    row["vm_marker"] = {"required": True, "present": True, "path": "/run/zig-scheduler-vm-lab.marker", "checked_by": (row_path.parent / "vm-marker-proof.json").as_posix()}
+    sample_path = safe_path(row.get("runtime_sample_path"), f"{row_path}.runtime_sample_path")
+    samples = load_jsonl(sample_path)
+    for index, sample in enumerate(samples):
+        sample["observation_source"] = "vm_serial_sched_ext"
+        sample["sample_source_event"] = ("before", "register", "unregister")[index] if index < 3 else f"vm-sample-{index}"
+    _ = sample_path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in samples))
+    _ = row_path.write_text(json.dumps(row, indent=2, sort_keys=True) + "\n")
 
 
 def write_protected_manifest(root: Path) -> Path:
@@ -189,7 +218,9 @@ def write_protected_manifest(root: Path) -> Path:
         manifest_path = write_manifest_self_test_pack(root, good, scenario)
         manifest = load_json(manifest_path)
         rows = manifest_rows(manifest, manifest_path.as_posix())
-        row_refs.append(dict(rows[0]))
+        first = dict(rows[0])
+        mark_self_test_row_vm_captured(safe_path(first.get("artifact_path"), f"{manifest_path}.rows[0].artifact_path"))
+        row_refs.append(first)
     manifest = load_json(root / "manifest.json")
     manifest["rows"] = row_refs
     manifest["row_count"] = len(row_refs)
@@ -200,7 +231,7 @@ def write_protected_manifest(root: Path) -> Path:
 def expect_reject(path: Path, label: str) -> None:
     try:
         validate_manifest(path)
-    except ProtectedCoreSuiteError as exc:
+    except (ProtectedCoreSuiteError, ProtectedCoreTelemetryError, RuntimeSampleError) as exc:
         print(f"PASS reject {label}: {exc}")
         return
     raise ProtectedCoreSuiteError(f"expected rejection did not occur: {label}")
@@ -226,6 +257,19 @@ def self_test() -> None:
         second_row["runtime_sample_path"] = first_row["runtime_sample_path"]
         _ = safe_path(second.get("artifact_path"), "shared artifact second path").write_text(json.dumps(second_row, indent=2, sort_keys=True) + "\n")
         expect_reject(shared, "shared row runtime sample")
+        harness_runtime = write_protected_manifest(root / "harness-runtime")
+        harness_manifest = load_json(harness_runtime)
+        harness_rows = manifest_rows(harness_manifest, harness_runtime.as_posix())
+        harness_first = obj(harness_rows[0], "harness runtime first row")
+        harness_artifact = safe_path(harness_first.get("artifact_path"), "harness runtime artifact")
+        harness_row = load_json(harness_artifact)
+        harness_sample_path = safe_path(harness_row.get("runtime_sample_path"), "harness runtime sample path")
+        harness_samples = load_jsonl(harness_sample_path)
+        for sample in harness_samples:
+            sample["observation_source"] = "vm_harness_matrix_row"
+            sample["sample_source_event"] = "matrix-harness-generated-fallback"
+        _ = harness_sample_path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in harness_samples))
+        expect_reject(harness_runtime, "harness-generated runtime sample backing PASS")
         missing_abi = write_protected_manifest(root / "missing-abi")
         cgroup_artifact = root / "missing-abi" / "rows" / "workload-cgroup-weight-quota" / "matrix-run.json"
         cgroup_row = load_json(cgroup_artifact)
@@ -260,7 +304,7 @@ def main(argv: list[str]) -> int:
             print(f"PASS protected-core suite: {argv[1]}")
             return 0
         raise ProtectedCoreSuiteError("usage: protected_core_suite_check.py --self-test | --manifest <path>")
-    except (OSError, RuntimeSampleError, ProtectedCoreSuiteError) as exc:
+    except (OSError, RuntimeSampleError, ProtectedCoreSuiteError, ProtectedCoreTelemetryError) as exc:
         print(f"FAIL protected-core suite: {exc}", file=sys.stderr)
         return 1
 

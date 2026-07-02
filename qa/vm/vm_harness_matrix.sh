@@ -913,6 +913,15 @@ if summary.get("host_mutation") is not False or summary.get("vm_kind") != "qemu-
 live_summary = Path(str(summary.get("live_summary", "")))
 if live_summary != expected_live_summary or not live_summary.is_file():
     raise SystemExit(1)
+runtime = live_summary.parent / "observe-partial" / "runtime-samples.jsonl"
+if not runtime.is_file():
+    raise SystemExit(1)
+try:
+    from qa.protected_core_telemetry_check import ProtectedCoreTelemetryError, validate_vm_captured_input
+    from qa.runtime_sample_common import RuntimeSampleError
+    validate_vm_captured_input(runtime, scenario)
+except (ImportError, OSError, RuntimeSampleError, ProtectedCoreTelemetryError):
+    raise SystemExit(1)
 try:
     live = json.loads(live_summary.read_text(encoding="utf-8"))
 except (OSError, json.JSONDecodeError):
@@ -979,7 +988,10 @@ if not live_summary.is_file():
     raise SystemExit(0)
 out = row_dir / "workload-vm-artifacts"
 out.mkdir(parents=True, exist_ok=True)
-for src in (live_summary, live_summary.parent / "serial.txt", live_summary.parent / "observe-partial" / "runtime-samples.jsonl", summary_path):
+runtime = live_summary.parent / "observe-partial" / "runtime-samples.jsonl"
+if runtime.is_file():
+    shutil.copyfile(runtime, row_dir / "runtime-sample.jsonl")
+for src in (live_summary, live_summary.parent / "serial.txt", runtime, summary_path):
     if src.is_file():
         shutil.copyfile(src, out / src.name)
 PYINNER

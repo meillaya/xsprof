@@ -106,8 +106,73 @@ jobs:
             --schemas schemas/control \
             --docs docs/control \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/matrix-contract.log
+          protected_core_candidate_env=evidence/lab/manual-vm-proof/static-logs/protected-core-pass-candidate.env
+          protected_core_non_pass_reasons=evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          manifest_path = Path('evidence/lab/matrix/manual-vm-proof/manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          required_rows = {'live-backend', 'workload-cpu-saturation', 'workload-cgroup-weight-quota'}
+          latency_or_churn_rows = {'workload-interactive-latency', 'workload-scheduler-affinity-churn'}
+          rows = manifest.get('rows')
+          if not isinstance(rows, list):
+              raise SystemExit('matrix manifest rows must be a list')
+          row_outcomes = {}
+          non_pass_reasons = []
+          for entry in rows:
+              if not isinstance(entry, dict):
+                  raise SystemExit('matrix manifest row entries must be objects')
+              scenario_id = str(entry.get('scenario_id', ''))
+              outcome = str(entry.get('outcome', ''))
+              reason = str(entry.get('reason', ''))
+              if scenario_id == '' or outcome == '':
+                  raise SystemExit('matrix manifest rows must include scenario_id and outcome')
+              if scenario_id in row_outcomes:
+                  raise SystemExit('matrix manifest rows must not duplicate protected-core scenarios')
+              row_outcomes[scenario_id] = outcome
+              if outcome != 'PASS':
+                  if reason == '':
+                      raise SystemExit('non-PASS protected-core row must include an explicit reason')
+                  non_pass_reasons.append(f'{scenario_id}={outcome}:{reason}')
+          actual_rows = set(row_outcomes)
+          selected_latency_rows = actual_rows & latency_or_churn_rows
+          if not required_rows.issubset(actual_rows):
+              raise SystemExit('protected-core suite is missing a required row')
+          if len(selected_latency_rows) != 1:
+              raise SystemExit('protected-core suite requires exactly one latency/churn row')
+          if actual_rows != required_rows | selected_latency_rows:
+              raise SystemExit('protected-core suite packaged unexpected row(s)')
+          protected_core_pass_candidate = all(row_outcomes[item] == 'PASS' for item in required_rows | selected_latency_rows)
+          env_path = Path('evidence/lab/manual-vm-proof/static-logs/protected-core-pass-candidate.env')
+          reasons_path = Path('evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt')
+          if protected_core_pass_candidate:
+              env_path.write_text('protected_core_pass_candidate=1\n')
+              reasons_path.write_text('')
+          else:
+              env_path.write_text('protected_core_pass_candidate=0\n')
+              reasons_path.write_text(''.join(f'non_pass_reason: {item}\n' for item in non_pass_reasons))
+          PY
+          # Validators are PASS-only gates: they must run before a protected-core PASS can be derived,
+          # but non-PASS SKIP/REFUSE/INCIDENT/FAIL/BLOCKED bundles remain packageable with explicit reasons.
+          # shellcheck disable=SC1090
+          . "$protected_core_candidate_env"
+          if [ "$protected_core_pass_candidate" = "1" ]; then
+            python3 qa/protected_core_suite_check.py \
+              --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
+              2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            python3 qa/protected_core_telemetry_check.py \
+              --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
+              2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          else
+            {
+              printf '%s\n' 'SKIP protected-core PASS validators: matrix outcome is non-PASS and will be packaged truthfully.'
+              grep '^non_pass_reason:' "$protected_core_non_pass_reasons"
+            } | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            cp evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          fi
           if [ "$matrix_rc" -ne 0 ]; then
-            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"\|"outcome"[[:space:]]*:[[:space:]]*"INCIDENT"\|"outcome"[[:space:]]*:[[:space:]]*"FAIL"' evidence/lab/matrix/manual-vm-proof/rows >/dev/null
+            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"\|"outcome"[[:space:]]*:[[:space:]]*"INCIDENT"\|"outcome"[[:space:]]*:[[:space:]]*"FAIL"\|"outcome"[[:space:]]*:[[:space:]]*"BLOCKED"' evidence/lab/matrix/manual-vm-proof/rows >/dev/null
             grep -R '"reason"[[:space:]]*:[[:space:]]*"[^"]' evidence/lab/matrix/manual-vm-proof >/dev/null
           fi
 
@@ -127,6 +192,7 @@ jobs:
             printf '%s\n' '- matrix manifest: evidence/lab/matrix/manual-vm-proof/manifest.json'
             printf '%s\n' '- matrix rows: evidence/lab/matrix/manual-vm-proof/rows/*/matrix-run.json'
             printf '%s\n' '- protected-core suite: live-backend, workload-cpu-saturation, workload-cgroup-weight-quota, and exactly one latency/churn row (workload-interactive-latency or workload-scheduler-affinity-churn)'
+            printf '%s\n' '- protected-core telemetry: qa/protected_core_suite_check.py and qa/protected_core_telemetry_check.py validate VM-captured runtime samples before PASS derivation'
             printf '%s\n' '- BPF metadata: zig-out/bpf/zigsched_minimal.bpf.meta.json'
             printf '%s\n' '- BPF SKIP JSON: zig-out/bpf/zigsched_minimal.bpf.skip.json when object metadata is unavailable'
             printf '%s\n' '- daemon events: per-row daemon-events.jsonl or explicit SKIP/REFUSE evidence'

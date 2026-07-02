@@ -20,7 +20,7 @@
     "reason": "committed review artifacts cannot contain the SHA of the commit that contains themselves; stale ancestor SHA is accepted only while listed content hashes match",
     "sha256": {
       "AGENTS.md": "e7f684fe4c30670a5907738dfb8ce3059233dd1ad3baa41fa4e16909cabedcd6",
-      "docs/security/review-checklist.md": "323950a6e5722f401394437af81b165159d24b7a01670a483febbe1c518eb2b1",
+      "docs/security/review-checklist.md": "f56f25756c1400945a63f69127ef48e8adb99eb02d4c3f61ac1408e0e16bcc6c",
       "docs/security/threat-model.md": "08a771393fb6b54694b6557706c906de7aae3ba5c2234ca26e72c23a34bedb4b"
     }
   },
