@@ -328,22 +328,22 @@ Before opening the protected run, capture this operator preflight on the self-ho
 ```bash
 set -euo pipefail
 kernel_release="$(uname -r)"
-supported_tuple="linux-6.12-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # choose the existing linux-6.12+ tuple matching uname -r
+supported_tuple="linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # choose the exact protected tuple matching uname -r
 printf 'kernel_release=%s\n' "$kernel_release"
 printf 'workflow_supported_tuple=%s\n' "$supported_tuple"
 case "$kernel_release" in
-  6.1[2-9]*|6.[2-9][0-9]*) ;;
-  *) echo "REFUSE: kernel release does not match the existing linux-6.12+ supported tuple input"; exit 1 ;;
+  6.1[2-9]*|6.[2-9][0-9]*|7.1.1-2-cachyos) ;;
+  *) echo "REFUSE: kernel release does not match the supported protected tuple input"; exit 1 ;;
 esac
 test -d /sys/kernel/sched_ext
 test -r /sys/kernel/btf/vmlinux
 test -e /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
 command -v qemu-system-x86_64
 qemu-system-x86_64 -accel help | grep -E '(^|[[:space:]])kvm($|[[:space:]])'
-echo "$supported_tuple" | grep -E '^linux-6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
+echo "$supported_tuple" | grep -E '^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
 ```
 
-CachyOS `7.1.1-cachyos` is out of scope for this milestone. Do not add it to tuple regexes, schemas, validators, or PASS documentation here; handle it only in a future tuple-expansion governance milestone.
+CachyOS is accepted only for the exact protected tuple `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`; other CachyOS/downstream releases remain out of scope.
 
 The protected workflow runs the same canonical `live-backend` matrix command. A non-zero matrix command is reviewable only when it left a valid manifest and the `live-backend` row is explicitly `SKIP` or `REFUSE`; the workflow validates that manifest before packaging evidence so unavailable substrate is recorded as proof of fail-closed behavior rather than silently discarded.
 

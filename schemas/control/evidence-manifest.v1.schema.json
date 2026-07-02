@@ -58,7 +58,7 @@
     },
     "supported_tuple": {
       "type": "string",
-      "pattern": "^linux-6\\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$"
+      "pattern": "^linux-(6\\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\\.1\\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$"
     },
     "bpf_metadata_or_skip": {
       "$ref": "#/$defs/artifactRef"

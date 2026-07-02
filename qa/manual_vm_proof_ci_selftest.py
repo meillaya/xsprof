@@ -67,7 +67,7 @@ jobs:
           test "$INPUT_VM_MARKER_PATH" = /run/zig-scheduler-vm-lab.marker
           [[ "$INPUT_AUDIT_ID" =~ ^AUD-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}-[a-f0-9]{6}$ ]]
           [[ "$INPUT_ROLLBACK_ID" =~ ^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
-          [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
+          [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
           test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"
           test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval"
       - run: echo 'audit id rollback id VM marker supported tuple pre state post state rollback proof cleanup proof host refusal matrix manifest matrix rows BPF metadata BPF SKIP JSON daemon events live summary static verification logs benchmark provenance evidence manifest SHA-256 hashes attestation status runner substrate proof runner class runner group runner labels protected environment reviewer run URL QEMU path QEMU version /dev/kvm status accel mode kernel tuple unavailable reasons host_mutation=false release_eligible=false production_capacity_claim=false evidence-manifest.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json qa/runner_substrate_proof_check.py runner-substrate-proof.json protected-environment-review.json kernel BTF metadata unavailable sched_ext kernel substrate unavailable'

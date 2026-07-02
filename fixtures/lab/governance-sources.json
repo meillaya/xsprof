@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "1b3d09e67ede0539357cadaef317b2664aeaac67428eb8470a942e13afe57af7"
+      "sha256": "39b94084fb18509f50a53ac8989d06c40cdd135716ccb7042c9fde5d8174ab3b"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "062f0cfccc2ed01966d21e6628e1c1030eed52845f7775dcfd13ebc90b7cccca"
+      "sha256": "f88b33fdedefffdec64b6d24d3c49701bd59652e7f78e8216e0ead328d377604"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -102,7 +102,7 @@
       "path": "docs/releases/supported-kernel-tuples.md",
       "purpose": "supported VM lab kernel tuple matrix",
       "required": true,
-      "sha256": "fea5e38a484c9cf7c1ea0f7719d0d0903dcbb90802058fed2fadb1c954ab3406"
+      "sha256": "79a3088f00abb6f48521fca8bde7b9275a3d2fd02b777dc638121d9fdbccec07"
     },
     {
       "path": "docs/runbooks/sched-ext-fallback.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "3dca3d427ee52259abfd1e824307b815c0e403f710f4a56b884861c9d62e143a"
+      "sha256": "de1bcddd049f8d3adfa6a7c89dda887b19f91e040d80002942881ee6a8def970"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -180,7 +180,7 @@
       "path": "schemas/control/evidence-manifest.v1.schema.json",
       "purpose": "evidence-manifest v1 proof bundle schema",
       "required": true,
-      "sha256": "43fc5ff12205b3b8895c648127906ec960ef0423eabf0f9412a5abf38b49b81b"
+      "sha256": "317bc03d5b8c3239d7dba78bb3673680b6eede181b89b808f64069dc239a815e"
     },
     {
       "path": "schemas/control/matrix-run.v1.schema.json",
@@ -198,7 +198,7 @@
       "path": "schemas/control/runner-substrate-proof.v1.schema.json",
       "purpose": "protected runner substrate proof schema",
       "required": true,
-      "sha256": "dc3f3335bc38792b496fe3850658644fa704b5633e058dc353cab0efa94d7438"
+      "sha256": "b2e8535877099d1eb5b5f7e577d86129fd717f2e61ab46c408f176b4a8c344f5"
     },
     {
       "path": "schemas/control/runtime-sample.v1.schema.json",
@@ -282,7 +282,7 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "0b426a448ba5dc15ff1a252b354e46cdd1b670310dd23810d71458f7eb650173"
+      "sha256": "0d0ad3fca150dd6d1edf4c5f0bfebd2016779be7289aeeee29da7d29b3c5d4b2"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
@@ -336,7 +336,7 @@
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "94d17e16bb55f7aa38da8a8369e9883a0adf63dfd1d4e3c44e119aaf8539bb71"
+      "sha256": "bf8623661cd7951e32711e8baf6691de05853c071f517481d268b9b3f4926d15"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",
@@ -414,7 +414,7 @@
       "path": "qa/runner_substrate_proof_check.py",
       "purpose": "protected runner substrate proof validator",
       "required": true,
-      "sha256": "167d7f3834b8003723efa3bc20ad148c5af5423063ace3b4df7155b2107cc19e"
+      "sha256": "9f897a3aacc0c90872fef2a7da061f5fd58f1d62905a9a351062b7551eaef838"
     },
     {
       "path": "qa/runner_substrate_proof_common.py",
