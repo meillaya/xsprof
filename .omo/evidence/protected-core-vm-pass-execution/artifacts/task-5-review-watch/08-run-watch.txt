@@ -1,0 +1,302 @@
+# gh run watch
+timestamp_start_utc=2026-07-02T15:14:40Z
+surface=CLI/GitHub run status observation
+invocation=timeout 7200s gh run watch 28600509667 --repo Meillaya/zig-scheduler --exit-status
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  * Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 6 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  * Run isolated disposable VM proof surface
+  * Assert required proof provenance files
+  * Capture protected environment review evidence
+  * Capture protected runner substrate proof
+  * Capture protected runner cleanliness proof
+  * Create and validate evidence manifest
+  * Create GitHub Actions proof artifact tarball
+  * Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+* reviewer-gated disposable VM proof (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  ✓ Run isolated disposable VM proof surface
+  ✓ Assert required proof provenance files
+  ✓ Capture protected environment review evidence
+  ✓ Capture protected runner substrate proof
+  ✓ Capture protected runner cleanliness proof
+  ✓ Create and validate evidence manifest
+  ✓ Create GitHub Actions proof artifact tarball
+  ✓ Upload VM proof bundle workflow artifact
+  * Attest VM proof bundle
+  * Print attestation verification command
+  * Post Checkout
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+✓ reviewer-gated disposable VM proof in 1m3s (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  ✓ Run isolated disposable VM proof surface
+  ✓ Assert required proof provenance files
+  ✓ Capture protected environment review evidence
+  ✓ Capture protected runner substrate proof
+  ✓ Capture protected runner cleanliness proof
+  ✓ Create and validate evidence manifest
+  ✓ Create GitHub Actions proof artifact tarball
+  ✓ Upload VM proof bundle workflow artifact
+  ✓ Attest VM proof bundle
+  ✓ Print attestation verification command
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/attest-build-provenance/predicate@1176ef556905f349f669722abf30bce1a6e16e01, actions/attest@ce27ba3b4a9a139d9a20a4a07d69fabb52f1e5bc, actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+reviewer-gated disposable VM proof: .github#2
+
+✓ work/protected-multi-row-vm-scheduler-proof manual-vm-proof · 28600509667
+Triggered via workflow_dispatch about 7 minutes ago
+
+JOBS
+✓ reviewer-gated disposable VM proof in 1m3s (ID 84807185412)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Refuse non-manual or unacknowledged run
+  ✓ Static safety gates before VM work
+  ✓ Run isolated disposable VM proof surface
+  ✓ Assert required proof provenance files
+  ✓ Capture protected environment review evidence
+  ✓ Capture protected runner substrate proof
+  ✓ Capture protected runner cleanliness proof
+  ✓ Create and validate evidence manifest
+  ✓ Create GitHub Actions proof artifact tarball
+  ✓ Upload VM proof bundle workflow artifact
+  ✓ Attest VM proof bundle
+  ✓ Print attestation verification command
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/attest-build-provenance/predicate@1176ef556905f349f669722abf30bce1a6e16e01, actions/attest@ce27ba3b4a9a139d9a20a4a07d69fabb52f1e5bc, actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+reviewer-gated disposable VM proof: .github#2
+
+timestamp_end_utc=2026-07-02T15:15:25Z
+exit_code=0
