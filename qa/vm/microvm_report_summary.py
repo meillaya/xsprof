@@ -25,7 +25,7 @@ def write_observe_outputs(paths: OutputPaths, rows: ReportRows, verifier: Verifi
     observe_transcript = paths.observe_dir / "observe-transcript.txt"
     _ = observe_transcript.write_text("microVM before/during/after sched_ext samples; no command-line sampling\n")
     observe_summary = paths.observe_dir / "summary.json"
-    _ = observe_summary.write_text(json.dumps(observe_summary_payload(sample_rows, samples, daemon, observe_transcript, verifier.ledger), indent=2, sort_keys=True) + "\n")
+    _ = observe_summary.write_text(json.dumps(observe_summary_payload(rows, sample_rows, samples, daemon, observe_transcript, verifier.ledger), indent=2, sort_keys=True) + "\n")
     return ObserveOutputs(observe_summary=observe_summary, samples=samples, daemon=daemon, observe_transcript=observe_transcript, sample_rows=sample_rows)
 
 
@@ -143,7 +143,12 @@ def daemon_row(row: JsonObject) -> JsonObject:
     }
 
 
-def observe_summary_payload(sample_rows: list[JsonObject], samples: Path, daemon: Path, transcript: Path, ledger: Path) -> JsonObject:
+def workload_execution_summary(rows: ReportRows) -> JsonObject:
+    row = rows.workload_executions[-1]
+    return {"host_mutation": row.get("host_mutation"), "rc": row.get("rc"), "reason": row.get("reason"), "scenario": row.get("scenario"), "status": row.get("status")}
+
+
+def observe_summary_payload(rows: ReportRows, sample_rows: list[JsonObject], samples: Path, daemon: Path, transcript: Path, ledger: Path) -> JsonObject:
     final_state = sample_rows[-1]["state"]
     final_ops = sample_rows[-1]["ops"]
     if not isinstance(final_state, dict) or not isinstance(final_ops, dict):
@@ -159,23 +164,20 @@ def observe_summary_payload(sample_rows: list[JsonObject], samples: Path, daemon
         "transcript": transcript.as_posix(),
         "daemon_runtime_events": daemon.as_posix(),
         "scheduler_snapshot": {"state": final_state, "root_ops": final_ops},
-        "final_state": final_state["value"],
-        "final_ops": final_ops["value"],
-        "final_state_disabled_or_rolled_back": True,
-        "private_command_lines_sampled": False,
+        "final_state": final_state["value"], "final_ops": final_ops["value"],
+        "final_state_disabled_or_rolled_back": True, "private_command_lines_sampled": False,
         "workload_alive_all_samples": all(bool(row["workload_alive"]) for row in sample_rows),
+        "workload_execution": workload_execution_summary(rows),
     }
 
 
 def write_summary(env: ReportEnv, rows: ReportRows, verifier: VerifierOutputs, observe: ObserveOutputs) -> Path:
     summary = env.out / "summary.json"
     artifacts = [
-        env.serial.as_posix(), env.qemu_scan_before, env.qemu_scan_after, verifier.verifier_evidence.as_posix(),
-        verifier.verifier_log.as_posix(), verifier.partial_evidence.as_posix(), verifier.live_attach_proof.as_posix(),
-        verifier.partial_transcript.as_posix(), observe.observe_summary.as_posix(), observe.samples.as_posix(),
-        observe.daemon.as_posix(), observe.observe_transcript.as_posix(), verifier.ledger.as_posix(),
-        verifier.snapshot.as_posix(), verifier.rollback_transcript.as_posix(), verifier.refusals.as_posix(),
-        verifier.mutation_evidence.as_posix(),
+        env.serial.as_posix(), env.qemu_scan_before, env.qemu_scan_after, verifier.verifier_evidence.as_posix(), verifier.verifier_log.as_posix(),
+        verifier.partial_evidence.as_posix(), verifier.live_attach_proof.as_posix(), verifier.partial_transcript.as_posix(), observe.observe_summary.as_posix(),
+        observe.samples.as_posix(), observe.daemon.as_posix(), observe.observe_transcript.as_posix(), verifier.ledger.as_posix(),
+        verifier.snapshot.as_posix(), verifier.rollback_transcript.as_posix(), verifier.refusals.as_posix(), verifier.mutation_evidence.as_posix(),
     ]
     data = summary_payload(env, rows, artifacts, verifier)
     if env.git_dirty and "/unsafe-matrix-" not in env.out.as_posix():
