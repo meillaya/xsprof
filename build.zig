@@ -356,6 +356,17 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     runner_substrate_self_test.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
     runner_substrate_self_test.addArg("--self-test");
 
+    const runner_cleanliness_fixture_check = b.addSystemCommand(&.{"python3"});
+    runner_cleanliness_fixture_check.addFileArg(b.path("qa/runner_cleanliness_proof_check.py"));
+    runner_cleanliness_fixture_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/runner-cleanliness-proof",
+    });
+
+    const runner_cleanliness_self_test = b.addSystemCommand(&.{"python3"});
+    runner_cleanliness_self_test.addFileArg(b.path("qa/runner_cleanliness_proof_check.py"));
+    runner_cleanliness_self_test.addArg("--self-test");
+
     const benchmark_provenance_self_test = b.addSystemCommand(&.{"python3"});
     benchmark_provenance_self_test.addFileArg(b.path("qa/matrix_benchmark_provenance_check.py"));
     benchmark_provenance_self_test.addArg("--self-test");
@@ -397,6 +408,8 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&protected_core_telemetry_self_test.step);
     host_safe_gates.dependOn(&runner_substrate_fixture_check.step);
     host_safe_gates.dependOn(&runner_substrate_self_test.step);
+    host_safe_gates.dependOn(&runner_cleanliness_fixture_check.step);
+    host_safe_gates.dependOn(&runner_cleanliness_self_test.step);
     host_safe_gates.dependOn(&benchmark_self_test.step);
     host_safe_gates.dependOn(&benchmark_provenance_self_test.step);
     host_safe_gates.dependOn(&host_safe_matrix_cleanup.step);

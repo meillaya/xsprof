@@ -14,6 +14,7 @@
     "matrix_manifest",
     "daemon_events",
     "runner_substrate",
+    "runner_cleanliness",
     "artifacts",
     "benchmark_provenance",
     "privacy_scan",
@@ -70,6 +71,9 @@
       "$ref": "#/$defs/artifactRef"
     },
     "runner_substrate": {
+      "$ref": "#/$defs/artifactRef"
+    },
+    "runner_cleanliness": {
       "$ref": "#/$defs/artifactRef"
     },
     "artifacts": {
@@ -234,6 +238,7 @@
             "protected-environment-review",
             "rollback-proof",
             "runner-substrate-proof",
+            "runner-cleanliness-proof",
             "static-verification-log"
           ],
           "type": "string"

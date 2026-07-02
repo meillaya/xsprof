@@ -30,8 +30,8 @@ DEFAULT_DOCS: Final[tuple[Path, ...]] = (
     Path("docs/releases/governance-gate.md"),
     Path("docs/security/review-checklist.md"),
 )
-REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = tuple("""matrix manifest|matrix rows|bpf metadata|bpf skip json|daemon events|live summary|static verification logs|audit id|rollback id|vm marker|supported tuple|pre state|post state|rollback proof|cleanup proof|host refusal|benchmark provenance|evidence manifest|SHA-256 hashes|attestation status|runner substrate proof|runner class|runner group|runner labels|protected environment reviewer|run URL|QEMU path|QEMU version|/dev/kvm status|accel mode|kernel tuple|unavailable reasons|protected-environment-review.json|kernel BTF metadata unavailable|sched_ext kernel substrate unavailable""".split("|"))
-REQUIRED_DOC_TERMS: Final[tuple[str, ...]] = tuple("""workflow_dispatch|manual-vm-proof|vm-proof-bundle.tar.zst|protected environment|required reviewers|self-hosted|zig-scheduler-vm-proof|disposable-vm|release_eligible=false|not a release asset|not production approval|gh attestation verify|evidence-manifest.json|qa/evidence_manifest_check.py|qa/runner_substrate_proof_check.py|runner-substrate-proof.json""".split("|"))
+REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = tuple("""matrix manifest|matrix rows|bpf metadata|bpf skip json|daemon events|live summary|static verification logs|audit id|rollback id|vm marker|supported tuple|pre state|post state|rollback proof|cleanup proof|host refusal|benchmark provenance|evidence manifest|SHA-256 hashes|attestation status|runner substrate proof|runner cleanliness proof|JIT config|clean-machine boot|no-reuse evidence|removal receipt|runner class|runner group|runner labels|protected environment reviewer|run URL|QEMU path|QEMU version|/dev/kvm status|accel mode|kernel tuple|unavailable reasons|protected-environment-review.json|kernel BTF metadata unavailable|sched_ext kernel substrate unavailable""".split("|"))
+REQUIRED_DOC_TERMS: Final[tuple[str, ...]] = tuple("""workflow_dispatch|manual-vm-proof|vm-proof-bundle.tar.zst|protected environment|required reviewers|self-hosted|zig-scheduler-vm-proof|disposable-vm|release_eligible=false|not a release asset|not production approval|gh attestation verify|evidence-manifest.json|qa/evidence_manifest_check.py|qa/runner_substrate_proof_check.py|qa/runner_cleanliness_proof_check.py|runner-substrate-proof.json|runner-cleanliness-proof.json""".split("|"))
 FORBIDDEN_TRIGGER_RE: Final = re.compile(r"^\s*(push|pull_request|pull_request_target|schedule):", re.MULTILINE)
 FORBIDDEN_RELEASE_RE: Final = re.compile(
     r"(\bgh\s+release\b|actions/create-release|softprops/action-gh-release|upload-release-asset|release_eligible\s*[:=]\s*true|\bproduction[_ -]?ready\b|\bpublish release\b)",
@@ -155,8 +155,11 @@ def validate_workflow(path: Path) -> None:
     require("qa/evidence_manifest_check.py" in text, "workflow must validate the evidence manifest")
     require("schemas/control/evidence-manifest.v1.schema.json" in text, "workflow must include the evidence manifest schema")
     require("schemas/control/runner-substrate-proof.v1.schema.json" in text, "workflow must include the runner substrate proof schema")
+    require("schemas/control/runner-cleanliness-proof.v1.schema.json" in text, "workflow must include the runner cleanliness proof schema")
     require("qa/runner_substrate_proof_check.py" in text, "workflow must validate runner substrate proof")
+    require("qa/runner_cleanliness_proof_check.py" in text, "workflow must validate runner cleanliness proof")
     require("runner-substrate-proof.json" in text, "workflow must produce runner-substrate-proof.json")
+    require("runner-cleanliness-proof.json" in text, "workflow must produce runner-cleanliness-proof.json")
 
     for manifest_gate in (
         "manifest_outcome = runner_outcome",
@@ -167,8 +170,11 @@ def validate_workflow(path: Path) -> None:
         "'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED']",
         "PASS evidence manifest requires benchmark_provenance records",
         "runner_substrate_proof outcome is missing or unsupported",
+        "runner_cleanliness_proof outcome is missing or unsupported",
     ):
         require(contains(text, manifest_gate), f"workflow missing outcome-aware evidence manifest gate: {manifest_gate}")
+    for cleanliness_gate in tuple("""runner labels are not cleanliness proof|ZIGSCHED_NO_REUSE_EVIDENCE|ZIGSCHED_RUNNER_REMOVAL_RECEIPT|no_reuse_status = 'PASS'|removal_receipt = {'status': 'unavailable'}|outcome = 'PASS' if no_reuse_status == 'PASS' and removal_receipt['status'] == 'removed' else 'SKIP'""".split("|")):
+        require(contains(text, cleanliness_gate), f"workflow missing runner cleanliness gate: {cleanliness_gate}")
     for proof_gate in tuple("""protected-environment-review.json|reviewer_signal['reviewer_status'] != 'approved'|qemu_supports_kvm|qemu_version == ''|qemu_unavailable_reason = 'qemu-system-x86_64 version unavailable'|qemu['unavailable_reason'] = qemu_unavailable_reason|not release.startswith(expected_release)|config_sha256 == '' or config_sha256 == '0' * 64|not btf_available|not sched_ext_available|bpf_role != 'bpf-metadata'|outcome = 'PASS' if not unavailable else 'SKIP'""".split("|")):
         require(contains(text, proof_gate), f"workflow missing PASS substrate gate: {proof_gate}")
     require("release_eligible=false" in text, "workflow must keep release_eligible=false")

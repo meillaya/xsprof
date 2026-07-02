@@ -137,6 +137,7 @@ jobs:
             printf '%s\n' '- benchmark provenance: benchmark_provenance records for calibrated matrix rows when applicable'
             printf '%s\n' '- protected environment review: protected-environment-review.json with approved vm-proof-manual reviewer, exact non-release acknowledgement, run URL, and no release/production claim'
             printf '%s\n' '- runner substrate proof: runner-substrate-proof.json with runner class, runner group, runner labels, protected environment reviewer, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons'
+            printf '%s\n' '- runner cleanliness proof: runner-cleanliness-proof.json with JIT config or clean-machine boot/run identity, no-reuse evidence, removal receipt, run URL, and links to protected review plus runner substrate proof; labels alone are not cleanliness proof'
             printf '%s\n' '- evidence manifest: evidence/lab/manual-vm-proof/evidence-manifest.json with SHA-256 hashes, schema roles, and attestation status'
             printf '%s\n' '- host_mutation=false'
             printf '%s\n' '- release_eligible=false'
@@ -440,6 +441,94 @@ jobs:
             --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json \
             --schema schemas/control/runner-substrate-proof.v1.schema.json
 
+      - name: Capture protected runner cleanliness proof
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          out = Path('evidence/lab/manual-vm-proof/runner-cleanliness-proof.json')
+          protected_review = Path('evidence/lab/manual-vm-proof/protected-environment-review.json')
+          runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID']
+
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def ref(path, role):
+              return {'path': path.as_posix(), 'sha256': digest(path), 'schema_role': role}
+
+          def first_existing_env(*names):
+              for name in names:
+                  value = os.environ.get(name, '')
+                  if value != '':
+                      return value
+              return ''
+
+          runner_name = os.environ.get('RUNNER_NAME', 'github-actions-runner')
+          runner_group = os.environ.get('RUNNER_GROUP_NAME', 'configured-by-repository-owners')
+          labels = ['self-hosted', 'zig-scheduler-vm-proof', 'disposable-vm']
+          jit_hash = first_existing_env('ZIGSCHED_JIT_CONFIG_SHA256', 'ACTIONS_RUNNER_JIT_CONFIG_SHA256')
+          ephemeral_id = first_existing_env('ZIGSCHED_EPHEMERAL_INSTANCE_ID', 'RUNNER_TRACKING_ID')
+          boot_id_path = Path('/proc/sys/kernel/random/boot_id')
+          boot_id = boot_id_path.read_text().strip() if boot_id_path.is_file() else 'unavailable'
+          if len(jit_hash) == 64 and all(item in '0123456789abcdef' for item in jit_hash):
+              cleanliness_mode = {'kind': 'jit', 'jit_config_sha256': jit_hash}
+          elif ephemeral_id != '':
+              cleanliness_mode = {'kind': 'ephemeral', 'ephemeral_instance_id': ephemeral_id}
+          else:
+              cleanliness_mode = {'kind': 'clean_machine', 'clean_machine_boot_id': boot_id}
+          previous_runner_id = os.environ.get('ZIGSCHED_PREVIOUS_RUNNER_ID', 'unavailable')
+          current_runner_id = first_existing_env('ZIGSCHED_CURRENT_RUNNER_ID', 'RUNNER_TRACKING_ID')
+          if current_runner_id == '':
+              current_runner_id = runner_name + '-' + os.environ['GITHUB_RUN_ID']
+          no_reuse_claim = os.environ.get('ZIGSCHED_NO_REUSE_EVIDENCE', '')
+          no_reuse_status = 'PASS' if no_reuse_claim != '' and previous_runner_id != current_runner_id else 'REFUSE'
+          no_reuse_evidence = no_reuse_claim if no_reuse_claim != '' else 'runner labels are not cleanliness proof; provide ZIGSCHED_NO_REUSE_EVIDENCE from runner registration logs'
+          receipt_env = os.environ.get('ZIGSCHED_RUNNER_REMOVAL_RECEIPT', '')
+          receipt_path = Path(receipt_env) if receipt_env != '' else Path('')
+          removal_receipt = {'status': 'unavailable'}
+          if receipt_env != '' and receipt_path.is_file():
+              local_receipt = Path('evidence/lab/manual-vm-proof/runner-removal-receipt.txt')
+              local_receipt.write_bytes(receipt_path.read_bytes())
+              removal_receipt = {
+                  'status': 'removed',
+                  'removed_at': os.environ.get('ZIGSCHED_RUNNER_REMOVED_AT', '1970-01-01T00:00:00Z'),
+                  'receipt_path': local_receipt.as_posix(),
+                  'sha256': digest(local_receipt),
+              }
+          outcome = 'PASS' if no_reuse_status == 'PASS' and removal_receipt['status'] == 'removed' else 'SKIP'
+          proof = {
+              'schema': 'zig-scheduler/runner-cleanliness-proof/v1',
+              'proof_outcome': outcome,
+              'run_url': run_url,
+              'runner_identity': {
+                  'name': runner_name,
+                  'group': runner_group,
+                  'labels': labels,
+              },
+              'cleanliness_mode': cleanliness_mode,
+              'no_reuse_evidence': {
+                  'status': no_reuse_status,
+                  'previous_runner_id': previous_runner_id,
+                  'current_runner_id': current_runner_id,
+                  'evidence': no_reuse_evidence,
+              },
+              'removal_receipt': removal_receipt,
+              'protected_review': ref(protected_review, 'protected-environment-review'),
+              'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
+              'host_mutation': False,
+              'release_eligible': False,
+              'production_capacity_claim': False,
+          }
+          out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          PY
+          python3 qa/runner_cleanliness_proof_check.py \
+            --proof evidence/lab/manual-vm-proof/runner-cleanliness-proof.json
+
       - name: Create and validate evidence manifest
         env:
           INPUT_AUDIT_ID: ${{ inputs.audit_id }}
@@ -474,6 +563,7 @@ jobs:
           for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
               artifacts.append(ref(log, 'static-verification-log'))
           runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          runner_cleanliness = Path('evidence/lab/manual-vm-proof/runner-cleanliness-proof.json')
           matrix_manifest = json.loads((root / 'manifest.json').read_text())
           matrix_outcomes = []
           marker_values = []
@@ -490,11 +580,17 @@ jobs:
           if not matrix_outcomes:
               raise SystemExit('matrix manifest rows must include at least one outcome')
           runner_data = json.loads(runner_substrate.read_text())
+          cleanliness_data = json.loads(runner_cleanliness.read_text())
           runner_outcome = str(runner_data.get('proof_outcome', ''))
+          cleanliness_outcome = str(cleanliness_data.get('proof_outcome', ''))
           if runner_outcome not in {'PASS', 'SKIP', 'REFUSE'}:
               raise SystemExit('runner_substrate_proof outcome is missing or unsupported')
+          if cleanliness_outcome not in {'PASS', 'SKIP', 'REFUSE'}:
+              raise SystemExit('runner_cleanliness_proof outcome is missing or unsupported')
           if runner_outcome != 'PASS':
               manifest_outcome = runner_outcome
+          elif cleanliness_outcome != 'PASS':
+              manifest_outcome = cleanliness_outcome
           elif 'REFUSE' in matrix_outcomes:
               manifest_outcome = 'REFUSE'
           elif 'SKIP' in matrix_outcomes:
@@ -532,11 +628,12 @@ jobs:
               'matrix_manifest': ref(root / 'manifest.json', 'matrix-manifest'),
               'daemon_events': ref(root / 'daemon-events.jsonl', 'daemon-events'),
               'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
+              'runner_cleanliness': ref(runner_cleanliness, 'runner-cleanliness-proof'),
               'artifacts': artifacts,
               'benchmark_provenance': benchmark_provenance,
               'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts]},
               'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
-              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/protected_environment_review_check.py', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/protected-environment-review.v1.schema.json', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
+              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/protected_environment_review_check.py', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/runner_cleanliness_proof_check.py', 'qa/matrix_run_contract_check.py', 'schemas/control/protected-environment-review.v1.schema.json', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json', 'schemas/control/runner-cleanliness-proof.v1.schema.json'],
               'host_mutation': False,
               'release_eligible': False,
               'production_capacity_claim': False,
@@ -552,7 +649,7 @@ jobs:
           set -euo pipefail
           test -f evidence/lab/manual-vm-proof/evidence-manifest.json
           mkdir -p "$(dirname "$VM_PROOF_BUNDLE")"
-          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/protected-environment-review.v1.schema.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json)
+          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/protected-environment-review.v1.schema.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json schemas/control/runner-cleanliness-proof.v1.schema.json)
           if [ -f zig-out/bpf/zigsched_minimal.bpf.meta.json ]; then
             tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.meta.json)
           fi

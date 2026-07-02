@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from qa.evidence_manifest_check import JsonObject, JsonValue, ManifestError, load_json
 
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
-REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-manifest", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "runner-substrate-proof", "protected-environment-review"))
+REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-manifest", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"))
 
 
 class BundleCompareError(Exception):
@@ -61,7 +61,7 @@ def file_sha(path: Path) -> str:
 
 def refs_from_manifest(manifest: JsonObject) -> list[JsonObject]:
     refs: list[JsonObject] = []
-    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate"):
+    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate", "runner_cleanliness"):
         refs.append(obj(manifest.get(field), field))
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
@@ -147,12 +147,12 @@ def ref(path: Path, role: str) -> JsonObject:
 
 def write_bundle(root: Path, rows: tuple[str, ...] = ("live-backend", "workload-cpu-saturation"), bpf_text: str = "bpf") -> Path:
     write_json(root / "matrix.json", {"schema": "zig-scheduler/vm-harness-matrix-index/v1", "rows": [{"scenario_id": row} for row in rows], "host_mutation": False, "release_eligible": False})
-    for role in ("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "runner-substrate-proof", "protected-environment-review"):
+    for role in ("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"):
         write_json(root / f"{role}.json", {"schema": f"zig-scheduler/{role}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     _ = (root / "bpf.json").write_text(bpf_text + "\n")
     _ = (root / "daemon.jsonl").write_text('{"host_mutation": false}\n')
     manifest = root / "evidence-manifest.json"
-    write_json(manifest, {"schema": "zig-scheduler/evidence-manifest/v1", "outcome": "PASS", "audit_id": "AUD-20990101T000000Z-compare", "rollback_id": "RB-compare", "vm_marker": {"path": "/run/zig-scheduler-vm-lab.marker", "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(root / "bpf.json", "bpf-metadata"), "matrix_manifest": ref(root / "matrix.json", "matrix-manifest"), "daemon_events": ref(root / "daemon.jsonl", "daemon-events"), "runner_substrate": ref(root / "runner-substrate-proof.json", "runner-substrate-proof"), "artifacts": [ref(root / f"{role}.json", role) for role in ("protected-environment-review", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan")], "benchmark_provenance": {"status": "not_applicable", "reason": "comparison self-test", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(root / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify bundle --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/evidence_bundle_compare_check.py"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(manifest, {"schema": "zig-scheduler/evidence-manifest/v1", "outcome": "PASS", "audit_id": "AUD-20990101T000000Z-compare", "rollback_id": "RB-compare", "vm_marker": {"path": "/run/zig-scheduler-vm-lab.marker", "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(root / "bpf.json", "bpf-metadata"), "matrix_manifest": ref(root / "matrix.json", "matrix-manifest"), "daemon_events": ref(root / "daemon.jsonl", "daemon-events"), "runner_substrate": ref(root / "runner-substrate-proof.json", "runner-substrate-proof"), "runner_cleanliness": ref(root / "runner-cleanliness-proof.json", "runner-cleanliness-proof"), "artifacts": [ref(root / f"{role}.json", role) for role in ("protected-environment-review", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan")], "benchmark_provenance": {"status": "not_applicable", "reason": "comparison self-test", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(root / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify bundle --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/evidence_bundle_compare_check.py"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return manifest
 
 

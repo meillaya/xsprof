@@ -1,0 +1,43 @@
+{
+  "cleanliness_mode": {
+    "jit_config_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "kind": "jit"
+  },
+  "host_mutation": false,
+  "no_reuse_evidence": {
+    "current_runner_id": "runner-28560605183",
+    "evidence": "JIT runner registration was minted for this run; previous identity is none and labels are not used as cleanliness proof",
+    "previous_runner_id": "none",
+    "status": "PASS"
+  },
+  "production_capacity_claim": false,
+  "proof_outcome": "PASS",
+  "protected_review": {
+    "path": "fixtures/runner-substrate-proof/valid/protected-review.json",
+    "schema_role": "protected-environment-review",
+    "sha256": "7e595a90aa29631059ac4160a68ee323c3d0e2a25b6efd5cccaece5308d061a8"
+  },
+  "release_eligible": false,
+  "removal_receipt": {
+    "receipt_path": "fixtures/runner-cleanliness-proof/valid/removal-receipt.txt",
+    "removed_at": "2026-07-02T00:00:00Z",
+    "sha256": "96e16bb6e057814426b08d631fbac412b44c9b0ab6074b05ce9ae811ff00270e",
+    "status": "removed"
+  },
+  "run_url": "https://github.com/Meillaya/zig-scheduler/actions/runs/28560605183",
+  "runner_identity": {
+    "group": "vm-proof",
+    "labels": [
+      "self-hosted",
+      "zig-scheduler-vm-proof",
+      "disposable-vm"
+    ],
+    "name": "zigsched-proof-001"
+  },
+  "runner_substrate": {
+    "path": "fixtures/runner-substrate-proof/valid/protected-runner.json",
+    "schema_role": "protected-environment-review",
+    "sha256": "3c26eab87a4c05b5ba86e2c5baed75f948d9e36d4668e8bec99a4411e0f52b7c"
+  },
+  "schema": "zig-scheduler/runner-cleanliness-proof/v1"
+}

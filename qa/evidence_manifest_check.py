@@ -36,13 +36,13 @@ SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 AUDIT_RE: Final[re.Pattern[str]] = re.compile(r"^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$")
 ROLLBACK_RE: Final[re.Pattern[str]] = re.compile(r"^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TUPLE_RE: Final[re.Pattern[str]] = re.compile(r"^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$")
-FIELDS: Final[frozenset[str]] = frozenset(("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
+FIELDS: Final[frozenset[str]] = frozenset(("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "runner_cleanliness", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
 MARKER_FIELDS: Final[frozenset[str]] = frozenset(("path", "present", "checked_by"))
 BENCHMARK_NA_FIELDS: Final[frozenset[str]] = frozenset(("status", "reason", "applies_to_outcomes"))
 PRIVACY_FIELDS: Final[frozenset[str]] = frozenset(("status", "private_fields_found", "artifact_paths"))
 ATTEST_FIELDS: Final[frozenset[str]] = frozenset(("status", "workflow_uses", "verify_command", "retention_days"))
-REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof", "protected-environment-review"))
+REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"))
 PROTECTED_REVIEW_ROLE: Final[str] = "protected-environment-review"
 BPF_ROLES: Final[frozenset[str]] = frozenset(("bpf-metadata", "bpf-skip-json"))
 ATTEST_STATUSES: Final[frozenset[str]] = frozenset(("pending-post-run-github-attestation", "verified-by-operator"))
@@ -245,7 +245,7 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
         require(marker_present is True, "VM marker proof is missing")
     roles: set[str] = set()
     artifact_paths: list[tuple[Path, str]] = []
-    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate"):
+    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate", "runner_cleanliness"):
         value = data.get(field)
         role = validate_ref(value, field)
         roles.add(role)

@@ -15,7 +15,8 @@ import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Callable, Final
+from dataclasses import dataclass
+from typing import Callable, Final, Literal, TypeAlias
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -23,6 +24,8 @@ from qa.runner_substrate_proof_common import JsonObject, JsonValue, RunnerProofE
 
 SCHEMA: Final[str] = "zig-scheduler/runner-cleanliness-proof/v1"
 SCHEMA_PATH: Final[Path] = Path("schemas/control/runner-cleanliness-proof.v1.schema.json")
+DEFAULT_FIXTURES: Final[Path] = Path("fixtures/runner-cleanliness-proof")
+Mode: TypeAlias = Literal["proof", "fixtures", "self-test"]
 SAFE_PATH_RE: Final[re.Pattern[str]] = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$")
 SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 RUN_URL_RE: Final[re.Pattern[str]] = re.compile(r"^https://github\.com/.+/actions/runs/[0-9]+$")
@@ -32,8 +35,42 @@ MODE_FIELDS: Final[frozenset[str]] = frozenset(("kind", "jit_config_sha256", "cl
 NO_REUSE_FIELDS: Final[frozenset[str]] = frozenset(("status", "previous_runner_id", "current_runner_id", "evidence"))
 REMOVAL_FIELDS: Final[frozenset[str]] = frozenset(("status", "removed_at", "receipt_path", "sha256"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
+@dataclass(frozen=True, slots=True)
+class Args:
+    mode: Mode
+    proof: Path | None
+    fixtures: Path
+
+
 class RunnerCleanlinessError(Exception):
     """Raised when runner-cleanliness proof is malformed or unsafe."""
+
+
+def parse_args(argv: list[str]) -> Args:
+    if argv == ["--self-test"]:
+        return Args("self-test", None, DEFAULT_FIXTURES)
+    proof: Path | None = None
+    fixtures = DEFAULT_FIXTURES
+    mode: Mode = "fixtures"
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--proof":
+            index += 1
+            if index >= len(argv):
+                raise RunnerCleanlinessError("--proof requires a path")
+            proof = Path(argv[index])
+            mode = "proof"
+        elif arg == "--fixtures":
+            index += 1
+            if index >= len(argv):
+                raise RunnerCleanlinessError("--fixtures requires a path")
+            fixtures = Path(argv[index])
+            mode = "fixtures"
+        else:
+            raise RunnerCleanlinessError("usage: runner_cleanliness_proof_check.py --self-test | --proof <path> | --fixtures <dir>")
+        index += 1
+    return Args(mode, proof, fixtures)
 
 
 def require(condition: bool, message: str) -> None:
@@ -107,6 +144,8 @@ def validate_identity(value: JsonValue | None) -> None:
     _ = text(identity.get("group"), "runner_identity.group")
     labels = identity.get("labels")
     require(isinstance(labels, list) and bool(labels), "runner_identity.labels must be a non-empty list")
+    for index, item in enumerate(labels):
+        _ = text(item, f"runner_identity.labels[{index}]")
 
 
 def validate_no_reuse(value: JsonValue | None, outcome: str) -> None:
@@ -157,6 +196,24 @@ def validate_proof(path: Path) -> None:
     validate_ref(data.get("runner_substrate"), "runner-substrate-proof", "runner_substrate")
 
 
+
+def validate_fixtures(root: Path) -> None:
+    valid_paths = sorted((root / "valid").glob("*.json"))
+    require(bool(valid_paths), f"missing valid runner cleanliness fixtures under {root / 'valid'}")
+    for valid in valid_paths:
+        validate_proof(valid)
+        print(f"PASS runner cleanliness fixture: {valid}")
+    invalid_root = root / "invalid"
+    invalid_paths = sorted(invalid_root.glob("*.json"))
+    require(bool(invalid_paths), f"missing invalid runner cleanliness fixtures under {invalid_root}")
+    for invalid in invalid_paths:
+        try:
+            validate_proof(invalid)
+        except (RunnerCleanlinessError, RunnerProofError) as exc:
+            print(f"PASS reject invalid runner cleanliness fixture {invalid.name}: {exc}")
+            continue
+        raise RunnerCleanlinessError(f"expected invalid runner cleanliness fixture rejection: {invalid}")
+
 def write_json(path: Path, value: JsonObject) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     _ = path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
@@ -202,6 +259,7 @@ def expect_reject(path: Path, label: str) -> None:
 
 
 def self_test() -> None:
+    validate_fixtures(DEFAULT_FIXTURES)
     root = Path("evidence/lab/runner-cleanliness-self-test")
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True)
@@ -228,14 +286,16 @@ def self_test() -> None:
 
 def main(argv: list[str]) -> int:
     try:
-        if argv == ["--self-test"]:
+        args = parse_args(argv)
+        if args.mode == "self-test":
             self_test()
             return 0
-        if len(argv) == 2 and argv[0] == "--proof":
-            validate_proof(Path(argv[1]))
-            print(f"PASS runner cleanliness proof: {argv[1]}")
+        if args.mode == "proof" and args.proof is not None:
+            validate_proof(args.proof)
+            print(f"PASS runner cleanliness proof: {args.proof}")
             return 0
-        raise RunnerCleanlinessError("usage: runner_cleanliness_proof_check.py --self-test | --proof <path>")
+        validate_fixtures(args.fixtures)
+        return 0
     except (OSError, RunnerProofError, RunnerCleanlinessError) as exc:
         print(f"FAIL runner cleanliness proof: {exc}", file=sys.stderr)
         return 1

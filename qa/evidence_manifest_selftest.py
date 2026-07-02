@@ -34,7 +34,7 @@ def ref(path: Path, role: str) -> JsonObject:
 
 def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
     rows = root / "rows" / "fixture-pass"
-    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof", "protected-environment-review"):
+    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"):
         write_json(rows / f"{name}.json", {"schema": f"zig-scheduler/{name}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     write_json(
         rows / "protected-environment-review.json",
@@ -78,17 +78,17 @@ def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Pat
     write_json(bpf, {"schema": "zig-scheduler/bpf-skip/v1", "host_mutation": False})
     manifest = root / "manifest.json"
     write_json(manifest, {"schema": "zig-scheduler/vm-harness-matrix-index/v1", "host_mutation": False, "release_eligible": False})
-    return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json", rows / "protected-environment-review.json"
+    return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json", rows / "runner-cleanliness-proof.json", rows / "protected-environment-review.json"
 
 
 def good_manifest(root: Path, *, outcome: str = "PASS", benchmark_applicable: bool = True) -> Path:
-    rows, log, daemon, bpf, manifest, runner, review = write_artifacts(root)
+    rows, log, daemon, bpf, manifest, runner, cleanliness, review = write_artifacts(root)
     out = root / "evidence-manifest.json"
     benchmark: JsonValue = [ref(rows / "benchmark.json", "benchmark-provenance")]
     if not benchmark_applicable:
         benchmark = {"status": "not_applicable", "reason": "live proof refused before benchmark artifacts were produced", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}
     marker_present = outcome == "PASS"
-    write_json(out, {"schema": SCHEMA, "outcome": outcome, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": marker_present, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "artifacts": [ref(review, "protected-environment-review"), ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": benchmark, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(out, {"schema": SCHEMA, "outcome": outcome, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": marker_present, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "runner_cleanliness": ref(cleanliness, "runner-cleanliness-proof"), "artifacts": [ref(review, "protected-environment-review"), ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": benchmark, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return out
 
 
