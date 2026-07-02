@@ -34,10 +34,10 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
     for seq, event in enumerate((rows.before, rows.register, rows.unregister)):
         source_event = str(event.get("event") or f"sample-{seq}")
         ops = str(event.get("ops") or "none")
-        if ops == "unavailable":
-            ops = "none"
+        ops = "none" if ops == "unavailable" else ops
         state = str(event.get("state") or ("enabled" if ops == "zigsched_minimal" else "disabled"))
         events_text = str(event.get("events") or "")
+        nr_rejected = counter_fact(events_text, "nr_rejected")
         cgroup_digest = observed_digest(event, source_event)
         cgroup_status = observed_cgroup_status(event, source_event)
         sample_rows.append({
@@ -52,9 +52,9 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
             "events": fact(events_text),
             "scheduler_events": fact(events_text),
             "events_hash": hashlib.sha256(events_text.encode()).hexdigest() if events_text else "unavailable",
-            "nr_rejected": counter_fact(events_text, "nr_rejected"),
+            "nr_rejected": nr_rejected,
             "debug_dump": {"status": "missing", "value": "unavailable"},
-            "policy_counters": {
+            "policy_counters": nr_rejected if nr_rejected["status"] != "present" else {
                 "nr_rejected": counter_value(events_text, "nr_rejected"),
                 "dispatch_failed": counter_value(events_text, "dispatch_failed"),
                 "fallback": counter_value(events_text, "fallback"),

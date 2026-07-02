@@ -12,11 +12,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "vm"))
+
 from qa.runtime_sample_common import JsonObject, require_object
 from qa.runtime_sample_core import good_sample
+from qa.vm.microvm_report_summary import build_sample_rows
+from qa.vm.microvm_report_types import ReportRows
 
 SELF_ROOT: Final[Path] = Path("evidence/lab/protected-core-telemetry-self-test")
 CGROUP_SCENARIO: Final[str] = "workload-cgroup-weight-quota"
@@ -53,6 +58,41 @@ def write_sample(path: Path, sample: JsonObject) -> Path:
     return path
 
 
+def producer_event(source: str, events: str) -> JsonObject:
+    return {
+        "event": source,
+        "ops": "zigsched_minimal" if source == "register" else "none",
+        "state": "enabled" if source == "register" else "disabled",
+        "events": events,
+        "enable_seq": "7",
+        "cgroup_membership_digest": "a" * 64,
+        "cgroup_membership_status": "present",
+        "workload_alive": True,
+    }
+
+
+def producer_rows(before_events: str, register_events: str, unregister_events: str) -> list[JsonObject]:
+    rows = ReportRows(
+        boot={},
+        tuple_row={},
+        workload={},
+        workload_executions=(),
+        mutation_rows=(),
+        before=producer_event("before", before_events),
+        register=producer_event("register", register_events),
+        unregister=producer_event("unregister", unregister_events),
+        stale_refusal={},
+        duplicate_refusal={},
+    )
+    return build_sample_rows(rows, "b" * 64)
+
+
+def assert_unavailable_policy_counters(row: JsonObject, label: str) -> None:
+    counters = require_object(row, "policy_counters", label)
+    if counters.get("status") != "unknown" or counters.get("value") != "unavailable":
+        raise AssertionError(f"{label} emitted fake policy counters: {counters}")
+
+
 def run_self_test(checks: TelemetrySelfTest) -> None:
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
     good = write_sample(SELF_ROOT / "good.jsonl", good_sample())
@@ -79,6 +119,16 @@ def run_self_test(checks: TelemetrySelfTest) -> None:
         unavailable_metrics[field] = {"status": "unknown", "value": "unavailable"}
     checks.validate_input(write_sample(SELF_ROOT / "explicit-unavailable-metrics.jsonl", unavailable_metrics), "live-backend")
     print("PASS accept explicit unavailable sample_loss scheduler_counters fairness")
+    producer_unavailable = producer_rows("", "unavailable", "fallback=0")
+    for row, label in zip(producer_unavailable, ("empty events", "unavailable events", "event text without nr_rejected"), strict=True):
+        assert_unavailable_policy_counters(row, label)
+    checks.validate_input(write_sample(SELF_ROOT / "producer-unavailable-counters.jsonl", producer_unavailable[0]), "live-backend")
+    producer_present = producer_rows("", "nr_rejected=3 dispatch_failed=4 fallback=5 fatal=6", "")
+    counters = require_object(producer_present[1], "policy_counters", "producer present events")
+    if counters != {"nr_rejected": 3, "dispatch_failed": 4, "fallback": 5, "fatal": 6}:
+        raise AssertionError(f"producer present events lost numeric counters: {counters}")
+    checks.validate_input(write_sample(SELF_ROOT / "producer-present-counters.jsonl", producer_present[1]), "live-backend")
+    print("PASS producer policy counters follow event counter availability")
     for field, label in (("fairness", "missing fairness"), ("sample_loss", "missing sample loss"), ("scheduler_counters", "missing scheduler counters")):
         sample = good_sample()
         del sample[field]

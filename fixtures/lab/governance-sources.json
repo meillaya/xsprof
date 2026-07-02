@@ -396,7 +396,7 @@
       "path": "qa/protected_core_telemetry_selftest.py",
       "purpose": "protected core runtime telemetry self-test fixtures",
       "required": true,
-      "sha256": "647778dc2980318f6c6c16d5b5228c8fb81fd49ecbc6c6e9897e2858454aaf3c"
+      "sha256": "4cbf6ba1217ff59d27ee218e1f87c5ecf4612a2f8b3893fac2cf028870148004"
     },
     {
       "path": "qa/no_frontend_root.sh",
