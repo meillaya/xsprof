@@ -1,0 +1,3 @@
+Surface: CLI validator rerun with source git context
+Invocation: (cd /home/mei/projects/zig/zig-scheduler/artifacts/task-8-final-qemu-rerun/extracted && GIT_DIR=/home/mei/projects/zig/zig-scheduler/.git/worktrees/protected-multi-row-vm-scheduler-proof GIT_WORK_TREE=/home/mei/projects/zig/zig-scheduler/../zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof python3 /home/mei/projects/zig/zig-scheduler/../zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof/qa/live_bundle_freshness_check.py --bundle evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/summary.json)
+PASS live bundle freshness: evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/summary.json
