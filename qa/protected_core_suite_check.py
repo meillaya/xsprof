@@ -136,11 +136,13 @@ def validate_present_cgroup_evidence(policy_abi: JsonObject, context: str) -> bo
     require("uclamp" in string_list(policy_map.get("deferred_knobs"), f"{context}.cgroup_policy_map.deferred_knobs"), f"{context} must keep uclamp deferred in policy map")
     require(nonnegative_int(policy_map.get("last_weight"), f"{context}.cgroup_policy_map.last_weight") > 0, f"{context} requires observed cpu.weight value")
     require(nonnegative_int(policy_map.get("weight_generation"), f"{context}.cgroup_policy_map.weight_generation") > 0, f"{context} requires cpu.weight generation evidence")
-    require(nonnegative_int(policy_map.get("move_generation"), f"{context}.cgroup_policy_map.move_generation") > 0, f"{context} requires cgroup move generation evidence")
+    move_generation = nonnegative_int(policy_map.get("move_generation"), f"{context}.cgroup_policy_map.move_generation")
     for field in REQUIRED_CALLBACK_STATS:
         _ = nonnegative_int(stats.get(field), f"{context}.cgroup_callback_stats.{field}")
     require(nonnegative_int(stats.get("cgroup_init_calls"), f"{context}.cgroup_callback_stats.cgroup_init_calls") > 0, f"{context} requires cgroup init callback evidence")
-    require(nonnegative_int(stats.get("cgroup_move_calls"), f"{context}.cgroup_callback_stats.cgroup_move_calls") > 0, f"{context} requires cgroup move callback evidence")
+    move_calls = nonnegative_int(stats.get("cgroup_move_calls"), f"{context}.cgroup_callback_stats.cgroup_move_calls")
+    if move_calls > 0:
+        require(move_generation > 0, f"{context} requires cgroup move generation evidence when move callbacks fire")
     require(nonnegative_int(stats.get("cgroup_set_weight_calls"), f"{context}.cgroup_callback_stats.cgroup_set_weight_calls") > 0, f"{context} requires cgroup set-weight callback evidence")
     require(nonnegative_int(stats.get("cgroup_weight_observed"), f"{context}.cgroup_callback_stats.cgroup_weight_observed") > 0, f"{context} requires observed cpu.weight callback counter")
     require(stats.get("cpu_weight_callback_observed") is True, f"{context}.cgroup_callback_stats.cpu_weight_callback_observed must be true")

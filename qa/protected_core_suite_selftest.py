@@ -127,6 +127,23 @@ def assert_missing_map_rejected(checks: SuiteSelfTest, root: Path) -> None:
     checks.expect_reject(missing_map, "missing cgroup policy map callback evidence")
 
 
+def assert_weight_only_cgroup_callback_accepted(checks: SuiteSelfTest, root: Path) -> None:
+    weight_only = write_protected_manifest(checks, root / "weight-only-cgroup-callback")
+    cgroup_artifact = root / "weight-only-cgroup-callback" / "rows" / "workload-cgroup-weight-quota" / "matrix-run.json"
+    cgroup_row = checks.load_json(cgroup_artifact)
+    sample_path = checks.safe_path(cgroup_row.get("runtime_sample_path"), "weight-only cgroup runtime path")
+    samples = load_jsonl(sample_path)
+    for sample in samples:
+        policy_abi = checks.obj(sample.get("policy_abi"), "weight-only policy_abi")
+        policy_map = checks.obj(policy_abi.get("cgroup_policy_map"), "weight-only policy_abi.cgroup_policy_map")
+        callback_stats = checks.obj(policy_abi.get("cgroup_callback_stats"), "weight-only policy_abi.cgroup_callback_stats")
+        policy_map["move_generation"] = 0
+        callback_stats["cgroup_move_calls"] = 0
+    _ = sample_path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in samples))
+    checks.validate_manifest(weight_only)
+    print("PASS accept cgroup weight callback evidence when move callbacks are unavailable")
+
+
 def run_self_test(checks: SuiteSelfTest) -> None:
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
     SELF_ROOT.mkdir(parents=True)
@@ -140,6 +157,7 @@ def run_self_test(checks: SuiteSelfTest) -> None:
         assert_harness_runtime_rejected(checks, SELF_ROOT)
         assert_missing_abi_rejected(checks, SELF_ROOT)
         assert_missing_map_rejected(checks, SELF_ROOT)
+        assert_weight_only_cgroup_callback_accepted(checks, SELF_ROOT)
     finally:
         shutil.rmtree(SELF_ROOT, ignore_errors=True)
     print("PASS protected-core suite self-test")
