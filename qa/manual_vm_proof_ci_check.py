@@ -30,7 +30,7 @@ DEFAULT_DOCS: Final[tuple[Path, ...]] = (
     Path("docs/releases/governance-gate.md"),
     Path("docs/security/review-checklist.md"),
 )
-REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = tuple("""matrix manifest|matrix rows|bpf metadata|bpf skip json|daemon events|live summary|static verification logs|audit id|rollback id|vm marker|supported tuple|pre state|post state|rollback proof|cleanup proof|host refusal|benchmark provenance|evidence manifest|SHA-256 hashes|attestation status|runner substrate proof|runner cleanliness proof|JIT config|clean-machine boot|no-reuse evidence|removal receipt|runner class|runner group|runner labels|protected environment reviewer|run URL|QEMU path|QEMU version|/dev/kvm status|accel mode|kernel tuple|unavailable reasons|protected-environment-review.json|kernel BTF metadata unavailable|sched_ext kernel substrate unavailable""".split("|"))
+REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = tuple("""matrix manifest|matrix rows|bpf metadata|bpf skip json|daemon events|live summary|static verification logs|audit id|rollback id|vm marker|supported tuple|pre state|post state|rollback proof|cleanup proof|host refusal|benchmark provenance|evidence manifest|SHA-256 hashes|attestation status|runner substrate proof|runner cleanliness proof|JIT config|clean-machine boot|no-reuse evidence|removal receipt|runner class|runner group|runner labels|protected environment reviewer|run URL|QEMU path|QEMU version|/dev/kvm status|accel mode|kernel tuple|unavailable reasons|protected-environment-review.json|kernel BTF metadata unavailable|sched_ext kernel substrate unavailable|protected-core suite|workload-cpu-saturation|workload-cgroup-weight-quota|exactly one latency/churn row""".split("|"))
 REQUIRED_DOC_TERMS: Final[tuple[str, ...]] = tuple("""workflow_dispatch|manual-vm-proof|vm-proof-bundle.tar.zst|protected environment|required reviewers|self-hosted|zig-scheduler-vm-proof|disposable-vm|release_eligible=false|not a release asset|not production approval|gh attestation verify|evidence-manifest.json|qa/evidence_manifest_check.py|qa/runner_substrate_proof_check.py|qa/runner_cleanliness_proof_check.py|runner-substrate-proof.json|runner-cleanliness-proof.json""".split("|"))
 FORBIDDEN_TRIGGER_RE: Final = re.compile(r"^\s*(push|pull_request|pull_request_target|schedule):", re.MULTILINE)
 FORBIDDEN_RELEASE_RE: Final = re.compile(
@@ -181,6 +181,13 @@ def validate_workflow(path: Path) -> None:
     require("production_capacity_claim=false" in text, "workflow must keep production_capacity_claim=false")
     require("host_mutation=false" in text, "workflow must require host_mutation=false evidence")
     require("zig build vm-harness-matrix" in text, "workflow must run the VM matrix proof surface")
+    require("--suite protected-core" in text, "workflow must run the protected-core suite")
+    require("--scenario live-backend" not in text, "workflow must not use the old single live-backend scenario invocation")
+    for protected_row in ("live-backend", "workload-cpu-saturation", "workload-cgroup-weight-quota"):
+        require(contains(text, protected_row), f"workflow missing protected-core PASS row requirement: {protected_row}")
+    require("workload-interactive-latency" in text and "workload-scheduler-affinity-churn" in text, "workflow must account for exactly one latency/churn row")
+    require("protected_core_pass" in text, "workflow must gate PASS on protected-core row outcomes")
+    require("exactly one latency/churn row" in text, "workflow must explicitly require exactly one latency/churn row")
     require("manual_vm_proof_ci_check.py" in text, "workflow must self-validate its static safety contract")
     require("release" not in lowered or FORBIDDEN_RELEASE_RE.search(text) is None, "workflow contains forbidden release or production claim")
     for artifact in REQUIRED_ARTIFACTS:

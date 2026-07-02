@@ -95,7 +95,7 @@ jobs:
           set +e
           zig build vm-harness-matrix --summary all -- \
             --mode vm-required \
-            --scenario live-backend \
+            --suite protected-core \
             --out evidence/lab/matrix/manual-vm-proof \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix.log
           matrix_rc=${PIPESTATUS[0]}
@@ -107,7 +107,8 @@ jobs:
             --docs docs/control \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/matrix-contract.log
           if [ "$matrix_rc" -ne 0 ]; then
-            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"' evidence/lab/matrix/manual-vm-proof/rows/live-backend >/dev/null
+            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"\|"outcome"[[:space:]]*:[[:space:]]*"INCIDENT"\|"outcome"[[:space:]]*:[[:space:]]*"FAIL"' evidence/lab/matrix/manual-vm-proof/rows >/dev/null
+            grep -R '"reason"[[:space:]]*:[[:space:]]*"[^"]' evidence/lab/matrix/manual-vm-proof >/dev/null
           fi
 
       - name: Assert required proof provenance files
@@ -125,6 +126,7 @@ jobs:
             printf '%s%s\n' '- supported tuple: ' "$INPUT_SUPPORTED_TUPLE"
             printf '%s\n' '- matrix manifest: evidence/lab/matrix/manual-vm-proof/manifest.json'
             printf '%s\n' '- matrix rows: evidence/lab/matrix/manual-vm-proof/rows/*/matrix-run.json'
+            printf '%s\n' '- protected-core suite: live-backend, workload-cpu-saturation, workload-cgroup-weight-quota, and exactly one latency/churn row (workload-interactive-latency or workload-scheduler-affinity-churn)'
             printf '%s\n' '- BPF metadata: zig-out/bpf/zigsched_minimal.bpf.meta.json'
             printf '%s\n' '- BPF SKIP JSON: zig-out/bpf/zigsched_minimal.bpf.skip.json when object metadata is unavailable'
             printf '%s\n' '- daemon events: per-row daemon-events.jsonl or explicit SKIP/REFUSE evidence'
@@ -145,6 +147,13 @@ jobs:
           } > evidence/lab/manual-vm-proof/provenance-requirements.txt
           test -f evidence/lab/matrix/manual-vm-proof/manifest.json
           find evidence/lab/matrix/manual-vm-proof/rows -name matrix-run.json -print -quit | grep -q .
+          test -f evidence/lab/matrix/manual-vm-proof/rows/live-backend/matrix-run.json
+          test -f evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/matrix-run.json
+          test -f evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/matrix-run.json
+          latency_rows=0
+          [ -f evidence/lab/matrix/manual-vm-proof/rows/workload-interactive-latency/matrix-run.json ] && latency_rows=$((latency_rows + 1))
+          [ -f evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/matrix-run.json ] && latency_rows=$((latency_rows + 1))
+          test "$latency_rows" -eq 1
           if [ ! -f zig-out/bpf/zigsched_minimal.bpf.meta.json ] && [ ! -f zig-out/bpf/zigsched_minimal.bpf.skip.json ]; then
             echo "missing BPF metadata or SKIP JSON" >&2
             exit 1
@@ -562,21 +571,46 @@ jobs:
               artifacts.append(ref(row_dir / 'privacy-scan.json', 'privacy-scan'))
           for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
               artifacts.append(ref(log, 'static-verification-log'))
+          for row_log in sorted((root / 'rows').glob('*/*.txt')):
+              artifacts.append(ref(row_log, 'static-verification-log'))
           runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
           runner_cleanliness = Path('evidence/lab/manual-vm-proof/runner-cleanliness-proof.json')
           matrix_manifest = json.loads((root / 'manifest.json').read_text())
           matrix_outcomes = []
           marker_values = []
+          row_outcomes = {}
+          row_reasons = {}
           for entry in matrix_manifest.get('rows', []):
+              scenario_id = str(entry.get('scenario_id', ''))
               outcome = str(entry.get('outcome', ''))
-              if outcome:
-                  matrix_outcomes.append(outcome)
+              reason = str(entry.get('reason', ''))
+              if scenario_id == '' or outcome == '':
+                  raise SystemExit('matrix manifest rows must include scenario_id and outcome')
+              if scenario_id in row_outcomes:
+                  raise SystemExit('matrix manifest rows must not duplicate protected-core scenarios')
+              row_outcomes[scenario_id] = outcome
+              row_reasons[scenario_id] = reason
+              matrix_outcomes.append(outcome)
               artifact_path = Path(str(entry.get('artifact_path', '')))
               if artifact_path.is_file():
                   row_data = json.loads(artifact_path.read_text())
                   marker = row_data.get('vm_marker', {})
                   if isinstance(marker, dict) and isinstance(marker.get('present'), bool):
                       marker_values.append(marker['present'])
+          required_rows = {'live-backend', 'workload-cpu-saturation', 'workload-cgroup-weight-quota'}
+          latency_or_churn_rows = {'workload-interactive-latency', 'workload-scheduler-affinity-churn'}
+          actual_rows = set(row_outcomes)
+          selected_latency_rows = actual_rows & latency_or_churn_rows
+          if not required_rows.issubset(actual_rows):
+              raise SystemExit('protected-core suite is missing a required row')
+          if len(selected_latency_rows) != 1:
+              raise SystemExit('protected-core suite requires exactly one latency/churn row')
+          if actual_rows != required_rows | selected_latency_rows:
+              raise SystemExit('protected-core suite packaged unexpected row(s)')
+          for scenario_id, outcome in row_outcomes.items():
+              if outcome != 'PASS' and row_reasons.get(scenario_id, '') == '':
+                  raise SystemExit('non-PASS protected-core row must include an explicit reason')
+          protected_core_pass = all(row_outcomes[item] == 'PASS' for item in required_rows | selected_latency_rows)
           if not matrix_outcomes:
               raise SystemExit('matrix manifest rows must include at least one outcome')
           runner_data = json.loads(runner_substrate.read_text())
@@ -597,7 +631,7 @@ jobs:
               manifest_outcome = 'SKIP'
           elif any(item in {'FAIL', 'INCIDENT', 'BLOCKED'} for item in matrix_outcomes):
               manifest_outcome = 'BLOCKED'
-          elif all(item == 'PASS' for item in matrix_outcomes):
+          elif protected_core_pass:
               manifest_outcome = 'PASS'
           else:
               raise SystemExit('matrix manifest rows contain unsupported outcome values')

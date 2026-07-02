@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "d9051738a5b11b2a3decc6cf680ab3bec15265ef7d7cd6fcf397d937a4e827a5"
+      "sha256": "883b45e9d3d663c1c0e91109e5fb7bc11d533e8da3561fa553bea14a4f4009dd"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "1da17d0fa5cb0262b67b32caf936d663851ec88fabeb0a4955c10bdd73c723e8"
+      "sha256": "111823634291f7dc5ef168965bf00c85758bba248f663fb4a0fb7b8037006160"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -96,7 +96,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "0a4ff4ffdbac6c707a565a78f85eb452f66cba67c190178e781d444e82312e38"
+      "sha256": "6f5013e1d4ede4e89a24696431492d3e4278578efecb424416c68bcb42b2b282"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -120,13 +120,13 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "0e8e6e265932b301f66f15f9639205f90d5fb8dac444bd42e08a083ff8cd0a34"
+      "sha256": "40357b605dd2cbdaeecc43993d3a4a8ca28d5bb4eb1b625ec5c81e3d6e9cad69"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "591f596059585026024735566e8758997a4dd47491c9b6f3b94323453e4a3eec"
+      "sha256": "323950a6e5722f401394437af81b165159d24b7a01670a483febbe1c518eb2b1"
     },
     {
       "path": "docs/security/threat-model.md",
@@ -336,13 +336,13 @@
       "path": "qa/manual_vm_proof_ci_check.py",
       "purpose": "manual VM proof workflow and provenance static checker",
       "required": true,
-      "sha256": "e75d6ae5bd703e0520b9747e325b3009d0acfce0309610973397b652f9e9a1ae"
+      "sha256": "d03e1f2082c060150579f7a5236ab2181a2b039cb5c722a9e41994ddf8e85731"
     },
     {
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "dbea4f1c8beb4ae4b79f96cb314ad9c97c47c5f6216be3152e0d39a2b7735942"
+      "sha256": "66a18adeff7ede21baf26ff210416c43a5cc635d934f2f59f2d0ebabc98500f1"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",

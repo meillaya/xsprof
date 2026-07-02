@@ -112,16 +112,16 @@ On runners where QEMU KVM cannot initialize because of local resource limits, th
 
 The manual lane is intentionally reviewer-gated and isolated:
 
-The live backend matrix invocation used by the protected lane is:
+The protected-core suite invocation used by the protected lane is:
 
 ```bash
-zig build vm-harness-matrix -- \
+zig build vm-harness-matrix --summary all -- \
   --mode vm-required \
-  --scenario live-backend \
+  --suite protected-core \
   --out evidence/lab/matrix/<run-id>
 ```
 
-That command is not a default CI command. It is valid only after protected-runner prerequisites are satisfied; otherwise the lane must emit `SKIP` or `REFUSE` evidence with `host_mutation=false` and package the failure-closed artifacts for review.
+That command is not a default CI command. It is valid only after protected-runner prerequisites are satisfied; otherwise the lane must emit truthful `SKIP`, `REFUSE`, `INCIDENT`, or `FAIL` row evidence, or a `BLOCKED` bundle-level evidence manifest, with `host_mutation=false` and package the failure-closed artifacts for review. The protected-core suite must package `live-backend`, `workload-cpu-saturation`, `workload-cgroup-weight-quota`, and exactly one latency/churn row (`workload-interactive-latency` or `workload-scheduler-affinity-churn`). A PASS evidence manifest requires all selected protected-core rows to PASS; missing prerequisite rows must carry explicit reasons and remain non-release, non-production lab evidence.
 
 - GitHub environment: `vm-proof-manual`, configured by repository owners as a protected environment with required reviewers and branch/tag restrictions before use.
 - Runner: self-hosted labels `self-hosted`, `zig-scheduler-vm-proof`, and `disposable-vm`; hosted runners such as `ubuntu-latest` are not acceptable for this lane.
