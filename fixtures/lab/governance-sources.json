@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "33389f03532859d3f64180b051b76bcf06dd583d51ea0615effad29b019efdcb"
+      "sha256": "d01f6aa482ef94e82ab08d71642f9fb56886efd725d6ca9892cac6886d1fe575"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -378,13 +378,25 @@
       "path": "qa/protected_core_suite_check.py",
       "purpose": "protected core matrix suite validator",
       "required": true,
-      "sha256": "7d2a1ec45ff1105b2e290c9a62fb4af1292fc1068746b75f022a9f68d7e1776a"
+      "sha256": "12f984e39d4a7eb695e6d4af30d40e3f4910b162cedcdacfc1faf5448d3f091c"
+    },
+    {
+      "path": "qa/protected_core_suite_selftest.py",
+      "purpose": "protected core matrix suite self-test fixtures",
+      "required": true,
+      "sha256": "f352f758889237b914e17dfe499de28c89dacb70958e8a796b9a6e56b0373c34"
     },
     {
       "path": "qa/protected_core_telemetry_check.py",
       "purpose": "protected core runtime telemetry normalization validator",
       "required": true,
-      "sha256": "62b43f5b1e7339631ffb7d61352241cfaa5233dd8ae5eb46998e6568dc380390"
+      "sha256": "aed2a70a5e0429a96fce9f435fac2f5a5c493921dabb47e845d4ba7061d2c811"
+    },
+    {
+      "path": "qa/protected_core_telemetry_selftest.py",
+      "purpose": "protected core runtime telemetry self-test fixtures",
+      "required": true,
+      "sha256": "647778dc2980318f6c6c16d5b5228c8fb81fd49ecbc6c6e9897e2858454aaf3c"
     },
     {
       "path": "qa/no_frontend_root.sh",

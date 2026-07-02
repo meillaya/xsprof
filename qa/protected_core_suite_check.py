@@ -9,15 +9,13 @@
 """Validate protected-core matrix suite shape and row-local proof links."""
 from __future__ import annotations
 
-import json
-import shutil
 import sys
 from pathlib import Path
 from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from qa.matrix_run_contract_check import JsonObject, JsonValue, load_json, write_manifest_self_test_pack
+from qa.matrix_run_contract_check import JsonObject, JsonValue, load_json
 from qa.runtime_sample_common import RuntimeSampleError, load_jsonl
 from qa.protected_core_telemetry_check import ProtectedCoreTelemetryError, validate_vm_captured_input
 
@@ -197,101 +195,19 @@ def validate_manifest(path: Path) -> None:
             validate_cgroup_abi_linkage(row, artifact_path.as_posix())
 
 
-def mark_self_test_row_vm_captured(row_path: Path) -> None:
-    row = load_json(row_path)
-    row["evidence_mode"] = "vm-live"
-    row["vm_marker"] = {"required": True, "present": True, "path": "/run/zig-scheduler-vm-lab.marker", "checked_by": (row_path.parent / "vm-marker-proof.json").as_posix()}
-    sample_path = safe_path(row.get("runtime_sample_path"), f"{row_path}.runtime_sample_path")
-    samples = load_jsonl(sample_path)
-    for index, sample in enumerate(samples):
-        sample["observation_source"] = "vm_serial_sched_ext"
-        sample["sample_source_event"] = ("before", "register", "unregister")[index] if index < 3 else f"vm-sample-{index}"
-    _ = sample_path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in samples))
-    _ = row_path.write_text(json.dumps(row, indent=2, sort_keys=True) + "\n")
-
-
-def write_protected_manifest(root: Path) -> Path:
-    good = load_json(Path("fixtures/matrix-run/pass.json"))
-    scenarios = ("live-backend", "workload-cpu-saturation", "workload-cgroup-weight-quota", "workload-interactive-latency")
-    row_refs: list[JsonValue] = []
-    for scenario in scenarios:
-        manifest_path = write_manifest_self_test_pack(root, good, scenario)
-        manifest = load_json(manifest_path)
-        rows = manifest_rows(manifest, manifest_path.as_posix())
-        first = dict(rows[0])
-        mark_self_test_row_vm_captured(safe_path(first.get("artifact_path"), f"{manifest_path}.rows[0].artifact_path"))
-        row_refs.append(first)
-    manifest = load_json(root / "manifest.json")
-    manifest["rows"] = row_refs
-    manifest["row_count"] = len(row_refs)
-    _ = (root / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    return root / "manifest.json"
-
-
-def expect_reject(path: Path, label: str) -> None:
-    try:
-        validate_manifest(path)
-    except (ProtectedCoreSuiteError, ProtectedCoreTelemetryError, RuntimeSampleError) as exc:
-        print(f"PASS reject {label}: {exc}")
-        return
-    raise ProtectedCoreSuiteError(f"expected rejection did not occur: {label}")
-
-
 def self_test() -> None:
-    root = Path("evidence/lab/matrix/protected-core-suite-self-test")
-    shutil.rmtree(root, ignore_errors=True)
-    root.mkdir(parents=True)
-    try:
-        good = write_protected_manifest(root)
-        validate_manifest(good)
-        print("PASS accept protected-core suite manifest with row-local artifacts and ABI-v3 cgroup linkage")
-        one_row = write_manifest_self_test_pack(root / "one-row", load_json(Path("fixtures/matrix-run/pass.json")), "workload-cpu-saturation")
-        expect_reject(one_row, "missing protected-core rows")
-        shared = write_protected_manifest(root / "shared-artifact")
-        manifest = load_json(shared)
-        rows = manifest_rows(manifest, shared.as_posix())
-        first = obj(rows[0], "shared-artifact first row")
-        second = obj(rows[1], "shared-artifact second row")
-        second_row = load_json(safe_path(second.get("artifact_path"), "shared artifact second path"))
-        first_row = load_json(safe_path(first.get("artifact_path"), "shared artifact first path"))
-        second_row["runtime_sample_path"] = first_row["runtime_sample_path"]
-        _ = safe_path(second.get("artifact_path"), "shared artifact second path").write_text(json.dumps(second_row, indent=2, sort_keys=True) + "\n")
-        expect_reject(shared, "shared row runtime sample")
-        harness_runtime = write_protected_manifest(root / "harness-runtime")
-        harness_manifest = load_json(harness_runtime)
-        harness_rows = manifest_rows(harness_manifest, harness_runtime.as_posix())
-        harness_first = obj(harness_rows[0], "harness runtime first row")
-        harness_artifact = safe_path(harness_first.get("artifact_path"), "harness runtime artifact")
-        harness_row = load_json(harness_artifact)
-        harness_sample_path = safe_path(harness_row.get("runtime_sample_path"), "harness runtime sample path")
-        harness_samples = load_jsonl(harness_sample_path)
-        for sample in harness_samples:
-            sample["observation_source"] = "vm_harness_matrix_row"
-            sample["sample_source_event"] = "matrix-harness-generated-fallback"
-        _ = harness_sample_path.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in harness_samples))
-        expect_reject(harness_runtime, "harness-generated runtime sample backing PASS")
-        missing_abi = write_protected_manifest(root / "missing-abi")
-        cgroup_artifact = root / "missing-abi" / "rows" / "workload-cgroup-weight-quota" / "matrix-run.json"
-        cgroup_row = load_json(cgroup_artifact)
-        sample_path = safe_path(cgroup_row.get("runtime_sample_path"), "missing ABI runtime path")
-        sample = load_jsonl(sample_path)[0]
-        policy_abi = obj(sample.get("policy_abi"), "missing ABI policy_abi")
-        policy_abi["abi_version"] = 2
-        _ = sample_path.write_text(json.dumps(sample, sort_keys=True) + "\n")
-        expect_reject(missing_abi, "missing ABI-v3 cgroup evidence")
-        missing_map = write_protected_manifest(root / "missing-cgroup-map")
-        cgroup_artifact = root / "missing-cgroup-map" / "rows" / "workload-cgroup-weight-quota" / "matrix-run.json"
-        cgroup_row = load_json(cgroup_artifact)
-        sample_path = safe_path(cgroup_row.get("runtime_sample_path"), "missing cgroup map runtime path")
-        sample = load_jsonl(sample_path)[0]
-        policy_abi = obj(sample.get("policy_abi"), "missing cgroup map policy_abi")
-        policy_map = obj(policy_abi.get("cgroup_policy_map"), "missing cgroup map policy_abi.cgroup_policy_map")
-        policy_map["callback_observed_knobs"] = []
-        _ = sample_path.write_text(json.dumps(sample, sort_keys=True) + "\n")
-        expect_reject(missing_map, "missing cgroup policy map callback evidence")
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
-    print("PASS protected-core suite self-test")
+    from qa.protected_core_suite_selftest import SuiteSelfTest, run_self_test
+
+    run_self_test(
+        SuiteSelfTest(
+            load_json=load_json,
+            manifest_rows=manifest_rows,
+            obj=obj,
+            safe_path=safe_path,
+            validate_manifest=validate_manifest,
+            expected_errors=(ProtectedCoreSuiteError, ProtectedCoreTelemetryError, RuntimeSampleError),
+        )
+    )
 
 
 def main(argv: list[str]) -> int:
