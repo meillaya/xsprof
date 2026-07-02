@@ -1,14 +1,18 @@
+# pyright: reportAny=false
 from __future__ import annotations
 
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Final
 
-from microvm_report_types import JsonObject, JsonValue, ReportEnv, ReportIds, ReportRows, SerialLines, TimeoutEnv
-from workload_execution_check import WorkloadExecutionError, require_workload_pass, workload_execution_events
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from qa.vm.microvm_report_types import JsonObject, JsonValue, ReportEnv, ReportIds, ReportRows, SerialLines, TimeoutEnv
+from qa.vm.workload_execution_check import WorkloadExecutionError, require_workload_pass, workload_execution_events
 
 JSON_MARKER: Final[str] = "ZIGSCHED_JSON "
 SHA256_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
@@ -67,7 +71,7 @@ def parse_serial(text: str) -> tuple[ReportRows, SerialLines]:
     for line in text.splitlines():
         idx = line.find(JSON_MARKER)
         if idx >= 0:
-            raw = json.loads(line[idx + len(JSON_MARKER) :])
+            raw: JsonValue = json.loads(line[idx + len(JSON_MARKER) :])
             if not isinstance(raw, dict):
                 raise SystemExit("microVM JSON event root is not object")
             rows.append(raw)
@@ -120,11 +124,11 @@ def validate_rows(rows: ReportRows) -> None:
         raise SystemExit("microVM attach did not enable zigsched_minimal")
     if rows.unregister.get("rc") != 0 or rows.unregister.get("state") != "disabled":
         raise SystemExit("microVM rollback did not restore disabled state")
-    if rows.stale_refusal.get("status") != "REFUSE" or int(rows.stale_refusal.get("rc", 0)) == 0:
+    if rows.stale_refusal.get("status") != "REFUSE" or event_rc(rows.stale_refusal, "stale_target_refusal") == 0:
         raise SystemExit("microVM stale target refusal did not refuse")
     if rows.stale_refusal.get("refusal_path") != "refuse_stale_rollback_target":
         raise SystemExit("microVM stale target refusal did not use the VM refusal path")
-    if rows.duplicate_refusal.get("status") != "REFUSE" or int(rows.duplicate_refusal.get("rc", 0)) == 0:
+    if rows.duplicate_refusal.get("status") != "REFUSE" or event_rc(rows.duplicate_refusal, "duplicate_rollback_refusal") == 0:
         raise SystemExit("microVM duplicate rollback refusal did not refuse")
     if not rows.tuple_row.get("btf"):
         raise SystemExit("microVM kernel BTF missing")
@@ -135,6 +139,13 @@ def validate_rows(rows: ReportRows) -> None:
             raise SystemExit(f"microVM mutation target not allowlisted: {mutation.get('family')}")
         if mutation.get("rollback_restored") is not True:
             raise SystemExit(f"microVM mutation rollback did not restore: {mutation.get('family')}")
+
+
+def event_rc(row: JsonObject, context: str) -> int:
+    value = row.get("rc")
+    if isinstance(value, int):
+        return value
+    raise SystemExit(f"microVM event {context} missing integer rc")
 
 
 def report_ids(env: ReportEnv, rows: ReportRows) -> ReportIds:

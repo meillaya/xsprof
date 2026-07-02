@@ -26,6 +26,16 @@ def json_string_map(values: dict[str, str]) -> JsonObject:
     return {key: value for key, value in values.items()}
 
 
+def cgroup_evidence_fixture() -> JsonObject:
+    evidence: JsonObject = {}
+    for key, value in EXPECTED_CGROUP_EVIDENCE.items():
+        if isinstance(value, list):
+            evidence[key] = [item for item in value]
+        else:
+            evidence[key] = value
+    return evidence
+
+
 def abi_contract_fixture(header: Path, source: Path) -> JsonObject:
     snapshot = parse_header(header)
     source_sha = sha256_file(source)
@@ -46,7 +56,7 @@ def abi_contract_fixture(header: Path, source: Path) -> JsonObject:
         "abi_v3_accepted_callbacks": list(ABI_V3_ACCEPTED_CALLBACKS),
         "abi_v3_source_status": source_abi_status(source_abi),
         "cgroup_knob_semantics": json_string_map(CGROUP_KNOB_SEMANTICS),
-        "cgroup_evidence": EXPECTED_CGROUP_EVIDENCE,
+        "cgroup_evidence": cgroup_evidence_fixture(),
         "tuple_reference": "docs/releases/supported-kernel-tuples.md",
         "map_layouts": source_map_layouts_object(source_abi),
     }

@@ -1,3 +1,4 @@
+# pyright: reportAny=false
 from __future__ import annotations
 
 import hashlib
@@ -9,29 +10,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from microvm_report_outputs import kernel_tuple
-from microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
+from qa.vm.microvm_report_outputs import kernel_tuple
+from qa.vm.microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
 from qa.runtime_sample_policy_abi import good_cgroup_callback_stats, good_cgroup_policy_map, good_dsq_counter_coherence, good_policy_abi
-from microvm_report_types import JsonObject, ObserveOutputs, OutputPaths, ReportEnv, ReportRows, VerifierOutputs
+from qa.vm.microvm_report_types import JsonObject, JsonValue, ObserveOutputs, OutputPaths, ReportEnv, ReportRows, VerifierOutputs
 
 
 def write_observe_outputs(paths: OutputPaths, rows: ReportRows, verifier: VerifierOutputs, policy_object_sha256: str) -> ObserveOutputs:
     samples = paths.observe_dir / "runtime-samples.jsonl"
     sample_rows = build_sample_rows(rows, policy_object_sha256)
-    samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in sample_rows))
+    _ = samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in sample_rows))
     daemon = paths.observe_dir / "daemon-runtime-events.jsonl"
-    daemon.write_text("".join(json.dumps(daemon_row(row), sort_keys=True) + "\n" for row in sample_rows))
+    _ = daemon.write_text("".join(json.dumps(daemon_row(row), sort_keys=True) + "\n" for row in sample_rows))
     observe_transcript = paths.observe_dir / "observe-transcript.txt"
-    observe_transcript.write_text("microVM before/during/after sched_ext samples; no command-line sampling\n")
+    _ = observe_transcript.write_text("microVM before/during/after sched_ext samples; no command-line sampling\n")
     observe_summary = paths.observe_dir / "summary.json"
-    observe_summary.write_text(json.dumps(observe_summary_payload(sample_rows, samples, daemon, observe_transcript, verifier.ledger), indent=2, sort_keys=True) + "\n")
-    return ObserveOutputs(
-        observe_summary=observe_summary,
-        samples=samples,
-        daemon=daemon,
-        observe_transcript=observe_transcript,
-        sample_rows=sample_rows,
-    )
+    _ = observe_summary.write_text(json.dumps(observe_summary_payload(sample_rows, samples, daemon, observe_transcript, verifier.ledger), indent=2, sort_keys=True) + "\n")
+    return ObserveOutputs(observe_summary=observe_summary, samples=samples, daemon=daemon, observe_transcript=observe_transcript, sample_rows=sample_rows)
 
 
 def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonObject]:
@@ -67,7 +62,7 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
             },
             "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
             "policy_abi": policy_abi_from_event(event, policy_object_sha256),
-            "cgroup_semantic_labels": dict(good_policy_abi(policy_object_sha256)["cgroup_semantics"]),
+            "cgroup_semantic_labels": policy_semantics(policy_object_sha256),
             "task_ext_enabled": {"status": "unknown", "value": "unavailable"},
             "sched_ext_phase": "during_attach" if ops == "zigsched_minimal" else ("before_attach" if seq == 0 else "after_rollback"),
             "teardown_state": {"status": "present", "value": "attached" if ops == "zigsched_minimal" else "detached"},
@@ -92,6 +87,13 @@ def event_int(event: JsonObject, field: str) -> int:
     if isinstance(value, int) and value >= 0:
         return value
     return 0
+
+
+def policy_semantics(policy_object_sha256: str) -> JsonObject:
+    semantics = good_policy_abi(policy_object_sha256).get("cgroup_semantics")
+    if not isinstance(semantics, dict):
+        raise SystemExit("internal policy ABI shape error")
+    return semantics
 
 
 def policy_abi_from_event(event: JsonObject, policy_object_sha256: str) -> JsonObject:
@@ -181,14 +183,25 @@ def write_summary(env: ReportEnv, rows: ReportRows, verifier: VerifierOutputs, o
             raise SystemExit("dirty worktree requires ZIG_SCHEDULER_DIRTY_SNAPSHOT_SHA")
         data["dirty_tree_snapshot_sha256"] = env.dirty_snapshot_sha
         write_provenance(env, summary)
-    summary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    _ = summary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     emit_daemon_events(summary, verifier, observe)
-    print(summary.as_posix())
+    _ = print(summary.as_posix())
     return summary
 
 
 def summary_payload(env: ReportEnv, rows: ReportRows, artifacts: list[str], verifier: VerifierOutputs) -> JsonObject:
-    mutation_bundle = json.loads(verifier.mutation_evidence.read_text())
+    mutation_bundle = load_json_object(verifier.mutation_evidence)
+    mutation_evidence = optional_object(mutation_bundle.get("mutation_evidence"), "mutation_evidence")
+    cgroup_weight = optional_object(mutation_evidence.get("cgroup.weight"), "mutation_evidence.cgroup.weight")
+    artifact_values: list[JsonValue] = [artifact for artifact in artifacts]
+    stage_rows: list[JsonValue] = [
+        {"stage": "verifier", "status": "PASS", "reason": "bpftool verifier accepted sched_ext struct_ops object", "artifact": verifier.verifier_evidence.as_posix()},
+        {"stage": "attach", "status": "PASS", "reason": "sched_ext ops registered inside disposable VM", "artifact": verifier.partial_evidence.as_posix()},
+        {"stage": "mutation_evidence", "status": "PASS", "reason": "VM-only mutation families recorded pre/post/rollback evidence", "artifact": verifier.mutation_evidence.as_posix()},
+        {"stage": "rollback_refusals", "status": "PASS", "reason": "stale target and duplicate rollback ids refused", "artifact": verifier.refusals.as_posix()},
+    ]
+    tmux_sessions_after: list[JsonValue] = []
+    cleanup: JsonObject = {"qemu_leftovers": False, "tmux_leftovers": False, "qemu_process_scan_before": env.qemu_scan_before, "qemu_process_scan_after": env.qemu_scan_after, "tmux_sessions_after": tmux_sessions_after, "timeout_pid": "timeout-supervised-foreground", "timeout_rc": env.qemu_rc, "process_group_reaped": True, "temp_dirs_removed": True}
     return {
         "schema": "zig-scheduler/run-all-lab/v1",
         "status": "PASS",
@@ -209,46 +222,63 @@ def summary_payload(env: ReportEnv, rows: ReportRows, artifacts: list[str], veri
         "vm_marker_path": "/run/zig-scheduler-vm-lab.marker",
         "kernel_tuple": kernel_tuple(rows),
         "rollback_result": "PASS",
-        "audit_id": str(mutation_bundle.get("mutation_evidence", {}).get("cgroup.weight", {}).get("audit_id", "")),
-        "rollback_id": str(mutation_bundle.get("mutation_evidence", {}).get("cgroup.weight", {}).get("rollback_id", "")),
-        "mutation_evidence": mutation_bundle.get("mutation_evidence", {}),
+        "audit_id": json_text(cgroup_weight.get("audit_id")),
+        "rollback_id": json_text(cgroup_weight.get("rollback_id")),
+        "mutation_evidence": mutation_evidence,
         "mutation_evidence_artifact": verifier.mutation_evidence.as_posix(),
-        "artifact_paths": artifacts,
+        "artifact_paths": artifact_values,
         "started_at": env.started_at,
         "ended_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "stages": [
-            {"stage": "verifier", "status": "PASS", "reason": "bpftool verifier accepted sched_ext struct_ops object", "artifact": verifier.verifier_evidence.as_posix()},
-            {"stage": "attach", "status": "PASS", "reason": "sched_ext ops registered inside disposable VM", "artifact": verifier.partial_evidence.as_posix()},
-            {"stage": "mutation_evidence", "status": "PASS", "reason": "VM-only mutation families recorded pre/post/rollback evidence", "artifact": verifier.mutation_evidence.as_posix()},
-            {"stage": "rollback_refusals", "status": "PASS", "reason": "stale target and duplicate rollback ids refused", "artifact": verifier.refusals.as_posix()},
-        ],
+        "stages": stage_rows,
         "vm_execution_manifest": env.serial.as_posix(),
         "qemu_bin": env.qemu_bin,
         "kernel_image": env.kernel_image,
-        "cleanup": {"qemu_leftovers": False, "tmux_leftovers": False, "qemu_process_scan_before": env.qemu_scan_before, "qemu_process_scan_after": env.qemu_scan_after, "tmux_sessions_after": [], "timeout_pid": "timeout-supervised-foreground", "timeout_rc": env.qemu_rc, "process_group_reaped": True, "temp_dirs_removed": True},
+        "cleanup": cleanup,
     }
+
+
+def load_json_object(path: Path) -> JsonObject:
+    raw: JsonValue = json.loads(path.read_text())
+    if not isinstance(raw, dict):
+        raise SystemExit(f"expected JSON object: {path}")
+    return raw
+
+
+def optional_object(value: JsonValue | None, context: str) -> JsonObject:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    raise SystemExit(f"{context} must be an object")
+
+
+def json_text(value: JsonValue | None) -> str:
+    return value if isinstance(value, str) else ""
 
 
 def write_provenance(env: ReportEnv, summary: Path) -> None:
     manifest = {"schema": "zig-scheduler/task-09-provenance/v1", "status": "PASS", "repo_head": env.git_sha, "git_dirty": True, "dirty_tree_snapshot_sha256": env.dirty_snapshot_sha, "copied_bundle_summary": summary.as_posix()}
-    (env.out.parent / "manifest-provenance.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    _ = (env.out.parent / "manifest-provenance.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def emit_daemon_events(summary: Path, verifier: VerifierOutputs, observe: ObserveOutputs) -> None:
-    events = (
-        ("boot", "PASS", "vm_live", "microVM boot observed", summary.as_posix(), {}),
-        ("marker", "PASS", "vm_live", "/run/zig-scheduler-vm-lab.marker", summary.as_posix(), {}),
-        ("verifier", "PASS", "verified", "BPF verifier accepted", verifier.verifier_evidence.as_posix(), {}),
-        ("attach", "PASS", "zigsched_minimal", "runtime ops observed", verifier.partial_evidence.as_posix(), {}),
-        ("runtime_sample", "accepted", "observing", "runtime samples accepted", observe.samples.as_posix(), {"ops": "zigsched_minimal"}),
-        ("validation", "PASS", "mutation_evidence", "VM-only mutation family pre/post/rollback evidence accepted", verifier.mutation_evidence.as_posix(), {}),
-        ("rollback", "PASS", "rolled_back", "PASS", verifier.ledger.as_posix(), {}),
-        ("validation", "refused", "stale_target_refused", "stale rollback target refused for active VM target", verifier.refusals.as_posix(), {}),
-        ("validation", "refused", "duplicate_rollback_refused", "duplicate rollback id refused after rollback completed", verifier.refusals.as_posix(), {}),
-        ("cleanup", "PASS", "clean", "process scan clean", summary.as_posix(), {}),
-        ("validation", "PASS", "vm_live_validated", "live bundle freshness accepted", summary.as_posix(), {"live_bundle_path": summary.as_posix()}),
+    no_extra: JsonObject = {}
+    runtime_extra: JsonObject = {"ops": "zigsched_minimal"}
+    bundle_extra: JsonObject = {"live_bundle_path": summary.as_posix()}
+    events: tuple[tuple[str, str, str, str, str, JsonObject], ...] = (
+        ("boot", "PASS", "vm_live", "microVM boot observed", summary.as_posix(), no_extra),
+        ("marker", "PASS", "vm_live", "/run/zig-scheduler-vm-lab.marker", summary.as_posix(), no_extra),
+        ("verifier", "PASS", "verified", "BPF verifier accepted", verifier.verifier_evidence.as_posix(), no_extra),
+        ("attach", "PASS", "zigsched_minimal", "runtime ops observed", verifier.partial_evidence.as_posix(), no_extra),
+        ("runtime_sample", "accepted", "observing", "runtime samples accepted", observe.samples.as_posix(), runtime_extra),
+        ("validation", "PASS", "mutation_evidence", "VM-only mutation family pre/post/rollback evidence accepted", verifier.mutation_evidence.as_posix(), no_extra),
+        ("rollback", "PASS", "rolled_back", "PASS", verifier.ledger.as_posix(), no_extra),
+        ("validation", "refused", "stale_target_refused", "stale rollback target refused for active VM target", verifier.refusals.as_posix(), no_extra),
+        ("validation", "refused", "duplicate_rollback_refused", "duplicate rollback id refused after rollback completed", verifier.refusals.as_posix(), no_extra),
+        ("cleanup", "PASS", "clean", "process scan clean", summary.as_posix(), no_extra),
+        ("validation", "PASS", "vm_live_validated", "live bundle freshness accepted", summary.as_posix(), bundle_extra),
     )
     for event, status, state, reason, artifact, extra in events:
-        payload = {"event": event, "status": status, "state": state, "reason": reason, "artifact": artifact}
+        payload: JsonObject = {"event": event, "status": status, "state": state, "reason": reason, "artifact": artifact}
         payload.update(extra)
-        print("ZIGSCHED_DAEMON_EVENT " + json.dumps(payload, sort_keys=True), flush=True)
+        _ = print("ZIGSCHED_DAEMON_EVENT " + json.dumps(payload, sort_keys=True), flush=True)

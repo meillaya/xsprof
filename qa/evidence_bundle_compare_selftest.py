@@ -17,7 +17,8 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from qa.evidence_bundle_compare_check import BundleCompareError, CompareOptions, JsonObject, JsonValue, compare, file_sha, load_json, obj
+from qa.evidence_bundle_compare_check import BundleCompareError, CompareOptions, compare, file_sha, obj
+from qa.evidence_manifest_check import JsonObject, JsonValue, load_json
 
 DEFAULT_TUPLE: Final[str] = "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only"
 
@@ -27,8 +28,8 @@ def write_json(path: Path, value: JsonObject) -> None:
     _ = path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
-def ref(path: Path, role: str) -> JsonObject:
-    return {"path": path.as_posix(), "sha256": file_sha(path), "schema_role": role}
+def ref(root: Path, path: Path, role: str) -> JsonObject:
+    return {"path": path.relative_to(root).as_posix(), "sha256": file_sha(path), "schema_role": role}
 
 
 def write_bundle(root: Path, rows: tuple[str, ...] = ("live-backend", "workload-cpu-saturation"), bpf_hash: str = "0" * 64, tuple_value: str = DEFAULT_TUPLE) -> Path:
@@ -41,7 +42,7 @@ def write_bundle(root: Path, rows: tuple[str, ...] = ("live-backend", "workload-
     write_json(root / "bpf.json", {"schema": "zig-scheduler/bpf-metadata/v1", "bpf_object_sha256": bpf_hash, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     _ = (root / "daemon.jsonl").write_text('{"host_mutation": false, "release_eligible": false, "production_capacity_claim": false}\n')
     manifest = root / "evidence-manifest.json"
-    write_json(manifest, {"schema": "zig-scheduler/evidence-manifest/v1", "outcome": "PASS", "audit_id": "AUD-20990101T000000Z-compare", "rollback_id": "RB-compare", "vm_marker": {"path": "/run/zig-scheduler-vm-lab.marker", "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": tuple_value, "bpf_metadata_or_skip": ref(root / "bpf.json", "bpf-metadata"), "matrix_manifest": ref(root / "matrix.json", "matrix-manifest"), "daemon_events": ref(root / "daemon.jsonl", "daemon-events"), "runner_substrate": ref(root / "runner-substrate-proof.json", "runner-substrate-proof"), "runner_cleanliness": ref(root / "runner-cleanliness-proof.json", "runner-cleanliness-proof"), "artifacts": [ref(root / f"{role}.json", role) for role in ("protected-environment-review", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan")], "benchmark_provenance": {"status": "not_applicable", "reason": "comparison self-test", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(root / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify bundle --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/evidence_bundle_compare_check.py"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(manifest, {"schema": "zig-scheduler/evidence-manifest/v1", "outcome": "PASS", "audit_id": "AUD-20990101T000000Z-compare", "rollback_id": "RB-compare", "vm_marker": {"path": "/run/zig-scheduler-vm-lab.marker", "present": True, "checked_by": "manual-vm-proof"}, "supported_tuple": tuple_value, "bpf_metadata_or_skip": ref(root, root / "bpf.json", "bpf-metadata"), "matrix_manifest": ref(root, root / "matrix.json", "matrix-manifest"), "daemon_events": ref(root, root / "daemon.jsonl", "daemon-events"), "runner_substrate": ref(root, root / "runner-substrate-proof.json", "runner-substrate-proof"), "runner_cleanliness": ref(root, root / "runner-cleanliness-proof.json", "runner-cleanliness-proof"), "artifacts": [ref(root, root / f"{role}.json", role) for role in ("protected-environment-review", "matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan")], "benchmark_provenance": {"status": "not_applicable", "reason": "comparison self-test", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": ["privacy-scan.json"]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify bundle --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/evidence_bundle_compare_check.py"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return manifest
 
 
@@ -72,6 +73,25 @@ def unsafe_path_manifest(path: Path) -> Path:
     return bad
 
 
+def expect_manifest_root_wins_ambiguous_artifact() -> None:
+    root = Path("evidence/lab/evidence-bundle-compare-ambiguous-self-test")
+    cwd_artifact = Path("matrix.json")
+    original_cwd_text = cwd_artifact.read_text() if cwd_artifact.exists() else None
+    shutil.rmtree(root, ignore_errors=True)
+    try:
+        left = write_bundle(root / "left")
+        right = write_bundle(root / "right")
+        _ = cwd_artifact.write_text('{"schema":"wrong-caller-cwd-artifact","host_mutation":false}\n')
+        compare(left, right)
+        print("PASS prefer bundle root over caller CWD for ambiguous artifact paths")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+        if original_cwd_text is None:
+            cwd_artifact.unlink(missing_ok=True)
+        else:
+            _ = cwd_artifact.write_text(original_cwd_text)
+
+
 def expect_reject(left: Path, right: Path, label: str) -> None:
     try:
         compare(left, right)
@@ -89,6 +109,7 @@ def run_self_test() -> None:
         right = write_bundle(root / "right")
         compare(left.parent, right.parent)
         print("PASS accept comparable protected evidence bundle roots")
+        expect_manifest_root_wins_ambiguous_artifact()
         expect_reject(left, without_role(right, "cleanup-proof"), "missing cleanup proof")
         expect_reject(left, write_bundle(root / "row-mismatch", ("live-backend",)), "row set mismatch")
         expect_reject(left, write_bundle(root / "bpf-mismatch", bpf_hash="1" * 64), "BPF hash mismatch")

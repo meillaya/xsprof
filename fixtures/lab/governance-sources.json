@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "d01f6aa482ef94e82ab08d71642f9fb56886efd725d6ca9892cac6886d1fe575"
+      "sha256": "4a5daf838284426aa41c26daef0d9fb908d75eb732ad75660d6e01034da91511"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -462,7 +462,7 @@
       "path": "qa/runner_cleanliness_proof_check.py",
       "purpose": "protected runner cleanliness proof validator",
       "required": true,
-      "sha256": "6a84a9020cdcbb9f6143fc0bf04421f41978da1e656fbc1d01a7fb099e4ad8f6"
+      "sha256": "23e0897982e19d23da1d7f3fd66d72bb841ba492b27425e1763e45fed54ed9ac"
     },
     {
       "path": "qa/runtime_sample_check.py",
@@ -480,7 +480,7 @@
       "path": "qa/runtime_sample_core.py",
       "purpose": "runtime-sample core schema and alert semantics validator",
       "required": true,
-      "sha256": "7653c8f13ad0810d74a5ccf8f2b8ce6823f1ea36ce3927d848147241de9a19d0"
+      "sha256": "7739a55b4195dde17e7dafd6398eba1a8fdaea378aa70e27fb889d4f247bab5b"
     },
     {
       "path": "qa/runtime_sample_digest.py",
@@ -504,7 +504,7 @@
       "path": "qa/runtime_sample_policy_abi.py",
       "purpose": "runtime-sample policy ABI contract validator",
       "required": true,
-      "sha256": "c6200e919dc767fbb28a204889cb10a846dfc291dbde6423d220917eb93abe67"
+      "sha256": "16a01b6d0b2d202bd0661323280d6e5b80c610df47ebe234f5a95911a5ea363d"
     },
     {
       "path": "qa/runtime_sample_sched_ext.py",
@@ -540,13 +540,13 @@
       "path": "qa/evidence_bundle_compare_check.py",
       "purpose": "protected evidence bundle comparison validator",
       "required": true,
-      "sha256": "1dc45e46cffebe349189ce6a781f92c886f2162fb4b4ccc01ffe7fecacc43b26"
+      "sha256": "8f531bb8fdaec2a67fa2cae705e75d21931d5610c196aa7d15fef37ea302c136"
     },
     {
       "path": "qa/evidence_bundle_compare_selftest.py",
       "purpose": "protected evidence bundle comparison self-test fixtures",
       "required": true,
-      "sha256": "cd829bc37e9b88f67b28f1b1d3da5d8187de8df104895e5f0f2c8273333ee4ac"
+      "sha256": "f298fbbfb75c1a13069f5fbb16080385783b3bed23d665a9294d97aed36d517a"
     },
     {
       "path": "qa/security_gate.sh",
@@ -582,7 +582,7 @@
       "path": "qa/vm/workload_execution_check.py",
       "purpose": "row-local VM workload execution PASS validator",
       "required": true,
-      "sha256": "5f5c225af04aa86b3a7db6ce50e0db91be43032b438034804a50acf924bd98c6"
+      "sha256": "c996ccfe13b399d7b60902c98ade06e7feec213ee6f2c4b57aaf06e6be2cea76"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportAny=false
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -33,6 +34,13 @@ class WorkloadExecution:
     host_mutation: bool
 
 
+@dataclass(frozen=True, slots=True)
+class Args:
+    serial: Path | None
+    scenario: str
+    self_test: bool
+
+
 class WorkloadExecutionError(Exception):
     """Raised when workload_execution evidence cannot support a PASS row."""
 
@@ -44,7 +52,7 @@ def parse_json_events(serial_text: str) -> list[JsonObject]:
         if marker_index < 0:
             continue
         try:
-            raw = json.loads(line[marker_index + len(JSON_MARKER) :])
+            raw: JsonValue = json.loads(line[marker_index + len(JSON_MARKER) :])
         except json.JSONDecodeError as exc:
             raise WorkloadExecutionError(f"invalid VM JSON event at serial line {line_number}: {exc.msg}") from exc
         if not isinstance(raw, dict):
@@ -98,7 +106,7 @@ def expect_reject(serial_text: str, scenario: str, label: str) -> None:
     try:
         require_workload_pass(serial_text, scenario)
     except WorkloadExecutionError as exc:
-        print(f"PASS reject {label}: {exc}")
+        _ = print(f"PASS reject {label}: {exc}")
         return
     raise WorkloadExecutionError(f"expected rejection did not occur: {label}")
 
@@ -113,22 +121,25 @@ def self_test() -> None:
     require_workload_pass(f"{unrelated_pass}\n{row_pass}\n", row_scenario)
     with TemporaryDirectory() as tmp:
         serial = Path(tmp) / "serial.txt"
-        serial.write_text(f"{unrelated_pass}\n{row_pass}\n", encoding="utf-8")
+        _ = serial.write_text(f"{unrelated_pass}\n{row_pass}\n", encoding="utf-8")
         validate_serial_file(serial, row_scenario)
-    print("PASS workload_execution no-fake-PASS self-test")
+    _ = print("PASS workload_execution no-fake-PASS self-test")
 
 
-def parse_args(argv: list[str]) -> argparse.Namespace:
+def parse_args(argv: list[str]) -> Args:
     parser = argparse.ArgumentParser(description="Validate row-local workload_execution PASS evidence in VM serial output.")
     _ = parser.add_argument("--serial", type=Path)
     _ = parser.add_argument("--scenario")
     _ = parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
-    if args.self_test:
-        return args
-    if args.serial is None or not isinstance(args.scenario, str) or args.scenario == "":
+    serial = args.serial if isinstance(args.serial, Path) else None
+    scenario = args.scenario if isinstance(args.scenario, str) else ""
+    self_test_arg = bool(args.self_test)
+    if self_test_arg:
+        return Args(serial, scenario, True)
+    if serial is None or scenario == "":
         parser.error("--serial and --scenario are required unless --self-test is used")
-    return args
+    return Args(serial, scenario, False)
 
 
 def main(argv: list[str]) -> int:
@@ -137,11 +148,13 @@ def main(argv: list[str]) -> int:
         if args.self_test:
             self_test()
         else:
+            if args.serial is None:
+                raise WorkloadExecutionError("internal argument parser error: missing serial")
             validate_serial_file(args.serial, args.scenario)
-            print(f"PASS workload_execution {args.scenario}")
+            _ = print(f"PASS workload_execution {args.scenario}")
         return 0
     except (OSError, WorkloadExecutionError) as exc:
-        print(f"FAIL workload_execution: {exc}", file=sys.stderr)
+        _ = print(f"FAIL workload_execution: {exc}", file=sys.stderr)
         return 1
 
 

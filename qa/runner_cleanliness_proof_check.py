@@ -143,7 +143,8 @@ def validate_identity(value: JsonValue | None) -> None:
     _ = text(identity.get("name"), "runner_identity.name")
     _ = text(identity.get("group"), "runner_identity.group")
     labels = identity.get("labels")
-    require(isinstance(labels, list) and bool(labels), "runner_identity.labels must be a non-empty list")
+    if not isinstance(labels, list) or not labels:
+        raise RunnerCleanlinessError("runner_identity.labels must be a non-empty list")
     for index, item in enumerate(labels):
         _ = text(item, f"runner_identity.labels[{index}]")
 

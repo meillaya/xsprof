@@ -141,7 +141,7 @@ def require_string_list(data: JsonObject, field: str, context: str) -> list[str]
     value = data.get(field)
     if not isinstance(value, list) or not all(isinstance(item, str) and item != "" for item in value):
         raise PolicyAbiError(f"{context} missing string list field: {field}")
-    return value
+    return [item for item in value if isinstance(item, str)]
 
 
 def require_status(data: JsonObject, context: str) -> str:

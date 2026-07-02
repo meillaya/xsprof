@@ -16,6 +16,7 @@ from collections import Counter
 from dataclasses import dataclass
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Final, TypeAlias
@@ -35,6 +36,8 @@ class CompareOptions:
     expect_tuple_change: bool = False
     expect_bpf_change: bool = False
     expect_git_sha_change: bool = False
+    left_artifact_root: Path | None = None
+    right_artifact_root: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,11 +87,9 @@ def safe_path(value: JsonValue | None, context: str) -> Path:
     return path
 
 
-def artifact_path(manifest_path: Path, value: JsonValue | None, context: str) -> Path:
+def artifact_path(manifest_path: Path, artifact_root: Path | None, value: JsonValue | None, context: str) -> Path:
     path = safe_path(value, context)
-    if path.exists():
-        return path
-    rooted = manifest_path.parent / path
+    rooted = (artifact_root if artifact_root is not None else manifest_path.parent) / path
     require(rooted.exists(), f"missing referenced artifact: {path}")
     return rooted
 
@@ -116,10 +117,10 @@ def refs_from_manifest(manifest: JsonObject) -> list[JsonObject]:
     return refs
 
 
-def validate_ref(manifest_path: Path, ref: JsonObject, context: str) -> tuple[str, Path, str]:
+def validate_ref(manifest_path: Path, artifact_root: Path | None, ref: JsonObject, context: str) -> tuple[str, Path, str]:
     extra = sorted(set(ref) - REF_FIELDS)
     require(not extra, f"{context} has unexpected fields: {', '.join(extra)}")
-    path = artifact_path(manifest_path, ref.get("path"), f"{context}.path")
+    path = artifact_path(manifest_path, artifact_root, ref.get("path"), f"{context}.path")
     digest = text(ref.get("sha256"), f"{context}.sha256")
     require(file_sha(path) == digest, f"{context}.sha256 does not match {path}")
     return text(ref.get("schema_role"), f"{context}.schema_role"), path, digest
@@ -210,14 +211,14 @@ def benchmark_state(manifest: JsonObject) -> BenchmarkState:
     return (status, 0)
 
 
-def index_bundle(path: Path, label: str) -> BundleIndex:
+def index_bundle(path: Path, label: str, artifact_root: Path | None = None) -> BundleIndex:
     manifest_path = resolve_manifest(path)
     manifest = load_json(manifest_path)
     reject_release_claims(manifest, label)
     refs_by_role: dict[str, list[tuple[Path, str]]] = {}
     roles: Counter[str] = Counter()
     for index, ref in enumerate(refs_from_manifest(manifest)):
-        role, path_value, digest = validate_ref(manifest_path, ref, f"{label}.ref[{index}]")
+        role, path_value, digest = validate_ref(manifest_path, artifact_root, ref, f"{label}.ref[{index}]")
         roles[role] += 1
         refs_by_role.setdefault(role, []).append((path_value, digest))
         reject_json_artifact_claims(path_value, f"{label}.{role}")
@@ -241,37 +242,68 @@ def single_role(refs_by_role: dict[str, list[tuple[Path, str]]], role: str, labe
     return values[0]
 
 
-def compare(left_path: Path, right_path: Path, options: CompareOptions = CompareOptions()) -> None:
-    left = index_bundle(left_path, "left")
-    right = index_bundle(right_path, "right")
+def compare(left_path: Path, right_path: Path, options: CompareOptions | None = None) -> None:
+    effective_options = options if options is not None else CompareOptions()
+    left = index_bundle(left_path, "left", effective_options.left_artifact_root)
+    right = index_bundle(right_path, "right", effective_options.right_artifact_root)
     require(left.roles == right.roles, "bundle schema-role artifact counts differ")
     require(left.matrix_rows == right.matrix_rows, "matrix row sets differ")
-    require(options.expect_tuple_change or left.supported_tuple == right.supported_tuple, "supported_tuple changed without expected-change flag")
-    require(options.expect_git_sha_change or left.git_sha == right.git_sha, "protected review git SHA changed without expected-change flag")
-    require(options.expect_bpf_change or left.bpf_identity == right.bpf_identity, "BPF object hash changed without expected-change flag")
+    require(effective_options.expect_tuple_change or left.supported_tuple == right.supported_tuple, "supported_tuple changed without expected-change flag")
+    require(effective_options.expect_git_sha_change or left.git_sha == right.git_sha, "protected review git SHA changed without expected-change flag")
+    require(effective_options.expect_bpf_change or left.bpf_identity == right.bpf_identity, "BPF object hash changed without expected-change flag")
     require(left.benchmark_state == right.benchmark_state, "benchmark provenance role state differs")
 
 
 
 def self_test() -> None:
-    from qa.evidence_bundle_compare_selftest import run_self_test
-
-    run_self_test()
+    result = subprocess.run([sys.executable, "qa/evidence_bundle_compare_selftest.py"], check=False)
+    if result.returncode != 0:
+        raise BundleCompareError(f"evidence bundle compare self-test failed with rc={result.returncode}")
 
 
 def parse_cli(argv: list[str]) -> tuple[Path, Path, CompareOptions] | None:
     if argv == ["--self-test"]:
         return None
+    flags = {"--expect-tuple-change", "--allow-tuple-change", "--expect-bpf-change", "--allow-bpf-change", "--expect-git-sha-change", "--allow-git-sha-change"}
+    positional: list[str] = []
+    left_artifact_root: Path | None = None
+    right_artifact_root: Path | None = None
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg in flags:
+            index += 1
+            continue
+        if arg == "--artifact-root":
+            index += 1
+            if index >= len(argv):
+                raise BundleCompareError("--artifact-root requires a path")
+            left_artifact_root = Path(argv[index])
+            right_artifact_root = Path(argv[index])
+        elif arg == "--left-artifact-root":
+            index += 1
+            if index >= len(argv):
+                raise BundleCompareError("--left-artifact-root requires a path")
+            left_artifact_root = Path(argv[index])
+        elif arg == "--right-artifact-root":
+            index += 1
+            if index >= len(argv):
+                raise BundleCompareError("--right-artifact-root requires a path")
+            right_artifact_root = Path(argv[index])
+        else:
+            positional.append(arg)
+        index += 1
     options = CompareOptions(
         expect_tuple_change="--expect-tuple-change" in argv or "--allow-tuple-change" in argv,
         expect_bpf_change="--expect-bpf-change" in argv or "--allow-bpf-change" in argv,
         expect_git_sha_change="--expect-git-sha-change" in argv or "--allow-git-sha-change" in argv,
+        left_artifact_root=left_artifact_root,
+        right_artifact_root=right_artifact_root,
     )
-    flags = {"--expect-tuple-change", "--allow-tuple-change", "--expect-bpf-change", "--allow-bpf-change", "--expect-git-sha-change", "--allow-git-sha-change"}
-    args = [arg for arg in argv if arg not in flags]
+    args = positional
     if len(args) == 4 and args[0] == "--left" and args[2] == "--right":
         return Path(args[1]), Path(args[3]), options
-    raise BundleCompareError("usage: evidence_bundle_compare_check.py --self-test | --left <manifest-or-root> --right <manifest-or-root> [--expect-tuple-change] [--expect-bpf-change] [--expect-git-sha-change]")
+    raise BundleCompareError("usage: evidence_bundle_compare_check.py --self-test | --left <manifest-or-root> --right <manifest-or-root> [--artifact-root <root> | --left-artifact-root <root> --right-artifact-root <root>] [--expect-tuple-change] [--expect-bpf-change] [--expect-git-sha-change]")
 
 
 def main(argv: list[str]) -> int:
