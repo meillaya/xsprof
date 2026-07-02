@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "4a5daf838284426aa41c26daef0d9fb908d75eb732ad75660d6e01034da91511"
+      "sha256": "d5f89b1fddb21f9d39ddc94f53596cd058a00ca9a5cf837ed1a5ab23921fc48a"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -540,7 +540,13 @@
       "path": "qa/evidence_bundle_compare_check.py",
       "purpose": "protected evidence bundle comparison validator",
       "required": true,
-      "sha256": "8f531bb8fdaec2a67fa2cae705e75d21931d5610c196aa7d15fef37ea302c136"
+      "sha256": "8253cbd9bf9707913934121cd8b2bb4547f193c2259a9fa5b754ed24062e25e0"
+    },
+    {
+      "path": "qa/evidence_bundle_paths.py",
+      "purpose": "protected evidence bundle artifact path and digest helper",
+      "required": true,
+      "sha256": "93032f9da80a55f572414473831c5b0701c9b24f0716bbebb199959a4cac3ba7"
     },
     {
       "path": "qa/evidence_bundle_compare_selftest.py",
