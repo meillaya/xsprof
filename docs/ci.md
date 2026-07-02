@@ -125,11 +125,33 @@ That command is not a default CI command. It is valid only after protected-runne
 
 - GitHub environment: `vm-proof-manual`, configured by repository owners as a protected environment with required reviewers and branch/tag restrictions before use.
 - Runner: self-hosted labels `self-hosted`, `zig-scheduler-vm-proof`, and `disposable-vm`; hosted runners such as `ubuntu-latest` are not acceptable for this lane.
-- Dispatch inputs: explicit audit id, rollback id, VM marker path `/run/zig-scheduler-vm-lab.marker`, and supported tuple from `docs/releases/supported-kernel-tuples.md`.
+- Dispatch inputs: explicit audit id, rollback id, VM marker path `/run/zig-scheduler-vm-lab.marker`, and the exact `supported_tuple` string from `docs/releases/supported-kernel-tuples.md` that matches the protected runner kernel release.
 - Artifact: GitHub Actions uploaded tarball `vm-proof-bundle.tar.zst` with explicit retention; it is not a release asset, not OCI, and not production approval.
 - Provenance: the workflow requests GitHub artifact attestation and prints a `gh attestation verify` command for post-run verification.
 
-The `vm-proof-bundle.tar.zst` contract contains or accounts for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when object metadata is unavailable, protected-environment-review.json when externally curated reviewer evidence is available, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated rows when applicable. Every included proof must preserve `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
+Before dispatching the protected lane, the operator must run a runner preflight on the isolated self-hosted runner and preserve the transcript with the run evidence. The `supported_tuple` workflow input must be the existing Linux `>=6.12` tuple and must correspond to the actual `uname -r` prefix; if the runner kernel does not match, stop with `SKIP`/`REFUSE` evidence instead of broadening the tuple contract.
+
+```bash
+set -euo pipefail
+kernel_release="$(uname -r)"
+supported_tuple="linux-6.12-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # replace 6.12 only with the matching protected-runner linux-6.12+ release prefix
+printf 'kernel_release=%s\n' "$kernel_release"
+printf 'workflow_supported_tuple=%s\n' "$supported_tuple"
+case "$kernel_release" in
+  6.1[2-9]*|6.[2-9][0-9]*) ;;
+  *) echo "REFUSE: protected runner kernel is outside the existing linux-6.12+ supported tuple"; exit 1 ;;
+esac
+test -d /sys/kernel/sched_ext
+test -r /sys/kernel/btf/vmlinux
+test -e /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
+command -v qemu-system-x86_64
+qemu-system-x86_64 -accel help | grep -E '(^|[[:space:]])kvm($|[[:space:]])'
+echo "$supported_tuple" | grep -E '^linux-6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
+```
+
+CachyOS `7.1.1-cachyos` is out of scope for this milestone. Treat it as a future tuple-expansion/governance milestone, not as a reason to relax workflow regexes, schemas, validators, or PASS wording here.
+
+The `vm-proof-bundle.tar.zst` contract contains or accounts for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when object metadata is unavailable, protected-environment-review.json generated from the current GitHub run review history, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated rows when applicable. Every included proof must preserve `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
 
 Static protection is validated locally with:
 
@@ -141,6 +163,8 @@ python3 qa/manual_vm_proof_ci_check.py \
 
 This checker rejects unsafe default triggers, missing protected-environment/reviewer wording, untrusted runner labels, missing proof artifacts, release claims, production claims, and real-host attach allowances. A passing static check does not mean the protected environment was configured or that a human reviewer approved/executed the lane.
 
-The manual proof bundle must also include `evidence-manifest.json`, validated by `qa/evidence_manifest_check.py` against `schemas/control/evidence-manifest.v1.schema.json`. The evidence manifest is the machine-readable provenance index for the protected VM proof bundle: it lists artifact paths, SHA-256 hashes, schema roles, audit id, rollback id, VM marker, supported tuple, BPF metadata or BPF SKIP JSON, daemon events, matrix manifest, benchmark provenance, rollback proof, cleanup proof, host refusal proof, privacy scan, and attestation status. The manifest records an explicit `outcome` derived from matrix rows and protected runner substrate proof, and remains `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; it is not release approval and a local static pass does not prove the protected environment actually exists.
+The manual proof bundle must also include `evidence-manifest.json`, validated by `qa/evidence_manifest_check.py` against `schemas/control/evidence-manifest.v1.schema.json`. The evidence manifest is the machine-readable provenance index for the protected VM proof bundle: it lists artifact paths, SHA-256 hashes, schema roles, audit id, rollback id, VM marker, supported tuple, BPF metadata or BPF SKIP JSON, daemon events, matrix manifest, benchmark provenance, protected-environment-review proof, rollback proof, cleanup proof, host refusal proof, privacy scan, and attestation status. The manifest records an explicit `outcome` derived from matrix rows and protected runner substrate proof, and remains `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; it is not release approval and a local static pass does not prove the protected environment actually exists.
 
-Protected runner substrate proof is recorded as `runner-substrate-proof.json` and checked with `qa/runner_substrate_proof_check.py` against `schemas/control/runner-substrate-proof.v1.schema.json`. It records runner class, runner group, runner labels, protected environment reviewer status, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons. All paths in that proof are relative/non-traversing, `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; an unavailable QEMU, empty QEMU version, /dev/kvm, reviewer signal, kernel BTF metadata unavailable, sched_ext kernel substrate unavailable, unsupported kernel release, placeholder kernel config hash, TCG accel, BPF SKIP metadata, or attestation capability must be an explicit SKIP/REFUSE reason and never a fake PASS. PASS requires `reviewer_status=approved` from the GitHub run history or externally curated `protected-environment-review.json` and a real GitHub Actions run URL; `not_exposed_by_github_actions_runtime` is never enough for PASS. A local refusal artifact that never dispatched the protected workflow may set `run_url=unavailable` only with `proof_outcome=SKIP` or `REFUSE` and an explicit unavailable reason.
+Protected runner substrate proof is recorded as `runner-substrate-proof.json` and checked with `qa/runner_substrate_proof_check.py` against `schemas/control/runner-substrate-proof.v1.schema.json`. It records runner class, runner group, runner labels, protected environment reviewer status, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons. All paths in that proof are relative/non-traversing, `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`; an unavailable QEMU, empty QEMU version, /dev/kvm, reviewer signal, kernel BTF metadata unavailable, sched_ext kernel substrate unavailable, unsupported kernel release, placeholder kernel config hash, TCG accel, BPF SKIP metadata, or attestation capability must be an explicit SKIP/REFUSE reason and never a fake PASS. PASS requires `reviewer_status=approved`, a normalized `protected-environment-review.json` artifact for the same run, and a real GitHub Actions run URL; `not_exposed_by_github_actions_runtime` is never enough for PASS. A local refusal artifact that never dispatched the protected workflow may set `run_url=unavailable` only with `proof_outcome=SKIP` or `REFUSE` and an explicit unavailable reason.
+
+Current final evidence for `.omo/plans/protected-vm-live-pass-final.md` is BLOCKED/non-PASS: `.omo/evidence/protected-vm-live-pass-final/final-proof-ledger.md` records no visible matching self-hosted runner, no fresh approved bundle, no attestation for a current run, and `protected_pass_claimed=false`. Do not cite older or stale artifacts as protected PASS until a matching runner is visible and a fresh approved bundle validates.

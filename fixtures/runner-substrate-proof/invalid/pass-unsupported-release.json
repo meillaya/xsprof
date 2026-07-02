@@ -34,6 +34,11 @@
     "reviewer_status": "approved",
     "run_url": "https://github.com/example/zig-scheduler/actions/runs/123456789"
   },
+  "protected_review": {
+    "path": "fixtures/runner-substrate-proof/valid/protected-review.json",
+    "schema_role": "protected-environment-review",
+    "sha256": "7e595a90aa29631059ac4160a68ee323c3d0e2a25b6efd5cccaece5308d061a8"
+  },
   "qemu": {
     "path": "usr/bin/qemu-system-x86_64",
     "status": "available",

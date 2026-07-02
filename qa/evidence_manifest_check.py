@@ -7,8 +7,8 @@
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
 # python3 qa/evidence_manifest_check.py --self-test
-"""Validate VM proof evidence-manifest/v1 bundles."""
 # noqa: SIZE_OK — this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together.
+"""Validate VM proof evidence-manifest/v1 bundles."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +23,9 @@ from typing import Final, TypeAlias
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from qa.runtime_sample_common import private_key_has_pattern, private_key_tokens, private_text_contains
+from qa.protected_environment_review_check import DEFAULT_SCHEMA as PROTECTED_REVIEW_SCHEMA
+from qa.protected_environment_review_check import ProtectedReviewError
+from qa.protected_environment_review_check import validate_proof as validate_protected_review_proof
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -39,7 +42,8 @@ MARKER_FIELDS: Final[frozenset[str]] = frozenset(("path", "present", "checked_by
 BENCHMARK_NA_FIELDS: Final[frozenset[str]] = frozenset(("status", "reason", "applies_to_outcomes"))
 PRIVACY_FIELDS: Final[frozenset[str]] = frozenset(("status", "private_fields_found", "artifact_paths"))
 ATTEST_FIELDS: Final[frozenset[str]] = frozenset(("status", "workflow_uses", "verify_command", "retention_days"))
-REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof"))
+REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof", "protected-environment-review"))
+PROTECTED_REVIEW_ROLE: Final[str] = "protected-environment-review"
 BPF_ROLES: Final[frozenset[str]] = frozenset(("bpf-metadata", "bpf-skip-json"))
 ATTEST_STATUSES: Final[frozenset[str]] = frozenset(("pending-post-run-github-attestation", "verified-by-operator"))
 OUTCOMES: Final[frozenset[str]] = frozenset(("PASS", "SKIP", "REFUSE", "BLOCKED"))
@@ -48,6 +52,7 @@ FORBIDDEN_PRIVATE_KEYS: Final[frozenset[str]] = frozenset(("access_token", "apik
 FORBIDDEN_PRIVATE_TEXT: Final[tuple[str, ...]] = ("--token", "password=", "api_key=", "AWS_SECRET", "BEGIN PRIVATE KEY")
 FORBIDDEN_PRIVATE_KEY_PATTERNS: Final[frozenset[tuple[str, ...]]] = frozenset(private_key_tokens(key) for key in FORBIDDEN_PRIVATE_KEYS)
 PRIVATE_SAFE_KEYS: Final[frozenset[str]] = frozenset(("protected_environment",))
+PROTECTED_REVIEW_PRIVATE_SAFE_KEYS: Final[frozenset[str]] = frozenset(("environment_id", "environment_name"))
 TEXT_ARTIFACT_ROLES: Final[frozenset[str]] = frozenset(("static-verification-log",))
 TEXT_ARTIFACT_SUFFIXES: Final[frozenset[str]] = frozenset((".log", ".txt", ".md", ".out", ".err"))
 MAX_TEXT_ARTIFACT_BYTES: Final[int] = 1024 * 1024
@@ -145,7 +150,7 @@ def validate_ref(value: JsonValue | None, context: str) -> str:
 
 def reject_claims(path: Path, role: str) -> None:
     if path.suffix == ".json":
-        reject_claim_value(load_json(path), str(path))
+        reject_claim_value(load_json(path), str(path), role)
         return
     if path.suffix != ".jsonl":
         reject_text_artifact(path, role)
@@ -157,23 +162,27 @@ def reject_claims(path: Path, role: str) -> None:
             value: JsonValue = json.loads(line)
         except json.JSONDecodeError as exc:
             raise ManifestError(f"invalid referenced JSON {path}:{line_no}: {exc}") from exc
-        reject_claim_value(value, f"{path}:{line_no}")
+        reject_claim_value(value, f"{path}:{line_no}", role)
 
 
-def reject_claim_value(value: JsonValue, context: str) -> None:
+def private_key_is_safe(key: str, role: str) -> bool:
+    return key in PRIVATE_SAFE_KEYS or (role == PROTECTED_REVIEW_ROLE and key in PROTECTED_REVIEW_PRIVATE_SAFE_KEYS)
+
+
+def reject_claim_value(value: JsonValue, context: str, role: str) -> None:
     match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
         case dict():
             for key, child in value.items():
-                if key not in PRIVATE_SAFE_KEYS and private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
+                if not private_key_is_safe(key, role) and private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
                     raise ManifestError(f"privacy-unsafe key in referenced artifact: {context}.{key}")
                 if key == "host_mutation":
                     require(child is False, f"{context}.host_mutation must be false")
                 if key in {"release_eligible", "production_capacity_claim"}:
                     require(child is False, f"{context}.{key} must be false")
-                reject_claim_value(child, f"{context}.{key}")
+                reject_claim_value(child, f"{context}.{key}", role)
         case list():
             for index, child in enumerate(value):
-                reject_claim_value(child, f"{context}[{index}]")
+                reject_claim_value(child, f"{context}[{index}]", role)
         case None | bool() | int() | float() | str():
             if isinstance(value, str):
                 reject_private_text(value, context)
@@ -254,7 +263,7 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     missing = sorted(REQUIRED_ROLES - roles)
     require(not missing, "missing required artifact role(s): " + ", ".join(missing))
     benchmark = data.get("benchmark_provenance")
-    if isinstance(benchmark, list):
+    if isinstance(benchmark, list):  # noqa: IF_VARIANT_OK -- boundary parsing known JSON shape alternatives.
         require(bool(benchmark), "benchmark_provenance must be a non-empty list")
         for index, item in enumerate(benchmark):
             require(validate_ref(item, f"benchmark_provenance[{index}]") == "benchmark-provenance", f"benchmark_provenance[{index}] must use benchmark-provenance role")
@@ -268,6 +277,11 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     validate_attestation(data.get("attestation"))
     tracked_sources(data.get("required_sources"))
     for artifact_path, role in artifact_paths:
+        if role == PROTECTED_REVIEW_ROLE:
+            try:
+                validate_protected_review_proof(artifact_path, PROTECTED_REVIEW_SCHEMA)
+            except ProtectedReviewError as exc:
+                raise ManifestError(f"invalid protected-environment-review artifact {artifact_path}: {exc}") from exc
         reject_claims(artifact_path, role)
 
 

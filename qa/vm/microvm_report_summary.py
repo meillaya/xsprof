@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from microvm_report_outputs import kernel_tuple
-from microvm_report_parse import fact, observed_bool, observed_cgroup_status, observed_digest
+from microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
 from microvm_report_types import JsonObject, ObserveOutputs, OutputPaths, ReportEnv, ReportRows, VerifierOutputs
 
 
@@ -53,7 +53,7 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
             "events": fact(events_text),
             "scheduler_events": fact(events_text),
             "events_hash": hashlib.sha256(events_text.encode()).hexdigest() if events_text else "unavailable",
-            "nr_rejected": fact(counter_value(events_text, "nr_rejected")),
+            "nr_rejected": counter_fact(events_text, "nr_rejected"),
             "debug_dump": {"status": "missing", "value": "unavailable"},
             "policy_counters": {
                 "nr_rejected": counter_value(events_text, "nr_rejected"),

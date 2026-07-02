@@ -1,0 +1,17 @@
+{
+  "collected_at": "2026-07-01T00:00:00Z",
+  "comment": "manual protected VM proof only; not release approval",
+  "environment_id": 123456,
+  "environment_name": "vm-proof-manual",
+  "head_sha": "0123456789abcdef0123456789abcdef01234567",
+  "host_mutation": false,
+  "production_capacity_claim": false,
+  "release_eligible": false,
+  "review_history_api_url": "https://api.github.com/repos/example/zig-scheduler/actions/runs/123456789/approvals",
+  "reviewer_id": 987654,
+  "reviewer_identity": "repo-owner-reviewed",
+  "reviewer_status": "approved",
+  "run_id": "123456789",
+  "run_url": "https://github.com/example/zig-scheduler/actions/runs/123456789",
+  "schema": "zig-scheduler/protected-environment-review/v1"
+}

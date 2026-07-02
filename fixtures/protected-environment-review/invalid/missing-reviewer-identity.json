@@ -1,0 +1,16 @@
+{
+  "schema": "zig-scheduler/protected-environment-review/v1",
+  "run_id": "28539973410",
+  "run_url": "https://github.com/Meillaya/zig-scheduler/actions/runs/28539973410",
+  "head_sha": "4891192518cda2b63f37ce20863b7fabfc4ceb7d",
+  "environment_name": "vm-proof-manual",
+  "environment_id": 17499459504,
+  "reviewer_status": "approved",
+  "reviewer_id": 105596849,
+  "comment": "manual protected VM proof only; not release approval",
+  "review_history_api_url": "https://api.github.com/repos/Meillaya/zig-scheduler/actions/runs/28539973410/approvals",
+  "collected_at": "2026-07-01T18:45:49Z",
+  "host_mutation": false,
+  "release_eligible": false,
+  "production_capacity_claim": false
+}

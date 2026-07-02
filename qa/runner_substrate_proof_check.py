@@ -8,6 +8,7 @@
 # python3 qa/runner_substrate_proof_check.py --fixtures fixtures/runner-substrate-proof --schema schemas/control/runner-substrate-proof.v1.schema.json
 # python3 qa/runner_substrate_proof_check.py --self-test
 """Validate protected runner substrate proof artifacts for manual VM proof runs."""
+# noqa: SIZE_OK — this boundary validator intentionally keeps runner, protected-review, and substrate cross-checks together.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,11 @@ from typing import Final, Literal, TypeAlias
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from qa.protected_environment_review_check import (
+    DEFAULT_SCHEMA as PROTECTED_REVIEW_SCHEMA,
+    ProtectedReviewError,
+    validate_proof as validate_normalized_protected_review,
+)
 from qa.runner_substrate_proof_common import JsonObject, JsonValue, RunnerProofError, load_json_object
 Mode: TypeAlias = Literal["proof", "fixtures", "self-test"]
 Outcome: TypeAlias = Literal["PASS", "SKIP", "REFUSE"]
@@ -32,12 +38,13 @@ RUN_URL_UNAVAILABLE: Final[str] = "unavailable"
 TUPLE_RE: Final[re.Pattern[str]] = re.compile(r"^linux-(?P<release>6\.(1[2-9]|[2-9][0-9])([.]\d+)?)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$")
 PLACEHOLDER_SHA_VALUES: Final[frozenset[str]] = frozenset(("0" * 64, "1" * 64))
 REQUIRED_LABELS: Final[frozenset[str]] = frozenset(("self-hosted", "zig-scheduler-vm-proof", "disposable-vm"))
-ROOT_FIELDS: Final[frozenset[str]] = frozenset(("schema", "proof_outcome", "runner", "protected_environment", "qemu", "dev_kvm", "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons", "host_mutation", "release_eligible", "production_capacity_claim"))
+ROOT_FIELDS: Final[frozenset[str]] = frozenset(("schema", "proof_outcome", "runner", "protected_environment", "protected_review", "qemu", "dev_kvm", "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons", "host_mutation", "release_eligible", "production_capacity_claim"))
 RUNNER_FIELDS: Final[frozenset[str]] = frozenset(("class", "group", "labels", "name", "os", "arch"))
 ENV_FIELDS: Final[frozenset[str]] = frozenset(("name", "protected", "required_reviewers", "reviewer_status", "reviewer_identity", "unavailable_reason", "run_url"))
 STATUS_PATH_FIELDS: Final[frozenset[str]] = frozenset(("path", "version", "status", "unavailable_reason"))
 KERNEL_FIELDS: Final[frozenset[str]] = frozenset(("supported_tuple", "release", "arch", "config_sha256", "btf_available", "sched_ext_available"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role", "unavailable_reason"))
+PROTECTED_REVIEW_ROLE: Final[str] = "protected-environment-review"
 ATTEST_FIELDS: Final[frozenset[str]] = frozenset(("capability", "status", "workflow_uses", "verify_command", "unavailable_reason"))
 
 
@@ -175,6 +182,26 @@ def validate_environment(data: JsonObject, outcome: Outcome) -> None:
         require(outcome != "PASS", "PASS proof requires explicit protected environment reviewer approval")
 
 
+
+def validate_protected_review(data: JsonObject, outcome: Outcome) -> None:
+    ref = object_field(data, "protected_review", "proof")
+    only_fields(ref, REF_FIELDS, "protected_review")
+    path = safe_path(ref.get("path"), "protected_review.path")
+    sha = text(ref.get("sha256"), "protected_review.sha256")
+    require(SHA_RE.fullmatch(sha) is not None, "protected_review.sha256 must be sha256 hex")
+    require(digest(path) == sha, f"protected_review.sha256 does not match {path}")
+    role = enum_text(ref.get("schema_role"), frozenset((PROTECTED_REVIEW_ROLE,)), "protected_review.schema_role")
+    require(role == PROTECTED_REVIEW_ROLE, "protected_review.schema_role must be protected-environment-review")
+    try:
+        validate_normalized_protected_review(path, PROTECTED_REVIEW_SCHEMA)
+    except ProtectedReviewError as exc:
+        raise RunnerProofError(f"protected_review artifact is not normalized proof: {exc}") from exc
+    review = load_json_object(path)
+    env = object_field(data, "protected_environment", "proof")
+    if review.get("run_url") != env.get("run_url") or review.get("reviewer_identity") != env.get("reviewer_identity"):
+        _ = text(ref.get("unavailable_reason"), "protected_review.unavailable_reason")
+        require(outcome != "PASS", "PASS proof requires protected review artifact to match runner proof")
+
 def validate_status_path(data: JsonObject, field: str) -> str:
     value = object_field(data, field, "proof")
     only_fields(value, STATUS_PATH_FIELDS, field)
@@ -245,6 +272,7 @@ def validate_proof(path: Path, schema_path: Path) -> None:
     outcome: Outcome = "PASS" if outcome_raw == "PASS" else "SKIP" if outcome_raw == "SKIP" else "REFUSE"
     validate_runner(data, outcome)
     validate_environment(data, outcome)
+    validate_protected_review(data, outcome)
     qemu_status = validate_status_path(data, "qemu")
     kvm_status = validate_status_path(data, "dev_kvm")
     accel = enum_text(data.get("accel_mode"), frozenset(("kvm", "tcg", "unavailable")), "accel_mode")
@@ -264,7 +292,7 @@ def validate_proof(path: Path, schema_path: Path) -> None:
 
 
 def validate_fixtures(root: Path, schema: Path) -> None:
-    valid_paths = sorted(path for path in (root / "valid").glob("*.json") if path.name != "bpf-meta.json")
+    valid_paths = sorted(path for path in (root / "valid").glob("*.json") if path.name not in {"bpf-meta.json", "protected-review.json"})
     require(bool(valid_paths), f"missing valid runner substrate fixtures under {root / 'valid'}")
     for valid in valid_paths:
         validate_proof(valid, schema)

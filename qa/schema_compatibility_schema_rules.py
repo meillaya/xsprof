@@ -60,9 +60,18 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
         "runner-substrate-proof.v1.schema.json",
         "zig-scheduler/runner-substrate-proof/v1",
         (
-            "schema", "proof_outcome", "runner", "protected_environment", "qemu", "dev_kvm",
+            "schema", "proof_outcome", "runner", "protected_environment", "protected_review", "qemu", "dev_kvm",
             "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons",
             "host_mutation", "release_eligible", "production_capacity_claim",
+        ),
+    ),
+    (
+        "protected-environment-review.v1.schema.json",
+        "zig-scheduler/protected-environment-review/v1",
+        (
+            "schema", "run_id", "run_url", "head_sha", "environment_name", "environment_id",
+            "reviewer_status", "reviewer_identity", "reviewer_id", "comment", "review_history_api_url",
+            "collected_at", "host_mutation", "release_eligible", "production_capacity_claim",
         ),
     ),
 )
@@ -107,13 +116,15 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("operator-action.v1.schema.json", ("allOf", "1", "if", "required"), ("action",)),
     ("operator-action.v1.schema.json", ("allOf", "1", "then", "required"), ("audit_id", "rollback_id")),
     ("perf-calibration-evidence.v1.schema.json", ("required",), ("schema", "status", "evidence_mode", "source_bundle", "runtime_samples", "sample_count", "threshold_status", "hard_thresholds_enforced", "production_capacity_claim", "release_eligible", "host_mutation")),
+    ("protected-environment-review.v1.schema.json", ("required",), ("schema", "run_id", "run_url", "head_sha", "environment_name", "environment_id", "reviewer_status", "reviewer_identity", "reviewer_id", "comment", "review_history_api_url", "collected_at", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("rollback-result.v1.schema.json", ("required",), ("schema", "rollback_id", "result", "idempotent", "host_mutation")),
-    ("runner-substrate-proof.v1.schema.json", ("required",), ("schema", "proof_outcome", "runner", "protected_environment", "qemu", "dev_kvm", "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons", "host_mutation", "release_eligible", "production_capacity_claim")),
+    ("runner-substrate-proof.v1.schema.json", ("required",), ("schema", "proof_outcome", "runner", "protected_environment", "protected_review", "qemu", "dev_kvm", "accel_mode", "kernel_tuple", "bpf_metadata", "attestation", "unavailable_reasons", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("runner-substrate-proof.v1.schema.json", ("properties", "runner", "required"), ("class", "labels", "os", "arch")),
     ("runner-substrate-proof.v1.schema.json", ("properties", "protected_environment", "required"), ("name", "protected", "required_reviewers", "reviewer_status", "run_url")),
     ("runner-substrate-proof.v1.schema.json", ("properties", "kernel_tuple", "required"), ("supported_tuple", "release", "arch", "config_sha256", "btf_available", "sched_ext_available")),
     ("runner-substrate-proof.v1.schema.json", ("properties", "attestation", "required"), ("capability", "status", "workflow_uses", "verify_command")),
     ("runner-substrate-proof.v1.schema.json", ("$defs", "artifactRef", "required"), ("path", "sha256", "schema_role")),
+    ("runner-substrate-proof.v1.schema.json", ("$defs", "protectedReviewRef", "required"), ("path", "sha256", "schema_role")),
     ("runner-substrate-proof.v1.schema.json", ("$defs", "statusPath", "required"), ("path", "status")),
     ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "if", "required"), ("proof_outcome",)),
     ("runner-substrate-proof.v1.schema.json", ("allOf", "0", "then", "properties", "protected_environment", "required"), ("reviewer_identity",)),
@@ -206,7 +217,7 @@ def validate_schema_identifier(schema: JsonObject, name: str) -> None:
 
 def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]:
     found: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    match value:
+    match value:  # noqa: MATCH_OK -- JsonValue cases are exhausted by the union definition.
         case dict():
             required = value.get("required")
             if isinstance(required, list):

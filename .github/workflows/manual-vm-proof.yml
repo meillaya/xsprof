@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
   attestations: write
 
@@ -79,6 +80,7 @@ jobs:
           python3 qa/manual_vm_proof_ci_check.py \
             --workflow .github/workflows/manual-vm-proof.yml \
             --docs docs/ci.md docs/runbooks/vm-lab.md docs/releases/governance-gate.md docs/security/review-checklist.md
+          python3 qa/protected_environment_review_check.py --self-test
           python3 qa/runner_substrate_proof_check.py --self-test
           bash qa/no_host_mutation.sh
           bash qa/no_frontend_root.sh
@@ -133,6 +135,7 @@ jobs:
             printf '%s\n' '- host refusal: host-refusal.json artifacts'
             printf '%s\n' '- static verification logs: evidence/lab/manual-vm-proof/static-logs/*.log'
             printf '%s\n' '- benchmark provenance: benchmark_provenance records for calibrated matrix rows when applicable'
+            printf '%s\n' '- protected environment review: protected-environment-review.json with approved vm-proof-manual reviewer, exact non-release acknowledgement, run URL, and no release/production claim'
             printf '%s\n' '- runner substrate proof: runner-substrate-proof.json with runner class, runner group, runner labels, protected environment reviewer, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons'
             printf '%s\n' '- evidence manifest: evidence/lab/manual-vm-proof/evidence-manifest.json with SHA-256 hashes, schema roles, and attestation status'
             printf '%s\n' '- host_mutation=false'
@@ -150,6 +153,92 @@ jobs:
           grep -R 'rollback' evidence/lab/matrix/manual-vm-proof >/dev/null
           grep -R 'cleanup' evidence/lab/matrix/manual-vm-proof >/dev/null
           grep -R 'host.refusal\|host-refusal\|host_refusal' evidence/lab/matrix/manual-vm-proof >/dev/null
+
+      - name: Capture protected environment review evidence
+        env:
+          REQUIRED_APPROVAL_COMMENT: manual protected VM proof only; not release approval
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import UTC, datetime
+          from pathlib import Path
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          out = Path('evidence/lab/manual-vm-proof/protected-environment-review.json')
+          run_id = os.environ['GITHUB_RUN_ID']
+          repository = os.environ['GITHUB_REPOSITORY']
+          api_url = f'https://api.github.com/repos/{repository}/actions/runs/{run_id}/approvals'
+          run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + repository + '/actions/runs/' + run_id
+          token = os.environ['GITHUB_TOKEN']
+          required_comment = os.environ['REQUIRED_APPROVAL_COMMENT']
+          request = urllib.request.Request(
+              api_url,
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': 'Bearer ' + token,
+                  'User-Agent': 'zig-scheduler-manual-vm-proof',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              },
+              method='GET',
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  raw = response.read()
+          except urllib.error.URLError as exc:
+              raise SystemExit(f'protected review API request failed without exposing token: {exc}') from exc
+          payload = json.loads(raw)
+          if not isinstance(payload, list):
+              raise SystemExit('protected review API response must be a JSON array')
+
+          selected = None
+          selected_environment = None
+          for row in payload:
+              if not isinstance(row, dict):
+                  raise SystemExit('protected review API response row must be an object')
+              environments = row.get('environments')
+              if not isinstance(environments, list):
+                  raise SystemExit('protected review API response row environments must be an array')
+              matching_environment = None
+              for environment in environments:
+                  if not isinstance(environment, dict):
+                      raise SystemExit('protected review API response environment must be an object')
+                  if environment.get('name') == 'vm-proof-manual':
+                      matching_environment = environment
+              if row.get('state') == 'approved' and row.get('comment') == required_comment and matching_environment is not None:
+                  selected = row
+                  selected_environment = matching_environment
+
+          if selected is None or selected_environment is None:
+              raise SystemExit('no approved vm-proof-manual review with exact non-release acknowledgement was found')
+          user = selected.get('user')
+          if not isinstance(user, dict):
+              raise SystemExit('selected protected review row is missing user object')
+          normalized = {
+              'schema': 'zig-scheduler/protected-environment-review/v1',
+              'run_id': run_id,
+              'run_url': run_url,
+              'head_sha': os.environ['GITHUB_SHA'],
+              'environment_name': 'vm-proof-manual',
+              'environment_id': selected_environment.get('id'),
+              'reviewer_status': 'approved',
+              'reviewer_identity': user.get('login'),
+              'reviewer_id': user.get('id'),
+              'comment': required_comment,
+              'review_history_api_url': api_url,
+              'collected_at': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'host_mutation': False,
+              'release_eligible': False,
+              'production_capacity_claim': False,
+          }
+          out.write_text(json.dumps(normalized, indent=2, sort_keys=True) + '\n')
+          PY
+          python3 qa/protected_environment_review_check.py \
+            --proof evidence/lab/manual-vm-proof/protected-environment-review.json \
+            --schema schemas/control/protected-environment-review.v1.schema.json
 
       - name: Capture protected runner substrate proof
         env:
@@ -192,13 +281,24 @@ jobs:
               if not path.is_file():
                   return {
                       'reviewer_status': 'not_exposed_by_github_actions_runtime',
-                      'unavailable_reason': 'GitHub Actions does not expose required reviewer identity to job steps; add externally curated protected-environment-review.json before claiming PASS',
+                      'unavailable_reason': 'normalized protected-environment-review.json is missing; cannot claim PASS',
                   }
               review = json.loads(path.read_text())
-              if review.get('reviewer_status') != 'approved' or review.get('run_url') != expected_run_url or not review.get('reviewer_identity'):
+              expected_api_url = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/approvals'
+              if (
+                  review.get('reviewer_status') != 'approved'
+                  or review.get('run_url') != expected_run_url
+                  or review.get('review_history_api_url') != expected_api_url
+                  or review.get('environment_name') != 'vm-proof-manual'
+                  or review.get('comment') != 'manual protected VM proof only; not release approval'
+                  or not review.get('reviewer_identity')
+                  or review.get('host_mutation') is not False
+                  or review.get('release_eligible') is not False
+                  or review.get('production_capacity_claim') is not False
+              ):
                   return {
                       'reviewer_status': 'unavailable',
-                      'unavailable_reason': 'externally curated protected-environment-review.json is missing approved reviewer identity for this run URL',
+                      'unavailable_reason': 'normalized protected-environment-review.json is missing approved reviewer identity for this run URL and acknowledgement',
                   }
               return {
                   'reviewer_status': 'approved',
@@ -232,7 +332,7 @@ jobs:
           reviewer_signal = load_reviewer_signal(reviewer_evidence, run_url)
           unavailable = []
           if reviewer_signal['reviewer_status'] != 'approved':
-              unavailable.append('protected environment reviewer approval not exposed; external curated reviewer evidence required for PASS')
+              unavailable.append('protected environment reviewer approval not normalized for this run; protected-environment-review artifact required for PASS')
           if not qemu_available:
               unavailable.append('qemu-system-x86_64 unavailable on protected runner')
           if not kvm_available:
@@ -273,6 +373,11 @@ jobs:
           }
           if bpf_role == 'bpf-skip-json':
               bpf_metadata['unavailable_reason'] = 'BPF object metadata unavailable; using explicit SKIP JSON'
+          protected_review = {
+              'path': reviewer_evidence.as_posix(),
+              'sha256': digest(reviewer_evidence),
+              'schema_role': 'protected-environment-review',
+          }
           runner_group = os.environ.get('RUNNER_GROUP_NAME', 'configured-by-repository-owners')
           runner_name = os.environ.get('RUNNER_NAME', 'github-actions-runner')
           runner_os = os.environ.get('RUNNER_OS', 'Linux')
@@ -302,6 +407,7 @@ jobs:
                   'unavailable_reason': reviewer_unavailable_reason,
                   'run_url': run_url,
               },
+              'protected_review': protected_review,
               'qemu': qemu,
               'dev_kvm': dev_kvm,
               'accel_mode': accel_mode,
@@ -353,6 +459,8 @@ jobs:
           bpf_skip = Path('zig-out/bpf/zigsched_minimal.bpf.skip.json')
           bpf_ref = ref(bpf_meta, 'bpf-metadata') if bpf_meta.exists() else ref(bpf_skip, 'bpf-skip-json')
           artifacts = []
+          protected_review = Path('evidence/lab/manual-vm-proof/protected-environment-review.json')
+          artifacts.append(ref(protected_review, 'protected-environment-review'))
           for row in sorted((root / 'rows').glob('*/matrix-run.json')):
               row_dir = row.parent
               artifacts.append(ref(row, 'matrix-row'))
@@ -423,9 +531,9 @@ jobs:
               'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
               'artifacts': artifacts,
               'benchmark_provenance': benchmark_provenance,
-              'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts if item['schema_role'] == 'privacy-scan']},
+              'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts]},
               'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
-              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
+              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/protected_environment_review_check.py', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/protected-environment-review.v1.schema.json', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
               'host_mutation': False,
               'release_eligible': False,
               'production_capacity_claim': False,
@@ -441,7 +549,7 @@ jobs:
           set -euo pipefail
           test -f evidence/lab/manual-vm-proof/evidence-manifest.json
           mkdir -p "$(dirname "$VM_PROOF_BUNDLE")"
-          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json)
+          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/protected-environment-review.v1.schema.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json)
           if [ -f zig-out/bpf/zigsched_minimal.bpf.meta.json ]; then
             tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.meta.json)
           fi

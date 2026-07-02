@@ -221,8 +221,22 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "schema_role": {
-          "type": "string",
-          "minLength": 1
+          "enum": [
+            "benchmark-provenance",
+            "bpf-metadata",
+            "bpf-skip-json",
+            "cleanup-proof",
+            "daemon-events",
+            "host-refusal-proof",
+            "matrix-manifest",
+            "matrix-row",
+            "privacy-scan",
+            "protected-environment-review",
+            "rollback-proof",
+            "runner-substrate-proof",
+            "static-verification-log"
+          ],
+          "type": "string"
         }
       }
     }

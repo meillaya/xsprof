@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "b21ac249713df182b04a440a30929edd217bb4c317cb5505da81b8f52b6a9322"
+      "sha256": "1b3d09e67ede0539357cadaef317b2664aeaac67428eb8470a942e13afe57af7"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "d4854b70681c6c25c06573e39f52da35b8e55203a698657094d66c8eddbae701"
+      "sha256": "062f0cfccc2ed01966d21e6628e1c1030eed52845f7775dcfd13ebc90b7cccca"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -96,13 +96,13 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "7947097bf1f052305f0c7def13e0c0e3588f03e31ba108372ea3c6b59328073b"
+      "sha256": "e1114b1274ed9813e0023dfa90b9ab2e6c9f6c01cdc3526e95ef06abd2d81430"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
       "purpose": "supported VM lab kernel tuple matrix",
       "required": true,
-      "sha256": "5189dfa4f47507c927a0245ee2b21399a70903e0566ecb163fcfbb77c2e14164"
+      "sha256": "fea5e38a484c9cf7c1ea0f7719d0d0903dcbb90802058fed2fadb1c954ab3406"
     },
     {
       "path": "docs/runbooks/sched-ext-fallback.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "7b0e769c1ad6d1e9e677c6be72e6359164834047da0d3425f2f3bf30a70bf318"
+      "sha256": "3dca3d427ee52259abfd1e824307b815c0e403f710f4a56b884861c9d62e143a"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -180,7 +180,7 @@
       "path": "schemas/control/evidence-manifest.v1.schema.json",
       "purpose": "evidence-manifest v1 proof bundle schema",
       "required": true,
-      "sha256": "c20be1159d16255aa32af6da0f5c2c8055971cec485f179c36b6a8ab510dbcfa"
+      "sha256": "43fc5ff12205b3b8895c648127906ec960ef0423eabf0f9412a5abf38b49b81b"
     },
     {
       "path": "schemas/control/matrix-run.v1.schema.json",
@@ -189,10 +189,16 @@
       "sha256": "18388c92327dc04129920bc90a431c204788e75c1384d538460ee7d10ec7ef28"
     },
     {
+      "path": "schemas/control/protected-environment-review.v1.schema.json",
+      "purpose": "protected environment review approval schema",
+      "required": true,
+      "sha256": "0afc70560aa20a75a0af64ea7311cc683b6927c5693119962c49d6de5ccc5b25"
+    },
+    {
       "path": "schemas/control/runner-substrate-proof.v1.schema.json",
       "purpose": "protected runner substrate proof schema",
       "required": true,
-      "sha256": "5ae2710dea3e96e8278aa8ba7d3cbfc9e4a4738c4892d1e7ab598bb7cdb4a2fe"
+      "sha256": "dc3f3335bc38792b496fe3850658644fa704b5633e058dc353cab0efa94d7438"
     },
     {
       "path": "schemas/control/runtime-sample.v1.schema.json",
@@ -276,13 +282,13 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "bb32e06d54b23aa606e40a7f6efd634cf6554075121f52168ed5f8e766f0f1b0"
+      "sha256": "0b426a448ba5dc15ff1a252b354e46cdd1b670310dd23810d71458f7eb650173"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
       "purpose": "evidence-manifest v1 validator self-test fixtures",
       "required": true,
-      "sha256": "6291e8263e5affd87accc67d89711aefedc573c4aa308437ed0dc09493eb6a52"
+      "sha256": "f42b5d042aebab50030e8823d3531cb209c91d14fc6e749d02211e7e1923b069"
     },
     {
       "path": "qa/frontend_contract_matrix_ref.py",
@@ -318,7 +324,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "746be14c2f78517e6be7f4336b14229a34d67b0174c7c4f237f79c4f8938c242"
+      "sha256": "03b49e446fe4960f38230cceb0bdf492a3da8847d66ae1177f169c1f994565c6"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -393,6 +399,12 @@
       "sha256": "9ddefc68c3430738aa476b336faddef7dcb79b89d0061584cb4365271ace2b80"
     },
     {
+      "path": "qa/protected_environment_review_check.py",
+      "purpose": "protected environment review contract validator",
+      "required": true,
+      "sha256": "2233bf33f47bdce7f038bcbb6612e8eb8b4beda7a451be1fcf39edf9abb3f441"
+    },
+    {
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
@@ -402,7 +414,7 @@
       "path": "qa/runner_substrate_proof_check.py",
       "purpose": "protected runner substrate proof validator",
       "required": true,
-      "sha256": "3581f78b8808f7573f675f01d901b40818942c04cf07cd5cacc7b33d9d4369f7"
+      "sha256": "167d7f3834b8003723efa3bc20ad148c5af5423063ace3b4df7155b2107cc19e"
     },
     {
       "path": "qa/runner_substrate_proof_common.py",
@@ -414,7 +426,7 @@
       "path": "qa/runner_substrate_proof_selftest.py",
       "purpose": "protected runner substrate proof adversarial self-test cases",
       "required": true,
-      "sha256": "16a2f74a1e565415d6d245500ee02b2d07e588e0356d5e9d3c3bb0a3ae246389"
+      "sha256": "f0947811dbe2d6b509bfc5a310204c625c7adb9122c1af3c1223bc4fe298d92c"
     },
     {
       "path": "qa/runtime_sample_check.py",
@@ -480,7 +492,7 @@
       "path": "qa/schema_compatibility_schema_rules.py",
       "purpose": "schema compatibility structural rules shared by control schema gates",
       "required": true,
-      "sha256": "17d95c8ca2b8134021ad172378528f1d8ca995d4cd5725d74223aefae20ec8e6"
+      "sha256": "08395c2cf11763d5b1b2f2849d3f92a82d8b8062e31c773bc907f7f8ef81d0ce"
     },
     {
       "path": "qa/security_gate.sh",
@@ -523,6 +535,108 @@
       "purpose": "wording, contradiction, and prompt-injection audit gate",
       "required": true,
       "sha256": "43c64b0d2c4ac551ce7cb6adcc194c2082933b3c4927f0039e97f7c18589bea3"
+    },
+    {
+      "path": "fixtures/protected-environment-review/valid/github-review-run-28539973410.json",
+      "purpose": "protected environment review approved GitHub run fixture",
+      "required": true,
+      "sha256": "5c8e28bc8feaffdfe4681bde1bfd10ef50ab60a3199b5feee07d3a9de725453f"
+    },
+    {
+      "path": "fixtures/runner-substrate-proof/valid/protected-review.json",
+      "purpose": "runner substrate proof embedded protected environment review fixture",
+      "required": true,
+      "sha256": "7e595a90aa29631059ac4160a68ee323c3d0e2a25b6efd5cccaece5308d061a8"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/api-url-repo-mismatch.json",
+      "purpose": "protected environment review invalid API URL repository mismatch fixture",
+      "required": true,
+      "sha256": "ed8dd2dd788710fd93f2669710ddd88b977df106c9864a9144be7ea37a662046"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/dirty-worktree-field.json",
+      "purpose": "protected environment review invalid dirty worktree field fixture",
+      "required": true,
+      "sha256": "999ba738d84bcb0cf97090eeb59418153d6a4bd366c2fe8096384c650ed37e23"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/host-mutation-true.json",
+      "purpose": "protected environment review invalid host mutation claim fixture",
+      "required": true,
+      "sha256": "20ccf2d2fcdcff821afb4b9cc795d85df08642bbd264540ce8d921c5437848e2"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/malformed.json",
+      "purpose": "protected environment review invalid malformed JSON fixture",
+      "required": true,
+      "sha256": "8813a7f4e7d65d8e7980d3e6c392d91aac565a4da26762b42f1d30b74d25d8e0"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/misleading-success-output-field.json",
+      "purpose": "protected environment review invalid misleading success output fixture",
+      "required": true,
+      "sha256": "00248cb9675692e25e26fb5987fd99ad043f33e0551c2faa665bbb3ca07ccb17"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/missing-reviewer-identity.json",
+      "purpose": "protected environment review invalid missing reviewer identity fixture",
+      "required": true,
+      "sha256": "55445275f077471ffbe428aea44a121caca9ba5b7bfbd20150e9316f68f575ad"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/missing-run-url.json",
+      "purpose": "protected environment review invalid missing run URL fixture",
+      "required": true,
+      "sha256": "8ef4d63dce723ad759b2a83a9123d5accd5e9fd7063d0c717fca7815eed50bcd"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/non-approved-state.json",
+      "purpose": "protected environment review invalid non-approved state fixture",
+      "required": true,
+      "sha256": "ae3332cda0cde1943eafac8cc7d27f137ec72abf33e1e440afb7d3f74dba7205"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/privacy-unsafe-key.json",
+      "purpose": "protected environment review invalid privacy unsafe key fixture",
+      "required": true,
+      "sha256": "fba4d65ac2b4f2a521093a4900c045691f2dec6c38a1ae4a32d8985d0578ba1e"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/production-capacity-claim-true.json",
+      "purpose": "protected environment review invalid production capacity claim fixture",
+      "required": true,
+      "sha256": "af486708ca98479ab2f762b7c4e3eac5cec1b0531de4df1bcc6401e1e989eb1e"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/release-eligible-true.json",
+      "purpose": "protected environment review invalid release eligibility claim fixture",
+      "required": true,
+      "sha256": "674a1f40142f5369766ca39c814c01a15ed8e2630d6166e403ff2bcae2f28741"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/run-url-id-mismatch.json",
+      "purpose": "protected environment review invalid run URL ID mismatch fixture",
+      "required": true,
+      "sha256": "26a309d5c44b6ca1454ad54a749c3bbb400381664dd034e29b39e770ee553cc1"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/stale-state-field.json",
+      "purpose": "protected environment review invalid stale state field fixture",
+      "required": true,
+      "sha256": "6036be9888dab25abbf29a5b19c8e02f85f2d8c11a4ffc5180bf018bf7647167"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/wrong-comment.json",
+      "purpose": "protected environment review invalid approval comment fixture",
+      "required": true,
+      "sha256": "d731610c8f7f9a8e4b4da47c2b54998c23a77dc525b6ba16e21c324249c42ae4"
+    },
+    {
+      "path": "fixtures/protected-environment-review/invalid/wrong-env.json",
+      "purpose": "protected environment review invalid environment fixture",
+      "required": true,
+      "sha256": "e40bd93afc8c8f6ae9e5327f03a762db5a8f2b1fb200bbf38706573a7b79d700"
     }
   ]
 }

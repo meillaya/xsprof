@@ -22,6 +22,7 @@ Any tuple missing BTF, BPF JIT, `CONFIG_SCHED_CLASS_EXT`, or Linux `>=6.12` is u
 ## Non-goals
 
 - No distro is declared supported by name.
+- CachyOS `7.1.1-cachyos` is out of scope for the protected VM live PASS milestone and requires a future tuple-expansion governance milestone before any regex, schema, validator, or workflow input accepts it.
 - No release-readiness claim is made.
 - No host attach/load command is authorized by this matrix.
 - No package or systemd unit may use this tuple matrix to auto-enable mutation.

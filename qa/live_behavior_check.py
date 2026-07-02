@@ -304,12 +304,15 @@ def self_test() -> None:
     reject(write_bundle(SELF_ROOT / "counter-growth", counter_growth=True), "counter growth")
     reject(write_bundle(SELF_ROOT / "host-mutation", host_mutation=True), "host mutation")
     reject(write_bundle(SELF_ROOT / "all-during", all_during=True), "missing before/after phases")
+    unavailable_good = write_bundle(SELF_ROOT / "unavailable-counter")
+    rewrite_sample_counters(unavailable_good.parent / "observe-partial" / "runtime-samples.jsonl", eventless_numeric_counter=False)
+    validate_bundle(unavailable_good)
     reject(write_bundle(SELF_ROOT / "missing-counters", missing_counters=True), "missing counter fact")
-    reject(write_bundle(SELF_ROOT / "fake-unavailable-counter", fake_unavailable_counter=True), "fake unavailable counter")
+    reject(write_bundle(SELF_ROOT / "eventless-numeric-counter", fake_unavailable_counter=True), "eventless numeric counter")
     reject(write_bundle(SELF_ROOT / "bad-object-sha", bad_object_sha=True), "bad object sha")
     reject(write_bundle(SELF_ROOT / "missing-daemon-host-mutation", missing_daemon_host_mutation=True), "missing daemon host mutation")
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
-    print("PASS live behavior self-test: full VM-live bundle accepted; attach-only and malformed bundles rejected")
+    print("PASS live behavior self-test: full VM-live bundle accepted; unavailable counter accepted; eventless numeric and malformed bundles rejected")
 
 
 def write_bundle(
@@ -378,6 +381,14 @@ def sample_rows(counter_growth: bool, all_during: bool, missing_counters: bool, 
         row.update({"sequence": sequence, "ops": {"status": "present", "value": ops}, "state": {"status": "present", "value": "enabled" if sequence < 2 or all_during else "disabled"}, "cgroup_membership_digest": digest, "cgroup_membership_status": {"status": "present", "value": "present"}})
         rows.append(row)
     return rows
+
+
+def rewrite_sample_counters(samples: Path, *, eventless_numeric_counter: bool) -> None:
+    rows = load_jsonl(samples)
+    for row in rows:
+        row["events"] = {"status": "unknown", "value": "unavailable"}
+        row["nr_rejected"] = {"status": "present", "value": "0"} if eventless_numeric_counter else {"status": "unknown", "value": "unavailable"}
+    samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
 def observe_summary(samples: Path, daemon: Path, ledger: Path, transcript: Path) -> JsonObject:

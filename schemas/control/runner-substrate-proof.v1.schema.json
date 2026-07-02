@@ -8,6 +8,7 @@
     "proof_outcome",
     "runner",
     "protected_environment",
+    "protected_review",
     "qemu",
     "dev_kvm",
     "accel_mode",
@@ -120,6 +121,9 @@
           ]
         }
       }
+    },
+    "protected_review": {
+      "$ref": "#/$defs/protectedReviewRef"
     },
     "qemu": {
       "$ref": "#/$defs/statusPath"
@@ -249,6 +253,32 @@
             "bpf-metadata",
             "bpf-skip-json"
           ]
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "protectedReviewRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "schema_role"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema_role": {
+          "const": "protected-environment-review"
         },
         "unavailable_reason": {
           "type": "string",
