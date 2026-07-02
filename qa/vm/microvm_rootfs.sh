@@ -56,10 +56,24 @@ map_value_by_key() {
   [ -r "$file" ] || { printf ''; return; }
   tr -d '[:space:]' < "$file" | sed -n "s/.*{\"key\":$key,\"value\":\([0-9][0-9]*\)}.*/\1/p" | head -n 1
 }
+map_id_by_name() {
+  lookup_name="$(printf '%s' "$1" | cut -c 1-15)"
+  bpftool map show 2>/tmp/zigsched-map-show.err | sed -n "s/^\([0-9][0-9]*\): .* name $lookup_name .*/\1/p" | tail -n 1
+}
+map_dump_latest_by_name() {
+  map_name="$1"; out_file="$2"; err_file="$3"
+  map_id="$(map_id_by_name "$map_name")"
+  if [ -n "$map_id" ]; then
+    bpftool map dump id "$map_id" -j >"$out_file" 2>"$err_file" || true
+  else
+    : >"$out_file"
+    printf 'map id unavailable for %s\n' "$map_name" >"$err_file"
+  fi
+}
 capture_bpf_policy_evidence() {
-  bpftool map dump name zigsched_cgroup_policy -j >/tmp/zigsched-cgroup-policy.json 2>/tmp/zigsched-cgroup-policy.err || true
-  bpftool map dump name zigsched_stats -j >/tmp/zigsched-stats.json 2>/tmp/zigsched-stats.err || true
-  bpftool map dump name zigsched_events -j >/tmp/zigsched-events.json 2>/tmp/zigsched-events.err || true
+  map_dump_latest_by_name zigsched_cgroup_policy /tmp/zigsched-cgroup-policy.json /tmp/zigsched-cgroup-policy.err
+  map_dump_latest_by_name zigsched_stats /tmp/zigsched-stats.json /tmp/zigsched-stats.err
+  map_dump_latest_by_name zigsched_events /tmp/zigsched-events.json /tmp/zigsched-events.err
 }
 cgroup_policy_status_value() { [ -s /tmp/zigsched-cgroup-policy.json ] && printf present || printf unavailable; }
 cgroup_policy_last_weight_value() { value="$(json_number_field /tmp/zigsched-cgroup-policy.json last_weight)"; [ -n "$value" ] && printf '%s' "$value" || printf 0; }
@@ -161,7 +175,7 @@ emit_mutation_family() {
   echo "ZIGSCHED_JSON {\"event\":\"mutation_family\",\"family\":\"$(json_escape "$family")\",\"status\":\"$status\",\"target\":\"vm:$(json_escape "$target")\",\"target_allowlisted\":true,\"pre_value\":\"$(json_escape "$pre_value")\",\"post_value\":\"$(json_escape "$post_observed")\",\"restored_value\":\"$(json_escape "$restored_value")\",\"write_rc\":$write_rc,\"rollback_rc\":$rollback_rc,\"rollback_restored\":$rollback_restored}"
 }
 emit_mutation_families() {
-  emit_mutation_family cgroup.weight "$active_target/cpu.weight" 200
+  emit_mutation_family cgroup.weight "$active_target/cpu.weight" 300
   emit_mutation_family cpu.max "$active_target/cpu.max" "50000 100000"
   emit_mutation_family uclamp "$active_target/cpu.uclamp.min" "1.00"
   cpu_online=/sys/devices/system/cpu/cpu1/online
@@ -196,7 +210,6 @@ echo "ZIGSCHED_JSON {\"event\":\"workload\",\"pid\":${lab_pid:-0},\"cg_rc\":$cg_
 if [ "$cg_rc" -ne 0 ]; then
   poweroff -f
 fi
-emit_mutation_families
 emit_sched_sample before
 bpftool version 2>&1 | sed 's/^/BPFT_VER /'
 bpftool -d struct_ops register /zigsched_minimal.bpf.o > /tmp/register.out 2>&1
@@ -207,6 +220,7 @@ reg_id="$(sed -n 's/.* id \([0-9][0-9]*\).*/\1/p' /tmp/register.out | tail -n 1)
 reg_state="$(state_value)"; [ -n "$reg_state" ] || [ "$reg_rc" -ne 0 ] || reg_state=enabled
 reg_ops="$(ops_value)"; [ -n "$reg_ops" ] || [ "$reg_rc" -ne 0 ] || reg_ops=zigsched_minimal
 sleep 2
+emit_mutation_families
 capture_bpf_policy_evidence
 cgroup_policy_status="$(cgroup_policy_status_value)"
 dsq_coherence_status="$(dsq_coherence_value)"
