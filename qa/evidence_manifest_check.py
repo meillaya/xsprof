@@ -62,6 +62,7 @@ MAX_TEXT_ARTIFACT_BYTES: Final[int] = 1024 * 1024
 class Args:
     manifest: Path | None
     schema: Path
+    source_root: Path
     self_test: bool
 
 
@@ -70,14 +71,16 @@ class ManifestError(Exception):
 
 
 def parse_args(argv: list[str]) -> Args:
-    if argv == ["--self-test"]:
-        return Args(None, Path("schemas/control/evidence-manifest.v1.schema.json"), True)
     manifest: Path | None = None
     schema = Path("schemas/control/evidence-manifest.v1.schema.json")
+    source_root = Path.cwd()
+    self_test_arg = False
     index = 0
     while index < len(argv):
         arg = argv[index]
-        if arg == "--manifest":
+        if arg == "--self-test":
+            self_test_arg = True
+        elif arg == "--manifest":
             index += 1
             if index >= len(argv):
                 raise ManifestError("--manifest requires a path")
@@ -87,12 +90,21 @@ def parse_args(argv: list[str]) -> Args:
             if index >= len(argv):
                 raise ManifestError("--schema requires a path")
             schema = Path(argv[index])
+        elif arg == "--source-root":
+            index += 1
+            if index >= len(argv):
+                raise ManifestError("--source-root requires a path")
+            source_root = Path(argv[index])
         else:
-            raise ManifestError("usage: evidence_manifest_check.py --manifest <path> [--schema <path>] | --self-test")
+            raise ManifestError("usage: evidence_manifest_check.py --manifest <path> [--schema <path>] [--source-root <repo>] | --self-test [--schema <path>] [--source-root <repo>]")
         index += 1
+    if self_test_arg:
+        if manifest is not None:
+            raise ManifestError("--self-test cannot be combined with --manifest")
+        return Args(None, schema, source_root, True)
     if manifest is None:
         raise ManifestError("--manifest is required")
-    return Args(manifest, schema, False)
+    return Args(manifest, schema, source_root, False)
 
 
 def load_json(path: Path) -> JsonObject:
@@ -208,10 +220,10 @@ def reject_text_artifact(path: Path, role: str) -> None:
     reject_private_text(text_value, str(path))
 
 
-def tracked_sources(paths: JsonValue | None) -> None:
+def tracked_sources(paths: JsonValue | None, source_root: Path) -> None:
     if not isinstance(paths, list) or not paths:
         raise ManifestError("required_sources must be a non-empty list")
-    result = subprocess.run(["git", "ls-files"], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(["git", "-C", source_root.as_posix(), "ls-files"], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
         raise ManifestError(f"git ls-files failed: {result.stderr.strip()}")
     tracked = set(result.stdout.splitlines())
@@ -220,7 +232,8 @@ def tracked_sources(paths: JsonValue | None) -> None:
         require(path in tracked, f"required source is not tracked: {path}")
 
 
-def validate_manifest(path: Path, schema_path: Path) -> None:
+def validate_manifest(path: Path, schema_path: Path, source_root: Path | None = None) -> None:
+    source_root_path = source_root if source_root is not None else Path.cwd()
     schema = load_json(schema_path)
     require(schema.get("$id") == SCHEMA, "evidence manifest schema $id mismatch")
     data = load_json(path)
@@ -275,7 +288,7 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
         raise ManifestError("benchmark_provenance must be artifact references or a not-applicable object")
     validate_privacy(data.get("privacy_scan"))
     validate_attestation(data.get("attestation"))
-    tracked_sources(data.get("required_sources"))
+    tracked_sources(data.get("required_sources"), source_root_path)
     for artifact_path, role in artifact_paths:
         if role == PROTECTED_REVIEW_ROLE:
             try:
@@ -325,9 +338,9 @@ def validate_attestation(value: JsonValue | None) -> None:
         raise ManifestError("attestation.retention_days must be positive")
 
 
-def self_test(schema: Path) -> None:
+def self_test(schema: Path, source_root: Path) -> None:
     result = subprocess.run(
-        [sys.executable, "qa/evidence_manifest_selftest.py", "--schema", schema.as_posix()],
+        [sys.executable, "qa/evidence_manifest_selftest.py", "--schema", schema.as_posix(), "--source-root", source_root.as_posix()],
         check=False,
     )
     if result.returncode != 0:
@@ -338,9 +351,9 @@ def main(argv: list[str]) -> int:
     try:
         args = parse_args(argv)
         if args.self_test:
-            self_test(args.schema)
+            self_test(args.schema, args.source_root)
         elif args.manifest is not None:
-            validate_manifest(args.manifest, args.schema)
+            validate_manifest(args.manifest, args.schema, args.source_root)
             print(f"PASS evidence manifest: {args.manifest}")
         return 0
     except ManifestError as exc:

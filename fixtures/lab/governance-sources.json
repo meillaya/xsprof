@@ -288,13 +288,13 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "66ae2e57a473e2a42318ce8704fe74334d3a1600155e010ee685fc2e96b55478"
+      "sha256": "08311721fe3c4c7918e6231beaff27440e460587199cf024b10599ceb5210b36"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
       "purpose": "evidence-manifest v1 validator self-test fixtures",
       "required": true,
-      "sha256": "84492cd18e0be04693d4035210abf9612a77b8ce0a596b6df251300b1541a3bb"
+      "sha256": "f9a9ef5794453a8bfa8c7c7ffe682618bdd95af2c2b3bb2d297b2a5d9f027ba8"
     },
     {
       "path": "qa/frontend_contract_matrix_ref.py",

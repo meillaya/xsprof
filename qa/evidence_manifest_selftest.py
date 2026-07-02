@@ -5,13 +5,16 @@
 # ///
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --self-test
+# noqa: SIZE_OK — evidence-manifest adversarial fixture matrix stays colocated with its self-test runner.
 """Self-test fixtures for evidence_manifest_check.py."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 import json
 import shutil
+import tempfile
 from typing import Final, Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -32,7 +35,7 @@ def ref(path: Path, role: str) -> JsonObject:
     return {"path": path.as_posix(), "sha256": file_sha(path), "schema_role": role}
 
 
-def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
+def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path, Path]:
     rows = root / "rows" / "fixture-pass"
     for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"):
         write_json(rows / f"{name}.json", {"schema": f"zig-scheduler/{name}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
@@ -196,6 +199,34 @@ def expect_static_log_privacy_reject(path: Path, schema: Path) -> None:
     raise ManifestError("expected rejection did not occur: static log secret")
 
 
+def expect_extracted_bundle_source_root_accept(schema: Path, source_root: Path) -> None:
+    schema_path, source_path = schema.resolve(), source_root.resolve()
+    protected_schema_source = source_path / "schemas/control/protected-environment-review.v1.schema.json"
+    with tempfile.TemporaryDirectory(prefix="evidence-manifest-bundle-") as temp:
+        bundle_root = Path(temp) / "bundle"
+        bundle_schema = bundle_root / "schemas/control" / protected_schema_source.name
+        bundle_schema.parent.mkdir(parents=True)
+        _ = shutil.copy2(protected_schema_source, bundle_schema)
+        original = Path.cwd()
+        try:
+            os.chdir(bundle_root)
+            manifest = good_manifest(Path("."))
+            validate_manifest(manifest, schema_path, source_root=source_path)
+            print("PASS accept extracted evidence manifest with separate source root")
+            data = load_json(manifest)
+            mutate(data, "untracked-source")
+            bad = Path("bad-extracted-untracked-source.json")
+            write_json(bad, data)
+            try:
+                validate_manifest(bad, schema_path, source_root=source_path)
+            except ManifestError as exc:
+                print(f"PASS reject extracted untracked required source: {exc}")
+                return
+            raise ManifestError("expected rejection did not occur: extracted untracked required source")
+        finally:
+            os.chdir(original)
+
+
 def expect_corrupt_protected_review_reject(path: Path, schema: Path) -> None:
     data = load_json(path)
     review_artifact = path.parent / "rows" / "fixture-pass" / "protected-environment-review.json"
@@ -213,12 +244,13 @@ def expect_corrupt_protected_review_reject(path: Path, schema: Path) -> None:
     raise ManifestError("expected rejection did not occur: corrupt protected review with updated hash")
 
 
-def run_self_test(schema: Path) -> None:
+def run_self_test(schema: Path, source_root: Path) -> None:
     root = Path("evidence/lab/evidence-manifest-self-test")
     shutil.rmtree(root, ignore_errors=True)
     good = good_manifest(root)
     validate_manifest(good, schema)
     print("PASS accept complete evidence manifest")
+    expect_extracted_bundle_source_root_accept(schema, source_root)
     refuse = good_manifest(root / "refuse-na", outcome="REFUSE", benchmark_applicable=False)
     validate_manifest(refuse, schema)
     print("PASS accept REFUSE evidence manifest with benchmark_provenance not_applicable")
@@ -234,17 +266,30 @@ def run_self_test(schema: Path) -> None:
     print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, protected review normalization, compound privacy keys, case-variant text privacy, flags, tracked sources, and attestation rejected when unsafe")
 
 
-def parse_args(argv: list[str]) -> Path:
-    if len(argv) == 2 and argv[0] == "--schema":
-        return Path(argv[1])
-    if not argv:
-        return Path("schemas/control/evidence-manifest.v1.schema.json")
-    raise ManifestError("usage: evidence_manifest_selftest.py [--schema <path>]")
+def parse_args(argv: list[str]) -> tuple[Path, Path]:
+    schema = Path("schemas/control/evidence-manifest.v1.schema.json")
+    source_root = Path.cwd()
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        index += 1
+        if index >= len(argv):
+            raise ManifestError(f"{arg} requires a path")
+        value = Path(argv[index])
+        if arg == "--schema":
+            schema = value
+        elif arg == "--source-root":
+            source_root = value
+        else:
+            raise ManifestError("usage: evidence_manifest_selftest.py [--schema <path>] [--source-root <repo>]")
+        index += 1
+    return schema, source_root
 
 
 def main(argv: list[str]) -> int:
     try:
-        run_self_test(parse_args(argv))
+        schema, source_root = parse_args(argv)
+        run_self_test(schema, source_root)
         return 0
     except ManifestError as exc:
         print(f"FAIL evidence manifest self-test: {exc}", file=sys.stderr)
