@@ -522,7 +522,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "340d5a04a762f4f29b8a9290ad795ce72905b1d93536256cd89348614d58452d"
+      "sha256": "fb202e110724f1d7af095abb07bfeff86a84fccd694a6968fcc6a4122d353925"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",
