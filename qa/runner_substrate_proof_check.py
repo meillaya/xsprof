@@ -3,17 +3,18 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
+"""Validate protected runner substrate proof artifacts for manual VM proof runs. # noqa: SIZE_OK - this boundary validator intentionally keeps runner, protected-review, and substrate cross-checks together."""
 # ─── How to run ───
 # python3 qa/runner_substrate_proof_check.py --proof fixtures/runner-substrate-proof/valid/protected-runner.json --schema schemas/control/runner-substrate-proof.v1.schema.json
 # python3 qa/runner_substrate_proof_check.py --fixtures fixtures/runner-substrate-proof --schema schemas/control/runner-substrate-proof.v1.schema.json
 # python3 qa/runner_substrate_proof_check.py --self-test
-"""Validate protected runner substrate proof artifacts for manual VM proof runs."""
-# noqa: SIZE_OK — this boundary validator intentionally keeps runner, protected-review, and substrate cross-checks together.
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import hashlib, re, sys
+import hashlib
+import re
+import sys
 from typing import Final, Literal, TypeAlias
 
 if __package__ in (None, ""):

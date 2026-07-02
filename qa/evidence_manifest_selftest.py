@@ -5,8 +5,7 @@
 # ///
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --self-test
-# noqa: SIZE_OK — evidence-manifest adversarial fixture matrix stays colocated with its self-test runner.
-"""Self-test fixtures for evidence_manifest_check.py."""
+"""Self-test fixtures for evidence_manifest_check.py. # noqa: SIZE_OK - evidence-manifest adversarial fixture matrix stays colocated with its self-test runner."""
 from __future__ import annotations
 
 import os
@@ -15,7 +14,7 @@ import sys
 import json
 import shutil
 import tempfile
-from typing import Final, Literal
+from typing import Final, Literal, assert_never
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -104,7 +103,7 @@ def without_role(data: JsonObject, role: str) -> list[JsonValue]:
 
 def mutate(data: JsonObject, mutator: Mutator) -> None:
     matrix_manifest = data.get("matrix_manifest")
-    match mutator:  # noqa: MATCH_OK -- Mutator Literal cases are exhaustively listed below.
+    match mutator:
         case "missing-hash":
             if isinstance(matrix_manifest, dict):
                 del matrix_manifest["sha256"]
@@ -141,6 +140,8 @@ def mutate(data: JsonObject, mutator: Mutator) -> None:
         case "refuse-benchmark-missing-outcome":
             data["outcome"] = "REFUSE"
             data["benchmark_provenance"] = {"status": "not_applicable", "reason": "refused before benchmarks", "applies_to_outcomes": ["SKIP"]}
+        case unreachable:
+            assert_never(unreachable)
 
 
 def expect_reject(path: Path, schema: Path, label: str, mutator: Mutator) -> None:

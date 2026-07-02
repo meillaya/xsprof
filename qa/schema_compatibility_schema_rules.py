@@ -1,8 +1,9 @@
+"""# noqa: SIZE_OK - schema compatibility rules stay colocated with their rule tables."""
 from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 from qa.frontend_contract_pack_types import JsonObject, JsonValue, parse_json_object
 from qa.schema_compatibility_runner_cleanliness_rules import (
@@ -224,7 +225,7 @@ def validate_schema_identifier(schema: JsonObject, name: str) -> None:
 
 def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]:
     found: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    match value:  # noqa: MATCH_OK -- JsonValue cases are exhausted by the union definition.
+    match value:
         case dict():
             required = value.get("required")
             if isinstance(required, list):
@@ -236,6 +237,8 @@ def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tupl
                 found.extend(collect_required_paths(child, path + (str(index),)))
         case None | bool() | int() | float() | str():
             pass
+        case unreachable:
+            assert_never(unreachable)
     return tuple(found)
 
 

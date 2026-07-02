@@ -3,6 +3,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
+"""# noqa: SIZE_OK - live evidence validator keeps schema-specific live proof checks together."""
 # ─── How to run ───
 # python3 qa/live_lab_evidence_check.py --file evidence/lab/<bundle>/<proof>.json
 # python3 qa/live_lab_evidence_check.py --self-test
@@ -14,7 +15,7 @@ import json
 import shutil
 import subprocess
 import sys
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -100,19 +101,24 @@ def current_git_sha() -> str:
 
 
 def reject_private(value: JsonValue, context: str) -> None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            lowered = key.lower()
-            if lowered in FORBIDDEN_KEYS:
-                raise LiveEvidenceError(f"privacy-unsafe key in evidence: {context}.{key}")
-            reject_private(child, f"{context}.{key}")
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            reject_private(child, f"{context}[{index}]")
-    elif isinstance(value, str):
-        for needle in FORBIDDEN_TEXT:
-            if needle in value:
-                raise LiveEvidenceError(f"privacy-unsafe text in evidence: {context}")
+    match value:
+        case dict():
+            for key, child in value.items():
+                lowered = key.lower()
+                if lowered in FORBIDDEN_KEYS:
+                    raise LiveEvidenceError(f"privacy-unsafe key in evidence: {context}.{key}")
+                reject_private(child, f"{context}.{key}")
+        case list():
+            for index, child in enumerate(value):
+                reject_private(child, f"{context}[{index}]")
+        case str():
+            for needle in FORBIDDEN_TEXT:
+                if needle in value:
+                    raise LiveEvidenceError(f"privacy-unsafe text in evidence: {context}")
+        case None | bool() | int() | float():
+            return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def require_safe_relative_path(raw: str, context: str) -> None:
@@ -168,7 +174,7 @@ def validate_paths(values: list[JsonValue], context: str) -> None:
 def validate_file(path: Path) -> None:
     data = load_object(path)
     schema = require_string(data, "schema", "evidence")
-    match schema:
+    match schema:  # noqa: RUF100  # noqa: MATCH_OK - schema is runtime JSON text; default raises typed rejection for unknown schemas.
         case "zig-scheduler/action-journal/v1":
             validate_action(data)
         case "zig-scheduler/daemon-event-journal/v1":
@@ -186,15 +192,22 @@ def validate_file(path: Path) -> None:
 
 
 def validate_action(data: JsonObject) -> None:
-    validate_checked_common(data, "action"); require_string(data, "action", "action"); require_string(data, "timestamp", "action")
+    validate_checked_common(data, "action")
+    require_string(data, "action", "action")
+    require_string(data, "timestamp", "action")
 
 
 def validate_event(data: JsonObject) -> None:
-    validate_checked_common(data, "event"); require_int(data, "sequence", "event"); require_string(data, "event", "event"); require_string(data, "status", "event")
+    validate_checked_common(data, "event")
+    require_int(data, "sequence", "event")
+    require_string(data, "event", "event")
+    require_string(data, "status", "event")
 
 
 def validate_transcript_index(data: JsonObject) -> None:
-    validate_common(data, "transcript_index"); validate_live_gate(data, "transcript_index"); validate_git_sha(data, "transcript_index")
+    validate_common(data, "transcript_index")
+    validate_live_gate(data, "transcript_index")
+    validate_git_sha(data, "transcript_index")
     validate_paths(require_list(data, "transcript_paths", "transcript_index"), "transcript_index.transcript_paths")
     validate_paths(require_list(data, "command_allowlist", "transcript_index"), "transcript_index.command_allowlist")
     cleanup = require_object(data, "cleanup", "transcript_index")
@@ -203,13 +216,17 @@ def validate_transcript_index(data: JsonObject) -> None:
 
 
 def validate_attach(data: JsonObject) -> None:
-    validate_common(data, "attach"); validate_live_gate(data, "attach"); validate_git_sha(data, "attach")
+    validate_common(data, "attach")
+    validate_live_gate(data, "attach")
+    validate_git_sha(data, "attach")
     for field in ("audit_id", "rollback_id", "target_cgroup", "registered_ops"):
         require_string(data, field, "attach")
 
 
 def validate_behavior(data: JsonObject) -> None:
-    validate_common(data, "behavior"); validate_live_gate(data, "behavior"); validate_git_sha(data, "behavior")
+    validate_common(data, "behavior")
+    validate_live_gate(data, "behavior")
+    validate_git_sha(data, "behavior")
     require_string(data, "scheduler_state", "behavior")
     require_string(data, "registered_ops", "behavior")
     require_int(data, "runtime_events", "behavior")
@@ -218,7 +235,9 @@ def validate_behavior(data: JsonObject) -> None:
 
 
 def validate_rollback(data: JsonObject) -> None:
-    validate_common(data, "rollback"); validate_live_gate(data, "rollback"); validate_git_sha(data, "rollback")
+    validate_common(data, "rollback")
+    validate_live_gate(data, "rollback")
+    validate_git_sha(data, "rollback")
     require_string(data, "rollback_id", "rollback")
     if require_string(data, "result", "rollback") != "PASS":
         raise LiveEvidenceError("rollback result must pass for live proof")

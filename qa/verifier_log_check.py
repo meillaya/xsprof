@@ -21,14 +21,13 @@ import sys
 from typing import Final, Literal, TypeAlias
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
-from qa.verifier_refusal_check import VerifierRefusalError, parse_refusal_evidence
-from qa.verifier_vm_check import VM_EVIDENCE_SCHEMA, VMVerifierError, parse_vm_evidence, parse_vm_live_log
+from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions  # noqa: E402
+from qa.verifier_refusal_check import VerifierRefusalError, parse_refusal_evidence  # noqa: E402
+from qa.verifier_vm_check import VM_EVIDENCE_SCHEMA, VMVerifierError, parse_vm_evidence, parse_vm_live_log  # noqa: E402
 
 Status: TypeAlias = Literal["PASS", "SKIP", "FAIL", "REFUSE"]
 
 SCHEMA: Final[str] = "zig-scheduler/verifier-log-parse/v1"
-REFUSAL_SCHEMA: Final[str] = "zig-scheduler/verifier-only-refusal/v1"
 EVIDENCE_SCHEMA: Final[str] = "zig-scheduler/verifier-only-evidence/v1"
 STATUSES: Final[frozenset[str]] = frozenset({"PASS", "SKIP", "FAIL", "REFUSE"})
 
@@ -65,13 +64,17 @@ def parse_args(argv: list[str]) -> Args:
     while index < len(argv):
         arg = argv[index]
         if arg == "--input" and index + 1 < len(argv):
-            input_path = Path(argv[index + 1]); index += 2
+            input_path = Path(argv[index + 1])
+            index += 2
         elif arg == "--evidence" and index + 1 < len(argv):
-            evidence_path = Path(argv[index + 1]); index += 2
+            evidence_path = Path(argv[index + 1])
+            index += 2
         elif arg == "--out" and index + 1 < len(argv):
-            out_path = Path(argv[index + 1]); index += 2
+            out_path = Path(argv[index + 1])
+            index += 2
         elif arg == "--allow-refusal":
-            allow_refusal = True; index += 1
+            allow_refusal = True
+            index += 1
         else:
             raise VerifierLogError("usage: verifier_log_check.py --input <log-or-json> [--out <json>] [--allow-refusal] | --evidence <verifier-evidence.json> [--out <json>] | --self-test")
     if input_path is None and evidence_path is None:
@@ -173,7 +176,6 @@ def parse_log(path: Path) -> JsonObject:
         return vm_live_result
     reason = reason_from(parsed)
     status = status_from(reason)
-    verifier_errors: list[JsonValue] = [error for error in parsed.errors]
     if status == "PASS" and (state_changed(parsed.values) or cgroup_changed(parsed.values)):
         raise VerifierLogError("clean verifier logs must preserve sched_ext and cgroup state")
     if status == "PASS" and (len(parsed.values.get("object_sha256", "")) != 64 or len(parsed.values.get("bpf_metadata_object_sha256", "")) != 64):
@@ -188,7 +190,7 @@ def parse_log(path: Path) -> JsonObject:
         "bpf_metadata_path": parsed.values.get("bpf_metadata_path", ""),
         "bpf_metadata_object_sha256": parsed.values.get("bpf_metadata_object_sha256", ""),
         "bpftool_rc": parsed.bpftool_rc,
-        "verifier_errors": verifier_errors,
+        "verifier_errors": [error for error in parsed.errors],
         "sched_ext_state_before": parsed.values.get("sched_ext_state_before", ""),
         "sched_ext_state_after": parsed.values.get("sched_ext_state_after", ""),
         "enable_seq_before": parsed.values.get("sched_ext_enable_seq_before", ""),

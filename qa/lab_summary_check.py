@@ -15,15 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import importlib
 import json
 import subprocess
 import sys
-from typing import Final
+from typing import Final, Protocol, runtime_checkable
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
-from qa.lab_summary_backend import BackendSummaryError, VM_BACKEND_SCHEMA, is_backend_live_summary, validate_backend_live_summary, validate_backend_run_summary
-from qa.lab_summary_observe import ObserveSummaryError, validate_observe
+from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions  # noqa: E402
+from qa.lab_summary_backend import BackendSummaryError, VM_BACKEND_SCHEMA, is_backend_live_summary, validate_backend_live_summary, validate_backend_run_summary  # noqa: E402
+from qa.lab_summary_observe import ObserveSummaryError, validate_observe  # noqa: E402
 
 SUMMARY_SCHEMA: Final[str] = "zig-scheduler/run-all-lab/v1"
 STAGE_SCHEMA: Final[str] = "zig-scheduler/run-all-stage/v1"
@@ -41,6 +42,19 @@ class Args:
 
 class LabSummaryError(Exception):
     """Raised when run-all lab evidence is malformed or unsafe."""
+
+
+@runtime_checkable
+class LabSummarySelfTestModule(Protocol):
+    def self_test(self) -> None:
+        """Run lab summary self-test cases."""
+
+
+def load_self_test_module() -> LabSummarySelfTestModule:
+    module = importlib.import_module("qa.lab_summary_selftest")
+    if not isinstance(module, LabSummarySelfTestModule):
+        raise LabSummaryError("lab summary self-test module missing self_test()")
+    return module
 
 
 def parse_args(argv: list[str]) -> Args:
@@ -208,8 +222,7 @@ def validate_partial(path: Path) -> None:
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.self_test:
-        from qa.lab_summary_selftest import self_test
-        self_test()
+        load_self_test_module().self_test()
         return 0
     if args.summary is None:
         if args.partial is None and args.observe is None:
@@ -220,8 +233,10 @@ def run(argv: list[str]) -> int:
         else:
             if args.observe is None:
                 raise LabSummaryError("internal argument parser error")
-            try: validate_observe(args.observe)
-            except ObserveSummaryError as exc: raise LabSummaryError(str(exc)) from exc
+            try:
+                validate_observe(args.observe)
+            except ObserveSummaryError as exc:
+                raise LabSummaryError(str(exc)) from exc
             print(f"PASS observe partial summary: {args.observe}")
         return 0
     validate_summary(args.summary)

@@ -70,7 +70,7 @@ class BenchmarkOutputError(Exception):
 
 
 def family(value: str) -> CommandFamily:
-    match value:  # noqa: MATCH_OK — open CLI/schema string boundary; default raises typed rejection for unknown families.
+    match value:  # noqa: RUF100  # noqa: MATCH_OK - open CLI/schema string boundary; default raises typed rejection for unknown families.
         case "cyclictest" | "fio" | "perf_bench_sched_messaging" | "rtla" | "perf_sched" | "stress_ng":
             return value
         case _:

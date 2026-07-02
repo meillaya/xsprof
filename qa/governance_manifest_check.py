@@ -6,7 +6,7 @@
 # ///
 # ─── How to run ───
 # python3 qa/governance_manifest_check.py --manifest fixtures/lab/governance-sources.json
-# noqa: SIZE_OK — the exact Task 11 governance source matrix is intentionally colocated with the validator.
+"""# noqa: SIZE_OK - the exact Task 11 governance source matrix is intentionally colocated with the validator."""
 from __future__ import annotations
 
 from dataclasses import dataclass

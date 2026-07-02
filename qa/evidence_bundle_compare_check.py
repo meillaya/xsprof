@@ -8,8 +8,7 @@
 # python3 qa/evidence_bundle_compare_check.py --left evidence/a --right evidence/b
 # python3 qa/evidence_bundle_compare_check.py --left evidence/a/evidence-manifest.json --right evidence/b/evidence-manifest.json --expect-bpf-change
 # python3 qa/evidence_bundle_compare_check.py --self-test
-# noqa: SIZE_OK — bundle comparison keeps manifest parsing, self-test fixtures, and CLI behavior together for reviewability.
-"""Compare protected evidence bundle manifests without performance judgments."""
+"""Compare protected evidence bundle manifests without performance judgments. # noqa: SIZE_OK - bundle comparison keeps manifest parsing, self-test fixtures, and CLI behavior together for reviewability."""
 from __future__ import annotations
 
 from collections import Counter
@@ -18,7 +17,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -80,7 +79,7 @@ def validate_ref(manifest_path: Path, artifact_root: Path | None, ref: JsonObjec
 
 
 def reject_release_claims(value: JsonValue, context: str) -> None:
-    match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
+    match value:
         case dict():
             for key, child in value.items():
                 if key == "host_mutation":
@@ -95,6 +94,8 @@ def reject_release_claims(value: JsonValue, context: str) -> None:
                 reject_release_claims(child, f"{context}[{index}]")
         case None | bool() | int() | float() | str():
             return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def reject_json_artifact_claims(path: Path, context: str) -> None:

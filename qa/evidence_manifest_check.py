@@ -7,8 +7,7 @@
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
 # python3 qa/evidence_manifest_check.py --self-test
-# noqa: SIZE_OK — this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together.
-"""Validate VM proof evidence-manifest/v1 bundles."""
+"""Validate VM proof evidence-manifest/v1 bundles. # noqa: SIZE_OK - this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,7 +17,7 @@ import json
 import re
 import subprocess
 import sys
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -182,7 +181,7 @@ def private_key_is_safe(key: str, role: str) -> bool:
 
 
 def reject_claim_value(value: JsonValue, context: str, role: str) -> None:
-    match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
+    match value:
         case dict():
             for key, child in value.items():
                 if not private_key_is_safe(key, role) and private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
@@ -199,6 +198,8 @@ def reject_claim_value(value: JsonValue, context: str, role: str) -> None:
             if isinstance(value, str):
                 reject_private_text(value, context)
             return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def reject_private_text(value: str, context: str) -> None:
@@ -276,15 +277,15 @@ def validate_manifest(path: Path, schema_path: Path, source_root: Path | None = 
     missing = sorted(REQUIRED_ROLES - roles)
     require(not missing, "missing required artifact role(s): " + ", ".join(missing))
     benchmark = data.get("benchmark_provenance")
-    if isinstance(benchmark, list):  # noqa: IF_VARIANT_OK -- boundary parsing known JSON shape alternatives.
+    if isinstance(benchmark, list):
         require(bool(benchmark), "benchmark_provenance must be a non-empty list")
         for index, item in enumerate(benchmark):
             require(validate_ref(item, f"benchmark_provenance[{index}]") == "benchmark-provenance", f"benchmark_provenance[{index}] must use benchmark-provenance role")
             if isinstance(item, dict):
                 artifact_paths.append((safe_path(item.get("path"), f"benchmark_provenance[{index}].path"), "benchmark-provenance"))
-    elif isinstance(benchmark, dict):
+    if isinstance(benchmark, dict):
         validate_benchmark_not_applicable(benchmark, outcome)
-    else:
+    elif not isinstance(benchmark, list):
         raise ManifestError("benchmark_provenance must be artifact references or a not-applicable object")
     validate_privacy(data.get("privacy_scan"))
     validate_attestation(data.get("attestation"))

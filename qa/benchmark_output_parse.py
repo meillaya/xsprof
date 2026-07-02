@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Literal, assert_never
 
 from qa.benchmark_output_io import load_json, read_text, sha256_file
 from qa.benchmark_output_model import (
@@ -32,7 +32,7 @@ def num(value: JsonValue, context: str) -> float:
 
 
 def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "perf", "rtla", "stress-ng"]:
-    match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
+    match command_family:
         case "cyclictest":
             return "cyclictest"
         case "fio":
@@ -43,6 +43,8 @@ def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "per
             return "rtla"
         case "stress_ng":
             return "stress-ng"
+        case unreachable:
+            assert_never(unreachable)
 
 
 def parse_cyclictest_json(data: JsonObject) -> tuple[JsonObject, JsonObject, int, int]:
@@ -142,7 +144,7 @@ def parse_stress_ng(text: str) -> tuple[JsonObject, JsonObject, int, int]:
 
 
 def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Status, JsonObject, JsonObject, int, int]:
-    match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
+    match command_family:
         case "cyclictest":
             if input_path.suffix == ".json":
                 metrics, units, samples, runs = parse_cyclictest_json(load_json(input_path))
@@ -161,6 +163,8 @@ def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Stat
         case "rtla" | "perf_sched":
             _ = read_text(input_path)
             return "UNSUPPORTED_DEFERRED", {}, {}, 0, 0
+        case unreachable:
+            assert_never(unreachable)
 
 
 def build_record(command_family: CommandFamily, input_path: Path, output_path: str, vm_evidence: str) -> JsonObject:

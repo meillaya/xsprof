@@ -1,9 +1,9 @@
 #!/usr/bin/env -S uv run --script
-# noqa: SIZE_OK - standalone Task 9 VM-live behavior validator keeps bundle parsing, artifact checks, and adversarial self-tests together.
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
+"""# noqa: SIZE_OK - standalone Task 9 VM-live behavior validator keeps bundle parsing, artifact checks, and adversarial self-tests together."""
 
 # ─── How to run ───
 # 1. Install uv (if not installed):
@@ -26,10 +26,10 @@ from typing import Final, TypeAlias
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parent))
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good
-from qa.lab_summary_observe import ObserveSummaryError, validate_observe
-from qa.partial_attach_check import PartialAttachError, validate_evidence
-from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file
+from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good  # noqa: E402
+from qa.lab_summary_observe import ObserveSummaryError, validate_observe  # noqa: E402
+from qa.partial_attach_check import PartialAttachError, validate_evidence  # noqa: E402
+from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file  # noqa: E402
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -396,7 +396,9 @@ def observe_summary(samples: Path, daemon: Path, ledger: Path, transcript: Path)
 
 
 def bundle_summary(artifacts: list[str], host_mutation: bool) -> JsonObject:
-    return {"artifact_paths": artifacts, "evidence_mode": "vm-live", "host_mutation": host_mutation, "release_eligible_live_proof": False, "rollback_result": "PASS", "schema": SUMMARY_SCHEMA, "status": "PASS", "vm_kind": "qemu-vm", "vm_marker_path": VM_MARKER, "vm_marker_present": True}
+    artifact_paths: list[JsonValue] = [artifact for artifact in artifacts]
+    summary: JsonObject = {"artifact_paths": artifact_paths, "evidence_mode": "vm-live", "host_mutation": host_mutation, "release_eligible_live_proof": False, "rollback_result": "PASS", "schema": SUMMARY_SCHEMA, "status": "PASS", "vm_kind": "qemu-vm", "vm_marker_path": VM_MARKER, "vm_marker_present": True}
+    return summary
 
 
 def reject(path: Path, label: str) -> None:
