@@ -3,22 +3,22 @@
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/cyclictest-json.benchmark-output.json",
-      "record_sha256": "21382c92d8799c7069c2535e27df9f6b6787da44ad3adc58b418d783703be88f"
+      "record_sha256": "6c2058b6ce6a33aff03225b5d1bde9d3c7e46da639e9393f85f77cd8511d3748"
     },
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/perf-bench-sched-messaging.benchmark-output.json",
-      "record_sha256": "e7e2b92ac22f25875104e4d60fdba1a30639c8c5be977467df509607864aa6e3"
+      "record_sha256": "dec16586a4f3500326a43e1d92fadd5472c0329ab722c56643bd670703578dbc"
     },
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/perf-sched-deferred.benchmark-output.json",
-      "record_sha256": "0230b880ddd89e3d0ac4c822e3377a0031bf1f57e633ae7f2836b236fbcff143"
+      "record_sha256": "21ee558b4a878816f391d5a56363759d2558dbf5af276e1c0f3c0de634795de8"
     },
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/rtla-deferred.benchmark-output.json",
-      "record_sha256": "8f7ae73d1182588651b74321d477fc4661b250d779b6fe40802e0858db08ef21"
+      "record_sha256": "08b332bce54bc8552caf7efa244f3d373b52e6219c5e182ecf7fe15c1d741bcb"
     }
   ],
   "host_mutation": false,

@@ -1049,7 +1049,8 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
     bench_raw_path = row_dir / "bench" / "perf-bench-sched-messaging.txt"
     bench_raw_path.parent.mkdir()
     _ = bench_raw_path.write_text("# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
-    benchmark_record_path = row_dir / "benchmark-provenance.json"
+    benchmark_record_path = row_dir / "benchmark-provenance" / "perf_bench_sched_messaging.benchmark-output.json"
+    benchmark_record_path.parent.mkdir()
     workload_spec: JsonObject = {
         "schema": WORKLOAD_SPEC_SCHEMA,
         "name": workload_class,
@@ -1065,9 +1066,15 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
                 "status": "RECORDED",
                 "tool": "perf",
                 "command_family": "perf_bench_sched_messaging",
+                "record_only": True,
                 "output_path": bench_raw_path.as_posix(),
                 "output_sha256": file_sha256(bench_raw_path),
                 "vm_evidence": (run_root / "manifest.json").as_posix(),
+                "parser_provenance": {
+                    "parser": "qa/benchmark_output_parse.py",
+                    "parser_version": "benchmark-output/v1",
+                    "parser_status": "PARSED",
+                },
                 "metrics": {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123},
                 "units": {"groups": "count", "processes": "count", "total_time_seconds": "seconds"},
                 "sample_count": 1,

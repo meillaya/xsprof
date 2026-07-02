@@ -174,7 +174,7 @@
       "path": "schemas/control/benchmark-output.v1.schema.json",
       "purpose": "benchmark-output v1 record-only evidence schema",
       "required": true,
-      "sha256": "e692e6264dae4da66408d29c6fee55669063de8dfb1153e119a5d1d40f443df3"
+      "sha256": "86164f7a734ba7da2a177fb6ba51dce1ea9b29fbca243a671717f2fb2e6b6f9b"
     },
     {
       "path": "schemas/control/evidence-manifest.v1.schema.json",
@@ -240,13 +240,13 @@
       "path": "qa/benchmark_output_model.py",
       "purpose": "benchmark-output typed model and parser family source",
       "required": true,
-      "sha256": "c60b005db061c46c157713ce96b20635878ff59a0f3a5df6c33a9e6e6899bf8e"
+      "sha256": "5075a9ab22676c78387aea09abd700ea4d84b51bf7b09c71de274aa3873a2e9f"
     },
     {
       "path": "qa/benchmark_output_parse.py",
       "purpose": "benchmark-output raw parser source",
       "required": true,
-      "sha256": "728d6031caf5e6bc1f49b446fe46487e99b91961572cfb35a9b23ce6c1017f6e"
+      "sha256": "13b3d1c8f36c1c8e15bbdf585604d168dd649e46178963b695b08070428d735e"
     },
     {
       "path": "qa/benchmark_output_privacy.py",
@@ -258,13 +258,13 @@
       "path": "qa/benchmark_output_selftest.py",
       "purpose": "benchmark-output validator adversarial self-test cases",
       "required": true,
-      "sha256": "1e9b6801c1f67a2f64bf3f2dd206e4770ca5415cf83c08d995b895f7fa04d55a"
+      "sha256": "04debb8753d926f55e47a3022648d105d9962ef214ae09c997a37ccd6482aa14"
     },
     {
       "path": "qa/benchmark_output_validate.py",
       "purpose": "benchmark-output semantic validator",
       "required": true,
-      "sha256": "a62fe9ab8dc975fa51f29a8072ec51ed81165b708d5c7aa4bd530078be15d724"
+      "sha256": "bb68b957c78e6a4bc08a1eb6eca1774a408d4a3062273e13b5716c72bb6d97f1"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -372,7 +372,7 @@
       "path": "qa/matrix_run_contract_check.py",
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
-      "sha256": "d26a34c99ddf0fe48a5166b4652529ed0f3a1f1f3b8c1e521b009f2a57a00ab7"
+      "sha256": "6427e3c3e56a5e95cd77cbc758db1dc952ae681dc470e24dde5246add636aca1"
     },
     {
       "path": "qa/protected_core_suite_check.py",
@@ -516,7 +516,7 @@
       "path": "qa/schema_compatibility_schema_rules.py",
       "purpose": "schema compatibility structural rules shared by control schema gates",
       "required": true,
-      "sha256": "1ba1994b3908e9a12afa597ddbc5f7bfc831a0235df8c9f75245957aaf39378c"
+      "sha256": "ca9b7bf8662577c7cb4f30d872c05a61dae4cf0c569f9dcaa462bde56f4ad78d"
     },
     {
       "path": "qa/schema_compatibility_runner_cleanliness_rules.py",
@@ -558,7 +558,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "62fe35c068ed840647b9a68887fda1d99e2750fcd3067be5e0b669df3a6471ae"
+      "sha256": "0578295db779c3bfabfbf265e8ece6c003bafdd675d0356a69f1e12c5451df87"
     },
     {
       "path": "qa/vm/workload_execution_check.py",

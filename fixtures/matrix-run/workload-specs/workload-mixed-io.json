@@ -3,7 +3,7 @@
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/fio-json.benchmark-output.json",
-      "record_sha256": "12977aa962470ec504f578b8e0bf1d3a00be35fa807caba8663d72c5d7764a20"
+      "record_sha256": "79ec94aeffba50513b815d7ddd5b8a2519d4a9cf2a0e1af1d5520a0c56ae3657"
     }
   ],
   "host_mutation": false,

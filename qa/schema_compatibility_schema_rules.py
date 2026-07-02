@@ -47,8 +47,8 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
         "benchmark-output.v1.schema.json",
         "zig-scheduler/benchmark-output/v1",
         (
-            "schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence",
-            "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible",
+            "schema", "status", "tool", "command_family", "record_only", "output_path", "output_sha256", "vm_evidence",
+            "parser_provenance", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible",
             "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized",
         ),
     ),
@@ -95,7 +95,8 @@ ENUM_RULES: Final[tuple[EnumRule, ...]] = (
 ) + RUNNER_CLEANLINESS_ENUM_RULES
 
 FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
-    ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
+    ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "record_only", "output_path", "output_sha256", "vm_evidence", "parser_provenance", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
+    ("benchmark-output.v1.schema.json", ("properties", "parser_provenance", "required"), ("parser", "parser_version", "parser_status")),
     ("daemon-event.v1.schema.json", ("required",), ("schema", "event", "status", "host_mutation")),
     ("evidence-manifest.v1.schema.json", ("required",), ("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("evidence-manifest.v1.schema.json", ("properties", "vm_marker", "required"), ("path", "present", "checked_by")),

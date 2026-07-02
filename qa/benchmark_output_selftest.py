@@ -60,13 +60,35 @@ def self_test() -> None:
         stress_ng = root / "stress-ng.txt"
         _ = stress_ng.write_text(
             "stress-ng: metrc: [123] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s   bogo ops/s\n"
-            "stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)\n"
-            "stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52\n"
+            + "stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)\n"
+            + "stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52\n"
         )
         validate_record(build_record("stress_ng", stress_ng, "evidence/lab/run/bench/stress-ng.txt", "evidence/lab/run/summary.json"))
         print("PASS accept supported parsers: cyclictest fio perf_bench_sched_messaging stress_ng")
-        for label, key, value in (("host-mutation", "host_mutation", True), ("release", "release_eligible", True), ("production", "production_capacity_claim", True), ("threshold", "hard_thresholds_enforced", True), ("unsafe-path", "output_path", "/tmp/raw.txt")):
+        for label, key, value in (("record-only", "record_only", False), ("host-mutation", "host_mutation", True), ("release", "release_eligible", True), ("production", "production_capacity_claim", True), ("threshold", "hard_thresholds_enforced", True), ("unsafe-path", "output_path", "/tmp/raw.txt")):
             expect_reject_record(label, record, key, value)
+        expect_reject_record("parser-status", record, "parser_provenance", {"parser": "qa/benchmark_output_parse.py", "parser_version": "benchmark-output/v1", "parser_status": "UNSUPPORTED_DEFERRED"})
+        missing_record_only = dict(record)
+        del missing_record_only["record_only"]
+        try:
+            validate_record(missing_record_only)
+        except BenchmarkOutputError as exc:
+            print(f"PASS reject missing-record-only: {exc}")
+        else:
+            raise BenchmarkOutputError("expected missing record_only rejection")
+        missing_parser_status = dict(record)
+        parser_value = record["parser_provenance"]
+        if not isinstance(parser_value, dict):
+            raise BenchmarkOutputError("self-test parser_provenance must be an object")
+        parser_provenance = dict(parser_value)
+        del parser_provenance["parser_status"]
+        missing_parser_status["parser_provenance"] = parser_provenance
+        try:
+            validate_record(missing_parser_status)
+        except BenchmarkOutputError as exc:
+            print(f"PASS reject missing-parser-status: {exc}")
+        else:
+            raise BenchmarkOutputError("expected missing parser_status rejection")
         metrics_value = record["metrics"]
         units_value = record["units"]
         if not isinstance(metrics_value, dict) or not isinstance(units_value, dict):

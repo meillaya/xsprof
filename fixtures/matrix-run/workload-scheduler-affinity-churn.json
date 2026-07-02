@@ -65,6 +65,6 @@
   "workload": {
     "name": "scheduler-affinity-churn",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-scheduler-affinity-churn.json",
-    "spec_sha256": "78fb6c09ca03df800bab5c29e2ed88ca6cf53a2a1514e97675756e627bd4a97f"
+    "spec_sha256": "f81ead102c938ed971924fa7516f9eed5ed82c870d153d06542ce09d03b8499c"
   }
 }

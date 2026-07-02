@@ -12,6 +12,8 @@ from qa.benchmark_output_model import (
     PERF_GROUPS_RE,
     PERF_PROCS_RE,
     PERF_TIME_RE,
+    PARSER_NAME,
+    PARSER_VERSION,
     SCHEMA,
     STRESS_NG_METRIC_RE,
     BenchmarkOutputError,
@@ -163,4 +165,5 @@ def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Stat
 
 def build_record(command_family: CommandFamily, input_path: Path, output_path: str, vm_evidence: str) -> JsonObject:
     status, metrics, units, samples, runs = parse_metrics(command_family, input_path)
-    return {"schema": SCHEMA, "status": status, "tool": tool_for(command_family), "command_family": command_family, "output_path": safe_relative(output_path, "output_path"), "output_sha256": sha256_file(input_path), "vm_evidence": safe_relative(vm_evidence, "vm_evidence"), "metrics": metrics, "units": units, "sample_count": samples, "run_count": runs, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False, "hard_thresholds_enforced": False, "threshold_status": "record_only", "privacy_sanitized": True}
+    parser_status = "PARSED" if status == "RECORDED" else "UNSUPPORTED_DEFERRED"
+    return {"schema": SCHEMA, "status": status, "tool": tool_for(command_family), "command_family": command_family, "record_only": True, "output_path": safe_relative(output_path, "output_path"), "output_sha256": sha256_file(input_path), "vm_evidence": safe_relative(vm_evidence, "vm_evidence"), "parser_provenance": {"parser": PARSER_NAME, "parser_version": PARSER_VERSION, "parser_status": parser_status}, "metrics": metrics, "units": units, "sample_count": samples, "run_count": runs, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False, "hard_thresholds_enforced": False, "threshold_status": "record_only", "privacy_sanitized": True}

@@ -447,6 +447,8 @@ def workload_semantics() -> dict:
 def benchmark_record() -> list[dict]:
     if threshold_source != "record-only":
         return []
+    if missing_prereq:
+        return []
     bench_dir = row_dir / "benchmark-provenance"
     records = []
 
@@ -459,9 +461,15 @@ def benchmark_record() -> list[dict]:
             "status": status,
             "tool": tool,
             "command_family": family,
+            "record_only": True,
             "output_path": raw.as_posix(),
             "output_sha256": hashlib.sha256(raw.read_bytes()).hexdigest(),
             "vm_evidence": (row_dir / "matrix-run.json").as_posix(),
+            "parser_provenance": {
+                "parser": "qa/benchmark_output_parse.py",
+                "parser_version": "benchmark-output/v1",
+                "parser_status": "PARSED" if status == "RECORDED" else "UNSUPPORTED_DEFERRED",
+            },
             "metrics": metrics,
             "units": units,
             "sample_count": sample_count,

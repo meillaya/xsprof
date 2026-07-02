@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 from qa.benchmark_output_io import load_json, load_schema
-from qa.benchmark_output_model import REQUIRED, SCHEMA, SHA256_RE, SUPPORTED, UNSUPPORTED, BenchmarkOutputError, JsonObject, family, require
+from qa.benchmark_output_model import PARSER_NAME, PARSER_PROVENANCE_FIELDS, PARSER_VERSION, REQUIRED, SCHEMA, SHA256_RE, SUPPORTED, UNSUPPORTED, BenchmarkOutputError, JsonObject, family, require
 from qa.benchmark_output_parse import build_record, tool_for
 from qa.benchmark_output_privacy import reject_private_leaks, safe_relative
 
@@ -22,6 +22,7 @@ def validate_record(record: JsonObject) -> None:
     require(status_value in {"RECORDED", "UNSUPPORTED_DEFERRED"}, "bad status")
     status = str(status_value)
     command_family = family(str(record["command_family"]))
+    require(record["record_only"] is True, "record_only must be true")
     require(record["tool"] == tool_for(command_family), "tool/family mismatch")
     _ = safe_relative(record["output_path"], "output_path")
     _ = safe_relative(record["vm_evidence"], "vm_evidence")
@@ -32,6 +33,17 @@ def validate_record(record: JsonObject) -> None:
     require(record["hard_thresholds_enforced"] is False, "hard thresholds are forbidden")
     require(record["threshold_status"] == "record_only", "threshold status must be record_only")
     require(record["privacy_sanitized"] is True, "privacy_sanitized must be true")
+    parser_value = record["parser_provenance"]
+    require(isinstance(parser_value, dict), "parser_provenance must be an object")
+    parser: JsonObject = parser_value if isinstance(parser_value, dict) else {}
+    parser_extra = sorted(set(parser) - PARSER_PROVENANCE_FIELDS)
+    parser_missing = sorted(PARSER_PROVENANCE_FIELDS - set(parser))
+    require(not parser_extra, f"parser_provenance unexpected fields: {', '.join(parser_extra)}")
+    require(not parser_missing, f"parser_provenance missing fields: {', '.join(parser_missing)}")
+    require(parser.get("parser") == PARSER_NAME, "parser_provenance.parser unsupported")
+    require(parser.get("parser_version") == PARSER_VERSION, "parser_provenance.parser_version unsupported")
+    expected_parser_status = "PARSED" if status == "RECORDED" else "UNSUPPORTED_DEFERRED"
+    require(parser.get("parser_status") == expected_parser_status, "parser_provenance.parser_status must match record status")
     metrics_value = record["metrics"]
     units_value = record["units"]
     require(isinstance(metrics_value, dict) and isinstance(units_value, dict), "metrics and units must be objects")

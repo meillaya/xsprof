@@ -3,7 +3,7 @@
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/stress-ng.benchmark-output.json",
-      "record_sha256": "25c87bb3a4bd062dfb213cfc3300fae05224da6b56f39bd41b3991d19fdde248"
+      "record_sha256": "4c87d8200b42f180ec7ccd2d1568041c6cf6848d9352b01028fe09454ab331d2"
     }
   ],
   "host_mutation": false,
