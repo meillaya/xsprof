@@ -1,0 +1,12 @@
+# github runner inventory before cleanup 2026-07-02T12:49:31-04:00
+## gh auth status
+github.com
+  ✓ Logged in to github.com account Meillaya (/home/mei/.config/gh/hosts.yml)
+  - Active account: true
+  - Git operations protocol: https
+  - Token: [redacted]
+  - Token scopes: 'admin:ssh_signing_key', 'gist', 'read:org', 'repo', 'workflow'
+## repo runners raw filtered
+{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","os":"Linux","status":"online"}
+## target runner matches
+{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","os":"Linux","status":"online"}

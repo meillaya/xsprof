@@ -1,0 +1,66 @@
+# pre-delete runner safe excerpts 2026-07-02T12:50:04-04:00
+## .runner metadata (safe names/labels, no credentials)
+failed_to_parse_runner_metadata=Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+## run.log tail
+
+√ Connected to GitHub
+
+Current runner version: '2.335.1'
+2026-07-02 14:48:47Z: Listening for Jobs
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+2026-07-02 14:52:05Z: Runner reconnected.
+Current runner version: '2.335.1'
+2026-07-02 14:52:05Z: Listening for Jobs
+2026-07-02 15:14:17Z: Running job: reviewer-gated disposable VM proof
+2026-07-02 15:15:20Z: Job reviewer-gated disposable VM proof completed with result: Succeeded
+Exiting...
+Runner listener exit with 0 return code, stop the service, no retry needed.
+Exiting runner...
+./run.sh: line 11: dirname: command not found
+./run.sh: line 11: cd: null directory
+./run.sh: line 17: cp: command not found
+./run.sh: line 18: /run-helper.sh: No such file or directory
+Exiting runner...
+RUNNER_RESTART_WITH_DOTPATH 2026-07-02T11:46:23-04:00
+
+√ Connected to GitHub
+
+Current runner version: '2.335.1'
+2026-07-02 15:46:24Z: Listening for Jobs
+2026-07-02 15:47:28Z: Running job: reviewer-gated disposable VM proof
+2026-07-02 15:49:20Z: Job reviewer-gated disposable VM proof completed with result: Succeeded
+2026-07-02 16:13:08Z: Running job: reviewer-gated disposable VM proof
+2026-07-02 16:16:05Z: Job reviewer-gated disposable VM proof completed with result: Succeeded
+2026-07-02 16:39:29Z: Running job: reviewer-gated disposable VM proof
+2026-07-02 16:42:18Z: Job reviewer-gated disposable VM proof completed with result: Succeeded
+An error occurred: Runner not found
+Runner listener exit with terminated error, stop the service, no retry needed.
+Exiting runner...
+## diag filenames
+Runner_20260702-144814-utc.log 19558 bytes
+Runner_20260702-144846-utc.log 12773 bytes
+Runner_20260702-145003-utc.log 51793 bytes
+Runner_20260702-154623-utc.log 59634 bytes
+Worker_20260702-151417-utc.log 389204 bytes
+Worker_20260702-154728-utc.log 389959 bytes
+Worker_20260702-161308-utc.log 394774 bytes
+Worker_20260702-163929-utc.log 393048 bytes
