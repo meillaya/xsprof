@@ -241,6 +241,7 @@ jobs:
           from pathlib import Path
           import json
           import os
+          import time
           import urllib.error
           import urllib.request
 
@@ -251,44 +252,67 @@ jobs:
           run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + repository + '/actions/runs/' + run_id
           token = os.environ['GITHUB_TOKEN']
           required_comment = os.environ['REQUIRED_APPROVAL_COMMENT']
-          request = urllib.request.Request(
-              api_url,
-              headers={
-                  'Accept': 'application/vnd.github+json',
-                  'Authorization': 'Bearer ' + token,
-                  'User-Agent': 'zig-scheduler-manual-vm-proof',
-                  'X-GitHub-Api-Version': '2022-11-28',
-              },
-              method='GET',
-          )
-          try:
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  raw = response.read()
-          except urllib.error.URLError as exc:
-              raise SystemExit(f'protected review API request failed without exposing token: {exc}') from exc
-          payload = json.loads(raw)
-          if not isinstance(payload, list):
-              raise SystemExit('protected review API response must be a JSON array')
+          retry_delays = (1, 2, 4, 8, 12)
+          transient_http = {429, 500, 502, 503, 504}
+
+          def fetch_payload():
+              request = urllib.request.Request(
+                  api_url,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': 'Bearer ' + token,
+                      'User-Agent': 'zig-scheduler-manual-vm-proof',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+                  method='GET',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      raw = response.read()
+              except urllib.error.HTTPError as exc:
+                  if exc.code not in transient_http:
+                      raise SystemExit(f'protected review API request failed without exposing token: HTTP {exc.code}') from exc
+                  raise
+              except urllib.error.URLError as exc:
+                  raise SystemExit(f'protected review API request failed without exposing token: {exc}') from exc
+              payload = json.loads(raw)
+              if not isinstance(payload, list):
+                  raise SystemExit('protected review API response must be a JSON array')
+              return payload
+
+          def select_review(payload):
+              for row in payload:
+                  if not isinstance(row, dict):
+                      raise SystemExit('protected review API response row must be an object')
+                  environments = row.get('environments')
+                  if not isinstance(environments, list):
+                      raise SystemExit('protected review API response row environments must be an array')
+                  matching_environment = None
+                  for environment in environments:
+                      if not isinstance(environment, dict):
+                          raise SystemExit('protected review API response environment must be an object')
+                      if environment.get('name') == 'vm-proof-manual':
+                          matching_environment = environment
+                  if row.get('state') == 'approved' and row.get('comment') == required_comment and matching_environment is not None:
+                      return row, matching_environment
+              return None, None
 
           selected = None
           selected_environment = None
-          for row in payload:
-              if not isinstance(row, dict):
-                  raise SystemExit('protected review API response row must be an object')
-              environments = row.get('environments')
-              if not isinstance(environments, list):
-                  raise SystemExit('protected review API response row environments must be an array')
-              matching_environment = None
-              for environment in environments:
-                  if not isinstance(environment, dict):
-                      raise SystemExit('protected review API response environment must be an object')
-                  if environment.get('name') == 'vm-proof-manual':
-                      matching_environment = environment
-              if row.get('state') == 'approved' and row.get('comment') == required_comment and matching_environment is not None:
-                  selected = row
-                  selected_environment = matching_environment
+          last_transient_error = ''
+          for attempt in range(len(retry_delays) + 1):
+              try:
+                  selected, selected_environment = select_review(fetch_payload())
+              except urllib.error.HTTPError as exc:
+                  last_transient_error = f'HTTP {exc.code}'
+              if selected is not None and selected_environment is not None:
+                  break
+              if attempt < len(retry_delays):
+                  time.sleep(retry_delays[attempt])
 
           if selected is None or selected_environment is None:
+              if last_transient_error:
+                  raise SystemExit(f'no approved vm-proof-manual review with exact non-release acknowledgement was found after retrying transient {last_transient_error}')
               raise SystemExit('no approved vm-proof-manual review with exact non-release acknowledgement was found')
           user = selected.get('user')
           if not isinstance(user, dict):
