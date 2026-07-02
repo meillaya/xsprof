@@ -599,7 +599,10 @@ jobs:
                   'receipt_path': local_receipt.as_posix(),
                   'sha256': digest(local_receipt),
               }
-          outcome = 'PASS' if no_reuse_status == 'PASS' and removal_receipt['status'] == 'removed' else 'SKIP'
+          elif cleanliness_mode['kind'] == 'ephemeral':
+              removal_receipt = {'status': 'not_applicable'}
+          cleanup_accounted = removal_receipt['status'] == 'removed' or (cleanliness_mode['kind'] == 'ephemeral' and removal_receipt['status'] == 'not_applicable')
+          outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'
           proof = {
               'schema': 'zig-scheduler/runner-cleanliness-proof/v1',
               'proof_outcome': outcome,

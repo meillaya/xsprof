@@ -174,7 +174,7 @@ def validate_workflow(path: Path) -> None:
         "non-PASS protected-core row must include an explicit reason",
     ):
         require(contains(text, manifest_gate), f"workflow missing outcome-aware evidence manifest gate: {manifest_gate}")
-    for cleanliness_gate in tuple("""runner labels are not cleanliness proof|ZIGSCHED_NO_REUSE_EVIDENCE|ZIGSCHED_RUNNER_REMOVAL_RECEIPT|no_reuse_status = 'PASS'|removal_receipt = {'status': 'unavailable'}|outcome = 'PASS' if no_reuse_status == 'PASS' and removal_receipt['status'] == 'removed' else 'SKIP'""".split("|")):
+    for cleanliness_gate in tuple("""runner labels are not cleanliness proof|ZIGSCHED_NO_REUSE_EVIDENCE|ZIGSCHED_RUNNER_REMOVAL_RECEIPT|no_reuse_status = 'PASS'|removal_receipt = {'status': 'unavailable'}|removal_receipt = {'status': 'not_applicable'}|cleanup_accounted = removal_receipt['status'] == 'removed'|outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'""".split("|")):
         require(contains(text, cleanliness_gate), f"workflow missing runner cleanliness gate: {cleanliness_gate}")
     for proof_gate in tuple("""protected-environment-review.json|reviewer_signal['reviewer_status'] != 'approved'|qemu_supports_kvm|qemu_version == ''|qemu_unavailable_reason = 'qemu-system-x86_64 version unavailable'|qemu['unavailable_reason'] = qemu_unavailable_reason|not release.startswith(expected_release)|config_sha256 == '' or config_sha256 == '0' * 64|not btf_available|not sched_ext_available|bpf_role != 'bpf-metadata'|outcome = 'PASS' if not unavailable else 'SKIP'""".split("|")):
         require(contains(text, proof_gate), f"workflow missing PASS substrate gate: {proof_gate}")

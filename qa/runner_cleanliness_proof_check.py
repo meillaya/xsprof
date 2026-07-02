@@ -162,13 +162,13 @@ def validate_no_reuse(value: JsonValue | None, outcome: str) -> None:
     _ = text(evidence.get("evidence"), "no_reuse_evidence.evidence")
 
 
-def validate_removal(value: JsonValue | None, outcome: str) -> None:
+def validate_removal(value: JsonValue | None, outcome: str, ephemeral_mode: bool) -> None:
     receipt = obj(value, "removal_receipt")
     only_fields(receipt, REMOVAL_FIELDS, "removal_receipt")
     status = text(receipt.get("status"), "removal_receipt.status")
     require(status in {"removed", "not_applicable", "unavailable"}, "removal_receipt.status unsupported")
     if outcome == "PASS":
-        require(status == "removed", "PASS proof requires runner removal receipt")
+        require(status == "removed" or (ephemeral_mode and status == "not_applicable"), "PASS proof requires runner removal receipt unless ephemeral runner cleanup is not applicable inside the job")
     if status == "removed":
         _ = text(receipt.get("removed_at"), "removal_receipt.removed_at")
         receipt_path = safe_path(receipt.get("receipt_path"), "removal_receipt.receipt_path")
@@ -190,9 +190,10 @@ def validate_proof(path: Path) -> None:
     run_url = text(data.get("run_url"), "run_url")
     require(outcome != "PASS" or RUN_URL_RE.fullmatch(run_url) is not None, "PASS proof requires GitHub Actions run URL")
     validate_identity(data.get("runner_identity"))
-    validate_mode(data.get("cleanliness_mode"), outcome)
+    mode = obj(data.get("cleanliness_mode"), "cleanliness_mode")
+    validate_mode(mode, outcome)
     validate_no_reuse(data.get("no_reuse_evidence"), outcome)
-    validate_removal(data.get("removal_receipt"), outcome)
+    validate_removal(data.get("removal_receipt"), outcome, mode.get("kind") == "ephemeral")
     validate_ref(data.get("protected_review"), "protected-environment-review", "protected_review")
     validate_ref(data.get("runner_substrate"), "runner-substrate-proof", "runner_substrate")
 
@@ -234,6 +235,11 @@ def good_proof(root: Path) -> Path:
     return proof
 
 
+def set_ephemeral_cleanup_not_applicable(data: JsonObject) -> None:
+    data["cleanliness_mode"] = {"kind": "ephemeral", "ephemeral_instance_id": "runner-cleanliness-self-test"}
+    data["removal_receipt"] = {"status": "not_applicable"}
+
+
 def set_no_reuse_current_id(data: JsonObject) -> None:
     obj(data.get("no_reuse_evidence"), "no_reuse")["current_runner_id"] = "none"
 
@@ -268,6 +274,12 @@ def self_test() -> None:
         proof = good_proof(root)
         validate_proof(proof)
         print("PASS accept runner cleanliness proof")
+        ephemeral = load_json_object(proof)
+        set_ephemeral_cleanup_not_applicable(ephemeral)
+        ephemeral_path = root / "ephemeral-not-applicable.json"
+        write_json(ephemeral_path, ephemeral)
+        validate_proof(ephemeral_path)
+        print("PASS accept ephemeral runner cleanliness proof with not-applicable in-job removal")
         mutations: tuple[tuple[str, Callable[[JsonObject], None]], ...] = (
             ("reused-runner", set_no_reuse_current_id),
             ("missing-removal", set_removal_unavailable),

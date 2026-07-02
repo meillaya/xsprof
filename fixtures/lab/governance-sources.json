@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "e645fc6ced5b2a80810a9e06148440107140459dccefa7ef22dc303202ee5b99"
+      "sha256": "6502a0e539c80eef6a5e390b88c6c421cf8feedcd7c14a6d1ac7f3519b2e1ca9"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -336,13 +336,13 @@
       "path": "qa/manual_vm_proof_ci_check.py",
       "purpose": "manual VM proof workflow and provenance static checker",
       "required": true,
-      "sha256": "6eec1aee35b1b3fdccb18322486383bcbf1dfa0299f3257f63e2ed616173ed25"
+      "sha256": "f96b9d0b818083c513bfab17879f8d3ceda8fcfa90b47d79225ed525157905dd"
     },
     {
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "4b664e8e0136fe6195cec53ec26d6b353bf4c653d43735e461ef3b24c3520592"
+      "sha256": "4051bca2ae7dec511e0b79bb925d6a5a98bd3ece1f2311bce2e4ac8e76b52a6d"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",
@@ -462,7 +462,7 @@
       "path": "qa/runner_cleanliness_proof_check.py",
       "purpose": "protected runner cleanliness proof validator",
       "required": true,
-      "sha256": "23e0897982e19d23da1d7f3fd66d72bb841ba492b27425e1763e45fed54ed9ac"
+      "sha256": "f7866d58dd8ad95dd0ff5f64f7d6a120a7cc3ca128f7a90cf0d0acd9fa3097e0"
     },
     {
       "path": "qa/runtime_sample_check.py",
