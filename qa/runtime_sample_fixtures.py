@@ -15,6 +15,8 @@ def good_sample() -> JsonObject:
     return {
         "schema": SAMPLE_SCHEMA,
         "sequence": 0,
+        "sample_source_event": "runtime-sample-self-test",
+        "observation_source": "vm_fixture_sched_ext",
         "sched_ext_phase": "during_attach",
         "state": {"status": "present", "value": "enabled"},
         "ops": {"status": "present", "value": "zigsched_minimal"},
@@ -41,4 +43,3 @@ def good_sample() -> JsonObject:
         "workload_alive": True,
         "private_command_lines_sampled": False,
     }
-

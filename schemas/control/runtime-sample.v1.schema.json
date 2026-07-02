@@ -258,27 +258,34 @@
       "type": "object"
     },
     "dsq_depth": {
-      "additionalProperties": false,
-      "properties": {
-        "global": {
-          "minimum": 0,
-          "type": "integer"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "global": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "local": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "shared": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "global",
+            "local",
+            "shared"
+          ],
+          "type": "object"
         },
-        "local": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "shared": {
-          "minimum": 0,
-          "type": "integer"
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "global",
-        "local",
-        "shared"
-      ],
-      "type": "object"
+      ]
     },
     "fact": {
       "additionalProperties": false,
@@ -298,32 +305,39 @@
       "type": "object"
     },
     "fairness": {
-      "additionalProperties": false,
-      "properties": {
-        "max_wait_us": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "starved_tasks": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "state": {
-          "enum": [
-            "ok",
-            "watch",
-            "starved",
-            "unknown"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "max_wait_us": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "starved_tasks": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "enum": [
+                "ok",
+                "watch",
+                "starved",
+                "unknown"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "starved_tasks",
+            "max_wait_us"
           ],
-          "type": "string"
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "state",
-        "starved_tasks",
-        "max_wait_us"
-      ],
-      "type": "object"
+      ]
     },
     "policy_abi": {
       "additionalProperties": false,
@@ -394,86 +408,107 @@
       "type": "object"
     },
     "policy_counters": {
-      "additionalProperties": false,
-      "properties": {
-        "dispatch_failed": {
-          "minimum": 0,
-          "type": "integer"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dispatch_failed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fallback": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fatal": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "nr_rejected": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "nr_rejected",
+            "dispatch_failed",
+            "fallback",
+            "fatal"
+          ],
+          "type": "object"
         },
-        "fallback": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "fatal": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "nr_rejected": {
-          "minimum": 0,
-          "type": "integer"
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "nr_rejected",
-        "dispatch_failed",
-        "fallback",
-        "fatal"
-      ],
-      "type": "object"
+      ]
     },
     "queue_latency": {
-      "additionalProperties": false,
-      "properties": {
-        "max_us": {
-          "minimum": 0,
-          "type": "integer"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "max_us": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "p50_us": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "p95_us": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "p99_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "p50_us",
+            "p95_us",
+            "p99_us",
+            "max_us"
+          ],
+          "type": "object"
         },
-        "p50_us": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "p95_us": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "p99_us": {
-          "minimum": 0,
-          "type": "integer"
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "p50_us",
-        "p95_us",
-        "p99_us",
-        "max_us"
-      ],
-      "type": "object"
+      ]
     },
     "sample_loss": {
-      "additionalProperties": false,
-      "properties": {
-        "backpressure_dropped": {
-          "minimum": 0,
-          "type": "integer"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "backpressure_dropped": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lost_samples": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reader_lag_events": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "ring_buffer_overruns": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "lost_samples",
+            "backpressure_dropped"
+          ],
+          "type": "object"
         },
-        "lost_samples": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "reader_lag_events": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "ring_buffer_overruns": {
-          "minimum": 0,
-          "type": "integer"
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "lost_samples",
-        "backpressure_dropped"
-      ],
-      "type": "object"
+      ]
     },
     "sched_ext_observation": {
       "additionalProperties": false,
@@ -492,27 +527,34 @@
       "type": "object"
     },
     "scheduler_counters": {
-      "additionalProperties": false,
-      "properties": {
-        "context_switches": {
-          "minimum": 0,
-          "type": "integer"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "context_switches": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "migrations": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "wakeups": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "context_switches",
+            "wakeups",
+            "migrations"
+          ],
+          "type": "object"
         },
-        "migrations": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "wakeups": {
-          "minimum": 0,
-          "type": "integer"
+        {
+          "$ref": "#/$defs/unavailable_fact"
         }
-      },
-      "required": [
-        "context_switches",
-        "wakeups",
-        "migrations"
-      ],
-      "type": "object"
+      ]
     },
     "task_counts": {
       "additionalProperties": false,
@@ -596,6 +638,35 @@
         "value"
       ],
       "type": "object"
+    },
+    "unavailable_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "missing",
+            "unreadable",
+            "unknown"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "enum": [
+            "",
+            "missing",
+            "none",
+            "null",
+            "unavailable",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "value"
+      ]
     }
   },
   "$id": "schemas/control/runtime-sample.v1.schema.json",

@@ -36,6 +36,8 @@ LATENCY_FIELDS: Final[tuple[str, ...]] = ("p50_us", "p95_us", "p99_us", "max_us"
 SCHEDULER_COUNTER_FIELDS: Final[tuple[str, ...]] = ("context_switches", "wakeups", "migrations")
 FAIRNESS_STATES: Final[frozenset[str]] = frozenset({"ok", "watch", "starved", "unknown"})
 SHA256_ZERO: Final[str] = "0" * 64
+UNAVAILABLE_STATUSES: Final[frozenset[str]] = frozenset({"missing", "unreadable", "unknown"})
+UNAVAILABLE_VALUES: Final[frozenset[str]] = frozenset({"", "missing", "none", "null", "unavailable", "unknown"})
 
 
 def validate_nonnegative_fields(data: JsonObject, fields: tuple[str, ...], context: str) -> None:
@@ -47,13 +49,30 @@ def validate_nonnegative_fields(data: JsonObject, fields: tuple[str, ...], conte
 def validate_optional_counter_sets(row: JsonObject, context: str) -> None:
     counters = optional_object(row, "policy_counters", context)
     if counters is not None:
-        validate_nonnegative_fields(counters, COUNTERS, f"{context}.policy_counters")
+        if is_unavailable_object(counters):
+            pass
+        else:
+            validate_nonnegative_fields(counters, COUNTERS, f"{context}.policy_counters")
     loss = optional_object(row, "sample_loss", context)
     if loss is not None:
+        if is_unavailable_object(loss):
+            return
         validate_nonnegative_fields(loss, ("lost_samples", "backpressure_dropped"), f"{context}.sample_loss")
         for field in ("ring_buffer_overruns", "reader_lag_events"):
             if field in loss and require_int(loss, field, f"{context}.sample_loss") < 0:
                 raise RuntimeSampleError(f"{context}.sample_loss.{field} must be nonnegative")
+
+
+def is_unavailable_object(data: JsonObject) -> bool:
+    status = data.get("status")
+    value = data.get("value")
+    return isinstance(status, str) and status in UNAVAILABLE_STATUSES and isinstance(value, str) and value.casefold() in UNAVAILABLE_VALUES
+
+
+def validate_metric_object(data: JsonObject, fields: tuple[str, ...], context: str) -> None:
+    if is_unavailable_object(data):
+        return
+    validate_nonnegative_fields(data, fields, context)
 
 
 def validate_counter_map(data: JsonObject, context: str) -> None:
@@ -97,13 +116,14 @@ def validate_scheduler_telemetry(row: JsonObject, context: str) -> None:
     for field, fields in (("dsq_depth", DSQ_DEPTH_FIELDS), ("queue_latency", LATENCY_FIELDS), ("scheduler_counters", SCHEDULER_COUNTER_FIELDS)):
         counters = optional_object(row, field, context)
         if counters is not None:
-            validate_nonnegative_fields(counters, fields, f"{context}.{field}")
+            validate_metric_object(counters, fields, f"{context}.{field}")
     fairness = optional_object(row, "fairness", context)
     if fairness is not None:
-        state = require_string(fairness, "state", f"{context}.fairness")
-        if state not in FAIRNESS_STATES:
-            raise RuntimeSampleError(f"{context}.fairness.state has unsupported value")
-        validate_nonnegative_fields(fairness, ("starved_tasks", "max_wait_us"), f"{context}.fairness")
+        if not is_unavailable_object(fairness):
+            state = require_string(fairness, "state", f"{context}.fairness")
+            if state not in FAIRNESS_STATES:
+                raise RuntimeSampleError(f"{context}.fairness.state has unsupported value")
+            validate_nonnegative_fields(fairness, ("starved_tasks", "max_wait_us"), f"{context}.fairness")
     task_counts = optional_object(row, "task_counts", context)
     if task_counts is not None:
         validate_counter_map(require_object(task_counts, "by_cgroup_digest", f"{context}.task_counts"), f"{context}.task_counts.by_cgroup_digest")

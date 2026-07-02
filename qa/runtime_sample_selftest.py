@@ -137,6 +137,10 @@ def self_test() -> None:
     unavailable = good_sample()
     unavailable["task_ext_enabled"] = {"status": "unknown", "value": "unavailable"}
     _ = validate_file(write_sample(SELF_TEST_ROOT / "task-ext-unavailable.jsonl", unavailable))
+    unavailable_metrics = good_sample()
+    unavailable_metrics["dsq_depth"] = {"status": "unknown", "value": "unavailable"}
+    unavailable_metrics["queue_latency"] = {"status": "unknown", "value": "unavailable"}
+    _ = validate_file(write_sample(SELF_TEST_ROOT / "scheduler-metrics-unavailable.jsonl", unavailable_metrics))
     compound_key = good_sample()
     task_counts = require_object(compound_key, "task_counts", "runtime sample self-test")
     by_class = require_object(task_counts, "by_class", "runtime sample self-test.task_counts")

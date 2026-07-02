@@ -338,6 +338,11 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     protected_core_suite_self_test.addArg("--self-test");
     protected_core_suite_self_test.step.dependOn(&matrix_contract_self_test.step);
 
+    const protected_core_telemetry_self_test = b.addSystemCommand(&.{"python3"});
+    protected_core_telemetry_self_test.addFileArg(b.path("qa/protected_core_telemetry_check.py"));
+    protected_core_telemetry_self_test.addArg("--self-test");
+    protected_core_telemetry_self_test.step.dependOn(&protected_core_suite_self_test.step);
+
     const runner_substrate_fixture_check = b.addSystemCommand(&.{"python3"});
     runner_substrate_fixture_check.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
     runner_substrate_fixture_check.addArgs(&.{
@@ -369,6 +374,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_fixture_check.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_self_test.step);
     host_safe_matrix_cleanup.step.dependOn(&protected_core_suite_self_test.step);
+    host_safe_matrix_cleanup.step.dependOn(&protected_core_telemetry_self_test.step);
 
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
     host_safe_gates.dependOn(bpf_step);
@@ -388,6 +394,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&matrix_contract_fixture_check.step);
     host_safe_gates.dependOn(&matrix_contract_self_test.step);
     host_safe_gates.dependOn(&protected_core_suite_self_test.step);
+    host_safe_gates.dependOn(&protected_core_telemetry_self_test.step);
     host_safe_gates.dependOn(&runner_substrate_fixture_check.step);
     host_safe_gates.dependOn(&runner_substrate_self_test.step);
     host_safe_gates.dependOn(&benchmark_self_test.step);

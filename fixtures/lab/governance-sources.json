@@ -12,7 +12,7 @@
       "path": "build.zig",
       "purpose": "Zig build graph wiring for host-safe governance gates",
       "required": true,
-      "sha256": "259ed3ed7ddd159ac8e295b47b391692fb6c249d30960c97737aee460a785b4d"
+      "sha256": "e601f1eb13d5f3a7fa1f9c9592c93a23fde30810f454ea00d2fd735effc99572"
     },
     {
       "path": "README.md",
@@ -78,13 +78,13 @@
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "7cdc151ffb149bc1ffb12ebf134785acdd8cb97691a8b41194f7ab5723e28ada"
+      "sha256": "fec0b198fde37519229b462b4cf6fad863bc3c711758976945d24dff16cc3c4d"
     },
     {
       "path": "docs/control/schema-compatibility.md",
       "purpose": "public schema compatibility policy for backend clients",
       "required": true,
-      "sha256": "fcee798bb5bbf9e7f637426dc627b882803668801a79b89fd43ae6ae2cd8578e"
+      "sha256": "1afe58417f14c8063803c68b48e1aea4acb64f2b6c5362bcc980b2f4d4f6ebae"
     },
     {
       "path": "docs/control/stream-semantics.md",
@@ -210,7 +210,7 @@
       "path": "schemas/control/runtime-sample.v1.schema.json",
       "purpose": "runtime-sample v1 sched_ext observation schema",
       "required": true,
-      "sha256": "970a032497b34d1bb6f137931c3486fd479927c182df81595bca87068faea018"
+      "sha256": "b5ceb078d8e5a1da8f01d15eb9eb342c9ceb7d1ac533d56555fa80c447f66c09"
     },
     {
       "path": "qa/backend_capability_matrix_check.py",
@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "3101e79a0c84fd2417128e8dc932018c4477a1a8d68905970b4ddd243c7f7f0a"
+      "sha256": "4b5d6ab3fade8ae6edb37d9b73b8aba4914d3d70728c3c89f91a48727f903ca3"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -379,6 +379,12 @@
       "purpose": "protected core matrix suite validator",
       "required": true,
       "sha256": "18f6fcd2705c08472511784b25be906f35cc4d580d03e6351c0a4042fd32ee69"
+    },
+    {
+      "path": "qa/protected_core_telemetry_check.py",
+      "purpose": "protected core runtime telemetry normalization validator",
+      "required": true,
+      "sha256": "afa72f5dda52f3437e30c5c9de2b7e095eea1c44aa37b204621e48d4c66ee4a6"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -462,7 +468,7 @@
       "path": "qa/runtime_sample_core.py",
       "purpose": "runtime-sample core schema and alert semantics validator",
       "required": true,
-      "sha256": "ebe0cf7e69295724a5dfab9ff59c0248f19affb541d49727c32abda629df8f14"
+      "sha256": "7653c8f13ad0810d74a5ccf8f2b8ce6823f1ea36ce3927d848147241de9a19d0"
     },
     {
       "path": "qa/runtime_sample_digest.py",
@@ -480,7 +486,7 @@
       "path": "qa/runtime_sample_fixtures.py",
       "purpose": "runtime-sample safe fixture generator",
       "required": true,
-      "sha256": "15d79939673f2ffb43d08196b3d4dace3ca45e06b206d89df5a321f78b448dc6"
+      "sha256": "115a1b61342d0fd7efcc7d57b6cf142929af24fd2e1e73010b933b1ec3f6d8b4"
     },
     {
       "path": "qa/runtime_sample_policy_abi.py",
@@ -498,7 +504,7 @@
       "path": "qa/runtime_sample_selftest.py",
       "purpose": "runtime-sample adversarial self-test cases",
       "required": true,
-      "sha256": "ff4c3df1e18435de3bad78a40a7a39a13034596104dd69c1878051a98dee4aea"
+      "sha256": "e3d0f2a754fecbb758e274347a4a01d022bedf437158cb9a4047b7386b8009bc"
     },
     {
       "path": "qa/schema_compatibility_check.py",
@@ -510,7 +516,7 @@
       "path": "qa/schema_compatibility_schema_rules.py",
       "purpose": "schema compatibility structural rules shared by control schema gates",
       "required": true,
-      "sha256": "05c4931acbe37f16fa0eb7376be9e6c2702f45b9cdfef432ff18553e5507f858"
+      "sha256": "1ba1994b3908e9a12afa597ddbc5f7bfc831a0235df8c9f75245957aaf39378c"
     },
     {
       "path": "qa/schema_compatibility_runner_cleanliness_rules.py",

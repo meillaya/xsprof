@@ -84,6 +84,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/matrix_benchmark_provenance_selftest.py', 'matrix benchmark provenance manifest mutation self-tests'),
     ('qa/matrix_run_contract_check.py', 'matrix-run v1 contract validator and self-test gate'),
     ('qa/protected_core_suite_check.py', 'protected core matrix suite validator'),
+    ('qa/protected_core_telemetry_check.py', 'protected core runtime telemetry normalization validator'),
     ('qa/no_frontend_root.sh', 'root frontend and UI artifact exclusion gate'),
     ('qa/no_host_mutation.sh', 'host mutation denial gate'),
     ('qa/package_defaults.sh', 'package default safety inspection gate'),
