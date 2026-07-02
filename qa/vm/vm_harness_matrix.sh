@@ -339,7 +339,9 @@ write_matrix_row() {
     reason="cleanup residue detected"
   fi
   local workload_class_value="cpu-smoke" workload_tools_value="builtin-churn" threshold_source_value="fixture" missing_prereq_value=""
-  if is_workload_scenario "$scenario"; then
+  if [ "$scenario" = live-backend ]; then
+    threshold_source_value="record-only"
+  elif is_workload_scenario "$scenario"; then
     workload_class_value="$(workload_class "$scenario")"
     workload_tools_value="$(workload_tools "$scenario")"
     threshold_source_value="$(workload_threshold_source "$scenario")"
@@ -487,6 +489,8 @@ def benchmark_record() -> list[dict]:
             add_deferred("perf_sched", "perf", "perf-sched.txt", "perf sched latency summary redacted; unsupported for benchmark-output/v1 parser\n")
     elif scenario == "workload-fork-ipc-pressure":
         add_perf_messaging()
+    elif scenario == "live-backend":
+        add_deferred("perf_sched", "perf", "live-backend-perf-sched-deferred.txt", "live-backend scheduler proof recorded; benchmark parser output intentionally deferred for protected VM proof bundle\n")
     return records
 
 policy = row_dir / "policy.o"
