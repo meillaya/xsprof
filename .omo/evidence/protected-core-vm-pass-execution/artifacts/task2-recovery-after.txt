@@ -1,0 +1,21 @@
+$ tmux ls | grep zig-scheduler-runner
+zig-scheduler-runner-20260702T144806Z: 1 windows (created Thu Jul  2 10:50:02 2026)
+$ pgrep -af Runner.Listener|run.sh after recovery
+3218415 /home/mei/.nix-profile/bin/bash -c set -euo pipefail EVID="$PWD/.omo/evidence/protected-core-vm-pass-execution"; ART="$EVID/artifacts"; . "$ART/task2-runner-meta.env" {   echo '$ gh api repos/Meillaya/zig-scheduler/actions/runners --jq inventory before recovery'   gh api repos/Meillaya/zig-scheduler/actions/runners --jq '{total_count, runners: [.runners[] | {id,name,status,busy,labels:[.labels[].name]}]}'   echo '$ pgrep -af Runner.Listener|run.sh before recovery'   pgrep -af 'Runner.Listener|Runner.Worker|run-helper|run.sh' || true } > "$ART/task2-recovery-before.txt" 2>&1 # If no Runner.Listener for our dir, start in tmux for durable foreground-controlled session. if ! pgrep -af "Runner.Listener.*$RUN_ROOT|$RUN_ROOT.*/bin/Runner.Listener|$RUN_ROOT.*run-helper" >/dev/null; then   SESSION="zig-scheduler-runner-${CREATED_AT_UTC}"   tmux new-session -d -s "$SESSION" "cd '$RUN_ROOT' && ./run.sh >> run.log 2>&1"   echo "TMUX_SESSION=$SESSION" >> "$ART/task2-runner-meta.env"   sleep 3 fi {   echo '$ tmux ls | grep zig-scheduler-runner'   tmux ls | grep 'zig-scheduler-runner' || true   echo '$ pgrep -af Runner.Listener|run.sh after recovery'   pgrep -af 'Runner.Listener|Runner.Worker|run-helper|run.sh' || true   echo '$ gh api repos/Meillaya/zig-scheduler/actions/runners --jq final inventory after recovery'   gh api repos/Meillaya/zig-scheduler/actions/runners --jq '{total_count, runners: [.runners[] | {id,name,status,busy,labels:[.labels[].name]}]}'   echo '$ sed -n "1,240p" run.log'   sed -n '1,240p' "$RUN_ROOT/run.log" | sed -E 's/[A-Za-z0-9_+=\/.-]{30,}/[REDACTED_LONG]/g' } > "$ART/task2-recovery-after.txt" 2>&1 cat "$ART/task2-recovery-before.txt" printf '\n--- after ---\n'; cat "$ART/task2-recovery-after.txt"
+3218476 fish -c cd '/home/mei/.omx-runs/zig-scheduler-gh-runner-20260702T144806Z' && ./run.sh >> run.log 2>&1
+3218488 /bin/bash ./run.sh
+3218492 /bin/bash /home/mei/.omx-runs/zig-scheduler-gh-runner-20260702T144806Z/run-helper.sh
+3218496 /home/mei/.omx-runs/zig-scheduler-gh-runner-20260702T144806Z/bin/Runner.Listener run
+$ gh api repos/Meillaya/zig-scheduler/actions/runners --jq final inventory after recovery
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+$ sed -n "1,240p" run.log
+
+√ Connected to GitHub
+
+Current runner version: '2.335.1'
+2026-07-02 14:48:47Z: Listening for Jobs
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.

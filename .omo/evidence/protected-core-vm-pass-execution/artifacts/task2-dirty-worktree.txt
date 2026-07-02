@@ -1,0 +1,2 @@
+$ git status --short
+$ git status --short -- build.zig src qa docs schemas fixtures bpf tools .github simulator

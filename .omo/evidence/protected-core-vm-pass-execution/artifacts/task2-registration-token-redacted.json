@@ -1,0 +1,2 @@
+$ gh api --method POST repos/Meillaya/zig-scheduler/actions/runners/registration-token --jq {expires_at:.expires_at,token:"REDACTED"}
+{"expires_at":"2026-07-02T11:48:12.682-04:00","token":"REDACTED"}

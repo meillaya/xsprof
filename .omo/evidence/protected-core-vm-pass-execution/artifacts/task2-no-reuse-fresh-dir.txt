@@ -1,0 +1,5 @@
+$ pwd; ls -la; test ! -e .runner; test ! -e .credentials; test ! -e .credentials_rsaparams; find . -maxdepth 1 -mindepth 1 -printf "%f\\n" | sort
+/home/mei/.omx-runs/zig-scheduler-gh-runner-20260702T144806Z
+total 0
+drwx------ 1 mei mei    0 Jul  2 10:48 .
+drwxr-xr-x 1 mei mei 2714 Jul  2 10:48 ..

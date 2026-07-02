@@ -1,0 +1,191 @@
+$ bounded poll 120s for tmux runner online after broker conflict
+--- poll 1 2026-07-02T14:50:25Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+Current runner version: '2.335.1'
+2026-07-02 14:48:47Z: Listening for Jobs
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+--- poll 2 2026-07-02T14:50:31Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+Current runner version: '2.335.1'
+2026-07-02 14:48:47Z: Listening for Jobs
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+--- poll 3 2026-07-02T14:50:37Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 4 2026-07-02T14:50:42Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 5 2026-07-02T14:50:48Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 6 2026-07-02T14:50:54Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 7 2026-07-02T14:50:59Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+√ Connected to GitHub
+
+A session for this runner already exists.
+2026-07-02 14:50:03Z: Runner connect error: Error: Conflict. Retrying until reconnected.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 8 2026-07-02T14:51:05Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 9 2026-07-02T14:51:11Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 10 2026-07-02T14:51:16Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 11 2026-07-02T14:51:22Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 12 2026-07-02T14:51:28Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 13 2026-07-02T14:51:33Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 14 2026-07-02T14:51:39Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 15 2026-07-02T14:51:44Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 16 2026-07-02T14:51:50Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 17 2026-07-02T14:51:56Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 18 2026-07-02T14:52:01Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+A session for this runner already exists.
+--- poll 19 2026-07-02T14:52:07Z ---
+{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"online"}],"total_count":1}
+
+A session for this runner already exists.
+
+√ Connected to GitHub
+
+2026-07-02 14:52:05Z: Runner reconnected.
+Current runner version: '2.335.1'
+2026-07-02 14:52:05Z: Listening for Jobs

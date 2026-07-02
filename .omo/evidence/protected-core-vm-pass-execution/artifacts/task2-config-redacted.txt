@@ -1,0 +1,32 @@
+$ ./config.sh --unattended --url https://github.com/Meillaya/zig-scheduler --token REDACTED --name zig-scheduler-vm-proof-20260702T144806Z-3202578 --labels zig-scheduler-vm-proof,disposable-vm --replace
+
+[REDACTED_LONG]
+|        ____ _ _   _   _       _          _        _   _                      |
+|       / ___(_) |_| | | |_   _| |__      / \   ___| |_(_) ___  _ __  ___      |
+|      | |  _| | __| |_| | | | | '_ \    / _ \ / __| __| |/ _ \| '_ \/ __|     |
+|      | |_| | | |_|  _  | |_| | |_) |  / ___ \ (__| |_| | (_) | | | \__ \     |
+|       \____|_|\__|_| |_|\__,_|_.__/  /_/   \_\___|\__|_|\___/|_| |_|___/     |
+|                                                                              |
+|                       Self-hosted runner registration                        |
+|                                                                              |
+[REDACTED_LONG]
+
+# Authentication
+
+
+√ Connected to GitHub
+
+# Runner Registration
+
+
+
+
+√ Runner successfully added
+
+# Runner settings
+
+
+√ Settings Saved.
+
+$ test -f .runner && python3 -m json.tool .runner
+Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)

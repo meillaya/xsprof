@@ -1,0 +1,12 @@
+$ git status --short --ignored .omo/evidence/protected-core-vm-pass-execution
+!! .omo/evidence/protected-core-vm-pass-execution/artifacts/
+!! .omo/evidence/protected-core-vm-pass-execution/task-1-gate-review.md
+!! .omo/evidence/protected-core-vm-pass-execution/task-2-runner-registration.md
+$ git branch --show-current
+master
+$ git log -5 --oneline
+3bbfd09 Preserve baseline proof evidence for protected-core execution
+7c06a88 Keep governance pins aligned with VM matrix provenance
+4327062 Keep protected PASS bundles manifest-complete
+2d740ef Stabilize protected VM boot proof against transient QEMU ENOMEM
+78899ed Allow the protected runner tuple that this host can prove

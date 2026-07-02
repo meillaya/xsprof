@@ -1,0 +1,2 @@
+$ gh api repos/Meillaya/zig-scheduler/actions/runners/25 --jq .
+{"busy":false,"id":25,"labels":[{"id":0,"name":"self-hosted","type":"read-only"},{"id":0,"name":"Linux","type":"read-only"},{"id":0,"name":"X64","type":"read-only"},{"id":0,"name":"zig-scheduler-vm-proof","type":"custom"},{"id":0,"name":"disposable-vm","type":"custom"}],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","os":"Linux","status":"online","version":"2.335.1"}
