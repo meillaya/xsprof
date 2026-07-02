@@ -121,19 +121,67 @@ root="$scratch/root"
 microvm_build_rootfs "$scratch" "$root" "$busybox_bin" "$object_file" "$meta_file" "$out_dir"
 
 serial="$out_dir/serial.txt"
+retry_evidence="$out_dir/qemu-retry-evidence.json"
 if [ "$accel" = kvm ]; then
   accel_args=(-enable-kvm -cpu host)
 else
   accel_args=(-cpu max)
 fi
-set +e
-timeout "$timeout_seconds" "$qemu_bin" "${accel_args[@]}" -m "$mem" -smp "$smp" \
-  -run-with async-teardown=off \
-  -name zig-scheduler-microvm-live-lab,debug-threads=on \
-  -kernel "$kernel_image" -initrd "$scratch/initramfs.cpio.xz" \
-  -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot > "$serial" 2>&1
-qemu_rc=$?
-set -e
+run_qemu_attempt() {
+  local attempt_serial="$1"
+  set +e
+  timeout "$timeout_seconds" "$qemu_bin" "${accel_args[@]}" -m "$mem" -smp "$smp" \
+    -run-with async-teardown=off \
+    -name zig-scheduler-microvm-live-lab,debug-threads=on \
+    -kernel "$kernel_image" -initrd "$scratch/initramfs.cpio.xz" \
+    -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot > "$attempt_serial" 2>&1
+  qemu_rc=$?
+  set -e
+}
+write_retry_evidence() {
+  local status="$1" first_rc="$2" final_rc="$3" first_serial="$4" final_serial="$5"
+  RETRY_STATUS="$status" FIRST_RC="$first_rc" FINAL_RC="$final_rc" FIRST_SERIAL="$first_serial" FINAL_SERIAL="$final_serial" RETRY_EVIDENCE="$retry_evidence" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+payload = {
+    "schema": "zig-scheduler/qemu-retry-evidence/v1",
+    "status": os.environ["RETRY_STATUS"],
+    "reason": "qemu io_uring ENOMEM before boot; retry allowed only before VM marker/boot event",
+    "first_rc": int(os.environ["FIRST_RC"]),
+    "final_rc": int(os.environ["FINAL_RC"]),
+    "first_serial": os.environ["FIRST_SERIAL"],
+    "final_serial": os.environ["FINAL_SERIAL"],
+    "host_mutation": False,
+}
+Path(os.environ["RETRY_EVIDENCE"]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+PY
+}
+first_rc=""
+first_serial=""
+max_qemu_attempts=5
+attempt=1
+while :; do
+  run_qemu_attempt "$serial"
+  if [ "$qemu_rc" -eq 0 ]; then
+    if [ -n "$first_rc" ]; then write_retry_evidence PASS "$first_rc" "$qemu_rc" "$first_serial" "$serial"; fi
+    break
+  fi
+  if ! grep -q 'Failed to initialize io_uring: Cannot allocate memory' "$serial" || grep -q 'ZIGSCHED_JSON {"event":"boot"' "$serial" || [ "$attempt" -ge "$max_qemu_attempts" ]; then
+    if [ -n "$first_rc" ]; then write_retry_evidence REFUSE "$first_rc" "$qemu_rc" "$first_serial" "$serial"; fi
+    break
+  fi
+  if [ -z "$first_rc" ]; then
+    first_rc="$qemu_rc"
+    first_serial="$out_dir/serial.attempt-1.txt"
+    mv "$serial" "$first_serial"
+  else
+    mv "$serial" "$out_dir/serial.attempt-$attempt.txt"
+  fi
+  attempt=$((attempt + 1))
+  sleep "$attempt"
+done
 qemu_scan_processes "$qemu_scan_after"
 if [ "$qemu_rc" -eq 124 ]; then
   microvm_emit_timeout_report "$out_dir" "$git_sha" "$git_dirty" "$started_at" "$kernel_image" "$qemu_bin" "$qemu_scan_before" "$qemu_scan_after" "$qemu_rc"
