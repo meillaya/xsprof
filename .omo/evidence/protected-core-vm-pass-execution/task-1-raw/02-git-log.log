@@ -1,0 +1,11 @@
+surface: CLI/data-shaped proof
+id: 02-git-log
+cwd: /home/mei/projects/zig/zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof
+invocation: git log -1 --oneline
+started_at: 2026-07-02T10:39:31-04:00
+--- output begin ---
+8c451e0 Keep protected-core validators below the no-slop ceiling
+--- output end ---
+exit_code: 0
+duration_seconds: 0
+ended_at: 2026-07-02T10:39:31-04:00

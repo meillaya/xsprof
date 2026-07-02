@@ -1,0 +1,11 @@
+surface: CLI/data-shaped proof
+id: 08-gh-runner-inventory
+cwd: /home/mei/projects/zig/zig-scheduler
+invocation: gh api repos/Meillaya/zig-scheduler/actions/runners --jq '{total_count, runners: [.runners[] | {name,status,busy,labels:[.labels[].name]}]}'
+started_at: 2026-07-02T10:39:32-04:00
+--- output begin ---
+{"runners":[],"total_count":0}
+--- output end ---
+exit_code: 0
+duration_seconds: 1
+ended_at: 2026-07-02T10:39:33-04:00

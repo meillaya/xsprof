@@ -1,0 +1,11 @@
+surface: CLI/data-shaped proof
+id: 03-ls-remote
+cwd: /home/mei/projects/zig/zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof
+invocation: git ls-remote --heads origin work/protected-multi-row-vm-scheduler-proof
+started_at: 2026-07-02T10:39:31-04:00
+--- output begin ---
+8c451e0a5143f03f633edeaa8a13711ff0e5c3df	refs/heads/work/protected-multi-row-vm-scheduler-proof
+--- output end ---
+exit_code: 0
+duration_seconds: 1
+ended_at: 2026-07-02T10:39:32-04:00
