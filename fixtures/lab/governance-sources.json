@@ -78,13 +78,13 @@
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "e7e91b6708aa65b5a9874abdb0f37cc37902745927e39d0a70a081bc5ee581d2"
+      "sha256": "7cdc151ffb149bc1ffb12ebf134785acdd8cb97691a8b41194f7ab5723e28ada"
     },
     {
       "path": "docs/control/schema-compatibility.md",
       "purpose": "public schema compatibility policy for backend clients",
       "required": true,
-      "sha256": "133cb4658bcc2f2e27aafa5de7223d1055dc4edf517a38a36f91ab31cea3ae7c"
+      "sha256": "fcee798bb5bbf9e7f637426dc627b882803668801a79b89fd43ae6ae2cd8578e"
     },
     {
       "path": "docs/control/stream-semantics.md",
@@ -199,6 +199,12 @@
       "purpose": "protected runner substrate proof schema",
       "required": true,
       "sha256": "b2e8535877099d1eb5b5f7e577d86129fd717f2e61ab46c408f176b4a8c344f5"
+    },
+    {
+      "path": "schemas/control/runner-cleanliness-proof.v1.schema.json",
+      "required": true,
+      "purpose": "protected runner cleanliness proof schema",
+      "sha256": "68cc60e2edd487703515b14c610818c85dec5b2326af01f3a2e6c021806e01dc"
     },
     {
       "path": "schemas/control/runtime-sample.v1.schema.json",
@@ -324,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "03b49e446fe4960f38230cceb0bdf492a3da8847d66ae1177f169c1f994565c6"
+      "sha256": "5f719aa8fb49ba2712043fc92e0f80939941324021e9375e4fc93f53bfe9019d"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -367,6 +373,12 @@
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
       "sha256": "d26a34c99ddf0fe48a5166b4652529ed0f3a1f1f3b8c1e521b009f2a57a00ab7"
+    },
+    {
+      "path": "qa/protected_core_suite_check.py",
+      "required": true,
+      "purpose": "protected core matrix suite validator",
+      "sha256": "f790f0e8c488bcf03a65ce9934946ed5d75d29a89d595a66ef5338ffc1da1925"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -427,6 +439,12 @@
       "purpose": "protected runner substrate proof adversarial self-test cases",
       "required": true,
       "sha256": "f0947811dbe2d6b509bfc5a310204c625c7adb9122c1af3c1223bc4fe298d92c"
+    },
+    {
+      "path": "qa/runner_cleanliness_proof_check.py",
+      "required": true,
+      "purpose": "protected runner cleanliness proof validator",
+      "sha256": "e256d3d34f78cd3b5bb4b8c7bd6977524786fdeb532e81265f172b52699021d5"
     },
     {
       "path": "qa/runtime_sample_check.py",
@@ -492,7 +510,19 @@
       "path": "qa/schema_compatibility_schema_rules.py",
       "purpose": "schema compatibility structural rules shared by control schema gates",
       "required": true,
-      "sha256": "08395c2cf11763d5b1b2f2849d3f92a82d8b8062e31c773bc907f7f8ef81d0ce"
+      "sha256": "05c4931acbe37f16fa0eb7376be9e6c2702f45b9cdfef432ff18553e5507f858"
+    },
+    {
+      "path": "qa/schema_compatibility_runner_cleanliness_rules.py",
+      "required": true,
+      "purpose": "schema compatibility runner cleanliness proof freeze rules",
+      "sha256": "f0d0e67a88c3624eb4ba19557316e71507ccf38d4bfdf729c86b4225e01dd3bd"
+    },
+    {
+      "path": "qa/evidence_bundle_compare_check.py",
+      "required": true,
+      "purpose": "protected evidence bundle comparison validator",
+      "sha256": "3262d0b159171036a0de263c4521495aadf8de839da8f6c805b4c4b4fa1bbfcf"
     },
     {
       "path": "qa/security_gate.sh",

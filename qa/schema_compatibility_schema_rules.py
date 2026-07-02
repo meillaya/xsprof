@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import Final, TypeAlias
 
 from qa.frontend_contract_pack_types import JsonObject, JsonValue, parse_json_object
+from qa.schema_compatibility_runner_cleanliness_rules import (
+    RUNNER_CLEANLINESS_ENUM_RULES,
+    RUNNER_CLEANLINESS_PUBLIC_SCHEMA_RULES,
+    RUNNER_CLEANLINESS_REQUIRED_RULES,
+)
 
 DRAFT_2020_12: Final = "https://json-schema.org/draft/2020-12/schema"
 PublicSchemaRule: TypeAlias = tuple[str, str, tuple[str, ...]]
@@ -74,7 +79,7 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
             "collected_at", "host_mutation", "release_eligible", "production_capacity_claim",
         ),
     ),
-)
+) + RUNNER_CLEANLINESS_PUBLIC_SCHEMA_RULES
 
 ENUM_RULES: Final[tuple[EnumRule, ...]] = (
     ("daemon-event.v1.schema.json", ("properties", "event"), ("boot", "marker", "verifier", "attach", "state_changed", "stage_started", "lab_run_active", "stage_finished", "journal_record", "microvm_boot", "vm_marker", "bpf_register", "runtime_sample", "rollback", "rollback_completed", "cleanup", "validation", "incident", "refusal")),
@@ -87,7 +92,7 @@ ENUM_RULES: Final[tuple[EnumRule, ...]] = (
     ("benchmark-output.v1.schema.json", ("properties", "status"), ("RECORDED", "UNSUPPORTED_DEFERRED")),
     ("benchmark-output.v1.schema.json", ("properties", "tool"), ("cyclictest", "fio", "perf", "rtla", "stress-ng")),
     ("benchmark-output.v1.schema.json", ("properties", "command_family"), ("cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng")),
-)
+) + RUNNER_CLEANLINESS_ENUM_RULES
 
 FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
@@ -145,7 +150,7 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("runtime-sample.v1.schema.json", ("$defs", "sched_ext_observation", "required"), ("dump", "tracepoints")),
     ("runtime-sample.v1.schema.json", ("$defs", "benchmark_histogram_ref", "required"), ("record_path", "record_sha256", "histogram_id", "record_only")),
     ("runtime-sample.v1.schema.json", ("$defs", "task_ext_enabled_fact", "required"), ("status", "value")),
-)
+) + RUNNER_CLEANLINESS_REQUIRED_RULES
 
 
 def load_schema(path: Path) -> JsonObject:
