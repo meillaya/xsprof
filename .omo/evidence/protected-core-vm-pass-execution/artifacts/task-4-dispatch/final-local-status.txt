@@ -1,0 +1,5 @@
+## git status --short
+
+## changed/untracked paths under evidence scope
+
+## product diff check
