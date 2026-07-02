@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "2a0a97f4c513d7731f468f26bc621c05eed95d973801c242d746fdba847eaa2d"
+      "sha256": "e645fc6ced5b2a80810a9e06148440107140459dccefa7ef22dc303202ee5b99"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
