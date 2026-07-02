@@ -28,6 +28,38 @@ scratch=""
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() { printf 'usage: %s --out evidence/lab/run-all/<name> [--scenario live-backend|workload-*] [--kernel /boot/vmlinuz-...] [--qemu /path/to/qemu-system-x86_64]\n' "$0" >&2; }
 
+qemu_iouring_enomem_message='Failed to initialize io_uring: Cannot allocate memory'
+qemu_boot_event_marker='ZIGSCHED_JSON {"event":"boot"'
+
+qemu_serial_has_boot_event() {
+  grep -q "$qemu_boot_event_marker" "$1"
+}
+
+qemu_serial_has_iouring_enomem() {
+  grep -q "$qemu_iouring_enomem_message" "$1"
+}
+
+qemu_serial_allows_iouring_fallback() {
+  qemu_serial_has_iouring_enomem "$1" && ! qemu_serial_has_boot_event "$1"
+}
+
+qemu_memlock_zero_supported() {
+  (ulimit -l 0) >/dev/null 2>&1
+}
+
+qemu_run_with_mode() {
+  local mode="$1" attempt_serial="$2"
+  shift 2
+  set +e
+  if [ "$mode" = memlock-zero ]; then
+    (ulimit -l 0 2>/dev/null && exec "$@") > "$attempt_serial" 2>&1
+  else
+    "$@" > "$attempt_serial" 2>&1
+  fi
+  qemu_rc=$?
+  set -e
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
@@ -131,15 +163,12 @@ else
   accel_args=(-cpu max)
 fi
 run_qemu_attempt() {
-  local attempt_serial="$1"
-  set +e
-  timeout "$timeout_seconds" "$qemu_bin" "${accel_args[@]}" -m "$mem" -smp "$smp" \
+  local attempt_serial="$1" mode="${2:-normal}"
+  qemu_run_with_mode "$mode" "$attempt_serial" timeout "$timeout_seconds" "$qemu_bin" "${accel_args[@]}" -m "$mem" -smp "$smp" \
     -run-with async-teardown=off \
     -name zig-scheduler-microvm-live-lab,debug-threads=on \
     -kernel "$kernel_image" -initrd "$scratch/initramfs.cpio.xz" \
-    -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot > "$attempt_serial" 2>&1
-  qemu_rc=$?
-  set -e
+    -append 'console=ttyS0 panic=-1 quiet' -nographic -no-reboot
 }
 write_retry_evidence() {
   local status="$1" first_rc="$2" final_rc="$3" first_serial="$4" final_serial="$5"
@@ -151,7 +180,7 @@ from pathlib import Path
 payload = {
     "schema": "zig-scheduler/qemu-retry-evidence/v1",
     "status": os.environ["RETRY_STATUS"],
-    "reason": "qemu io_uring ENOMEM before boot; retry allowed only before VM marker/boot event",
+    "reason": "qemu io_uring ENOMEM before boot; one child-RLIMIT_MEMLOCK=0 retry allowed only before VM marker/boot event",
     "first_rc": int(os.environ["FIRST_RC"]),
     "final_rc": int(os.environ["FINAL_RC"]),
     "first_serial": os.environ["FIRST_SERIAL"],
@@ -163,28 +192,24 @@ PY
 }
 first_rc=""
 first_serial=""
-max_qemu_attempts=5
-attempt=1
-while :; do
-  run_qemu_attempt "$serial"
-  if [ "$qemu_rc" -eq 0 ]; then
-    if [ -n "$first_rc" ]; then write_retry_evidence PASS "$first_rc" "$qemu_rc" "$first_serial" "$serial"; fi
-    break
-  fi
-  if ! grep -q 'Failed to initialize io_uring: Cannot allocate memory' "$serial" || grep -q 'ZIGSCHED_JSON {"event":"boot"' "$serial" || [ "$attempt" -ge "$max_qemu_attempts" ]; then
-    if [ -n "$first_rc" ]; then write_retry_evidence REFUSE "$first_rc" "$qemu_rc" "$first_serial" "$serial"; fi
-    break
-  fi
-  if [ -z "$first_rc" ]; then
-    first_rc="$qemu_rc"
-    first_serial="$out_dir/serial.attempt-1.txt"
-    mv "$serial" "$first_serial"
+run_qemu_attempt "$serial"
+if [ "$qemu_rc" -ne 0 ] && qemu_serial_allows_iouring_fallback "$serial"; then
+  first_rc="$qemu_rc"
+  first_serial="$out_dir/serial.attempt-1.txt"
+  mv "$serial" "$first_serial"
+  if qemu_memlock_zero_supported; then
+    run_qemu_attempt "$serial" memlock-zero
+    if [ "$qemu_rc" -eq 0 ]; then
+      write_retry_evidence PASS "$first_rc" "$qemu_rc" "$first_serial" "$serial"
+    else
+      write_retry_evidence REFUSE "$first_rc" "$qemu_rc" "$first_serial" "$serial"
+    fi
   else
-    mv "$serial" "$out_dir/serial.attempt-$attempt.txt"
+    printf 'qemu io_uring ENOMEM fallback unavailable: child memlock limit could not be lowered\n' > "$serial"
+    qemu_rc="$first_rc"
+    write_retry_evidence REFUSE "$first_rc" "$qemu_rc" "$first_serial" "$serial"
   fi
-  attempt=$((attempt + 1))
-  sleep "$attempt"
-done
+fi
 qemu_scan_processes "$qemu_scan_after"
 if [ "$qemu_rc" -eq 124 ]; then
   microvm_emit_timeout_report "$out_dir" "$git_sha" "$git_dirty" "$started_at" "$kernel_image" "$qemu_bin" "$qemu_scan_before" "$qemu_scan_after" "$qemu_rc"
