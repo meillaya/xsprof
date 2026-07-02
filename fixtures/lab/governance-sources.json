@@ -378,13 +378,13 @@
       "path": "qa/protected_core_suite_check.py",
       "purpose": "protected core matrix suite validator",
       "required": true,
-      "sha256": "12f984e39d4a7eb695e6d4af30d40e3f4910b162cedcdacfc1faf5448d3f091c"
+      "sha256": "9e076477177b3df3b8ba2d30d9267a24feee8840fb5fb83bbd1fad7698c48eaa"
     },
     {
       "path": "qa/protected_core_suite_selftest.py",
       "purpose": "protected core matrix suite self-test fixtures",
       "required": true,
-      "sha256": "f352f758889237b914e17dfe499de28c89dacb70958e8a796b9a6e56b0373c34"
+      "sha256": "33645a215f83df07961274197e42150d9cbcd4c1294c2e2084e8ae907eaecb61"
     },
     {
       "path": "qa/protected_core_telemetry_check.py",
