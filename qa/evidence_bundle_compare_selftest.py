@@ -17,7 +17,8 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from qa.evidence_bundle_compare_check import BundleCompareError, CompareOptions, compare, file_sha, obj
+from qa.evidence_bundle_compare_check import CompareOptions, compare
+from qa.evidence_bundle_paths import BundleCompareError, file_sha, obj
 from qa.evidence_manifest_check import JsonObject, JsonValue, load_json
 
 DEFAULT_TUPLE: Final[str] = "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only"

@@ -552,7 +552,7 @@
       "path": "qa/evidence_bundle_compare_selftest.py",
       "purpose": "protected evidence bundle comparison self-test fixtures",
       "required": true,
-      "sha256": "f298fbbfb75c1a13069f5fbb16080385783b3bed23d665a9294d97aed36d517a"
+      "sha256": "5247d7777ae44e99bb1cb06dce6db7b562dffad858388265dee10e516a35ff57"
     },
     {
       "path": "qa/security_gate.sh",
