@@ -20,25 +20,28 @@ mem="${ZIG_SCHEDULER_MICROVM_MEM:-2048M}"
 smp="${ZIG_SCHEDULER_MICROVM_SMP:-2}"
 accel="${ZIG_SCHEDULER_MICROVM_ACCEL:-kvm}"
 timeout_seconds="${ZIG_SCHEDULER_MICROVM_TIMEOUT:-120}"
+scenario="${ZIG_SCHEDULER_VM_WORKLOAD_SCENARIO:-live-backend}"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
 scratch=""
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-usage() { printf 'usage: %s --out evidence/lab/run-all/<name> [--kernel /boot/vmlinuz-...] [--qemu /path/to/qemu-system-x86_64]\n' "$0" >&2; }
+usage() { printf 'usage: %s --out evidence/lab/run-all/<name> [--scenario live-backend|workload-*] [--kernel /boot/vmlinuz-...] [--qemu /path/to/qemu-system-x86_64]\n' "$0" >&2; }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
     --kernel) [ "$#" -ge 2 ] || fail '--kernel requires value'; kernel_arg="$2"; shift 2 ;;
     --qemu) [ "$#" -ge 2 ] || fail '--qemu requires value'; qemu_arg="$2"; shift 2 ;;
+    --scenario) [ "$#" -ge 2 ] || fail '--scenario requires value'; scenario="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$accel$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$scenario" in live-backend|workload-cpu-saturation|workload-cgroup-weight-quota|workload-interactive-latency|workload-scheduler-affinity-churn) ;; *) fail '--scenario must be live-backend or a protected-core workload scenario' ;; esac
+case "$out_dir$kernel_arg$qemu_arg$nix_arg$mem$smp$accel$timeout_seconds$scenario" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail 'timeout must be a positive integer' ;; esac
 [ "$timeout_seconds" -gt 0 ] || fail 'timeout must be positive'
 case "$accel" in kvm|tcg) ;; *) fail 'ZIG_SCHEDULER_MICROVM_ACCEL must be kvm or tcg' ;; esac
@@ -118,7 +121,7 @@ scratch="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-microvm-live.XXXXXX")"
 printf '%s\n' "$out_dir" > "$scratch/zig-scheduler-owner-out-dir"
 printf '%s\n' "$$" > "$scratch/zig-scheduler-owner-pid"
 root="$scratch/root"
-microvm_build_rootfs "$scratch" "$root" "$busybox_bin" "$object_file" "$meta_file" "$out_dir"
+microvm_build_rootfs "$scratch" "$root" "$busybox_bin" "$object_file" "$meta_file" "$out_dir" "$scenario"
 
 serial="$out_dir/serial.txt"
 retry_evidence="$out_dir/qemu-retry-evidence.json"

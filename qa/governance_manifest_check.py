@@ -113,6 +113,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/vm/contract_check.sh', 'disposable VM execution contract validator'),
     ('qa/vm/execution_contract.json', 'disposable VM execution contract source'),
     ('qa/vm/vm_harness_matrix.sh', 'canonical host-safe VM harness matrix runner'),
+    ('qa/vm/workload_execution_check.py', 'row-local VM workload execution PASS validator'),
     ('qa/vm/workload_catalog_check.sh', 'VM workload catalog and matrix fixture validator'),
     ('qa/wording_audit.sh', 'wording, contradiction, and prompt-injection audit gate'),
     ('fixtures/protected-environment-review/valid/github-review-run-28539973410.json', 'protected environment review approved GitHub run fixture'),

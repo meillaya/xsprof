@@ -202,8 +202,8 @@
     },
     {
       "path": "schemas/control/runner-cleanliness-proof.v1.schema.json",
-      "required": true,
       "purpose": "protected runner cleanliness proof schema",
+      "required": true,
       "sha256": "68cc60e2edd487703515b14c610818c85dec5b2326af01f3a2e6c021806e01dc"
     },
     {
@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "5f719aa8fb49ba2712043fc92e0f80939941324021e9375e4fc93f53bfe9019d"
+      "sha256": "3101e79a0c84fd2417128e8dc932018c4477a1a8d68905970b4ddd243c7f7f0a"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -376,8 +376,8 @@
     },
     {
       "path": "qa/protected_core_suite_check.py",
-      "required": true,
       "purpose": "protected core matrix suite validator",
+      "required": true,
       "sha256": "f790f0e8c488bcf03a65ce9934946ed5d75d29a89d595a66ef5338ffc1da1925"
     },
     {
@@ -442,8 +442,8 @@
     },
     {
       "path": "qa/runner_cleanliness_proof_check.py",
-      "required": true,
       "purpose": "protected runner cleanliness proof validator",
+      "required": true,
       "sha256": "e256d3d34f78cd3b5bb4b8c7bd6977524786fdeb532e81265f172b52699021d5"
     },
     {
@@ -514,14 +514,14 @@
     },
     {
       "path": "qa/schema_compatibility_runner_cleanliness_rules.py",
-      "required": true,
       "purpose": "schema compatibility runner cleanliness proof freeze rules",
+      "required": true,
       "sha256": "f0d0e67a88c3624eb4ba19557316e71507ccf38d4bfdf729c86b4225e01dd3bd"
     },
     {
       "path": "qa/evidence_bundle_compare_check.py",
-      "required": true,
       "purpose": "protected evidence bundle comparison validator",
+      "required": true,
       "sha256": "3262d0b159171036a0de263c4521495aadf8de839da8f6c805b4c4b4fa1bbfcf"
     },
     {
@@ -552,7 +552,13 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "d1b4966a8b4f6d328afb4d97933f8a4a595b9fd5e40ca1efa79cae2064432700"
+      "sha256": "8cbfe72f4f44fb70cde485f54c3aa7866f4f0bd4ab976979462a90c8e25ac291"
+    },
+    {
+      "path": "qa/vm/workload_execution_check.py",
+      "purpose": "row-local VM workload execution PASS validator",
+      "required": true,
+      "sha256": "5f5c225af04aa86b3a7db6ce50e0db91be43032b438034804a50acf924bd98c6"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",

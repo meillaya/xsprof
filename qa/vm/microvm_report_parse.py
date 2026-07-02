@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Final
 
 from microvm_report_types import JsonObject, JsonValue, ReportEnv, ReportIds, ReportRows, SerialLines, TimeoutEnv
+from workload_execution_check import WorkloadExecutionError, require_workload_pass, workload_execution_events
 
 JSON_MARKER: Final[str] = "ZIGSCHED_JSON "
 SHA256_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
@@ -84,6 +85,7 @@ def require_rows(rows: list[JsonObject]) -> ReportRows:
     for required in REQUIRED_EVENTS:
         if required not in by_event:
             raise SystemExit(f"missing microVM event: {required}")
+    workload_execution_rows = tuple(row for row in rows if row.get("event") == "workload_execution")
     mutation_rows = tuple(row for row in rows if row.get("event") == "mutation_family")
     observed_families = {str(row.get("family")) for row in mutation_rows}
     missing_families = sorted(set(MUTATION_FAMILIES) - observed_families)
@@ -93,6 +95,7 @@ def require_rows(rows: list[JsonObject]) -> ReportRows:
         boot=by_event["boot"],
         tuple_row=by_event["tuple"],
         workload=by_event["workload"],
+        workload_executions=workload_execution_rows,
         mutation_rows=mutation_rows,
         before=by_event["before"],
         register=by_event["register"],
@@ -105,6 +108,14 @@ def require_rows(rows: list[JsonObject]) -> ReportRows:
 
 
 def validate_rows(rows: ReportRows) -> None:
+    if not rows.workload_executions:
+        raise SystemExit("missing microVM workload_execution evidence")
+    serial_text = "".join("ZIGSCHED_JSON " + json.dumps(row, sort_keys=True) + "\n" for row in rows.workload_executions)
+    try:
+        for scenario in {event.scenario for event in workload_execution_events(serial_text)}:
+            require_workload_pass(serial_text, scenario)
+    except WorkloadExecutionError as exc:
+        raise SystemExit(f"microVM workload execution did not pass: {exc}") from exc
     if rows.register.get("rc") != 0 or rows.register.get("ops") != "zigsched_minimal":
         raise SystemExit("microVM attach did not enable zigsched_minimal")
     if rows.unregister.get("rc") != 0 or rows.unregister.get("state") != "disabled":

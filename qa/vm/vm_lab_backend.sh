@@ -22,6 +22,7 @@ kernel_arg="${ZIG_SCHEDULER_VM_KERNEL:-}"
 timeout_seconds="${ZIG_SCHEDULER_VM_BACKEND_TIMEOUT:-600}"
 microvm_accel="${ZIG_SCHEDULER_MICROVM_ACCEL:-kvm}"
 microvm_mem="${ZIG_SCHEDULER_MICROVM_MEM:-2048M}"
+scenario="live-backend"
 guest_marker="/run/zig-scheduler-vm-lab.marker"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
@@ -30,7 +31,7 @@ seq=1
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
-usage: zig build vm-lab-backend -- [--mode host-safe|auto|vm-required] --out evidence/lab/<run-id> [--kernel /boot/vmlinuz-...] [--qemu /trusted/qemu-system-x86_64] [--accel kvm|tcg] [--mem 1024M]
+usage: zig build vm-lab-backend -- [--mode host-safe|auto|vm-required] --out evidence/lab/<run-id> [--scenario live-backend|workload-*] [--kernel /boot/vmlinuz-...] [--qemu /trusted/qemu-system-x86_64] [--accel kvm|tcg] [--mem 1024M]
 
 Backend-only disposable VM lab runner:
   - root host remains fail-closed; no host sched_ext/BPF/cgroup mutation is attempted
@@ -50,6 +51,7 @@ while [ "$#" -gt 0 ]; do
     --qemu) [ "$#" -ge 2 ] || fail '--qemu requires value'; qemu_arg="$2"; shift 2 ;;
     --accel) [ "$#" -ge 2 ] || fail '--accel requires value'; microvm_accel="$2"; shift 2 ;;
     --mem) [ "$#" -ge 2 ] || fail '--mem requires value'; microvm_mem="$2"; shift 2 ;;
+    --scenario) [ "$#" -ge 2 ] || fail '--scenario requires value'; scenario="$2"; shift 2 ;;
     --timeout) [ "$#" -ge 2 ] || fail '--timeout requires value'; timeout_seconds="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
@@ -57,11 +59,52 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$mode" in host-safe|auto|vm-required) ;; *) fail '--mode must be host-safe, auto, or vm-required' ;; esac
-case "$out_dir$qemu_arg$kernel_arg$timeout_seconds$microvm_accel$microvm_mem" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$scenario" in live-backend|workload-cpu-saturation|workload-cgroup-weight-quota|workload-interactive-latency|workload-scheduler-affinity-churn) ;; *) fail '--scenario must be live-backend or a protected-core workload scenario' ;; esac
+case "$out_dir$qemu_arg$kernel_arg$timeout_seconds$microvm_accel$microvm_mem$scenario" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail '--timeout must be a positive integer' ;; esac
 [ "$timeout_seconds" -gt 0 ] || fail '--timeout must be positive'
 case "$microvm_accel" in kvm|tcg) ;; *) fail 'ZIG_SCHEDULER_MICROVM_ACCEL must be kvm or tcg' ;; esac
 case "$microvm_mem" in *[!A-Za-z0-9_.,:-]*) fail '--mem contains unsafe characters' ;; esac
+
+command_available() { command -v "$1" >/dev/null 2>&1; }
+
+validate_workload_tool_name() {
+  case "$1" in
+    stress-ng|cyclictest|perf|taskset|chrt) return 0 ;;
+    *) fail 'unsafe forced missing workload tool' ;;
+  esac
+}
+
+workload_tool_required_by_scenario() {
+  local scenario_id="$1" tool="$2"
+  case "$scenario_id:$tool" in
+    workload-cpu-saturation:stress-ng) return 0 ;;
+    workload-cgroup-weight-quota:stress-ng) return 0 ;;
+    workload-interactive-latency:cyclictest|workload-interactive-latency:perf) return 0 ;;
+    workload-scheduler-affinity-churn:stress-ng|workload-scheduler-affinity-churn:taskset|workload-scheduler-affinity-churn:chrt) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+workload_missing_prereq() {
+  local scenario_id="$1" forced="${ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL:-}"
+  [ "$scenario_id" != live-backend ] || return 1
+  if [ -n "$forced" ]; then
+    validate_workload_tool_name "$forced"
+    if workload_tool_required_by_scenario "$scenario_id" "$forced"; then
+      printf '%s' "$forced"
+      return 0
+    fi
+    return 1
+  fi
+  case "$scenario_id" in
+    workload-cpu-saturation|workload-cgroup-weight-quota) command_available stress-ng || { printf 'stress-ng'; return 0; } ;;
+    workload-interactive-latency) command_available cyclictest || { printf 'cyclictest'; return 0; }; command_available perf || { printf 'perf'; return 0; } ;;
+    workload-scheduler-affinity-churn) command_available stress-ng || { printf 'stress-ng'; return 0; }; command_available taskset || { printf 'taskset'; return 0; }; command_available chrt || { printf 'chrt'; return 0; } ;;
+    *) return 1 ;;
+  esac
+  return 1
+}
 
 prepare_owned_out_dir() {
   vm_output_safety_prepare_owned_dir evidence/lab "$out_dir" .zig-scheduler-vm-backend-owned
@@ -189,6 +232,7 @@ if [ -z "$prereq_code" ] && [ -z "$kernel_image" ]; then
   kernel_image="$(vm_kernel_find_image "" 2> "$out_dir/kernel-validation.txt" || true)"
   [ -n "$kernel_image" ] || { prereq_code="kernel_image_unavailable"; prereq_detail="readable trusted VM kernel image not found; pass --kernel /boot/vmlinuz-* or another trusted bzImage"; }
 fi
+if [ -z "$prereq_code" ] && missing_tool="$(workload_missing_prereq "$scenario")"; then prereq_code="workload_tool_unavailable"; prereq_detail="protected-core workload $scenario requires VM-local tool $missing_tool"; fi
 if [ -z "$prereq_code" ]; then
   nix_bin="$(command -v nix 2>/dev/null || true)"
   [ -n "$nix_bin" ] || { prereq_code="nix_busybox_unavailable"; prereq_detail="nix is required to stage static busybox initramfs for the microVM runner"; }
@@ -202,7 +246,7 @@ fi
 
 live_dir="$out_dir/live"; runner_stdout="$out_dir/runner.stdout.txt"; runner_stderr="$out_dir/runner.stderr.txt"
 set +e
-ZIG_SCHEDULER_QEMU_BIN="$qemu_bin" ZIG_SCHEDULER_VM_KERNEL="$kernel_image" ZIG_SCHEDULER_MICROVM_ACCEL="$microvm_accel" ZIG_SCHEDULER_MICROVM_MEM="$microvm_mem" ZIG_SCHEDULER_MICROVM_TIMEOUT="$timeout_seconds" timeout "$timeout_seconds" bash qa/vm/run_microvm_live_lab.sh --out "$live_dir" --kernel "$kernel_image" --qemu "$qemu_bin" > "$runner_stdout" 2> "$runner_stderr"
+ZIG_SCHEDULER_QEMU_BIN="$qemu_bin" ZIG_SCHEDULER_VM_KERNEL="$kernel_image" ZIG_SCHEDULER_MICROVM_ACCEL="$microvm_accel" ZIG_SCHEDULER_MICROVM_MEM="$microvm_mem" ZIG_SCHEDULER_MICROVM_TIMEOUT="$timeout_seconds" ZIG_SCHEDULER_VM_WORKLOAD_SCENARIO="$scenario" timeout "$timeout_seconds" bash qa/vm/run_microvm_live_lab.sh --out "$live_dir" --kernel "$kernel_image" --qemu "$qemu_bin" --scenario "$scenario" > "$runner_stdout" 2> "$runner_stderr"
 runner_rc=$?
 set -e
 qemu_scan_processes "$qemu_after"
