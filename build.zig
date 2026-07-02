@@ -333,6 +333,11 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     matrix_contract_self_test.addFileArg(b.path("qa/matrix_run_contract_check.py"));
     matrix_contract_self_test.addArg("--self-test");
 
+    const protected_core_suite_self_test = b.addSystemCommand(&.{"python3"});
+    protected_core_suite_self_test.addFileArg(b.path("qa/protected_core_suite_check.py"));
+    protected_core_suite_self_test.addArg("--self-test");
+    protected_core_suite_self_test.step.dependOn(&matrix_contract_self_test.step);
+
     const runner_substrate_fixture_check = b.addSystemCommand(&.{"python3"});
     runner_substrate_fixture_check.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
     runner_substrate_fixture_check.addArgs(&.{
@@ -363,6 +368,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_matrix_cleanup.step.dependOn(&release_gate.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_fixture_check.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_self_test.step);
+    host_safe_matrix_cleanup.step.dependOn(&protected_core_suite_self_test.step);
 
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
     host_safe_gates.dependOn(bpf_step);
@@ -381,6 +387,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&manual_vm_proof_static.step);
     host_safe_gates.dependOn(&matrix_contract_fixture_check.step);
     host_safe_gates.dependOn(&matrix_contract_self_test.step);
+    host_safe_gates.dependOn(&protected_core_suite_self_test.step);
     host_safe_gates.dependOn(&runner_substrate_fixture_check.step);
     host_safe_gates.dependOn(&runner_substrate_self_test.step);
     host_safe_gates.dependOn(&benchmark_self_test.step);
@@ -414,7 +421,7 @@ fn addVmHarnessMatrixStep(b: *Build) void {
         });
     }
 
-    const vm_harness_matrix_step = b.step("vm-harness-matrix", "Run host-safe VM harness matrix evidence runner");
+    const vm_harness_matrix_step = b.step("vm-harness-matrix", "Run VM harness matrix evidence runner (supports explicit protected-core suite)");
     vm_harness_matrix_step.dependOn(&vm_harness_matrix.step);
 }
 

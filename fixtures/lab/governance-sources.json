@@ -12,7 +12,7 @@
       "path": "build.zig",
       "purpose": "Zig build graph wiring for host-safe governance gates",
       "required": true,
-      "sha256": "44cd82103ccb9c623ea7be6b542d5133e9b495dbced3959387cb0318663f8a4a"
+      "sha256": "259ed3ed7ddd159ac8e295b47b391692fb6c249d30960c97737aee460a785b4d"
     },
     {
       "path": "README.md",
@@ -552,7 +552,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "fb202e110724f1d7af095abb07bfeff86a84fccd694a6968fcc6a4122d353925"
+      "sha256": "d1b4966a8b4f6d328afb4d97933f8a4a595b9fd5e40ca1efa79cae2064432700"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",

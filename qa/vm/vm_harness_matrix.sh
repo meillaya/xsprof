@@ -18,12 +18,13 @@ out_dir=""
 fixture_mode=false
 manifest_fixture_mode=false
 timeout_seconds="120"
+suite=""
 declare -a scenarios=()
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
-usage: qa/vm/vm_harness_matrix.sh --mode host-safe|auto|vm-required --out evidence/lab/matrix/<run-id> [--scenario <id>[,<id>...]] [--fixture] [--timeout <seconds>]
+usage: qa/vm/vm_harness_matrix.sh --mode host-safe|auto|vm-required --out evidence/lab/matrix/<run-id> [--suite protected-core] [--scenario <id>[,<id>...]] [--fixture] [--timeout <seconds>]
 
 Canonical VM harness matrix runner:
   - host-safe by default; never loads BPF, attaches sched_ext, writes cgroups, or mutates /sys or /proc on the host
@@ -36,6 +37,9 @@ Canonical VM harness matrix runner:
   - vm-required rows without the marker fail closed as REFUSE; host-safe/auto marker-missing prerequisite rows SKIP/REFUSE
   - fixture scenarios emit deterministic lab evidence without launching QEMU or claiming production/release readiness
   - live-backend delegates to qa/vm/vm_lab_backend.sh only when explicitly selected
+  - protected-core suite selects live-backend, CPU saturation, cgroup weight/quota, and exactly one latency/churn row
+  - protected-core uses workload-interactive-latency first and falls back to workload-scheduler-affinity-churn only when latency prerequisites are unavailable
+  - suite rows use row-local directories/artifacts/names and never reuse artifacts across rows
 
 Scenarios:
   fixture-pass        deterministic host-safe PASS row with evidence_mode=fixture unless a real VM marker is present
@@ -75,6 +79,7 @@ while [ "$#" -gt 0 ]; do
     --mode) [ "$#" -ge 2 ] || fail '--mode requires value'; mode="$2"; shift 2 ;;
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
     --scenario) [ "$#" -ge 2 ] || fail '--scenario requires value'; add_scenarios "$2"; shift 2 ;;
+    --suite) [ "$#" -ge 2 ] || fail '--suite requires value'; suite="$2"; shift 2 ;;
     --fixture) fixture_mode=true; shift ;;
     --timeout) [ "$#" -ge 2 ] || fail '--timeout requires value'; timeout_seconds="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
@@ -83,18 +88,18 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$mode" in host-safe|auto|vm-required) ;; *) fail '--mode must be host-safe, auto, or vm-required' ;; esac
+case "$suite" in ""|protected-core) ;; *) fail '--suite must be protected-core' ;; esac
 manifest_fixture_mode="$fixture_mode"
 [ -n "$out_dir" ] || fail '--out is required'
-case "$out_dir$mode$timeout_seconds" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
+case "$out_dir$mode$timeout_seconds$suite" in *$'\n'*|*$'\r'*) fail 'arguments must not contain newlines' ;; esac
 case "$timeout_seconds" in ''|*[!0-9]*) fail '--timeout must be a positive integer' ;; esac
 [ "$timeout_seconds" -gt 0 ] || fail '--timeout must be positive'
-if [ "${#scenarios[@]}" -eq 0 ]; then
+if [ -n "$suite" ] && [ "${#scenarios[@]}" -ne 0 ]; then
+  fail '--suite cannot be combined with --scenario; suites own exact row selection'
+fi
+if [ "${#scenarios[@]}" -eq 0 ] && [ -z "$suite" ]; then
   scenarios=(fixture-pass)
 fi
-for scenario in "${scenarios[@]}"; do
-  case "$scenario" in *[!A-Za-z0-9_.-]*|'') fail "unsafe scenario id: $scenario" ;; esac
-done
-
 matrix_base="evidence/lab/matrix"
 ownership_marker=".zig-scheduler-vm-harness-matrix-owned"
 run_id_max=64
@@ -116,7 +121,7 @@ validate_forced_missing_workload_tool_for_scenario() {
     workload-mixed-io:fio) return 0 ;;
     workload-cgroup-weight-quota:stress-ng) return 0 ;;
     workload-cpu-hotplug:cpu-hotplug-online-control) return 0 ;;
-    workload-*:*) fail "forced missing workload tool $tool is not required by scenario $scenario" ;;
+    workload-*:*) return 1 ;;
     *) return 1 ;;
   esac
 }
@@ -130,7 +135,12 @@ validate_forced_missing_workload_tool_selection() {
       workload_seen=true
     fi
   done
-  [ "$workload_seen" = true ] || fail 'ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL requires a selected workload-* scenario'
+  if [ "$workload_seen" != true ]; then
+    case "$suite:$forced" in
+      protected-core:cyclictest|protected-core:perf) return 0 ;;
+    esac
+    fail 'ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL requires a selected workload-* scenario that uses the named tool'
+  fi
 }
 
 prepare_matrix_out_dir() {
@@ -153,21 +163,12 @@ prepare_matrix_out_dir() {
   : > "$out_dir/$ownership_marker"
 }
 
-validate_forced_missing_workload_tool_selection
 
-prepare_matrix_out_dir
-cat > "$out_dir/.gitignore" <<'GITIGNORE'
-*
-!.gitignore
-GITIGNORE
-
-run_id="$(basename -- "$out_dir")"
-started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-git_sha="$(git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)"
-event_file="$out_dir/daemon-events.jsonl"
-manifest_rows="$out_dir/manifest-rows.jsonl"
-: > "$event_file"
-: > "$manifest_rows"
+run_id=""
+started_at=""
+git_sha=""
+event_file=""
+manifest_rows=""
 seq=1
 final_rc=0
 
@@ -278,9 +279,11 @@ workload_missing_prereq() {
   local scenario="$1" forced="${ZIGSCHED_FORCE_MISSING_WORKLOAD_TOOL:-}"
   if [ -n "$forced" ]; then
     validate_workload_tool_name "$forced"
-    validate_forced_missing_workload_tool_for_scenario "$scenario" "$forced" >/dev/null
-    printf '%s' "$forced"
-    return 0
+    if validate_forced_missing_workload_tool_for_scenario "$scenario" "$forced"; then
+      printf '%s' "$forced"
+      return 0
+    fi
+    return 1
   fi
   [ "$mode" = vm-required ] || return 1
   case "$scenario" in
@@ -293,6 +296,45 @@ workload_missing_prereq() {
     *) return 1 ;;
   esac
   return 1
+}
+
+select_suite_scenarios() {
+  local missing
+  case "$suite" in
+    "") return 0 ;;
+    protected-core)
+      scenarios=(live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-interactive-latency)
+      if missing="$(workload_missing_prereq workload-interactive-latency)"; then
+        scenarios=(live-backend workload-cpu-saturation workload-cgroup-weight-quota workload-scheduler-affinity-churn)
+        printf 'protected-core latency row fallback selected: workload-interactive-latency prerequisite unavailable (%s); using workload-scheduler-affinity-churn\n' "$missing" >&2
+      fi
+      ;;
+  esac
+}
+
+validate_selected_scenarios() {
+  local scenario
+  for scenario in "${scenarios[@]}"; do
+    case "$scenario" in *[!A-Za-z0-9_.-]*|'') fail "unsafe scenario id: $scenario" ;; esac
+  done
+}
+
+initialize_run_dir() {
+  prepare_matrix_out_dir
+  cat > "$out_dir/.gitignore" <<'GITIGNORE'
+*
+!.gitignore
+GITIGNORE
+
+  run_id="$(basename -- "$out_dir")"
+  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  git_sha="$(git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)"
+  event_file="$out_dir/daemon-events.jsonl"
+  manifest_rows="$out_dir/manifest-rows.jsonl"
+  : > "$event_file"
+  : > "$manifest_rows"
+  seq=1
+  final_rc=0
 }
 
 workload_probe_status() {
@@ -347,7 +389,7 @@ write_matrix_row() {
     threshold_source_value="$(workload_threshold_source "$scenario")"
     if missing_prereq_value="$(workload_missing_prereq "$scenario")"; then :; else missing_prereq_value=""; fi
   fi
-  SCENARIO="$scenario" ROW_DIR="$row_dir" EVENT_FILE="$event_file" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" LIVE_AUDIT_ID="${LIVE_AUDIT_ID:-}" LIVE_ROLLBACK_ID="${LIVE_ROLLBACK_ID:-}" python3 - <<'PY'
+  SCENARIO="$scenario" ROW_DIR="$row_dir" EVENT_FILE="$event_file" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" TIMEOUT_SECONDS="$timeout_seconds" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" LIVE_AUDIT_ID="${LIVE_AUDIT_ID:-}" LIVE_ROLLBACK_ID="${LIVE_ROLLBACK_ID:-}" python3 - <<'PY'
 import hashlib
 import json
 import os
@@ -541,7 +583,22 @@ if provenance:
 workload_spec.update(workload_semantics())
 workload_sha = write_json(workload, workload_spec)
 runtime = row_dir / "runtime-sample.jsonl"
-cgroup_digest = hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()
+cgroup_digest = hashlib.sha256(f"{run_id}:{scenario}:cgroup".encode()).hexdigest()
+row_local_cgroup = "zigsched-" + hashlib.sha256(f"{run_id}:{scenario}:row-local-cgroup".encode()).hexdigest()[:16]
+isolation = row_dir / "row-isolation-contract.json"
+write_json(isolation, {
+    "schema": "zig-scheduler/row-isolation-contract/v1",
+    "scenario_id": scenario,
+    "row_directory": row_dir.as_posix(),
+    "row_local_cgroup_name": row_local_cgroup,
+    "timeout_envelope_seconds": int(os.environ["TIMEOUT_SECONDS"]),
+    "artifact_reuse": "forbidden-across-rows",
+    "artifacts_must_descend_from_row_directory": True,
+    "rollback_proof_required_on_partial_failure": True,
+    "cleanup_proof_required_on_partial_failure": True,
+    "host_mutation": False,
+    "release_eligible": False,
+})
 
 def fact(status: str, value: str) -> dict:
     return {"status": status, "value": value}
@@ -596,7 +653,7 @@ if marker_present:
     write_json(marker_proof, {"schema": "zig-scheduler/vm-marker-proof/v1", "path": "/run/zig-scheduler-vm-lab.marker", "required": True, "present": True, "evidence_mode": "vm-live", "host_mutation": False})
     marker_checked_by = marker_proof.as_posix()
 state = {"ops": "none", "sched_ext": "disabled"}
-cgroup = {"digest": "sha256:" + hashlib.sha256(f"{scenario}:cgroup".encode()).hexdigest()}
+cgroup = {"digest": "sha256:" + cgroup_digest, "row_local_name": row_local_cgroup, "isolation_contract_path": isolation.as_posix()}
 row = {
     "schema": "zig-scheduler/matrix-run/v1",
     "matrix_run_id": run_id,
@@ -825,6 +882,11 @@ run_live_backend() {
   emit_event cleanup PASS "$scenario" "$row_dir/cleanup-proof.json" "cleanup proof recorded"
   append_manifest_row "$scenario" "$outcome" "$row_path" "$reason"
 }
+
+select_suite_scenarios
+validate_selected_scenarios
+validate_forced_missing_workload_tool_selection
+initialize_run_dir
 
 for scenario in "${scenarios[@]}"; do
   if [ "$scenario" = live-backend ]; then
