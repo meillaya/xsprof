@@ -8,11 +8,14 @@ microvm_copy_abs() {
 }
 
 microvm_copy_tool_with_deps() {
-  local root="$1" tool="$2" tool_path dep
+  local root="$1" tool="$2" tool_path dep guest_tool_path
   tool_path="$(command -v "$tool" 2>/dev/null || true)"
   [ -n "$tool_path" ] || return 0
   microvm_copy_abs "$root" "$tool_path"
-  ldd "$tool_path" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r dep; do microvm_copy_abs "$root" "$dep"; done
+  guest_tool_path="/usr/bin/$tool"
+  mkdir -p "$root$(dirname "$guest_tool_path")"
+  cp -L "$tool_path" "$root$guest_tool_path"
+  { ldd "$tool_path" 2>/dev/null || true; } | awk '{for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r dep; do microvm_copy_abs "$root" "$dep"; done
 }
 
 microvm_write_guest_init() {
@@ -85,14 +88,14 @@ start_workload() {
       ;;
     workload-cpu-saturation)
       require_tool stress-ng || return $?
-      stress-ng --cpu 1 --timeout 3 --metrics-brief > "$workload_out" 2>&1 &
+      stress-ng --cpu 1 --timeout 20 --metrics-brief > "$workload_out" 2>&1 &
       lab_pid=$!
       ;;
     workload-cgroup-weight-quota)
       require_tool stress-ng || return $?
       echo 200 > "$active_target/cpu.weight" 2>/tmp/workload-cgroup-weight.err || true
       echo "50000 100000" > "$active_target/cpu.max" 2>/tmp/workload-cgroup-quota.err || true
-      stress-ng --cpu 1 --timeout 3 --metrics-brief > "$workload_out" 2>&1 &
+      stress-ng --cpu 1 --timeout 20 --metrics-brief > "$workload_out" 2>&1 &
       lab_pid=$!
       ;;
     workload-interactive-latency)
@@ -105,7 +108,7 @@ start_workload() {
       require_tool stress-ng || return $?
       require_tool taskset || return $?
       require_tool chrt || return $?
-      chrt -f 1 taskset -c 0 stress-ng --cpu 1 --timeout 3 --metrics-brief > "$workload_out" 2>&1 &
+      chrt -i 0 taskset -c 0 stress-ng --cpu 1 --timeout 20 --metrics-brief > "$workload_out" 2>&1 &
       lab_pid=$!
       ;;
     *)
