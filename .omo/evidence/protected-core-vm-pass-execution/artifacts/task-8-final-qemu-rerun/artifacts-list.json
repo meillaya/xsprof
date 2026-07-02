@@ -1,0 +1,1406 @@
+[
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/initial-context.txt",
+    "size": 952
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/dispatch-inputs.env",
+    "size": 356
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/dispatch-before.txt",
+    "size": 41
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/dispatch-command.txt",
+    "size": 67
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-list-after-dispatch.json",
+    "size": 1625
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-id.txt",
+    "size": 12
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-view-after-dispatch.json",
+    "size": 608
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/pending-deployments-before-approval.json",
+    "size": 1392
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/approval-inputs.txt",
+    "size": 89
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/approval-body.json",
+    "size": 123
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/approval-response.json",
+    "size": 3877
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-view-after-approval.json",
+    "size": 537
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-watch.log",
+    "size": 6243
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-view-final.json",
+    "size": 3358
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run-log.txt",
+    "size": 198161
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/artifact-download.log",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/downloaded-files.txt",
+    "size": 83
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/bundle-tar-list.txt",
+    "size": 36001
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted-files.txt",
+    "size": 2626
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/artifact-summary.json",
+    "size": 5467
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/summary-json-paths.txt",
+    "size": 848
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/row-details.json",
+    "size": 7370
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/protected-worktree-bpf-prep.log",
+    "size": 1245
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/run_validators.sh",
+    "size": 3600
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators-console.json",
+    "size": 11498
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/copied-current-bpf-for-freshness.sha256",
+    "size": 372
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/download/vm-proof-bundle.tar.zst",
+    "size": 235056032
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/summary.tsv",
+    "size": 3297
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/protected_core_suite.log",
+    "size": 448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/protected_core_telemetry.log",
+    "size": 415
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/protected_review.log",
+    "size": 477
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/runner_substrate.log",
+    "size": 453
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/runner_cleanliness.log",
+    "size": 400
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/evidence_manifest.log",
+    "size": 532
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/matrix_contract.log",
+    "size": 515
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_behavior_live-backend.log",
+    "size": 436
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_live-backend.log",
+    "size": 635
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_behavior_workload-cpu-saturation.log",
+    "size": 469
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-cpu-saturation.log",
+    "size": 657
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_behavior_workload-cgroup-weight-quota.log",
+    "size": 484
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-cgroup-weight-quota.log",
+    "size": 667
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_behavior_workload-scheduler-affinity-churn.log",
+    "size": 499
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-scheduler-affinity-churn.log",
+    "size": 677
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/gh_attestation.log",
+    "size": 220
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/summary.json",
+    "size": 11498
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/matrix_contract_rerun.log",
+    "size": 717
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_live-backend_rerun.log",
+    "size": 651
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-cpu-saturation_rerun.log",
+    "size": 684
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-cgroup-weight-quota_rerun.log",
+    "size": 699
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/live_freshness_workload-scheduler-affinity-churn_rerun.log",
+    "size": 714
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/summary-rerun.json",
+    "size": 16188
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/summary-final.json",
+    "size": 16188
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/gh_attestation_strict.json",
+    "size": 15144
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/gh_attestation_strict.stderr",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/validators/gh_attestation_strict_summary.json",
+    "size": 569
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/zig-out/bpf/zigsched_minimal.bpf.meta.json",
+    "size": 7686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/zig-out/bpf/zigsched_minimal.bpf.o",
+    "size": 35448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/schemas/control/protected-environment-review.v1.schema.json",
+    "size": 1798
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/schemas/control/evidence-manifest.v1.schema.json",
+    "size": 6073
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/schemas/control/runner-substrate-proof.v1.schema.json",
+    "size": 8778
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/schemas/control/runner-cleanliness-proof.v1.schema.json",
+    "size": 3717
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/provenance-requirements.txt",
+    "size": 2399
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/protected-environment-review.json",
+    "size": 724
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/runner-substrate-proof.json",
+    "size": 2151
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/runner-cleanliness-proof.json",
+    "size": 1441
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/evidence-manifest.json",
+    "size": 21193
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/.zig-scheduler-vm-harness-matrix-owned",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/daemon-events.jsonl",
+    "size": 8444
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/manifest-rows.jsonl",
+    "size": 1050
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/manifest.json",
+    "size": 1639
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend.stdout.txt",
+    "size": 6713
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend.stderr.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/temp-scan-before.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/temp-scan-after.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/policy.o",
+    "size": 51
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/workload-capability.json",
+    "size": 474
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/workload-spec.json",
+    "size": 1010
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/row-isolation-contract.json",
+    "size": 518
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/runtime-sample.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/incident.json",
+    "size": 198
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/rollback-proof.json",
+    "size": 179
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/host-refusal.json",
+    "size": 308
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/privacy-scan.json",
+    "size": 127
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/cleanup-proof.json",
+    "size": 606
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/vm-marker-proof.json",
+    "size": 192
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/matrix-run.json",
+    "size": 3006
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend.stdout.txt",
+    "size": 6922
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend.stderr.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/temp-scan-before.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/temp-scan-after.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/policy.o",
+    "size": 62
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/workload-capability.json",
+    "size": 490
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/workload-spec.json",
+    "size": 1048
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/row-isolation-contract.json",
+    "size": 540
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/runtime-sample.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/incident.json",
+    "size": 286
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/rollback-proof.json",
+    "size": 190
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/host-refusal.json",
+    "size": 319
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/privacy-scan.json",
+    "size": 127
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/cleanup-proof.json",
+    "size": 661
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/matrix-run.json",
+    "size": 3121
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend.stdout.txt",
+    "size": 7017
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend.stderr.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/temp-scan-before.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/temp-scan-after.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/policy.o",
+    "size": 67
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/workload-capability.json",
+    "size": 509
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/workload-spec.json",
+    "size": 1506
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/row-isolation-contract.json",
+    "size": 550
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/runtime-sample.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/incident.json",
+    "size": 296
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/rollback-proof.json",
+    "size": 195
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/host-refusal.json",
+    "size": 324
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/privacy-scan.json",
+    "size": 127
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/cleanup-proof.json",
+    "size": 686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/matrix-run.json",
+    "size": 3205
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend.stdout.txt",
+    "size": 7112
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend.stderr.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/temp-scan-before.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/temp-scan-after.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/policy.o",
+    "size": 72
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/workload-capability.json",
+    "size": 537
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/workload-spec.json",
+    "size": 1408
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/row-isolation-contract.json",
+    "size": 560
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/runtime-sample.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/incident.json",
+    "size": 306
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/rollback-proof.json",
+    "size": 200
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/host-refusal.json",
+    "size": 329
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/privacy-scan.json",
+    "size": 127
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/cleanup-proof.json",
+    "size": 711
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/matrix-run.json",
+    "size": 3271
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/.zig-scheduler-vm-backend-owned",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/daemon-events.jsonl",
+    "size": 6617
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/bpf-metadata-validation.txt",
+    "size": 65
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staging-manifest.json",
+    "size": 1418
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/kernel-validation.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/runner.stdout.txt",
+    "size": 3778
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/runner.stderr.txt",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/cleanup-receipt.json",
+    "size": 579
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/incident.json",
+    "size": 282
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/summary.json",
+    "size": 5829
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/benchmark-provenance/stress-ng.txt",
+    "size": 316
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/benchmark-provenance/stress_ng.benchmark-output.json",
+    "size": 1197
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/benchmark-provenance/perf-sched.txt",
+    "size": 80
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/benchmark-provenance/perf_sched.benchmark-output.json",
+    "size": 924
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/workload-vm-artifacts/summary.json",
+    "size": 5829
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/workload-vm-artifacts/serial.txt",
+    "size": 129518
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/workload-vm-artifacts/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/mutation-refusals/cgroup.weight.json",
+    "size": 500
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/mutation-refusals/cpu.max.json",
+    "size": 494
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/mutation-refusals/uclamp.json",
+    "size": 493
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/mutation-refusals/topology.offline_cpu.json",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/initramfs.cpio.xz",
+    "size": 60888020
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/serial.txt",
+    "size": 129518
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/summary.json",
+    "size": 8385
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/verifier/bpf-verifier.log",
+    "size": 98789
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/verifier/verifier-evidence.json",
+    "size": 1024
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/partial-attach/partial-attach-transcript.txt",
+    "size": 429
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/partial-attach/partial-attach-evidence.json",
+    "size": 752
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/partial-attach/live-attach-proof.json",
+    "size": 892
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/observe-partial/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/observe-partial/daemon-runtime-events.jsonl",
+    "size": 449
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/observe-partial/observe-transcript.txt",
+    "size": 72
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/observe-partial/summary.json",
+    "size": 1129
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/rollback-drill/AUD-20260702T164206Z-b6de985-2d3c40.rollback-snapshot.json",
+    "size": 395
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/rollback-drill/AUD-20260702T164206Z-b6de985-2d3c40.rollback-transcript.txt",
+    "size": 169
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/rollback-drill/rollback-refusals.jsonl",
+    "size": 949
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/rollback-drill/audit-ledger.jsonl",
+    "size": 742
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/mutation-evidence/mutation-evidence.json",
+    "size": 3068
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/qa/vm/verifier_only.sh",
+    "size": 7287
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/qa/vm/partial_attach.sh",
+    "size": 23855
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/qa/vm/observe_partial.sh",
+    "size": 11680
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/qa/vm/rollback_drill.sh",
+    "size": 7578
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/qa/vm/incident_drill.sh",
+    "size": 4257
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.o",
+    "size": 35448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.meta.json",
+    "size": 7686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/.zig-scheduler-vm-backend-owned",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/daemon-events.jsonl",
+    "size": 6542
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/bpf-metadata-validation.txt",
+    "size": 65
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staging-manifest.json",
+    "size": 1413
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/kernel-validation.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/runner.stdout.txt",
+    "size": 3693
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/runner.stderr.txt",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/cleanup-receipt.json",
+    "size": 569
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/incident.json",
+    "size": 277
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/summary.json",
+    "size": 5718
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/benchmark-provenance/stress-ng.txt",
+    "size": 316
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/benchmark-provenance/stress_ng.benchmark-output.json",
+    "size": 1187
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/workload-vm-artifacts/summary.json",
+    "size": 5718
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/workload-vm-artifacts/serial.txt",
+    "size": 129481
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/workload-vm-artifacts/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/mutation-refusals/cgroup.weight.json",
+    "size": 500
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/mutation-refusals/cpu.max.json",
+    "size": 494
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/mutation-refusals/uclamp.json",
+    "size": 493
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/mutation-refusals/topology.offline_cpu.json",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/initramfs.cpio.xz",
+    "size": 60844560
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/serial.txt",
+    "size": 129481
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/summary.json",
+    "size": 8244
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/verifier/bpf-verifier.log",
+    "size": 98788
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/verifier/verifier-evidence.json",
+    "size": 1019
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/partial-attach/partial-attach-transcript.txt",
+    "size": 424
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/partial-attach/partial-attach-evidence.json",
+    "size": 742
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/partial-attach/live-attach-proof.json",
+    "size": 882
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/observe-partial/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/observe-partial/daemon-runtime-events.jsonl",
+    "size": 449
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/observe-partial/observe-transcript.txt",
+    "size": 72
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/observe-partial/summary.json",
+    "size": 1109
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/rollback-drill/AUD-20260702T164129Z-b6de985-2d3c40.rollback-snapshot.json",
+    "size": 390
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/rollback-drill/AUD-20260702T164129Z-b6de985-2d3c40.rollback-transcript.txt",
+    "size": 164
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/rollback-drill/rollback-refusals.jsonl",
+    "size": 939
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/rollback-drill/audit-ledger.jsonl",
+    "size": 732
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/live/mutation-evidence/mutation-evidence.json",
+    "size": 3057
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/qa/vm/verifier_only.sh",
+    "size": 7287
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/qa/vm/partial_attach.sh",
+    "size": 23855
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/qa/vm/observe_partial.sh",
+    "size": 11680
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/qa/vm/rollback_drill.sh",
+    "size": 7578
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/qa/vm/incident_drill.sh",
+    "size": 4257
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.o",
+    "size": 35448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.meta.json",
+    "size": 7686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/.zig-scheduler-vm-backend-owned",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/daemon-events.jsonl",
+    "size": 6467
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/bpf-metadata-validation.txt",
+    "size": 65
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staging-manifest.json",
+    "size": 1408
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/kernel-validation.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/runner.stdout.txt",
+    "size": 3608
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/runner.stderr.txt",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/cleanup-receipt.json",
+    "size": 559
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/incident.json",
+    "size": 272
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/summary.json",
+    "size": 5599
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/benchmark-provenance/stress-ng.txt",
+    "size": 316
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/benchmark-provenance/stress_ng.benchmark-output.json",
+    "size": 1177
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/workload-vm-artifacts/summary.json",
+    "size": 5599
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/workload-vm-artifacts/serial.txt",
+    "size": 129439
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/workload-vm-artifacts/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/mutation-refusals/cgroup.weight.json",
+    "size": 500
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/mutation-refusals/cpu.max.json",
+    "size": 494
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/mutation-refusals/uclamp.json",
+    "size": 493
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/mutation-refusals/topology.offline_cpu.json",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/initramfs.cpio.xz",
+    "size": 60843616
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/serial.txt",
+    "size": 129439
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/summary.json",
+    "size": 8095
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/verifier/bpf-verifier.log",
+    "size": 98790
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/verifier/verifier-evidence.json",
+    "size": 1014
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/partial-attach/partial-attach-transcript.txt",
+    "size": 419
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/partial-attach/partial-attach-evidence.json",
+    "size": 732
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/partial-attach/live-attach-proof.json",
+    "size": 872
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/observe-partial/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/observe-partial/daemon-runtime-events.jsonl",
+    "size": 449
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/observe-partial/observe-transcript.txt",
+    "size": 72
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/observe-partial/summary.json",
+    "size": 1089
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/rollback-drill/AUD-20260702T164052Z-b6de985-2d3c40.rollback-snapshot.json",
+    "size": 385
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/rollback-drill/AUD-20260702T164052Z-b6de985-2d3c40.rollback-transcript.txt",
+    "size": 159
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/rollback-drill/rollback-refusals.jsonl",
+    "size": 929
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/rollback-drill/audit-ledger.jsonl",
+    "size": 722
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/live/mutation-evidence/mutation-evidence.json",
+    "size": 3038
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/qa/vm/verifier_only.sh",
+    "size": 7287
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/qa/vm/partial_attach.sh",
+    "size": 23855
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/qa/vm/observe_partial.sh",
+    "size": 11680
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/qa/vm/rollback_drill.sh",
+    "size": 7578
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/qa/vm/incident_drill.sh",
+    "size": 4257
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.o",
+    "size": 35448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.meta.json",
+    "size": 7686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/.zig-scheduler-vm-backend-owned",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/daemon-events.jsonl",
+    "size": 6302
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/bpf-metadata-validation.txt",
+    "size": 65
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staging-manifest.json",
+    "size": 1397
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/kernel-validation.txt",
+    "size": 0
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/runner.stdout.txt",
+    "size": 3421
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/runner.stderr.txt",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/cleanup-receipt.json",
+    "size": 537
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/incident.json",
+    "size": 261
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/summary.json",
+    "size": 5346
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/benchmark-provenance/live-backend-perf-sched-deferred.txt",
+    "size": 116
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/benchmark-provenance/perf_sched.benchmark-output.json",
+    "size": 904
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/mutation-refusals/cgroup.weight.json",
+    "size": 500
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/mutation-refusals/cpu.max.json",
+    "size": 494
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/mutation-refusals/uclamp.json",
+    "size": 493
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/mutation-refusals/topology.offline_cpu.json",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/.gitignore",
+    "size": 14
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/qemu-process-scan-before.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/build-bpf.txt",
+    "size": 507
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/initramfs.cpio.xz",
+    "size": 52215152
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/serial.txt",
+    "size": 129366
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/qemu-process-scan-after.txt",
+    "size": 77
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/summary.json",
+    "size": 7776
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/verifier/bpf-verifier.log",
+    "size": 98790
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/verifier/verifier-evidence.json",
+    "size": 1003
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/partial-attach/partial-attach-transcript.txt",
+    "size": 408
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/partial-attach/partial-attach-evidence.json",
+    "size": 710
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/partial-attach/live-attach-proof.json",
+    "size": 850
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/observe-partial/runtime-samples.jsonl",
+    "size": 10840
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/observe-partial/daemon-runtime-events.jsonl",
+    "size": 449
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/observe-partial/observe-transcript.txt",
+    "size": 72
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/observe-partial/summary.json",
+    "size": 1045
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/rollback-drill/AUD-20260702T164015Z-b6de985-2d3c40.rollback-snapshot.json",
+    "size": 374
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/rollback-drill/AUD-20260702T164015Z-b6de985-2d3c40.rollback-transcript.txt",
+    "size": 148
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/rollback-drill/rollback-refusals.jsonl",
+    "size": 907
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/rollback-drill/audit-ledger.jsonl",
+    "size": 700
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/live/mutation-evidence/mutation-evidence.json",
+    "size": 3005
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/qa/vm/verifier_only.sh",
+    "size": 7287
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/qa/vm/partial_attach.sh",
+    "size": 23855
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/qa/vm/observe_partial.sh",
+    "size": 11680
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/qa/vm/rollback_drill.sh",
+    "size": 7578
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/qa/vm/incident_drill.sh",
+    "size": 4257
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.o",
+    "size": 35448
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/matrix/manual-vm-proof/rows/live-backend/backend/staged/guest-input/zig-out/bpf/zigsched_minimal.bpf.meta.json",
+    "size": 7686
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/bpf-build.log",
+    "size": 1040
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix.log",
+    "size": 1241
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix-exit-code.log",
+    "size": 31
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/matrix-contract.log",
+    "size": 111
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/protected-core-pass-candidate.env",
+    "size": 32
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt",
+    "size": 468
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log",
+    "size": 565
+  },
+  {
+    "path": "artifacts/task-8-final-qemu-rerun/extracted/evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log",
+    "size": 565
+  }
+]

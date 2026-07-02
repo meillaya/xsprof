@@ -1,0 +1,15 @@
+## initial context
+utc=2026-07-02T16:38:37Z
+repo=Meillaya/zig-scheduler
+local_master_head=a075ad2abf85e35b5e1b2ee44e46dbfd17b669fa
+protected_branch_remote=b6de9857b9ad327efadd4bf25a0d86383cff1f0b
+protected_worktree_head=b6de9857b9ad327efadd4bf25a0d86383cff1f0b
+gh_auth_status:
+github.com
+  ✓ Logged in to github.com account Meillaya (/home/mei/.config/gh/hosts.yml)
+  - Active account: true
+  - Git operations protocol: https
+  - Token: gho_************************************
+  - Token scopes: 'admin:ssh_signing_key', 'gist', 'read:org', 'repo', 'workflow'
+runner_25:
+{"id":25,"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","os":"Linux","status":"online","busy":false,"version":"2.335.1","labels":[{"id":0,"name":"self-hosted","type":"read-only"},{"id":0,"name":"Linux","type":"read-only"},{"id":0,"name":"X64","type":"read-only"},{"id":0,"name":"zig-scheduler-vm-proof","type":"custom"},{"id":0,"name":"disposable-vm","type":"custom"}]}
