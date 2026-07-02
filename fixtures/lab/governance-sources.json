@@ -210,7 +210,7 @@
       "path": "schemas/control/runtime-sample.v1.schema.json",
       "purpose": "runtime-sample v1 sched_ext observation schema",
       "required": true,
-      "sha256": "3068bc36bd283e77d6473ef16bd6f4bf7b43add3411df583fd3b667900573955"
+      "sha256": "970a032497b34d1bb6f137931c3486fd479927c182df81595bca87068faea018"
     },
     {
       "path": "qa/backend_capability_matrix_check.py",
@@ -378,7 +378,7 @@
       "path": "qa/protected_core_suite_check.py",
       "purpose": "protected core matrix suite validator",
       "required": true,
-      "sha256": "f790f0e8c488bcf03a65ce9934946ed5d75d29a89d595a66ef5338ffc1da1925"
+      "sha256": "18f6fcd2705c08472511784b25be906f35cc4d580d03e6351c0a4042fd32ee69"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -486,7 +486,7 @@
       "path": "qa/runtime_sample_policy_abi.py",
       "purpose": "runtime-sample policy ABI contract validator",
       "required": true,
-      "sha256": "9140f332d641bbc723c646f0d7ec5b819b8bc041912309cf520bf1cf013f8acc"
+      "sha256": "c6200e919dc767fbb28a204889cb10a846dfc291dbde6423d220917eb93abe67"
     },
     {
       "path": "qa/runtime_sample_sched_ext.py",
@@ -498,7 +498,7 @@
       "path": "qa/runtime_sample_selftest.py",
       "purpose": "runtime-sample adversarial self-test cases",
       "required": true,
-      "sha256": "5c220f272a20cf6c1055faad35bce54c786beafcdebe37fd526e6aae7a281123"
+      "sha256": "ff4c3df1e18435de3bad78a40a7a39a13034596104dd69c1878051a98dee4aea"
     },
     {
       "path": "qa/schema_compatibility_check.py",
@@ -552,7 +552,7 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "8cbfe72f4f44fb70cde485f54c3aa7866f4f0bd4ab976979462a90c8e25ac291"
+      "sha256": "62fe35c068ed840647b9a68887fda1d99e2750fcd3067be5e0b669df3a6471ae"
     },
     {
       "path": "qa/vm/workload_execution_check.py",

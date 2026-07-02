@@ -43,6 +43,27 @@ events_value() { fact /sys/kernel/sched_ext/events; }
 workload_alive_value() { if kill -0 "$lab_pid" 2>/dev/null; then printf true; else printf false; fi; }
 cgroup_status_value() { if [ -r "$active_target/cgroup.procs" ]; then printf present; else printf unreadable; fi; }
 cgroup_digest_value() { if [ -r "$active_target/cgroup.procs" ]; then sort "$active_target/cgroup.procs" | sha256sum | cut -d' ' -f1; else printf unavailable; fi; }
+json_number_field() {
+  file="$1"; field="$2"
+  [ -r "$file" ] || { printf ''; return; }
+  tr -d '[:space:]' < "$file" | sed -n "s/.*\"$field\":\([0-9][0-9]*\).*/\1/p" | head -n 1
+}
+map_value_by_key() {
+  file="$1"; key="$2"
+  [ -r "$file" ] || { printf ''; return; }
+  tr -d '[:space:]' < "$file" | sed -n "s/.*{\"key\":$key,\"value\":\([0-9][0-9]*\)}.*/\1/p" | head -n 1
+}
+capture_bpf_policy_evidence() {
+  bpftool map dump name zigsched_cgroup_policy -j >/tmp/zigsched-cgroup-policy.json 2>/tmp/zigsched-cgroup-policy.err || true
+  bpftool map dump name zigsched_stats -j >/tmp/zigsched-stats.json 2>/tmp/zigsched-stats.err || true
+  bpftool map dump name zigsched_events -j >/tmp/zigsched-events.json 2>/tmp/zigsched-events.err || true
+}
+cgroup_policy_status_value() { [ -s /tmp/zigsched-cgroup-policy.json ] && printf present || printf unavailable; }
+cgroup_policy_last_weight_value() { value="$(json_number_field /tmp/zigsched-cgroup-policy.json last_weight)"; [ -n "$value" ] && printf '%s' "$value" || printf 0; }
+cgroup_policy_weight_generation_value() { value="$(json_number_field /tmp/zigsched-cgroup-policy.json weight_generation)"; [ -n "$value" ] && printf '%s' "$value" || printf 0; }
+cgroup_policy_move_generation_value() { value="$(json_number_field /tmp/zigsched-cgroup-policy.json move_generation)"; [ -n "$value" ] && printf '%s' "$value" || printf 0; }
+cgroup_stat_value() { value="$(map_value_by_key /tmp/zigsched-stats.json "$1")"; [ -n "$value" ] && printf '%s' "$value" || printf 0; }
+dsq_coherence_value() { [ -s /tmp/zigsched-stats.json ] && [ -s /tmp/zigsched-events.json ] && printf present || printf unavailable; }
 emit_workload_execution() {
   status="$1"; rc="$2"; reason="$3"; output="$4"
   output_sha=unavailable
@@ -147,7 +168,10 @@ emit_mutation_families() {
 }
 emit_sched_sample() {
   sample_event="$1"
-  echo "ZIGSCHED_JSON {\"event\":\"$sample_event\",\"state\":\"$(json_escape "$(state_value)")\",\"ops\":\"$(json_escape "$(ops_value)")\",\"enable_seq\":\"$(json_escape "$(enable_seq_value)")\",\"events\":\"$(json_escape "$(events_value)")\",\"workload_alive\":$(workload_alive_value),\"cgroup_membership_digest\":\"$(json_escape "$(cgroup_digest_value)")\",\"cgroup_membership_status\":\"$(json_escape "$(cgroup_status_value)")\"}"
+  capture_bpf_policy_evidence
+  cgroup_policy_status="$(cgroup_policy_status_value)"
+  dsq_coherence_status="$(dsq_coherence_value)"
+  echo "ZIGSCHED_JSON {\"event\":\"$sample_event\",\"state\":\"$(json_escape "$(state_value)")\",\"ops\":\"$(json_escape "$(ops_value)")\",\"enable_seq\":\"$(json_escape "$(enable_seq_value)")\",\"events\":\"$(json_escape "$(events_value)")\",\"workload_alive\":$(workload_alive_value),\"cgroup_membership_digest\":\"$(json_escape "$(cgroup_digest_value)")\",\"cgroup_membership_status\":\"$(json_escape "$(cgroup_status_value)")\",\"cgroup_policy_map_status\":\"$cgroup_policy_status\",\"cgroup_policy_last_weight\":$(cgroup_policy_last_weight_value),\"cgroup_policy_weight_generation\":$(cgroup_policy_weight_generation_value),\"cgroup_policy_move_generation\":$(cgroup_policy_move_generation_value),\"cgroup_init_calls\":$(cgroup_stat_value 8),\"cgroup_exit_calls\":$(cgroup_stat_value 9),\"cgroup_move_calls\":$(cgroup_stat_value 10),\"cgroup_set_weight_calls\":$(cgroup_stat_value 11),\"cgroup_weight_observed\":$(cgroup_stat_value 12),\"dsq_counter_coherence_status\":\"$dsq_coherence_status\"}"
 }
 refuse_stale_rollback_target() {
   current_target="$1"
@@ -179,8 +203,11 @@ reg_id="$(sed -n 's/.* id \([0-9][0-9]*\).*/\1/p' /tmp/register.out | tail -n 1)
 [ -n "$reg_id" ] || reg_id=0
 reg_state="$(state_value)"; [ -n "$reg_state" ] || [ "$reg_rc" -ne 0 ] || reg_state=enabled
 reg_ops="$(ops_value)"; [ -n "$reg_ops" ] || [ "$reg_rc" -ne 0 ] || reg_ops=zigsched_minimal
-echo "ZIGSCHED_JSON {\"event\":\"register\",\"rc\":$reg_rc,\"id\":$reg_id,\"state\":\"$(json_escape "$reg_state")\",\"ops\":\"$(json_escape "$reg_ops")\",\"enable_seq\":\"$(json_escape "$(enable_seq_value)")\",\"events\":\"$(json_escape "$(events_value)")\",\"workload_alive\":$(workload_alive_value),\"cgroup_membership_digest\":\"$(json_escape "$(cgroup_digest_value)")\",\"cgroup_membership_status\":\"$(json_escape "$(cgroup_status_value)")\"}"
 sleep 2
+capture_bpf_policy_evidence
+cgroup_policy_status="$(cgroup_policy_status_value)"
+dsq_coherence_status="$(dsq_coherence_value)"
+echo "ZIGSCHED_JSON {\"event\":\"register\",\"rc\":$reg_rc,\"id\":$reg_id,\"state\":\"$(json_escape "$reg_state")\",\"ops\":\"$(json_escape "$reg_ops")\",\"enable_seq\":\"$(json_escape "$(enable_seq_value)")\",\"events\":\"$(json_escape "$(events_value)")\",\"workload_alive\":$(workload_alive_value),\"cgroup_membership_digest\":\"$(json_escape "$(cgroup_digest_value)")\",\"cgroup_membership_status\":\"$(json_escape "$(cgroup_status_value)")\",\"cgroup_policy_map_status\":\"$cgroup_policy_status\",\"cgroup_policy_last_weight\":$(cgroup_policy_last_weight_value),\"cgroup_policy_weight_generation\":$(cgroup_policy_weight_generation_value),\"cgroup_policy_move_generation\":$(cgroup_policy_move_generation_value),\"cgroup_init_calls\":$(cgroup_stat_value 8),\"cgroup_exit_calls\":$(cgroup_stat_value 9),\"cgroup_move_calls\":$(cgroup_stat_value 10),\"cgroup_set_weight_calls\":$(cgroup_stat_value 11),\"cgroup_weight_observed\":$(cgroup_stat_value 12),\"dsq_counter_coherence_status\":\"$dsq_coherence_status\"}"
 if [ "$reg_id" != 0 ]; then
   bpftool struct_ops unregister id "$reg_id" > /tmp/unreg.out 2>&1
 else

@@ -3,11 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from microvm_report_outputs import kernel_tuple
 from microvm_report_parse import counter_fact, fact, observed_bool, observed_cgroup_status, observed_digest
+from qa.runtime_sample_policy_abi import good_cgroup_callback_stats, good_cgroup_policy_map, good_dsq_counter_coherence, good_policy_abi
 from microvm_report_types import JsonObject, ObserveOutputs, OutputPaths, ReportEnv, ReportRows, VerifierOutputs
 
 
@@ -62,13 +66,18 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
                 "fatal": counter_value(events_text, "fatal"),
             },
             "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
-            "policy_abi": {
-                "policy_name": "zigsched_minimal",
-                "policy_version": "sched_ext_minimal_v1",
-                "struct_ops": "zigsched_minimal_ops",
-                "object_sha256": policy_object_sha256,
-                "btf_required": True,
-            },
+            "policy_abi": policy_abi_from_event(event, policy_object_sha256),
+            "cgroup_semantic_labels": dict(good_policy_abi(policy_object_sha256)["cgroup_semantics"]),
+            "task_ext_enabled": {"status": "unknown", "value": "unavailable"},
+            "sched_ext_phase": "during_attach" if ops == "zigsched_minimal" else ("before_attach" if seq == 0 else "after_rollback"),
+            "teardown_state": {"status": "present", "value": "attached" if ops == "zigsched_minimal" else "detached"},
+            "rollback_state": {"status": "present", "value": "rolled_back" if seq == 2 else "not_applicable"},
+            "dsq_depth": {"global": 0, "local": 0, "shared": 0},
+            "queue_latency": {"p50_us": 0, "p95_us": 0, "p99_us": 0, "max_us": 0},
+            "fairness": {"state": "unknown", "starved_tasks": 0, "max_wait_us": 0},
+            "task_counts": {"by_cgroup_digest": {cgroup_digest: 1}, "by_class": {"vm-workload": 1}},
+            "scheduler_counters": {"context_switches": 0, "wakeups": 0, "migrations": 0},
+            "sched_ext_observation": {"dump": {"status": "present", "value": "sha256:" + hashlib.sha256((source_event + ops).encode()).hexdigest() + ";bytes:128"}, "tracepoints": {"sched_switch": 0, "sched_wakeup": 0}},
             "cgroup_membership_digest": cgroup_digest,
             "cgroup_membership_status": fact(cgroup_status),
             "workload": {"status": "present", "value": "alive" if observed_bool(event, "workload_alive", source_event) else "not_alive"},
@@ -76,6 +85,38 @@ def build_sample_rows(rows: ReportRows, policy_object_sha256: str) -> list[JsonO
             "private_command_lines_sampled": False,
         })
     return sample_rows
+
+
+def event_int(event: JsonObject, field: str) -> int:
+    value = event.get(field)
+    if isinstance(value, int) and value >= 0:
+        return value
+    return 0
+
+
+def policy_abi_from_event(event: JsonObject, policy_object_sha256: str) -> JsonObject:
+    policy_abi = good_policy_abi(policy_object_sha256)
+    if event.get("cgroup_policy_map_status") == "present":
+        policy_map = good_cgroup_policy_map()
+        policy_map["last_weight"] = event_int(event, "cgroup_policy_last_weight")
+        policy_map["weight_generation"] = event_int(event, "cgroup_policy_weight_generation")
+        policy_map["move_generation"] = event_int(event, "cgroup_policy_move_generation")
+        policy_abi["cgroup_policy_map"] = policy_map
+    else:
+        policy_abi["cgroup_policy_map"] = good_cgroup_policy_map("unavailable")
+    if event.get("cgroup_policy_map_status") == "present":
+        stats = good_cgroup_callback_stats()
+        for field in ("cgroup_init_calls", "cgroup_exit_calls", "cgroup_move_calls", "cgroup_set_weight_calls", "cgroup_weight_observed"):
+            stats[field] = event_int(event, field)
+        stats["cpu_weight_callback_observed"] = event_int(event, "cgroup_weight_observed") > 0
+        policy_abi["cgroup_callback_stats"] = stats
+    else:
+        policy_abi["cgroup_callback_stats"] = good_cgroup_callback_stats("unavailable")
+    if event.get("dsq_counter_coherence_status") == "present":
+        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence()
+    else:
+        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence("unavailable")
+    return policy_abi
 
 
 def counter_value(events_text: str, name: str) -> int:

@@ -24,6 +24,9 @@ PROTECTED_REQUIRED_ROWS: Final[frozenset[str]] = frozenset(("live-backend", "wor
 LATENCY_ROWS: Final[frozenset[str]] = frozenset(("workload-interactive-latency", "workload-scheduler-affinity-churn"))
 ROW_LOCAL_FIELDS: Final[tuple[str, ...]] = ("runtime_sample_path", "incident_path", "rollback_proof_path", "cleanup_proof_path", "host_refusal_proof_path")
 ABI_V3_LABEL: Final[str] = "zigsched-bpf-abi-v3"
+REQUIRED_CALLBACK_STATS: Final[tuple[str, ...]] = ("cgroup_init_calls", "cgroup_exit_calls", "cgroup_move_calls", "cgroup_set_weight_calls", "cgroup_weight_observed")
+
+
 class ProtectedCoreSuiteError(Exception):
     """Raised when a protected-core matrix suite contract is not satisfied."""
 
@@ -105,21 +108,63 @@ def validate_row_local_artifacts(row: JsonObject, row_path: Path, run_root: Path
     require_descendant(daemon, run_root, f"{context}.daemon_event_path")
 
 
+def nonnegative_int(value: JsonValue | None, context: str) -> int:
+    if not isinstance(value, int) or value < 0:
+        raise ProtectedCoreSuiteError(f"{context} must be a nonnegative integer")
+    return value
+
+
+def string_list(value: JsonValue | None, context: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) and item != "" for item in value):
+        raise ProtectedCoreSuiteError(f"{context} must be a string list")
+    return value
+
+
+def validate_present_cgroup_evidence(policy_abi: JsonObject, context: str) -> bool:
+    policy_map = obj(policy_abi.get("cgroup_policy_map"), f"{context}.cgroup_policy_map")
+    stats = obj(policy_abi.get("cgroup_callback_stats"), f"{context}.cgroup_callback_stats")
+    coherence = obj(policy_abi.get("dsq_counter_coherence"), f"{context}.dsq_counter_coherence")
+    if policy_map.get("status") != "present" or stats.get("status") != "present" or coherence.get("status") != "present":
+        return False
+    require(policy_map.get("map_name") == "zigsched_cgroup_policy", f"{context}.cgroup_policy_map.map_name must be zigsched_cgroup_policy")
+    require("cpu.weight" in string_list(policy_map.get("callback_observed_knobs"), f"{context}.cgroup_policy_map.callback_observed_knobs"), f"{context} missing cpu.weight callback-observed map evidence")
+    require("cpu.max" in string_list(policy_map.get("deferred_knobs"), f"{context}.cgroup_policy_map.deferred_knobs"), f"{context} must keep cpu.max deferred in policy map")
+    require("uclamp" in string_list(policy_map.get("deferred_knobs"), f"{context}.cgroup_policy_map.deferred_knobs"), f"{context} must keep uclamp deferred in policy map")
+    require(nonnegative_int(policy_map.get("last_weight"), f"{context}.cgroup_policy_map.last_weight") > 0, f"{context} requires observed cpu.weight value")
+    require(nonnegative_int(policy_map.get("weight_generation"), f"{context}.cgroup_policy_map.weight_generation") > 0, f"{context} requires cpu.weight generation evidence")
+    require(nonnegative_int(policy_map.get("move_generation"), f"{context}.cgroup_policy_map.move_generation") > 0, f"{context} requires cgroup move generation evidence")
+    for field in REQUIRED_CALLBACK_STATS:
+        _ = nonnegative_int(stats.get(field), f"{context}.cgroup_callback_stats.{field}")
+    require(nonnegative_int(stats.get("cgroup_init_calls"), f"{context}.cgroup_callback_stats.cgroup_init_calls") > 0, f"{context} requires cgroup init callback evidence")
+    require(nonnegative_int(stats.get("cgroup_move_calls"), f"{context}.cgroup_callback_stats.cgroup_move_calls") > 0, f"{context} requires cgroup move callback evidence")
+    require(nonnegative_int(stats.get("cgroup_set_weight_calls"), f"{context}.cgroup_callback_stats.cgroup_set_weight_calls") > 0, f"{context} requires cgroup set-weight callback evidence")
+    require(nonnegative_int(stats.get("cgroup_weight_observed"), f"{context}.cgroup_callback_stats.cgroup_weight_observed") > 0, f"{context} requires observed cpu.weight callback counter")
+    require(stats.get("cpu_weight_callback_observed") is True, f"{context}.cgroup_callback_stats.cpu_weight_callback_observed must be true")
+    for field in ("fifo_insert_dispatch_coherent", "vtime_insert_dispatch_coherent", "dispatch_empty_accounted"):
+        require(coherence.get(field) is True, f"{context}.dsq_counter_coherence.{field} must be true")
+    return True
+
+
 def validate_cgroup_abi_linkage(row: JsonObject, context: str) -> None:
     sample_path = safe_path(row.get("runtime_sample_path"), f"{context}.runtime_sample_path")
     samples = load_jsonl(sample_path)
     has_v3 = False
+    has_present_cgroup_evidence = False
     for index, sample in enumerate(samples):
         policy_abi = sample.get("policy_abi")
         if not isinstance(policy_abi, dict):
             continue
         if policy_abi.get("abi_version") == 3:
             has_v3 = True
-            require(policy_abi.get("abi_label") == ABI_V3_LABEL, f"{context}.runtime_sample[{index}].policy_abi.abi_label must be {ABI_V3_LABEL}")
-            semantics = obj(policy_abi.get("cgroup_semantics"), f"{context}.runtime_sample[{index}].policy_abi.cgroup_semantics")
+            sample_context = f"{context}.runtime_sample[{index}].policy_abi"
+            require(policy_abi.get("abi_label") == ABI_V3_LABEL, f"{sample_context}.abi_label must be {ABI_V3_LABEL}")
+            semantics = obj(policy_abi.get("cgroup_semantics"), f"{sample_context}.cgroup_semantics")
             require(semantics.get("cpu.weight") == "callback-observed", f"{context} missing cpu.weight callback observation")
             require(semantics.get("cpu.max") == "deferred", f"{context} must keep cpu.max deferred/observe-only")
+            require(semantics.get("uclamp") == "deferred", f"{context} must keep uclamp deferred/observe-only")
+            has_present_cgroup_evidence = validate_present_cgroup_evidence(policy_abi, sample_context) or has_present_cgroup_evidence
     require(has_v3, f"{context} requires ABI-v3 cgroup runtime sample evidence")
+    require(has_present_cgroup_evidence, f"{context} requires present cgroup policy map/callback/DSQ evidence")
 
 
 def validate_manifest(path: Path) -> None:
@@ -190,6 +235,16 @@ def self_test() -> None:
         policy_abi["abi_version"] = 2
         _ = sample_path.write_text(json.dumps(sample, sort_keys=True) + "\n")
         expect_reject(missing_abi, "missing ABI-v3 cgroup evidence")
+        missing_map = write_protected_manifest(root / "missing-cgroup-map")
+        cgroup_artifact = root / "missing-cgroup-map" / "rows" / "workload-cgroup-weight-quota" / "matrix-run.json"
+        cgroup_row = load_json(cgroup_artifact)
+        sample_path = safe_path(cgroup_row.get("runtime_sample_path"), "missing cgroup map runtime path")
+        sample = load_jsonl(sample_path)[0]
+        policy_abi = obj(sample.get("policy_abi"), "missing cgroup map policy_abi")
+        policy_map = obj(policy_abi.get("cgroup_policy_map"), "missing cgroup map policy_abi.cgroup_policy_map")
+        policy_map["callback_observed_knobs"] = []
+        _ = sample_path.write_text(json.dumps(sample, sort_keys=True) + "\n")
+        expect_reject(missing_map, "missing cgroup policy map callback evidence")
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print("PASS protected-core suite self-test")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, EVENTS_COUNT, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, STATS_COUNT, VM_CONTRACT, VM_MARKER, AbiSnapshot, JsonObject, SourceAbi, obj, require, require_int, require_string, require_string_list, sha256_file, str_list
+from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, EVENTS_COUNT, EXPECTED_CGROUP_EVIDENCE, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, STATS_COUNT, VM_CONTRACT, VM_MARKER, AbiSnapshot, JsonObject, SourceAbi, obj, require, require_int, require_string, require_string_list, sha256_file, str_list
 from qa.bpf_abi_parse import load_json, parse_header, parse_source_abi, require_text, source_abi_status, source_map_layouts_object
 from qa.bpf_abi_model import REQUIRED_ADR_TEXT
 
@@ -29,6 +29,7 @@ def require_abi_contract(contract: JsonObject, snapshot: AbiSnapshot, source_abi
     require_string_list(contract.get("abi_v3_accepted_callbacks"), ABI_V3_ACCEPTED_CALLBACKS, "abi_contract.abi_v3_accepted_callbacks")
     require(contract.get("abi_v3_source_status") == source_status, f"abi_contract.abi_v3_source_status must match source shape: {source_status}")
     require(obj(contract.get("cgroup_knob_semantics"), "abi_contract.cgroup_knob_semantics") == CGROUP_KNOB_SEMANTICS, "cgroup knob semantics changed without ABI acceptance")
+    require(obj(contract.get("cgroup_evidence"), "abi_contract.cgroup_evidence") == EXPECTED_CGROUP_EVIDENCE, "cgroup evidence contract changed without ABI acceptance")
     require(contract.get("tuple_reference") == "docs/releases/supported-kernel-tuples.md", "abi_contract.tuple_reference must pin supported tuple document")
     require_map_layouts(obj(contract.get("map_layouts"), "abi_contract.map_layouts"), source_abi)
 

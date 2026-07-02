@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Protocol
 
-from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, JsonValue, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, VM_CONTRACT, VM_MARKER, Args, BpfAbiError, JsonObject, obj, sha256_file
+from qa.bpf_abi_model import ABI_VERSION, ABI_V3_ACCEPTED_CALLBACKS, CGROUP_KNOB_SEMANTICS, EXPECTED_CGROUP_EVIDENCE, JsonValue, PARTIAL_SWITCH, POLICY_NAME, POLICY_SYMBOL, VM_CONTRACT, VM_MARKER, Args, BpfAbiError, JsonObject, obj, sha256_file
 from qa.bpf_abi_parse import parse_header, parse_source_abi, source_abi_status, source_map_layouts_object
 from qa.bpf_abi_validate import validate
 
@@ -46,6 +46,7 @@ def abi_contract_fixture(header: Path, source: Path) -> JsonObject:
         "abi_v3_accepted_callbacks": list(ABI_V3_ACCEPTED_CALLBACKS),
         "abi_v3_source_status": source_abi_status(source_abi),
         "cgroup_knob_semantics": json_string_map(CGROUP_KNOB_SEMANTICS),
+        "cgroup_evidence": EXPECTED_CGROUP_EVIDENCE,
         "tuple_reference": "docs/releases/supported-kernel-tuples.md",
         "map_layouts": source_map_layouts_object(source_abi),
     }
@@ -164,6 +165,11 @@ def run_self_test(args: Args) -> None:
         contract = obj(bad["abi_contract"], "abi_contract")
         contract["tuple_reference"] = "docs/runbooks/vm-lab.md"
         expect_rejected(local_args, metadata, bad, "wrong tuple reference")
+        bad = clone_json_object(good)
+        contract = obj(bad["abi_contract"], "abi_contract")
+        cgroup_evidence = obj(contract["cgroup_evidence"], "abi_contract.cgroup_evidence")
+        cgroup_evidence["cpu_max"] = "active"
+        expect_rejected(local_args, metadata, bad, "active cpu.max cgroup evidence")
         extra_map = root / "extra_map.bpf.c"
         _ = extra_map.write_text(source_text + '\nstruct {\n __uint(type, BPF_MAP_TYPE_ARRAY);\n __uint(max_entries, 1);\n __type(key, u32);\n __type(value, u64);\n} zigsched_extra SEC(".maps");\n')
         bad = clone_json_object(good)

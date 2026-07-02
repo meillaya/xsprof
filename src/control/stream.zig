@@ -70,6 +70,41 @@ const CgroupSemantics = struct {
     cgroup_set_idle: []const u8,
 };
 
+const CgroupPolicyMapEvidence = struct {
+    status: []const u8,
+    reason: ?[]const u8 = null,
+    map_name: ?[]const u8 = null,
+    max_entries: ?u64 = null,
+    key: ?[]const u8 = null,
+    fields: ?[]const []const u8 = null,
+    last_weight: ?u64 = null,
+    weight_generation: ?u64 = null,
+    move_generation: ?u64 = null,
+    callback_observed_knobs: ?[]const []const u8 = null,
+    observed_knobs: ?[]const []const u8 = null,
+    deferred_knobs: ?[]const []const u8 = null,
+};
+
+const CgroupCallbackStatsEvidence = struct {
+    status: []const u8,
+    reason: ?[]const u8 = null,
+    cgroup_init_calls: ?u64 = null,
+    cgroup_exit_calls: ?u64 = null,
+    cgroup_move_calls: ?u64 = null,
+    cgroup_set_weight_calls: ?u64 = null,
+    cgroup_weight_observed: ?u64 = null,
+    cpu_weight_callback_observed: ?bool = null,
+};
+
+const DsqCounterCoherenceEvidence = struct {
+    status: []const u8,
+    reason: ?[]const u8 = null,
+    counter_source: ?[]const u8 = null,
+    fifo_insert_dispatch_coherent: ?bool = null,
+    vtime_insert_dispatch_coherent: ?bool = null,
+    dispatch_empty_accounted: ?bool = null,
+};
+
 const PolicyAbi = struct {
     policy_name: []const u8,
     policy_version: []const u8,
@@ -83,6 +118,9 @@ const PolicyAbi = struct {
     host_mutation: ?bool = null,
     production_claim: ?bool = null,
     release_eligible: ?bool = null,
+    cgroup_policy_map: ?CgroupPolicyMapEvidence = null,
+    cgroup_callback_stats: ?CgroupCallbackStatsEvidence = null,
+    dsq_counter_coherence: ?DsqCounterCoherenceEvidence = null,
 };
 
 const RawSample = struct {
@@ -309,6 +347,68 @@ fn requireAbiV3PolicyAbi(abi: PolicyAbi) StreamError!void {
     if ((abi.production_claim orelse return error.InvalidRuntimeSample) != false) return error.InvalidRuntimeSample;
     if ((abi.release_eligible orelse return error.InvalidRuntimeSample) != false) return error.InvalidRuntimeSample;
     try requireCgroupSemantics(abi.cgroup_semantics orelse return error.InvalidRuntimeSample);
+    if (abi.cgroup_policy_map) |evidence| try requireCgroupPolicyMapEvidence(evidence);
+    if (abi.cgroup_callback_stats) |evidence| try requireCgroupCallbackStatsEvidence(evidence);
+    if (abi.dsq_counter_coherence) |evidence| try requireDsqCounterCoherenceEvidence(evidence);
+}
+
+fn requireEvidenceStatus(status: []const u8, reason: ?[]const u8) StreamError!bool {
+    try requireSafeText(status);
+    if (std.mem.eql(u8, status, "unavailable")) {
+        try requireSafeText(reason orelse return error.InvalidRuntimeSample);
+        return false;
+    }
+    if (!std.mem.eql(u8, status, "present")) return error.InvalidRuntimeSample;
+    return true;
+}
+
+fn stringListContains(values: []const []const u8, needle: []const u8) bool {
+    for (values) |value| {
+        if (std.mem.eql(u8, value, needle)) return true;
+    }
+    return false;
+}
+
+fn requireStringListContains(values: ?[]const []const u8, needle: []const u8) StreamError!void {
+    const actual = values orelse return error.InvalidRuntimeSample;
+    for (actual) |value| try requireSafeText(value);
+    if (!stringListContains(actual, needle)) return error.InvalidRuntimeSample;
+}
+
+fn requireCgroupPolicyMapEvidence(evidence: CgroupPolicyMapEvidence) StreamError!void {
+    if (!try requireEvidenceStatus(evidence.status, evidence.reason)) return;
+    if (!std.mem.eql(u8, evidence.map_name orelse return error.InvalidRuntimeSample, "zigsched_cgroup_policy")) return error.InvalidRuntimeSample;
+    if ((evidence.max_entries orelse return error.InvalidRuntimeSample) != 1) return error.InvalidRuntimeSample;
+    if (!std.mem.eql(u8, evidence.key orelse return error.InvalidRuntimeSample, "0")) return error.InvalidRuntimeSample;
+    try requireStringListContains(evidence.fields, "last_weight");
+    try requireStringListContains(evidence.callback_observed_knobs, "cpu.weight");
+    try requireStringListContains(evidence.observed_knobs, "cpuset.cpus");
+    try requireStringListContains(evidence.observed_knobs, "cpuset.cpus.effective");
+    try requireStringListContains(evidence.observed_knobs, "cpu.pressure");
+    try requireStringListContains(evidence.deferred_knobs, "cpu.max");
+    try requireStringListContains(evidence.deferred_knobs, "uclamp");
+    _ = evidence.last_weight orelse return error.InvalidRuntimeSample;
+    _ = evidence.weight_generation orelse return error.InvalidRuntimeSample;
+    _ = evidence.move_generation orelse return error.InvalidRuntimeSample;
+}
+
+fn requireCgroupCallbackStatsEvidence(evidence: CgroupCallbackStatsEvidence) StreamError!void {
+    if (!try requireEvidenceStatus(evidence.status, evidence.reason)) return;
+    const set_weight = evidence.cgroup_set_weight_calls orelse return error.InvalidRuntimeSample;
+    const observed = evidence.cgroup_weight_observed orelse return error.InvalidRuntimeSample;
+    _ = evidence.cgroup_init_calls orelse return error.InvalidRuntimeSample;
+    _ = evidence.cgroup_exit_calls orelse return error.InvalidRuntimeSample;
+    _ = evidence.cgroup_move_calls orelse return error.InvalidRuntimeSample;
+    if (observed > set_weight) return error.InvalidRuntimeSample;
+    if (set_weight > 0 and (evidence.cpu_weight_callback_observed orelse return error.InvalidRuntimeSample) != true) return error.InvalidRuntimeSample;
+}
+
+fn requireDsqCounterCoherenceEvidence(evidence: DsqCounterCoherenceEvidence) StreamError!void {
+    if (!try requireEvidenceStatus(evidence.status, evidence.reason)) return;
+    if (!std.mem.eql(u8, evidence.counter_source orelse return error.InvalidRuntimeSample, "zigsched_stats+zigsched_events")) return error.InvalidRuntimeSample;
+    if ((evidence.fifo_insert_dispatch_coherent orelse return error.InvalidRuntimeSample) != true) return error.InvalidRuntimeSample;
+    if ((evidence.vtime_insert_dispatch_coherent orelse return error.InvalidRuntimeSample) != true) return error.InvalidRuntimeSample;
+    if ((evidence.dispatch_empty_accounted orelse return error.InvalidRuntimeSample) != true) return error.InvalidRuntimeSample;
 }
 
 fn requireCgroupSemantics(semantics: CgroupSemantics) StreamError!void {

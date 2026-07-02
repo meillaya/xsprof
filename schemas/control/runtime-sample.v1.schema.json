@@ -30,6 +30,111 @@
       ],
       "type": "object"
     },
+    "cgroup_callback_stats_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "cgroup_exit_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cgroup_init_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cgroup_move_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cgroup_set_weight_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cgroup_weight_observed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cpu_weight_callback_observed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "present",
+            "unavailable"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "cgroup_policy_map_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "callback_observed_knobs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deferred_knobs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "fields": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 6,
+          "type": "array"
+        },
+        "key": {
+          "const": "0"
+        },
+        "last_weight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "map_name": {
+          "const": "zigsched_cgroup_policy"
+        },
+        "max_entries": {
+          "const": 1
+        },
+        "move_generation": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "observed_knobs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "present",
+            "unavailable"
+          ]
+        },
+        "weight_generation": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "cgroup_policy_semantics": {
       "additionalProperties": false,
       "properties": {
@@ -124,6 +229,34 @@
       ],
       "type": "object"
     },
+    "dsq_counter_coherence_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "counter_source": {
+          "const": "zigsched_stats+zigsched_events"
+        },
+        "dispatch_empty_accounted": {
+          "type": "boolean"
+        },
+        "fifo_insert_dispatch_coherent": {
+          "type": "boolean"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "present",
+            "unavailable"
+          ]
+        },
+        "vtime_insert_dispatch_coherent": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "dsq_depth": {
       "additionalProperties": false,
       "properties": {
@@ -210,8 +343,17 @@
         "btf_required": {
           "type": "boolean"
         },
+        "cgroup_callback_stats": {
+          "$ref": "#/$defs/cgroup_callback_stats_evidence"
+        },
+        "cgroup_policy_map": {
+          "$ref": "#/$defs/cgroup_policy_map_evidence"
+        },
         "cgroup_semantics": {
           "$ref": "#/$defs/cgroup_policy_semantics"
+        },
+        "dsq_counter_coherence": {
+          "$ref": "#/$defs/dsq_counter_coherence_evidence"
         },
         "host_mutation": {
           "const": false

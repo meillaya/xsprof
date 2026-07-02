@@ -12,9 +12,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TypeAlias
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.bpf_metadata_cgroup import (
+    CALLBACKS,
+    CGROUP_EVIDENCE,
+    CGROUP_KNOB_SEMANTICS,
+    CGROUP_POLICY_FIELDS,
+    MAP_LAYOUTS,
+    PROGRAM_SECTIONS,
+)
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -74,36 +87,6 @@ EVENTS: Final[list[JsonValue]] = [
     "ZIGSCHED_EVENT_CGROUP_WEIGHT_OBSERVED",
 ]
 POLICY_FIELDS: Final[list[JsonValue]] = ["zigsched_u64 fifo_dsq", "zigsched_u64 vtime_dsq", "zigsched_u64 starvation_ns_max", "zigsched_u64 mode", "zigsched_u64 cgroup_knob_support"]
-CGROUP_POLICY_FIELDS: Final[list[JsonValue]] = ["zigsched_u64 last_weight", "zigsched_u64 weight_generation", "zigsched_u64 move_generation", "zigsched_u64 callback_observed_knobs", "zigsched_u64 observed_knobs", "zigsched_u64 deferred_knobs"]
-PROGRAM_SECTIONS: Final[list[JsonValue]] = [
-    "struct_ops/zigsched_minimal_select_cpu",
-    "struct_ops.s/zigsched_minimal_init",
-    "struct_ops/zigsched_minimal_cgroup_init",
-    "struct_ops/zigsched_minimal_cgroup_exit",
-    "struct_ops/zigsched_minimal_cgroup_prep_move",
-    "struct_ops/zigsched_minimal_cgroup_move",
-    "struct_ops/zigsched_minimal_cgroup_cancel_move",
-    "struct_ops/zigsched_minimal_cgroup_set_weight",
-    "struct_ops/zigsched_minimal_enqueue",
-    "struct_ops/zigsched_minimal_dispatch",
-]
-CALLBACKS: Final[list[JsonValue]] = ["select_cpu", "init", "cgroup_init", "cgroup_exit", "cgroup_prep_move", "cgroup_move", "cgroup_cancel_move", "cgroup_set_weight", "enqueue", "dispatch"]
-MAP_LAYOUTS: Final[JsonObject] = {
-    "zigsched_stats": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_STATS", "key": "u32", "value": "u64"},
-    "zigsched_events": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_EVENTS", "key": "u32", "value": "u64"},
-    "zigsched_policy_config": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_policy_config"},
-    "zigsched_cgroup_policy": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "1", "key": "u32", "value": "struct zigsched_cgroup_policy"},
-}
-CGROUP_KNOB_SEMANTICS: Final[JsonObject] = {
-    "cpu.weight": "callback-observed",
-    "cpu.max": "deferred",
-    "cpuset.cpus": "observed-only",
-    "cpuset.cpus.effective": "observed-only",
-    "cpu.pressure": "observed-only",
-    "uclamp": "deferred",
-}
-
-
 @dataclass(frozen=True, slots=True)
 class Args:
     mode: str
@@ -162,6 +145,7 @@ def abi_contract() -> JsonObject:
         "abi_v3_accepted_callbacks": CALLBACKS,
         "abi_v3_source_status": "implemented",
         "cgroup_knob_semantics": CGROUP_KNOB_SEMANTICS,
+        "cgroup_evidence": CGROUP_EVIDENCE,
         "tuple_reference": "docs/releases/supported-kernel-tuples.md",
         "map_layouts": MAP_LAYOUTS,
     }

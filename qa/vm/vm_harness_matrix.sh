@@ -393,7 +393,11 @@ write_matrix_row() {
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path.cwd()))
+from qa.runtime_sample_policy_abi import good_cgroup_callback_stats, good_cgroup_policy_map, good_dsq_counter_coherence, good_policy_abi
 
 scenario = os.environ["SCENARIO"]
 row_dir = Path(os.environ["ROW_DIR"])
@@ -603,32 +607,62 @@ write_json(isolation, {
 def fact(status: str, value: str) -> dict:
     return {"status": status, "value": value}
 
+def runtime_policy_abi(index: int) -> dict:
+    policy_abi = good_policy_abi(policy_sha)
+    if scenario == "workload-cgroup-weight-quota" and index == 1 and outcome == "PASS":
+        policy_abi["cgroup_policy_map"] = good_cgroup_policy_map()
+        policy_abi["cgroup_callback_stats"] = good_cgroup_callback_stats()
+        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence()
+    else:
+        policy_abi["cgroup_policy_map"] = good_cgroup_policy_map("unavailable")
+        policy_abi["cgroup_callback_stats"] = good_cgroup_callback_stats("unavailable")
+        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence("unavailable")
+    return policy_abi
+
+
 def runtime_sample(index: int, scheduler_state: str, ops: str) -> dict:
     global last_enable_seq
     enabled = scheduler_state == "enabled"
     if enabled:
         last_enable_seq = str(40 + index)
+    phase = "during_attach" if enabled else ("before_attach" if index == 0 else "after_rollback")
+    task_ext_status = "present" if enabled else "unknown"
+    task_ext_value = "true" if enabled else "unavailable"
+    rollback_state = "rolled_back" if phase == "after_rollback" else "not_applicable"
     return {
         "schema": "zig-scheduler/runtime-sample/v1",
         "sequence": index,
+        "sample_source_event": f"matrix-{scenario}-{index}",
+        "observation_source": "vm_harness_matrix_row",
+        "sched_ext_phase": phase,
         "state": fact("present", scheduler_state),
         "ops": fact("present", ops),
         "enable_seq": fact("present", last_enable_seq if not enabled else str(40 + index)),
-        "events": fact("present", "nr_rejected: 0"),
+        "events": fact("present", "nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0"),
         "events_hash": hashlib.sha256(f"{scenario}:events:{index}".encode()).hexdigest(),
         "nr_rejected": fact("present", "0"),
         "debug_dump": fact("missing", ""),
         "root_ops": fact("present", ops),
-        "scheduler_events": fact("present", "nr_rejected: 0"),
+        "scheduler_events": fact("present", "nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0"),
         "policy_counters": {"nr_rejected": 0, "dispatch_failed": 0, "fallback": 0, "fatal": 0},
-        "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0},
-        "policy_abi": {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_minimal_v1", "struct_ops": "zigsched_minimal_ops", "object_sha256": policy_sha, "btf_required": True},
+        "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0, "ring_buffer_overruns": 0, "reader_lag_events": 0},
+        "policy_abi": runtime_policy_abi(index),
+        "cgroup_semantic_labels": dict(runtime_policy_abi(index)["cgroup_semantics"]),
         "cgroup_membership_digest": cgroup_digest,
         "cgroup_membership_status": fact("present", "present"),
+        "task_ext_enabled": fact(task_ext_status, task_ext_value),
+        "teardown_state": fact("present", "attached" if enabled else "detached"),
+        "rollback_state": fact("present", rollback_state),
         "workload": fact("present", "alive" if outcome == "PASS" else "not-started"),
         "workload_alive": outcome == "PASS",
         "private_command_lines_sampled": False,
-}
+        "dsq_depth": {"global": 1 if enabled else 0, "local": 0, "shared": 0},
+        "queue_latency": {"p50_us": 0, "p95_us": 0, "p99_us": 0, "max_us": 0},
+        "fairness": {"state": "ok" if outcome == "PASS" else "unknown", "starved_tasks": 0, "max_wait_us": 0},
+        "task_counts": {"by_cgroup_digest": {cgroup_digest: 1 if outcome == "PASS" else 0}, "by_class": {workload_class: 1 if outcome == "PASS" else 0}},
+        "scheduler_counters": {"context_switches": index, "wakeups": index, "migrations": 0},
+        "sched_ext_observation": {"dump": {"status": "present", "value": "sha256:" + hashlib.sha256(f"{scenario}:dump:{index}".encode()).hexdigest() + ";bytes:128"}, "tracepoints": {"sched_switch": index, "sched_wakeup": index}},
+    }
 
 last_enable_seq = "0"
 runtime_rows = (

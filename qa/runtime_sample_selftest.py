@@ -53,6 +53,28 @@ def bad_weight_policy_abi() -> JsonObject:
     return policy
 
 
+def active_cpu_max_policy_abi() -> JsonObject:
+    policy = good_policy_abi()
+    semantics = dict(policy["cgroup_semantics"] if isinstance(policy["cgroup_semantics"], dict) else {})
+    semantics["cpu.max"] = "active"
+    policy["cgroup_semantics"] = semantics
+    return policy
+
+
+def missing_weight_callback_policy_abi() -> JsonObject:
+    policy = good_policy_abi()
+    policy_map = require_object(policy, "cgroup_policy_map", "missing weight policy ABI")
+    policy_map["callback_observed_knobs"] = []
+    return policy
+
+
+def incoherent_callback_stats_policy_abi() -> JsonObject:
+    policy = good_policy_abi()
+    stats = require_object(policy, "cgroup_callback_stats", "incoherent callback stats policy ABI")
+    stats["cgroup_set_weight_calls"] = 1
+    stats["cpu_weight_callback_observed"] = False
+    return policy
+
 
 def sched_ext_state_sample(sequence: int, phase: str, state: str, ops: str, enable_seq: str, task_ext: str = "unavailable") -> JsonObject:
     sample = good_sample()
@@ -128,6 +150,9 @@ def self_test() -> None:
         ("missing-abi-semantics.jsonl", {"policy_name": "zigsched_minimal", "policy_version": "sched_ext_cgroup_abi_v3", "struct_ops": "zigsched_minimal_ops", "object_sha256": "unavailable", "btf_required": True, "abi_version": 3}, "missing ABI-v3 cgroup semantics"),
         ("mismatched-policy-version.jsonl", {**good_policy_abi(), "policy_version": "sched_ext_minimal_v1"}, "mismatched policy version"),
         ("bad-weight-semantics.jsonl", bad_weight_policy_abi(), "bad cpu.weight semantics"),
+        ("active-cpu-max-semantics.jsonl", active_cpu_max_policy_abi(), "active cpu.max semantics"),
+        ("missing-weight-callback-map.jsonl", missing_weight_callback_policy_abi(), "missing cpu.weight callback map evidence"),
+        ("incoherent-callback-stats.jsonl", incoherent_callback_stats_policy_abi(), "incoherent cpu.weight callback stats"),
         ("host-mutation-policy.jsonl", {**good_policy_abi(), "host_mutation": True}, "policy ABI host mutation claim"),
         ("production-policy-claim.jsonl", {**good_policy_abi(), "production_claim": True}, "policy ABI production claim"),
         ("release-policy-claim.jsonl", {**good_policy_abi(), "release_eligible": True}, "policy ABI release claim"),
