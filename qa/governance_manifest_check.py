@@ -109,6 +109,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/schema_compatibility_schema_rules.py', 'schema compatibility structural rules shared by control schema gates'),
     ('qa/schema_compatibility_runner_cleanliness_rules.py', 'schema compatibility runner cleanliness proof freeze rules'),
     ('qa/evidence_bundle_compare_check.py', 'protected evidence bundle comparison validator'),
+    ('qa/evidence_bundle_compare_selftest.py', 'protected evidence bundle comparison self-test fixtures'),
     ('qa/security_gate.sh', 'security profile gate consumed by governance checks'),
     ('qa/unsafe_cli_matrix.sh', 'unsafe CLI refusal matrix gate'),
     ('qa/vm/contract_check.sh', 'disposable VM execution contract validator'),

@@ -12,7 +12,7 @@
       "path": "build.zig",
       "purpose": "Zig build graph wiring for host-safe governance gates",
       "required": true,
-      "sha256": "31f4d17e5d5dbefaaa1456d7375fb9b23faa646a726df6ad6257588b4e44377c"
+      "sha256": "2b27d4fe2b346d4220bef9ccfb7152570f6e7e8850afa289237a365b073a046f"
     },
     {
       "path": "README.md",
@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "4b5d6ab3fade8ae6edb37d9b73b8aba4914d3d70728c3c89f91a48727f903ca3"
+      "sha256": "33389f03532859d3f64180b051b76bcf06dd583d51ea0615effad29b019efdcb"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -528,7 +528,13 @@
       "path": "qa/evidence_bundle_compare_check.py",
       "purpose": "protected evidence bundle comparison validator",
       "required": true,
-      "sha256": "a3e805279002438f52bd44246fc4c52b5d9e450c7058ee3571b19d7d39c1081a"
+      "sha256": "1dc45e46cffebe349189ce6a781f92c886f2162fb4b4ccc01ffe7fecacc43b26"
+    },
+    {
+      "path": "qa/evidence_bundle_compare_selftest.py",
+      "purpose": "protected evidence bundle comparison self-test fixtures",
+      "required": true,
+      "sha256": "cd829bc37e9b88f67b28f1b1d3da5d8187de8df104895e5f0f2c8273333ee4ac"
     },
     {
       "path": "qa/security_gate.sh",

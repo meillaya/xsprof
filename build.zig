@@ -302,6 +302,10 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     evidence_manifest_self_test.addFileArg(b.path("qa/evidence_manifest_check.py"));
     evidence_manifest_self_test.addArg("--self-test");
 
+    const evidence_bundle_compare_self_test = b.addSystemCommand(&.{"python3"});
+    evidence_bundle_compare_self_test.addFileArg(b.path("qa/evidence_bundle_compare_check.py"));
+    evidence_bundle_compare_self_test.addArg("--self-test");
+
     const manual_vm_proof_self_test = b.addSystemCommand(&.{"python3"});
     manual_vm_proof_self_test.addFileArg(b.path("qa/manual_vm_proof_ci_check.py"));
     manual_vm_proof_self_test.addArg("--self-test");
@@ -400,6 +404,7 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&governance_manifest.step);
     host_safe_gates.dependOn(&governance_manifest_self_test.step);
     host_safe_gates.dependOn(&evidence_manifest_self_test.step);
+    host_safe_gates.dependOn(&evidence_bundle_compare_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_static.step);
     host_safe_gates.dependOn(&matrix_contract_fixture_check.step);
