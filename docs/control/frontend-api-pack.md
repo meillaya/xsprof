@@ -14,7 +14,11 @@ The API pack freezes the root backend surface future clients can consume without
 | operator actions | `zig-scheduler/operator-action/v1` | Client-submitted commands such as preflight, VM-lab run, stop, rollback, and incident drill. |
 | runtime samples | `zig-scheduler/runtime-sample/v1` | Privacy-filtered VM runtime observation input converted into daemon event rows. |
 | matrix artifacts | `zig-scheduler/matrix-run/v1` | Standalone VM harness evidence manifests referenced by daemon events through relative artifact paths. |
+| benchmark records | `zig-scheduler/benchmark-output/v1` | Record-only VM/lab benchmark provenance linked from matrix rows; no thresholds, release eligibility, production capacity, or performance claims. |
 | proof bundle manifests | `zig-scheduler/evidence-manifest/v1` | Protected VM proof hash indexes for PASS and fail-closed SKIP/REFUSE/BLOCKED bundles; not release or production approval. |
+| protected environment reviews | `zig-scheduler/protected-environment-review/v1` | Manual protected-environment approval proof for the VM proof workflow; not a release approval. |
+| runner substrate proofs | `zig-scheduler/runner-substrate-proof/v1` | Protected runner tuple/QEMU/KVM/BPF substrate evidence for VM-only proof bundles. |
+| runner cleanliness proofs | `zig-scheduler/runner-cleanliness-proof/v1` | Companion proof for JIT/ephemeral-or-clean runner identity, no-reuse evidence, and runner removal receipt. |
 
 ## Transports
 
@@ -176,13 +180,27 @@ incidents by phase/source without renaming stable daemon-event rows.
 `evidence-manifest/v1` is a backend proof-bundle index, not a UI data model and
 not a release approval. Consumers that receive a protected manual VM proof bundle
 must validate `evidence-manifest.json` with `qa/evidence_manifest_check.py`
-before displaying it as evidence. PASS manifests require VM-marker proof and
-hash-matched benchmark provenance artifacts. Fail-closed `SKIP`, `REFUSE`, and
+before displaying it as evidence. PASS manifests require VM-marker proof,
+protected-environment review proof, runner-substrate proof, runner-cleanliness
+proof, protected-core row proof, and hash-matched benchmark provenance
+artifacts. The protected-core row set is `live-backend`,
+`workload-cpu-saturation`, `workload-cgroup-weight-quota`, and exactly one
+latency/churn row (`workload-interactive-latency` or
+`workload-scheduler-affinity-churn`). Fail-closed `SKIP`, `REFUSE`, and
 `BLOCKED` manifests may instead carry
 `benchmark_provenance.status=not_applicable` with a reason, so clients must not
 invent benchmark records or infer success from absent measurements. All bundle
 manifests keep `host_mutation=false`, `release_eligible=false`, and
 `production_capacity_claim=false`.
+
+Runner cleanliness is deliberately separate from runner substrate evidence:
+`runner-cleanliness-proof/v1` records JIT or clean-machine identity, no-reuse
+evidence, a removal receipt, and links to both
+`protected-environment-review.json` and `runner-substrate-proof.json`. GitHub
+runner labels alone are never sufficient cleanliness proof. Repeat protected
+bundles may be compared with `qa/evidence_bundle_compare_check.py` for expected
+roles, row set, tuple, and BPF object hash; that verifier does not compare
+performance metrics and does not declare regressions.
 
 ## Lifecycle model
 

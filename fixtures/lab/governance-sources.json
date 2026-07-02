@@ -60,13 +60,13 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "111823634291f7dc5ef168965bf00c85758bba248f663fb4a0fb7b8037006160"
+      "sha256": "4651f63f901f5b6433d55ba8796c694f4cf1e591c1d52f55306c0af9f76c9b44"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
       "purpose": "backend frontend-contract API pack documentation and no-frontend boundary",
       "required": true,
-      "sha256": "1c6c5df5513ea78a278d72b0b8a6819dfd68b0f48ac43af7797420aa82d73ca0"
+      "sha256": "07e91004c12d94704e9f523b9d309cb05e5e1d4bea49c2032a874306a7364f20"
     },
     {
       "path": "docs/control/incident-taxonomy.md",
@@ -84,7 +84,7 @@
       "path": "docs/control/schema-compatibility.md",
       "purpose": "public schema compatibility policy for backend clients",
       "required": true,
-      "sha256": "73dcfd3c33472d3500fa1db4eb24ed89900983b0811ec1b09f498f53e9916c13"
+      "sha256": "a4034ba9361d50348353b06a507a27ac9203482a28aba5afa6fc8aae9b5b9dd6"
     },
     {
       "path": "docs/control/stream-semantics.md",
