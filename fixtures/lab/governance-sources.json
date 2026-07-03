@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "4a13188f0ea883ca312bd8b6386799bc187a7dc618bd9f80099ab51c98725b9e"
+      "sha256": "741f434415f53b33e176619dcdddbc734e8029f49c788b188393a9da5decd602"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "6746f9cb6605a3ea3129653819c70ac14d60d8bfeae524eb5c2789baa03723ce"
+      "sha256": "0f0ed02ea13e9386ccf42b8c332b1bdf4bbfa16a8cfa0978c0f9d839a143c63d"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -102,7 +102,7 @@
       "path": "docs/releases/supported-kernel-tuples.md",
       "purpose": "supported VM lab kernel tuple matrix",
       "required": true,
-      "sha256": "79a3088f00abb6f48521fca8bde7b9275a3d2fd02b777dc638121d9fdbccec07"
+      "sha256": "f58e4a4bb6494991a2c6d49f161a73e1c9ff108b0d3f05e2bcfc6aa681b5aa17"
     },
     {
       "path": "docs/runbooks/sched-ext-fallback.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "0f8b9cfc0ef69790545812d391a2b2a4e7367adc68c7de69fb36afb3b318c5ad"
+      "sha256": "ad837b6c60518d07b7ab67c876131bb2ca8773128d8edda40ec7499c1dfea531"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -288,7 +288,7 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "a47afb5988c863b73ad2b9af5b5b540c59061e7018228b7df62833a8f11b6af9"
+      "sha256": "eb3c1b96aba4dba8d0f5cc8ea457b995c7334ae6636a0e3dfc0d18f2a2f25645"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
@@ -444,7 +444,7 @@
       "path": "qa/runner_substrate_proof_check.py",
       "purpose": "protected runner substrate proof validator",
       "required": true,
-      "sha256": "26c381205b8aa28a174785a21490c1c1ca2959cc99ec937c91b69754b55a0991"
+      "sha256": "a1b37f0b4dab397d449e04917f487142e273f8851179f8682b0b9ddb2ede1410"
     },
     {
       "path": "qa/runner_substrate_proof_common.py",

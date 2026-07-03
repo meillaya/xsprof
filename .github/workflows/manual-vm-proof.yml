@@ -70,7 +70,7 @@ jobs:
           test "$INPUT_VM_MARKER_PATH" = /run/zig-scheduler-vm-lab.marker
           [[ "$INPUT_AUDIT_ID" =~ ^AUD-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}-[a-f0-9]{6}$ ]]
           [[ "$INPUT_ROLLBACK_ID" =~ ^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
-          [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
+          [[ "$INPUT_SUPPORTED_TUPLE" =~ ^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.(1-2|2-3)-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$ ]]
           test "$INPUT_CONFIRM_VM_ONLY" = "disposable VM-only proof; no host attach"
           test "$INPUT_APPROVAL_ACK" = "manual protected VM proof only; not release approval"
 

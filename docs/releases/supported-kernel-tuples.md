@@ -17,7 +17,7 @@ The Linux 6.12+ upstream-family tuple is:
 
 ## Protected downstream tuple
 
-The protected runner tuple `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only` is allowed only for the reviewer-gated manual VM proof lane when the runner preflight proves `/dev/kvm`, `/sys/kernel/sched_ext`, `/sys/kernel/btf/vmlinux`, QEMU KVM acceleration, non-placeholder kernel config metadata, and the unchanged VM-only fail-closed constraints. This is not distro-wide support and does not authorize host attach.
+The protected runner tuples `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only` and `linux-7.1.2-3-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only` are allowed only for the reviewer-gated manual VM proof lane when the runner preflight proves `/dev/kvm`, `/sys/kernel/sched_ext`, `/sys/kernel/btf/vmlinux`, QEMU KVM acceleration, non-placeholder kernel config metadata, and the unchanged VM-only fail-closed constraints. This is not distro-wide support and does not authorize host attach.
 
 ## Unsupported policy
 

@@ -129,7 +129,7 @@ That command is not a default CI command. It is valid only after protected-runne
 - Artifact: GitHub Actions uploaded tarball `vm-proof-bundle.tar.zst` with explicit retention; it is not a release asset, not OCI, and not production approval.
 - Provenance: the workflow requests GitHub artifact attestation and prints a `gh attestation verify` command for post-run verification.
 
-Before dispatching the protected lane, the operator must run a runner preflight on the isolated self-hosted runner and preserve the transcript with the run evidence. The `supported_tuple` workflow input must be the existing Linux `>=6.12` tuple or the exact protected `7.1.1-2-cachyos` tuple and must correspond to the actual `uname -r` prefix; if the runner kernel does not match, stop with `SKIP`/`REFUSE` evidence instead of broadening the tuple contract.
+Before dispatching the protected lane, the operator must run a runner preflight on the isolated self-hosted runner and preserve the transcript with the run evidence. The `supported_tuple` workflow input must be the existing Linux `>=6.12` tuple or one of the exact protected CachyOS tuples and must correspond to the actual `uname -r` prefix; if the runner kernel does not match, stop with `SKIP`/`REFUSE` evidence instead of broadening the tuple contract.
 
 ```bash
 set -euo pipefail
@@ -138,7 +138,7 @@ supported_tuple="linux-6.12-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # repl
 printf 'kernel_release=%s\n' "$kernel_release"
 printf 'workflow_supported_tuple=%s\n' "$supported_tuple"
 case "$kernel_release" in
-  6.1[2-9]*|6.[2-9][0-9]*|7.1.1-2-cachyos) ;;
+  6.1[2-9]*|6.[2-9][0-9]*|7.1.1-2-cachyos|7.1.2-3-cachyos) ;;
   *) echo "REFUSE: protected runner kernel is outside the supported protected tuple"; exit 1 ;;
 esac
 test -d /sys/kernel/sched_ext
@@ -146,10 +146,10 @@ test -r /sys/kernel/btf/vmlinux
 test -e /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
 command -v qemu-system-x86_64
 qemu-system-x86_64 -accel help | grep -E '(^|[[:space:]])kvm($|[[:space:]])'
-echo "$supported_tuple" | grep -E '^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
+echo "$supported_tuple" | grep -E '^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.(1-2|2-3)-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
 ```
 
-CachyOS is accepted only for the exact protected tuple `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`; other CachyOS/downstream releases remain out of scope.
+CachyOS is accepted only for the exact protected tuples `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only` and `linux-7.1.2-3-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`; other CachyOS/downstream releases remain out of scope.
 
 The `vm-proof-bundle.tar.zst` contract contains or accounts for: audit id, rollback id, VM marker, supported tuple, pre state, post state, rollback proof, cleanup proof, host refusal, matrix manifest, matrix rows, BPF metadata, BPF SKIP JSON when object metadata is unavailable, protected-environment-review.json generated from the current GitHub run review history, daemon events, live summary if present, static verification logs, and benchmark provenance for calibrated rows when applicable. Every included proof must preserve `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`.
 
