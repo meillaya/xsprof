@@ -84,6 +84,9 @@ jobs:
           python3 qa/runner_substrate_proof_check.py --self-test
           bash qa/no_host_mutation.sh
           bash qa/no_frontend_root.sh
+          bash qa/package_defaults.sh --self-test
+          bash qa/vm/microvm_rootfs.sh --self-test
+          bash qa/vm/run_microvm_live_lab.sh --self-test
           bash qa/release_gate.sh --self-test
 
       - name: Run isolated disposable VM proof surface

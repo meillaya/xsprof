@@ -13,6 +13,8 @@ cd "$repo_root"
 source qa/vm/vm_output_safety.sh
 source qa/vm/qemu_cleanup.sh
 
+emit_helper="qa/vm/vm_harness_matrix_emit.py"
+
 mode="host-safe"
 out_dir=""
 fixture_mode=false
@@ -176,26 +178,7 @@ emit_event() {
   local event="$1" status="$2" scenario="$3" artifact="$4" reason="$5" action_id="ACT-$scenario" rollback_id="RB-$scenario" audit_id audit_suffix
   audit_suffix="$(printf '%06x' "$seq")"
   audit_id="AUD-$(date -u +%Y%m%dT%H%M%SZ)-$git_sha-$audit_suffix"
-  SEQ="$seq" EVENT="$event" STATUS="$status" RUN_ID="$run_id" SCENARIO="$scenario" ARTIFACT="$artifact" REASON="$reason" ACTION_ID="$action_id" ROLLBACK_ID="$rollback_id" AUDIT_ID="$audit_id" GIT_SHA="$git_sha" python3 - <<'PY' >> "$event_file"
-import json
-import os
-row = {
-    "schema": "zig-scheduler/daemon-event/v1",
-    "seq": int(os.environ["SEQ"]),
-    "event": os.environ["EVENT"],
-    "status": os.environ["STATUS"],
-    "run_id": os.environ["RUN_ID"],
-    "target_id": os.environ["SCENARIO"],
-    "action_id": os.environ["ACTION_ID"],
-    "audit_id": os.environ["AUDIT_ID"],
-    "rollback_id": os.environ["ROLLBACK_ID"],
-    "reason": os.environ["REASON"],
-    "artifact_paths": [os.environ["ARTIFACT"]],
-    "git_sha": os.environ["GIT_SHA"],
-    "host_mutation": False,
-}
-print(json.dumps(row, sort_keys=True))
-PY
+  SEQ="$seq" EVENT="$event" STATUS="$status" RUN_ID="$run_id" SCENARIO="$scenario" ARTIFACT="$artifact" REASON="$reason" ACTION_ID="$action_id" ROLLBACK_ID="$rollback_id" AUDIT_ID="$audit_id" GIT_SHA="$git_sha" python3 "$emit_helper" event >> "$event_file"
   seq=$((seq + 1))
 }
 
@@ -389,355 +372,12 @@ write_matrix_row() {
     threshold_source_value="$(workload_threshold_source "$scenario")"
     if missing_prereq_value="$(workload_missing_prereq "$scenario")"; then :; else missing_prereq_value=""; fi
   fi
-  SCENARIO="$scenario" ROW_DIR="$row_dir" EVENT_FILE="$event_file" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" TIMEOUT_SECONDS="$timeout_seconds" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" LIVE_AUDIT_ID="${LIVE_AUDIT_ID:-}" LIVE_ROLLBACK_ID="${LIVE_ROLLBACK_ID:-}" python3 - <<'PY'
-import hashlib
-import json
-import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path.cwd()))
-from qa.runtime_sample_policy_abi import good_cgroup_callback_stats, good_cgroup_policy_map, good_dsq_counter_coherence, good_policy_abi
-
-scenario = os.environ["SCENARIO"]
-row_dir = Path(os.environ["ROW_DIR"])
-outcome = os.environ["OUTCOME"]
-evidence_mode = os.environ["EVIDENCE_MODE"]
-reason = os.environ["REASON"]
-run_id = os.environ["RUN_ID"]
-git_sha = os.environ["GIT_SHA"]
-marker_present = os.environ["MARKER_PRESENT"] == "true"
-marker_required = os.environ["MARKER_REQUIRED"] == "true"
-
-def write_text(path: Path, text: str) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-def write_json(path: Path, payload: dict) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-def workload_semantics() -> dict:
-    cgroup = {
-        "cpu.weight": "callback-observed",
-        "cpu.max": "deferred",
-        "cpu.max.burst": "deferred",
-        "cpuset.cpus": "observed-constraints",
-        "cpuset.cpus.effective": "observed-constraints",
-        "cpu.pressure": "observed-or-deferred",
-        "uclamp": "observed-or-deferred",
-        "cgroup.type.domain": "observed",
-        "cgroup.type.threaded": "observed",
-        "allowed-mask": "rejected",
-    }
-    hotplug = {
-        "cpu.hotplug.offline": "fallback-observed",
-        "cpu.hotplug.online": "fallback-observed",
-        "cpuset.cpus": "observed-constraints",
-        "cpuset.cpus.effective": "observed-constraints",
-        "allowed-mask": "rejected",
-    }
-    return {
-        "workload-cgroup-weight-quota": {"cgroup_semantics": cgroup},
-        "workload-cpu-hotplug": {"cpu_hotplug_semantics": hotplug},
-    }.get(scenario, {})
-
-def benchmark_record() -> list[dict]:
-    if threshold_source != "record-only":
-        return []
-    if missing_prereq:
-        return []
-    bench_dir = row_dir / "benchmark-provenance"
-    records = []
-
-    def add_record(family: str, tool: str, raw_name: str, raw_text: str, metrics: dict, units: dict, sample_count: int, run_count: int, status: str = "RECORDED") -> None:
-        raw = bench_dir / raw_name
-        write_text(raw, raw_text)
-        record_path = bench_dir / f"{family}.benchmark-output.json"
-        record_sha = write_json(record_path, {
-            "schema": "zig-scheduler/benchmark-output/v1",
-            "status": status,
-            "tool": tool,
-            "command_family": family,
-            "record_only": True,
-            "output_path": raw.as_posix(),
-            "output_sha256": hashlib.sha256(raw.read_bytes()).hexdigest(),
-            "vm_evidence": (row_dir / "matrix-run.json").as_posix(),
-            "parser_provenance": {
-                "parser": "qa/benchmark_output_parse.py",
-                "parser_version": "benchmark-output/v1",
-                "parser_status": "PARSED" if status == "RECORDED" else "UNSUPPORTED_DEFERRED",
-            },
-            "metrics": metrics,
-            "units": units,
-            "sample_count": sample_count,
-            "run_count": run_count,
-            "host_mutation": False,
-            "release_eligible": False,
-            "production_capacity_claim": False,
-            "hard_thresholds_enforced": False,
-            "threshold_status": "record_only",
-            "privacy_sanitized": True,
-        })
-        records.append({"record_path": record_path.as_posix(), "record_sha256": record_sha, "record_only": True})
-
-    def add_stress_ng() -> None:
-        add_record(
-            "stress_ng",
-            "stress-ng",
-            "stress-ng.txt",
-            "stress-ng: metrc: [123] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s\n"
-            "stress-ng: metrc: [123]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)\n"
-            "stress-ng: metrc: [123] cpu              2400      10.00     19.50      0.25       240.00        121.52\n",
-            {"stressors": 1, "bogo_ops": 2400.0, "real_time_seconds": 10.0, "usr_time_seconds": 19.5, "sys_time_seconds": 0.25},
-            {"stressors": "count", "bogo_ops": "count", "real_time_seconds": "seconds", "usr_time_seconds": "seconds", "sys_time_seconds": "seconds"},
-            1,
-            1,
-        )
-
-    def add_perf_messaging() -> None:
-        add_record(
-            "perf_bench_sched_messaging",
-            "perf",
-            "perf-bench-sched-messaging.txt",
-            "# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n",
-            {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123},
-            {"groups": "count", "processes": "count", "total_time_seconds": "seconds"},
-            1,
-            1,
-        )
-
-    def add_deferred(family: str, tool: str, raw_name: str, raw_text: str) -> None:
-        add_record(family, tool, raw_name, raw_text, {}, {}, 0, 0, "UNSUPPORTED_DEFERRED")
-
-    if scenario == "workload-mixed-io":
-        add_record(
-            "fio",
-            "fio",
-            "fio.json",
-            json.dumps({"jobs": [{"read": {"iops": 1, "bw_bytes": 2, "lat_ns": {"mean": 3}}, "write": {"iops": 4, "bw_bytes": 5, "lat_ns": {"mean": 6}}}]}, sort_keys=True) + "\n",
-            {"jobs": 1, "read_bw_bytes": 2.0, "read_iops": 1.0, "read_lat_ns_mean_avg": 3.0, "write_bw_bytes": 5.0, "write_iops": 4.0, "write_lat_ns_mean_avg": 6.0},
-            {"jobs": "count", "read_bw_bytes": "bytes_per_second", "read_iops": "iops", "read_lat_ns_mean_avg": "ns", "write_bw_bytes": "bytes_per_second", "write_iops": "iops", "write_lat_ns_mean_avg": "ns"},
-            1,
-            1,
-        )
-    elif scenario == "workload-interactive-latency":
-        add_record(
-            "cyclictest",
-            "cyclictest",
-            "cyclictest.txt",
-            "T: 0 ( 123) P:80 I:1000 C:100 Min:1 Act:2 Avg:3 Max:4\n",
-            {"threads": 1, "cycles": 100.0, "latency_min_us_avg": 1.0, "latency_avg_us_avg": 3.0, "latency_max_us": 4.0},
-            {"threads": "count", "cycles": "count", "latency_min_us_avg": "us", "latency_avg_us_avg": "us", "latency_max_us": "us"},
-            100,
-            1,
-        )
-        add_perf_messaging()
-        add_deferred("rtla", "rtla", "rtla.txt", "rtla timerlat summary redacted; unsupported for benchmark-output/v1 parser\n")
-        add_deferred("perf_sched", "perf", "perf-sched.txt", "perf sched latency summary redacted; unsupported for benchmark-output/v1 parser\n")
-    elif scenario in {"workload-cpu-saturation", "workload-cgroup-weight-quota", "workload-scheduler-affinity-churn"}:
-        add_stress_ng()
-        if scenario == "workload-scheduler-affinity-churn":
-            add_deferred("perf_sched", "perf", "perf-sched.txt", "perf sched latency summary redacted; unsupported for benchmark-output/v1 parser\n")
-    elif scenario == "workload-fork-ipc-pressure":
-        add_perf_messaging()
-    elif scenario == "live-backend":
-        add_deferred("perf_sched", "perf", "live-backend-perf-sched-deferred.txt", "live-backend scheduler proof recorded; benchmark parser output intentionally deferred for protected VM proof bundle\n")
-    return records
-
-policy = row_dir / "policy.o"
-policy_sha = write_text(policy, f"matrix fixture policy object\nscenario={scenario}\n")
-source = Path("bpf/zigsched_minimal.bpf.c")
-source_sha = hashlib.sha256(source.read_bytes()).hexdigest() if source.is_file() else hashlib.sha256(b"missing source fixture\n").hexdigest()
-workload = row_dir / "workload-spec.json"
-workload_class = os.environ.get("WORKLOAD_CLASS", "cpu-smoke")
-workload_tools = [item for item in os.environ.get("WORKLOAD_TOOLS", "builtin-churn").split(",") if item]
-threshold_source = os.environ.get("WORKLOAD_THRESHOLD_SOURCE", "fixture")
-missing_prereq = os.environ.get("WORKLOAD_MISSING_PREREQ", "")
-capability = row_dir / "workload-capability.json"
-write_json(capability, {
-    "schema": "zig-scheduler/workload-capability/v1",
-    "scenario_id": scenario,
-    "workload_class": workload_class,
-    "required_tools": workload_tools,
-    "threshold_source": threshold_source,
-    "status": outcome,
-    "typed_outcome": outcome,
-    "missing_prereq": missing_prereq,
-    "mode": os.environ["MODE"],
-    "fixture_mode": os.environ.get("FIXTURE_MODE", "false") == "true",
-    "runner": "qa/vm/workload_capability_probe.sh",
-    "vm_marker_required_for_live_run": True,
-    "host_mutation": False,
-    "release_eligible": False,
-})
-workload_spec = {
-    "schema": "zig-scheduler/workload-fixture/v1",
-    "name": workload_class,
-    "workload_class": workload_class,
-    "scenario_id": scenario,
-    "required_tools": workload_tools,
-    "threshold_source": threshold_source,
-    "thresholds": {"source": threshold_source, "fixture_status": "deterministic", "calibration_status": "uncalibrated", "production_capacity_claim": False},
-    "capability_artifact_path": capability.as_posix(),
-    "runner": "qa/vm/workload_capability_probe.sh",
-    "vm_marker_required_for_live_run": True,
-    "host_safe_fixture_only": os.environ["MODE"] != "vm-required",
-    "missing_prereq": missing_prereq,
-    "host_mutation": False,
-    "release_eligible": False,
-}
-provenance = benchmark_record()
-if provenance:
-    workload_spec["benchmark_provenance"] = provenance
-workload_spec.update(workload_semantics())
-workload_sha = write_json(workload, workload_spec)
-runtime = row_dir / "runtime-sample.jsonl"
-cgroup_digest = hashlib.sha256(f"{run_id}:{scenario}:cgroup".encode()).hexdigest()
-row_local_cgroup = "zigsched-" + hashlib.sha256(f"{run_id}:{scenario}:row-local-cgroup".encode()).hexdigest()[:16]
-isolation = row_dir / "row-isolation-contract.json"
-write_json(isolation, {
-    "schema": "zig-scheduler/row-isolation-contract/v1",
-    "scenario_id": scenario,
-    "row_directory": row_dir.as_posix(),
-    "row_local_cgroup_name": row_local_cgroup,
-    "timeout_envelope_seconds": int(os.environ["TIMEOUT_SECONDS"]),
-    "artifact_reuse": "forbidden-across-rows",
-    "artifacts_must_descend_from_row_directory": True,
-    "rollback_proof_required_on_partial_failure": True,
-    "cleanup_proof_required_on_partial_failure": True,
-    "host_mutation": False,
-    "release_eligible": False,
-})
-
-def fact(status: str, value: str) -> dict:
-    return {"status": status, "value": value}
-
-def runtime_policy_abi(index: int) -> dict:
-    policy_abi = good_policy_abi(policy_sha)
-    if scenario == "workload-cgroup-weight-quota" and index == 1 and outcome == "PASS":
-        policy_abi["cgroup_policy_map"] = good_cgroup_policy_map()
-        policy_abi["cgroup_callback_stats"] = good_cgroup_callback_stats()
-        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence()
-    else:
-        policy_abi["cgroup_policy_map"] = good_cgroup_policy_map("unavailable")
-        policy_abi["cgroup_callback_stats"] = good_cgroup_callback_stats("unavailable")
-        policy_abi["dsq_counter_coherence"] = good_dsq_counter_coherence("unavailable")
-    return policy_abi
-
-
-def runtime_sample(index: int, scheduler_state: str, ops: str) -> dict:
-    global last_enable_seq
-    enabled = scheduler_state == "enabled"
-    if enabled:
-        last_enable_seq = str(40 + index)
-    phase = "during_attach" if enabled else ("before_attach" if index == 0 else "after_rollback")
-    task_ext_status = "present" if enabled else "unknown"
-    task_ext_value = "true" if enabled else "unavailable"
-    rollback_state = "rolled_back" if phase == "after_rollback" else "not_applicable"
-    return {
-        "schema": "zig-scheduler/runtime-sample/v1",
-        "sequence": index,
-        "sample_source_event": f"matrix-{scenario}-{index}",
-        "observation_source": "vm_harness_matrix_row",
-        "sched_ext_phase": phase,
-        "state": fact("present", scheduler_state),
-        "ops": fact("present", ops),
-        "enable_seq": fact("present", last_enable_seq if not enabled else str(40 + index)),
-        "events": fact("present", "nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0"),
-        "events_hash": hashlib.sha256(f"{scenario}:events:{index}".encode()).hexdigest(),
-        "nr_rejected": fact("present", "0"),
-        "debug_dump": fact("missing", ""),
-        "root_ops": fact("present", ops),
-        "scheduler_events": fact("present", "nr_rejected: 0 dispatch_failed: 0 fallback: 0 fatal: 0"),
-        "policy_counters": {"nr_rejected": 0, "dispatch_failed": 0, "fallback": 0, "fatal": 0},
-        "sample_loss": {"lost_samples": 0, "backpressure_dropped": 0, "ring_buffer_overruns": 0, "reader_lag_events": 0},
-        "policy_abi": runtime_policy_abi(index),
-        "cgroup_semantic_labels": dict(runtime_policy_abi(index)["cgroup_semantics"]),
-        "cgroup_membership_digest": cgroup_digest,
-        "cgroup_membership_status": fact("present", "present"),
-        "task_ext_enabled": fact(task_ext_status, task_ext_value),
-        "teardown_state": fact("present", "attached" if enabled else "detached"),
-        "rollback_state": fact("present", rollback_state),
-        "workload": fact("present", "alive" if outcome == "PASS" else "not-started"),
-        "workload_alive": outcome == "PASS",
-        "private_command_lines_sampled": False,
-        "dsq_depth": {"global": 1 if enabled else 0, "local": 0, "shared": 0},
-        "queue_latency": {"p50_us": 0, "p95_us": 0, "p99_us": 0, "max_us": 0},
-        "fairness": {"state": "ok" if outcome == "PASS" else "unknown", "starved_tasks": 0, "max_wait_us": 0},
-        "task_counts": {"by_cgroup_digest": {cgroup_digest: 1 if outcome == "PASS" else 0}, "by_class": {workload_class: 1 if outcome == "PASS" else 0}},
-        "scheduler_counters": {"context_switches": index, "wakeups": index, "migrations": 0},
-        "sched_ext_observation": {"dump": {"status": "present", "value": "sha256:" + hashlib.sha256(f"{scenario}:dump:{index}".encode()).hexdigest() + ";bytes:128"}, "tracepoints": {"sched_switch": index, "sched_wakeup": index}},
-    }
-
-last_enable_seq = "0"
-runtime_rows = (
-    runtime_sample(0, "disabled", "none"),
-    runtime_sample(1, "enabled", "zigsched_minimal"),
-    runtime_sample(2, "disabled", "none"),
-)
-runtime.write_text("".join(json.dumps(sample, sort_keys=True) + "\n" for sample in runtime_rows), encoding="utf-8")
-incident = row_dir / "incident.json"
-write_json(incident, {"schema": "zig-scheduler/matrix-incident/v1", "scenario_id": scenario, "outcome": outcome, "reason": reason, "host_mutation": False, "release_eligible": False})
-rollback = row_dir / "rollback-proof.json"
-write_json(rollback, {"schema": "zig-scheduler/rollback-proof/v1", "scenario_id": scenario, "status": "PASS", "scheduler_state": "disabled", "ops": "none", "host_mutation": False})
-host_refusal = row_dir / "host-refusal.json"
-write_json(host_refusal, {"schema": "zig-scheduler/host-refusal-proof/v1", "scenario_id": scenario, "status": "REFUSE", "reason": "host scheduler mutation refused; VM marker required", "no_bpf_load_attach": True, "no_cgroup_write": True, "no_sys_write": True, "no_proc_write": True, "host_mutation": False})
-privacy = row_dir / "privacy-scan.json"
-write_json(privacy, {"schema": "zig-scheduler/privacy-scan/v1", "status": "PASS", "private_fields_found": False, "host_mutation": False})
-cleanup = row_dir / "cleanup-proof.json"
-write_json(cleanup, {"schema": "zig-scheduler/cleanup-proof/v1", "scenario_id": scenario, "status": "PASS", "owned_qemu_leftovers": False, "owned_temp_leftovers": False, "qemu_scan_before": os.environ["QEMU_BEFORE"], "qemu_scan_after": os.environ["QEMU_AFTER"], "temp_scan_before": os.environ["TEMP_BEFORE"], "temp_scan_after": os.environ["TEMP_AFTER"], "host_mutation": False})
-marker_checked_by = "qa/vm/vm_harness_matrix.sh"
-if marker_present:
-    marker_proof = row_dir / "vm-marker-proof.json"
-    write_json(marker_proof, {"schema": "zig-scheduler/vm-marker-proof/v1", "path": "/run/zig-scheduler-vm-lab.marker", "required": True, "present": True, "evidence_mode": "vm-live", "host_mutation": False})
-    marker_checked_by = marker_proof.as_posix()
-state = {"ops": "none", "sched_ext": "disabled"}
-cgroup = {"digest": "sha256:" + cgroup_digest, "row_local_name": row_local_cgroup, "isolation_contract_path": isolation.as_posix()}
-row = {
-    "schema": "zig-scheduler/matrix-run/v1",
-    "matrix_run_id": run_id,
-    "scenario_id": scenario,
-    "outcome": outcome,
-    "evidence_mode": evidence_mode,
-    "kernel_tuple": {"kernel_release": os.uname().release, "arch": os.uname().machine, "btf": os.environ["BTF"], "kvm": os.environ["KVM_STATUS"], "sched_ext": os.environ["SCHED_EXT"]},
-    "supported_tuple_status": os.environ["TUPLE_STATUS"],
-    "vm_marker": {"required": marker_required, "present": marker_present, "path": "/run/zig-scheduler-vm-lab.marker", "checked_by": marker_checked_by},
-    "bpf_abi_version": "zigsched-bpf-abi-v1",
-    "policy": {"name": "zigsched_minimal", "object_path": policy.as_posix(), "object_sha256": policy_sha, "source_path": "bpf/zigsched_minimal.bpf.c", "source_sha256": source_sha},
-    "workload": {"name": workload_class, "spec_path": workload.as_posix(), "spec_sha256": workload_sha},
-    "action_id": "ACT-" + scenario,
-    "audit_id": os.environ.get("LIVE_AUDIT_ID") or "AUD-20260629T120000Z-" + scenario,
-    "rollback_id": os.environ.get("LIVE_ROLLBACK_ID") or "RB-" + scenario,
-    "pre_scheduler_state": state,
-    "post_scheduler_state": state,
-    "pre_cgroup_state": cgroup,
-    "post_cgroup_state": cgroup,
-    "runtime_sample_path": runtime.as_posix(),
-    "daemon_event_path": str(Path(os.environ["EVENT_FILE"])),
-    "incident_path": incident.as_posix(),
-    "rollback_proof_path": rollback.as_posix(),
-    "cleanup_proof_path": cleanup.as_posix(),
-    "host_refusal_proof_path": host_refusal.as_posix(),
-    "privacy_scan": {"status": "PASS", "private_fields_found": False, "report_path": privacy.as_posix()},
-    "git": {"expected_sha": git_sha, "actual_sha": git_sha, "status": "current", "dirty": False},
-    "release_eligible": False,
-    "host_mutation": False,
-}
-write_json(row_dir / "matrix-run.json", row)
-PY
-  printf '%s\n' "$outcome"
+  SCENARIO="$scenario" ROW_DIR="$row_dir" EVENT_FILE="$event_file" OUTCOME="$outcome" EVIDENCE_MODE="$evidence_mode" TUPLE_STATUS="$tuple_status" BTF="$btf" KVM_STATUS="$kvm" SCHED_EXT="$sched_ext" MARKER_PRESENT="$marker_present" MARKER_REQUIRED="$marker_required" REASON="$reason" RUN_ID="$run_id" GIT_SHA="$git_sha" MODE="$mode" FIXTURE_MODE="$fixture_authority" TIMEOUT_SECONDS="$timeout_seconds" WORKLOAD_CLASS="$workload_class_value" WORKLOAD_TOOLS="$workload_tools_value" WORKLOAD_THRESHOLD_SOURCE="$threshold_source_value" WORKLOAD_MISSING_PREREQ="$missing_prereq_value" QEMU_BEFORE="$qemu_before" QEMU_AFTER="$qemu_after" TEMP_BEFORE="$temp_before" TEMP_AFTER="$temp_after" LIVE_AUDIT_ID="${LIVE_AUDIT_ID:-}" LIVE_ROLLBACK_ID="${LIVE_ROLLBACK_ID:-}" python3 "$emit_helper" row
 }
 
 append_manifest_row() {
   local scenario="$1" outcome="$2" row_path="$3" reason="$4"
-  SCENARIO="$scenario" OUTCOME="$outcome" ROW_PATH="$row_path" REASON="$reason" python3 - <<'PY' >> "$manifest_rows"
-import json
-import os
-print(json.dumps({"scenario_id": os.environ["SCENARIO"], "outcome": os.environ["OUTCOME"], "artifact_path": os.environ["ROW_PATH"], "reason": os.environ["REASON"]}, sort_keys=True))
-PY
+  SCENARIO="$scenario" OUTCOME="$outcome" ROW_PATH="$row_path" REASON="$reason" python3 "$emit_helper" manifest-row >> "$manifest_rows"
 }
 
 run_fixture_scenario() {
@@ -870,26 +510,7 @@ PY
 
 overlay_live_backend_artifacts() {
   local row_dir="$1" backend_summary="$2"
-  BACKEND_SUMMARY="$backend_summary" ROW_DIR="$row_dir" python3 - <<'PY'
-import json
-import shutil
-from pathlib import Path
-import os
-
-summary_path = Path(os.environ["BACKEND_SUMMARY"])
-row_dir = Path(os.environ["ROW_DIR"])
-if not summary_path.is_file():
-    raise SystemExit(0)
-summary = json.loads(summary_path.read_text(encoding="utf-8"))
-if summary.get("status") != "PASS":
-    raise SystemExit(0)
-live_summary = Path(str(summary.get("live_summary", "")))
-if not live_summary.is_file():
-    raise SystemExit(0)
-runtime = live_summary.parent / "observe-partial" / "runtime-samples.jsonl"
-if runtime.is_file():
-    shutil.copyfile(runtime, row_dir / "runtime-sample.jsonl")
-PY
+  BACKEND_SUMMARY="$backend_summary" ROW_DIR="$row_dir" python3 "$emit_helper" overlay-backend
 }
 
 live_workload_pass_shape() {
@@ -970,31 +591,7 @@ PYINNER
 
 overlay_live_workload_artifacts() {
   local row_dir="$1" backend_summary="$2"
-  BACKEND_SUMMARY="$backend_summary" ROW_DIR="$row_dir" python3 - <<'PYINNER'
-import json
-import shutil
-from pathlib import Path
-import os
-summary_path = Path(os.environ["BACKEND_SUMMARY"])
-row_dir = Path(os.environ["ROW_DIR"])
-if not summary_path.is_file():
-    raise SystemExit(0)
-try:
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
-except json.JSONDecodeError:
-    raise SystemExit(0)
-live_summary = Path(str(summary.get("live_summary", "")))
-if not live_summary.is_file():
-    raise SystemExit(0)
-out = row_dir / "workload-vm-artifacts"
-out.mkdir(parents=True, exist_ok=True)
-runtime = live_summary.parent / "observe-partial" / "runtime-samples.jsonl"
-if runtime.is_file():
-    shutil.copyfile(runtime, row_dir / "runtime-sample.jsonl")
-for src in (live_summary, live_summary.parent / "serial.txt", runtime, summary_path):
-    if src.is_file():
-        shutil.copyfile(src, out / src.name)
-PYINNER
+  BACKEND_SUMMARY="$backend_summary" ROW_DIR="$row_dir" python3 "$emit_helper" overlay-workload
 }
 
 run_live_workload() {
@@ -1092,27 +689,7 @@ for scenario in "${scenarios[@]}"; do
 done
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-MANIFEST_ROWS="$manifest_rows" MANIFEST="$out_dir/manifest.json" RUN_ID="$run_id" MODE="$mode" FIXTURE_MODE="$manifest_fixture_mode" STARTED_AT="$started_at" ENDED_AT="$ended_at" EVENT_FILE="$event_file" OUT_DIR="$out_dir" python3 - <<'PY'
-import json
-import os
-from pathlib import Path
-rows = [json.loads(line) for line in Path(os.environ["MANIFEST_ROWS"]).read_text(encoding="utf-8").splitlines() if line.strip()]
-manifest = {
-    "schema": "zig-scheduler/vm-harness-matrix-index/v1",
-    "matrix_run_id": os.environ["RUN_ID"],
-    "mode": os.environ["MODE"],
-    "fixture_mode": os.environ["FIXTURE_MODE"] == "true",
-    "started_at": os.environ["STARTED_AT"],
-    "ended_at": os.environ["ENDED_AT"],
-    "out_dir": os.environ["OUT_DIR"],
-    "daemon_events_path": os.environ["EVENT_FILE"],
-    "row_count": len(rows),
-    "rows": rows,
-    "host_mutation": False,
-    "release_eligible": False,
-}
-Path(os.environ["MANIFEST"]).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY
+MANIFEST_ROWS="$manifest_rows" MANIFEST="$out_dir/manifest.json" RUN_ID="$run_id" MODE="$mode" FIXTURE_MODE="$manifest_fixture_mode" STARTED_AT="$started_at" ENDED_AT="$ended_at" EVENT_FILE="$event_file" OUT_DIR="$out_dir" python3 "$emit_helper" manifest
 
 printf 'matrix_manifest=%s\ndaemon_events=%s\nhost_mutation=false\n' "$out_dir/manifest.json" "$event_file"
 exit "$final_rc"

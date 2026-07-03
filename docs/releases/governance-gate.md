@@ -18,7 +18,7 @@ A candidate release must provide:
 8. VM-live scheduler behavior bundle validated by `qa/live_behavior_check.py`, proving the result is not attach-only success.
 9. Security threat model and completed security review checklist.
 10. Cleanup proof showing no QEMU, tmux, or VM-live temporary-resource residue from the release run.
-11. Packaging/default-service proof that install does not auto-start or mutate scheduler state.
+11. Packaging/default-service proof from `qa/package_defaults.sh --self-test` and install drills showing install does not auto-start or mutate scheduler state.
 12. Scope proof that root frontend/UI artifacts are absent and `simulator/` is unchanged.
 13. Wording audit proving no unguarded production-ready or arbitrary-production-host claim.
 14. Matrix harness manifest evidence accepted by `qa/matrix_run_contract_check.py`, with `release_eligible=false`, `host_mutation=false`, rollback proof, cleanup proof, host-refusal proof, privacy proof, and safe relative artifact paths.
@@ -37,13 +37,13 @@ to be complete, current for the release git SHA, reproducible, and reviewed.
 | Stress/chaos | Stress/chaos evidence for workload liveness, fallback behavior, no starvation threshold breach, and no repeated reject counters. |
 | Audit ledger | Append-only audit ledger validation with unique audit IDs, immutable artifact hashes, and duplicate-replay rejection. |
 | Security signoff | Signed security signoff against the tracked threat model and security review checklist. |
-| Package install safety | Package install safety drill in a staging root or disposable VM proving no host mutation and no service enablement. |
+| Package install safety | Package default safety self-test plus package install safety drill in a staging root or disposable VM proving no host mutation and no service enablement. |
 | Package upgrade safety | Package upgrade safety drill proving config preservation, evidence archive preservation, and rollback of staged files. |
 | Package uninstall safety | Package uninstall safety drill proving non-config files are removed while audit/evidence archives are retained. |
 | Incident runbook | Incident runbook drill for verifier failure, fallback, rollback, and operator escalation. |
 | Privacy review | Privacy review proving runtime samples exclude raw command lines, environments, secrets, and PII. |
 | Matrix manifest | `matrix-run/v1` manifest rows proving every scenario outcome keeps `host_mutation=false`, `release_eligible=false`, rollback proof, cleanup proof, host-refusal proof, privacy proof, and safe relative artifact paths. `SKIP` and `REFUSE` rows remain non-approval evidence. |
-| systemd no auto-start | systemd no auto-start proof for installed units; mutation service remains gated by config, marker, and evidence. |
+| systemd no auto-start | Package default self-test and systemd no auto-start proof for installed units; mutation service remains gated by config, marker, and evidence. |
 | Cleanup proof | Release-run summary with QEMU/tmux residue checks, VM-live temp-dir cleanup receipt, and no stale current-run evidence reuse. |
 | Scope fidelity | `qa/no_frontend_root.sh`, clean `git status --short simulator`, and release artifacts with no frontend or simulator payloads. |
 

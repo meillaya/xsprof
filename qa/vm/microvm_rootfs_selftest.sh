@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$repo_root"
+source qa/vm/microvm_rootfs.sh
+
+microvm_rootfs_self_test() {
+  set -euo pipefail
+  local scratch fake_profile root guest_lookup missing_root missing_tool
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/zigsched-rootfs-self-test.XXXXXX")"
+  microvm_rootfs_self_test_scratch="$scratch"
+  cleanup() {
+    if [ -n "${microvm_rootfs_self_test_scratch:-}" ]; then
+      rm -rf "$microvm_rootfs_self_test_scratch"
+    fi
+  }
+  trap cleanup EXIT INT TERM HUP
+
+  fake_profile="$scratch/home/mei/.omx-runs/nix-profiles/zig-scheduler-vm-proof-stress-ng/bin"
+  root="$scratch/root"
+  mkdir -p "$fake_profile" "$root"
+  cat > "$fake_profile/stress-ng" <<'SH'
+#!/bin/sh
+echo fake stress-ng
+SH
+  chmod +x "$fake_profile/stress-ng"
+
+  PATH="$fake_profile:/usr/bin:/bin" microvm_copy_tool_with_deps "$root" stress-ng
+
+  if [ ! -x "$root/usr/bin/stress-ng" ]; then
+    echo "FAIL: stress-ng was not installed into guest PATH at /usr/bin/stress-ng" >&2
+    return 1
+  fi
+  if [ ! -x "$root$fake_profile/stress-ng" ]; then
+    echo "FAIL: original absolute tool path copy was not preserved" >&2
+    return 1
+  fi
+  guest_lookup="$(PATH="$root/usr/bin:$root/bin" command -v stress-ng 2>/dev/null || true)"
+  if [ "$guest_lookup" != "$root/usr/bin/stress-ng" ]; then
+    echo "FAIL: stress-ng is not discoverable through the guest PATH layout" >&2
+    return 1
+  fi
+
+  missing_tool="not-a-zig-scheduler-tool"
+  missing_root="$scratch/missing-root"
+  mkdir -p "$missing_root"
+  PATH=/usr/bin:/bin microvm_copy_tool_with_deps "$missing_root" "$missing_tool"
+  if [ -e "$missing_root/usr/bin/$missing_tool" ]; then
+    echo "FAIL: missing workload tool unexpectedly created a guest PATH entry" >&2
+    return 1
+  fi
+  if [ "${ZIGSCHED_ROOTFS_SELFTEST_FORCE_MISSING:-0}" = "1" ]; then
+    echo "PASS forced missing-tool fixture did not create /usr/bin/$missing_tool"
+  fi
+
+  echo "PASS microvm rootfs workload tools are copied into guest PATH without weakening missing-tool refusal"
+}
+
+microvm_rootfs_self_test "$@"

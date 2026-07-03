@@ -29,7 +29,7 @@ zig fmt --check build.zig build.zig.zon $(find src -name '*.zig' -print)
 Default matrix and release-withheld gates are host-safe:
 
 - `zig build client-contract` now runs the backend client API fixture pack, client/consumer adversarial self-tests, `matrix-run/v1` fixtures, runtime sample self-test, benchmark-output fixture validation, control schema drift, schema compatibility check/self-test, and daemon golden transcript checks.
-- `zig build host-safe-gates` runs the workload catalog, root UI absence, no-host-mutation, wording/privacy, read-only security, Zig docs vendor, BPF ABI/repro, governance manifest check/self-test, evidence-manifest self-test, evidence-bundle comparison self-test, manual VM proof static/self-tests, matrix-run fixture/self-tests, protected-core suite and telemetry self-tests, runner-substrate fixture/self-tests, runner-cleanliness fixture/self-tests, benchmark-output self-test, benchmark provenance self-test, and release gate self-tests.
+- `zig build host-safe-gates` runs the workload catalog, package default safety self-test, microVM rootfs helper self-test, root UI absence, no-host-mutation, wording/privacy, read-only security, Zig docs vendor, BPF ABI/repro, governance manifest check/self-test, evidence-manifest self-test, evidence-bundle comparison self-test, manual VM proof static/self-tests, matrix-run fixture/self-tests, protected-core suite and telemetry self-tests, runner-substrate fixture/self-tests, runner-cleanliness fixture/self-tests, benchmark-output self-test, benchmark provenance self-test, and release gate self-tests.
 - `zig build vm-harness-matrix` runs only the host-safe fixture row by default. On hosts without `/run/zig-scheduler-vm-lab.marker`, that row may report `PASS` only as `evidence_mode=fixture`, which proves contract fixture generation/validation and never VM-live execution. VM-required or prerequisite-missing rows must SKIP/REFUSE rather than mutating the host or claiming VM-live marker evidence. The default target writes a temporary ignored run under `evidence/lab/matrix/<run-id>`, validates it with `qa/matrix_run_contract_check.py --manifest`, and removes the temporary row before exit; explicit `--out` invocations remain operator-owned evidence. It does not require QEMU, KVM, or a VM kernel.
 - `qa/release_gate.sh --matrix-manifest evidence/lab/matrix/<run-id>/manifest.json ...` consumes a matrix manifest only after `qa/matrix_run_contract_check.py` proves every row has `host_mutation=false`, `release_eligible=false`, cleanup proof, rollback proof, host refusal proof, and safe relative artifact paths.
 
@@ -100,6 +100,9 @@ python3 qa/governance_manifest_check.py --self-test
 python3 qa/schema_compatibility_check.py --self-test
 python3 qa/frontend_contract_pack_check.py --self-test  # backend contract; no frontend implementation
 python3 qa/consumer_contract_check.py --self-test
+bash qa/package_defaults.sh --self-test
+bash qa/vm/microvm_rootfs.sh --self-test
+bash qa/vm/run_microvm_live_lab.sh --self-test
 ```
 
 `benchmark-output/v1` is a record-only calibration contract. CI may validate parser behavior, committed fixtures, and matrix `benchmark_provenance` references, but those checks do not enforce performance thresholds and do not create release eligibility or production-capacity claims. Matrix provenance validation reuses `qa/benchmark_output_check.py`; malformed, missing, or claim-bearing benchmark records remain contract failures rather than performance failures.

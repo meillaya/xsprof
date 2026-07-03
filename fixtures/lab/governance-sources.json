@@ -12,7 +12,7 @@
       "path": "build.zig",
       "purpose": "Zig build graph wiring for host-safe governance gates",
       "required": true,
-      "sha256": "2b27d4fe2b346d4220bef9ccfb7152570f6e7e8850afa289237a365b073a046f"
+      "sha256": "7f41449a2b3a3e247008a83a81f40ab0fc367d0c89e510643701ab8fd1124083"
     },
     {
       "path": "README.md",
@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "4a13188f0ea883ca312bd8b6386799bc187a7dc618bd9f80099ab51c98725b9e"
+      "sha256": "395e93402fd68c348eaa6b4f40215a120df43e4c0cb0666dda8b972c1e0d9ad7"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,7 +60,7 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "bcb3225e1b8c5abcf0dd2453ff63c636df087b7577c98b58a67483eb938a3262"
+      "sha256": "892891c80bab8c51e9ea601daa21ee8125d1b33c3eb0235a6b879511194b4a7d"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
@@ -96,7 +96,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "9c91983c318db7e8b67f6a851e5593f98628971a95907fed9b5f904cc3043cc3"
+      "sha256": "650fa77886208843726f5a09f269da3e8ff996ad3688fdb98051012607387b01"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "b455b5ec7b94aa18225077e05b493c418e5e7c52937529761b9aabbea3686670"
+      "sha256": "0bf527e8b451002a608d553aa2e0b01d58f08841b551e00f087918fcb3b6e749"
     },
     {
       "path": "docs/security/review-checklist.md",
@@ -330,7 +330,7 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "852ebd318b72f6be1fd1f2820bab71e97ba3aaa21e4a1661ae88632349ec77de"
+      "sha256": "976f57ca53f794fbf67cb9b83b868d37390c143d70802ee38a51962d0e9e658f"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
@@ -372,7 +372,79 @@
       "path": "qa/matrix_run_contract_check.py",
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
-      "sha256": "727df6ceaf3e8bd8626e4068e75791ace59baaa8e657773d91d00f39c57eccc3"
+      "sha256": "f10dcd9afffa95b9bed82a6e382229e7ec2127bdc5c4773956bb71e294661850"
+    },
+    {
+      "path": "qa/matrix_run_json.py",
+      "purpose": "matrix-run v1 JSON IO and path boundary helper",
+      "required": true,
+      "sha256": "2c14d3940058a103a803c4cfa9306b8cf336016b3a3d5ae1b184c5d2c51e236a"
+    },
+    {
+      "path": "qa/matrix_run_live_backend.py",
+      "purpose": "matrix-run v1 live backend row validator helper",
+      "required": true,
+      "sha256": "1877585f037d0a34b03c3a0cccb5863dfea25de423251b0207a33b8a175cb74d"
+    },
+    {
+      "path": "qa/matrix_run_manifest_validate.py",
+      "purpose": "matrix-run v1 manifest semantic validator helper",
+      "required": true,
+      "sha256": "8f939dcd1fa7790ac7527f9a191dadcff54c95d7a42f39d0dd236af562818030"
+    },
+    {
+      "path": "qa/matrix_run_model.py",
+      "purpose": "matrix-run v1 typed model and parser source",
+      "required": true,
+      "sha256": "6062fc5825279e08f9e84c608c804440825e6904513625f973346b7a76a2fd8a"
+    },
+    {
+      "path": "qa/matrix_run_selftest.py",
+      "purpose": "matrix-run v1 adversarial self-test entrypoint helper",
+      "required": true,
+      "sha256": "0398645abb2b3c9662ae8ce52c40fa45f663b745daa4f76ede2fa00e8fb196da"
+    },
+    {
+      "path": "qa/matrix_run_selftest_cases_basic.py",
+      "purpose": "matrix-run v1 basic self-test fixture cases",
+      "required": true,
+      "sha256": "9da2c1ec36c94a2dd45e60ffb804fff43cd02b271e39c5b3cca4d349c89b4ddc"
+    },
+    {
+      "path": "qa/matrix_run_selftest_cases_live.py",
+      "purpose": "matrix-run v1 live backend self-test fixture cases",
+      "required": true,
+      "sha256": "bb8393fc7f46228c0df2cc8b79c51c4990bef754ed2c2534ef8ed7a23257444e"
+    },
+    {
+      "path": "qa/matrix_run_selftest_cases_workload.py",
+      "purpose": "matrix-run v1 workload self-test fixture cases",
+      "required": true,
+      "sha256": "02d633a77d6c70ad9d465283bf5f46ad3fd6c8fa10c5615a4033ebd163588228"
+    },
+    {
+      "path": "qa/matrix_run_selftest_common.py",
+      "purpose": "matrix-run v1 self-test fixture builder helpers",
+      "required": true,
+      "sha256": "4c04e3af735cc8fc918a09a1ec915c5c37f0d2eb0b9f7f5d25d3918a33787b79"
+    },
+    {
+      "path": "qa/matrix_run_selftest_pack.py",
+      "purpose": "matrix-run v1 self-test fixture pack validator helper",
+      "required": true,
+      "sha256": "76d81f6d1a79321f59cf0ff2b435a3c4679591e6782515873ef211bb75017f35"
+    },
+    {
+      "path": "qa/matrix_run_validate.py",
+      "purpose": "matrix-run v1 fixture and manifest validation orchestrator",
+      "required": true,
+      "sha256": "2bbd561c3143c8e048fa2bc9e335db889770f23efe9b1f670584ad4e253c52cb"
+    },
+    {
+      "path": "qa/matrix_run_workload.py",
+      "purpose": "matrix-run v1 workload metadata validator helper",
+      "required": true,
+      "sha256": "74fc165518c73598ea2df861cbf10b034c79da8dc9a9a62767fd6e0e28b6cbfe"
     },
     {
       "path": "qa/protected_core_suite_check.py",
@@ -414,7 +486,7 @@
       "path": "qa/package_defaults.sh",
       "purpose": "package default safety inspection gate",
       "required": true,
-      "sha256": "df82f2a24efbb05c2c5b29ea6e71ad29eac069257ec64fe48c8cdffaba40947c"
+      "sha256": "6f8f0fd5663cc785e8f54137afaeb733fa2fa08cb36d878cee2e0fe346b577f3"
     },
     {
       "path": "qa/package_lifecycle_drill.sh",
@@ -438,7 +510,13 @@
       "path": "qa/release_gate.sh",
       "purpose": "release evidence gate consumed by lab/release checks",
       "required": true,
-      "sha256": "193b1788e576741441ef14bbb4e99022c677d90c5ea53e72ed598b323f17a9bb"
+      "sha256": "a5a657b2cc57cc5d3f68e6ef86634da4975ef9c08072ac35ff49b8d8c57fb795"
+    },
+    {
+      "path": "qa/release_gate_selftest.py",
+      "purpose": "release evidence gate helper and adversarial self-test logic",
+      "required": true,
+      "sha256": "35e1273f3cab2fdeec14e5e1fb27783fc76e2f871f0bcf88f779f1599ad5cb02"
     },
     {
       "path": "qa/runner_substrate_proof_check.py",
@@ -579,10 +657,46 @@
       "sha256": "d05f7d9ce7867f657efe31be55f7749649df310f6949d92eda159e7e6372dbfa"
     },
     {
+      "path": "qa/vm/microvm_rootfs.sh",
+      "purpose": "microVM rootfs public build wrapper and self-test dispatcher",
+      "required": true,
+      "sha256": "6782c3c69b3d93da638fff61f7d3fd9b405af1de17958ddb13d47809a08c00b6"
+    },
+    {
+      "path": "qa/vm/microvm_rootfs_guest_init.sh",
+      "purpose": "microVM rootfs guest init script writer helper",
+      "required": true,
+      "sha256": "17ee60c09471f6883d833e4ea2d66326fc9ede7ed9b4d5d6cfe01511a1e7206a"
+    },
+    {
+      "path": "qa/vm/microvm_rootfs_selftest.sh",
+      "purpose": "microVM rootfs workload-tool self-test helper",
+      "required": true,
+      "sha256": "0ed33d97d98242416553a59f3283ebd36374ffc6fdae4e7a8e805953c6e31871"
+    },
+    {
+      "path": "qa/vm/run_microvm_live_lab.sh",
+      "purpose": "microVM live lab public runner wrapper and self-test dispatcher",
+      "required": true,
+      "sha256": "731fb8402f9d4d4d56b25458cb7fec1a5bbb021ffb6bbc571ed879592af0377b"
+    },
+    {
+      "path": "qa/vm/run_microvm_live_lab_selftest.sh",
+      "purpose": "microVM live runner fallback self-test helper",
+      "required": true,
+      "sha256": "880481b8f83ee3bd08a36072cc5f60d6126288ef5adefbb76fce0be0fc82ef01"
+    },
+    {
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "d32de6ac045357cb695c32b34a72f988ff52276b794038af3ca31d45eda0e961"
+      "sha256": "8064f08f4e897145b37ff31e01e97de32c66629bdf0c4c7bf1dede27876a0a35"
+    },
+    {
+      "path": "qa/vm/vm_harness_matrix_emit.py",
+      "purpose": "VM harness matrix JSON row and manifest emit helper",
+      "required": true,
+      "sha256": "4d55a3f390c7be42235766396c99b3ea79101f490e5d771f9de1eff68f50df01"
     },
     {
       "path": "qa/vm/workload_execution_check.py",
