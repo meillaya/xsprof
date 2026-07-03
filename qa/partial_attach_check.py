@@ -21,7 +21,7 @@ import sys
 from typing import Final
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions
+from qa.evidence_safety_check import EvidenceSafetyError, JsonObject, JsonValue, reject_contradictions  # noqa: E402
 
 SCHEMA: Final[str] = "zig-scheduler/partial-attach-evidence/v1"
 REFUSAL_SCHEMA: Final[str] = "zig-scheduler/partial-attach-refusal/v1"

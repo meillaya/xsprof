@@ -44,6 +44,7 @@ class ReportRows:
     boot: JsonObject
     tuple_row: JsonObject
     workload: JsonObject
+    workload_executions: tuple[JsonObject, ...]
     mutation_rows: tuple[JsonObject, ...]
     before: JsonObject
     register: JsonObject

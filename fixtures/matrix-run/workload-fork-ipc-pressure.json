@@ -65,6 +65,6 @@
   "workload": {
     "name": "bounded-fork-ipc-pressure",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-fork-ipc-pressure.json",
-    "spec_sha256": "08e11db01cf4c98a44685523c8b7159caa31e99f347de1410d85f6126ec338ef"
+    "spec_sha256": "f1e17974720cfba3569545aebe1ceea2201e9a4987775a3d2f80a0b09e95949d"
   }
 }

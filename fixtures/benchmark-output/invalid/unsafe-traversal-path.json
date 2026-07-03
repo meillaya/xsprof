@@ -13,8 +13,14 @@
   },
   "output_path": "evidence/lab/run/bench/fio.json",
   "output_sha256": "08201f968988cfa85742d07e3a7d032dab8b5f86e548a79716bd5ebc79aeaee9",
+  "parser_provenance": {
+    "parser": "qa/benchmark_output_parse.py",
+    "parser_status": "PARSED",
+    "parser_version": "benchmark-output/v1"
+  },
   "privacy_sanitized": true,
   "production_capacity_claim": false,
+  "record_only": true,
   "release_eligible": false,
   "run_count": 1,
   "sample_count": 1,

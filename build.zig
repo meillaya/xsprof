@@ -302,6 +302,10 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     evidence_manifest_self_test.addFileArg(b.path("qa/evidence_manifest_check.py"));
     evidence_manifest_self_test.addArg("--self-test");
 
+    const evidence_bundle_compare_self_test = b.addSystemCommand(&.{"python3"});
+    evidence_bundle_compare_self_test.addFileArg(b.path("qa/evidence_bundle_compare_check.py"));
+    evidence_bundle_compare_self_test.addArg("--self-test");
+
     const manual_vm_proof_self_test = b.addSystemCommand(&.{"python3"});
     manual_vm_proof_self_test.addFileArg(b.path("qa/manual_vm_proof_ci_check.py"));
     manual_vm_proof_self_test.addArg("--self-test");
@@ -333,6 +337,16 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     matrix_contract_self_test.addFileArg(b.path("qa/matrix_run_contract_check.py"));
     matrix_contract_self_test.addArg("--self-test");
 
+    const protected_core_suite_self_test = b.addSystemCommand(&.{"python3"});
+    protected_core_suite_self_test.addFileArg(b.path("qa/protected_core_suite_check.py"));
+    protected_core_suite_self_test.addArg("--self-test");
+    protected_core_suite_self_test.step.dependOn(&matrix_contract_self_test.step);
+
+    const protected_core_telemetry_self_test = b.addSystemCommand(&.{"python3"});
+    protected_core_telemetry_self_test.addFileArg(b.path("qa/protected_core_telemetry_check.py"));
+    protected_core_telemetry_self_test.addArg("--self-test");
+    protected_core_telemetry_self_test.step.dependOn(&protected_core_suite_self_test.step);
+
     const runner_substrate_fixture_check = b.addSystemCommand(&.{"python3"});
     runner_substrate_fixture_check.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
     runner_substrate_fixture_check.addArgs(&.{
@@ -345,6 +359,17 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     const runner_substrate_self_test = b.addSystemCommand(&.{"python3"});
     runner_substrate_self_test.addFileArg(b.path("qa/runner_substrate_proof_check.py"));
     runner_substrate_self_test.addArg("--self-test");
+
+    const runner_cleanliness_fixture_check = b.addSystemCommand(&.{"python3"});
+    runner_cleanliness_fixture_check.addFileArg(b.path("qa/runner_cleanliness_proof_check.py"));
+    runner_cleanliness_fixture_check.addArgs(&.{
+        "--fixtures",
+        "fixtures/runner-cleanliness-proof",
+    });
+
+    const runner_cleanliness_self_test = b.addSystemCommand(&.{"python3"});
+    runner_cleanliness_self_test.addFileArg(b.path("qa/runner_cleanliness_proof_check.py"));
+    runner_cleanliness_self_test.addArg("--self-test");
 
     const benchmark_provenance_self_test = b.addSystemCommand(&.{"python3"});
     benchmark_provenance_self_test.addFileArg(b.path("qa/matrix_benchmark_provenance_check.py"));
@@ -363,6 +388,8 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_matrix_cleanup.step.dependOn(&release_gate.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_fixture_check.step);
     host_safe_matrix_cleanup.step.dependOn(&matrix_contract_self_test.step);
+    host_safe_matrix_cleanup.step.dependOn(&protected_core_suite_self_test.step);
+    host_safe_matrix_cleanup.step.dependOn(&protected_core_telemetry_self_test.step);
 
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
     host_safe_gates.dependOn(bpf_step);
@@ -377,12 +404,17 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     host_safe_gates.dependOn(&governance_manifest.step);
     host_safe_gates.dependOn(&governance_manifest_self_test.step);
     host_safe_gates.dependOn(&evidence_manifest_self_test.step);
+    host_safe_gates.dependOn(&evidence_bundle_compare_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_self_test.step);
     host_safe_gates.dependOn(&manual_vm_proof_static.step);
     host_safe_gates.dependOn(&matrix_contract_fixture_check.step);
     host_safe_gates.dependOn(&matrix_contract_self_test.step);
+    host_safe_gates.dependOn(&protected_core_suite_self_test.step);
+    host_safe_gates.dependOn(&protected_core_telemetry_self_test.step);
     host_safe_gates.dependOn(&runner_substrate_fixture_check.step);
     host_safe_gates.dependOn(&runner_substrate_self_test.step);
+    host_safe_gates.dependOn(&runner_cleanliness_fixture_check.step);
+    host_safe_gates.dependOn(&runner_cleanliness_self_test.step);
     host_safe_gates.dependOn(&benchmark_self_test.step);
     host_safe_gates.dependOn(&benchmark_provenance_self_test.step);
     host_safe_gates.dependOn(&host_safe_matrix_cleanup.step);
@@ -414,7 +446,7 @@ fn addVmHarnessMatrixStep(b: *Build) void {
         });
     }
 
-    const vm_harness_matrix_step = b.step("vm-harness-matrix", "Run host-safe VM harness matrix evidence runner");
+    const vm_harness_matrix_step = b.step("vm-harness-matrix", "Run VM harness matrix evidence runner (supports explicit protected-core suite)");
     vm_harness_matrix_step.dependOn(&vm_harness_matrix.step);
 }
 

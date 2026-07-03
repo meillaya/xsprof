@@ -1,10 +1,16 @@
+"""# noqa: SIZE_OK - schema compatibility rules stay colocated with their rule tables."""
 from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 from qa.frontend_contract_pack_types import JsonObject, JsonValue, parse_json_object
+from qa.schema_compatibility_runner_cleanliness_rules import (
+    RUNNER_CLEANLINESS_ENUM_RULES,
+    RUNNER_CLEANLINESS_PUBLIC_SCHEMA_RULES,
+    RUNNER_CLEANLINESS_REQUIRED_RULES,
+)
 
 DRAFT_2020_12: Final = "https://json-schema.org/draft/2020-12/schema"
 PublicSchemaRule: TypeAlias = tuple[str, str, tuple[str, ...]]
@@ -42,8 +48,8 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
         "benchmark-output.v1.schema.json",
         "zig-scheduler/benchmark-output/v1",
         (
-            "schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence",
-            "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible",
+            "schema", "status", "tool", "command_family", "record_only", "output_path", "output_sha256", "vm_evidence",
+            "parser_provenance", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible",
             "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized",
         ),
     ),
@@ -74,7 +80,7 @@ PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
             "collected_at", "host_mutation", "release_eligible", "production_capacity_claim",
         ),
     ),
-)
+) + RUNNER_CLEANLINESS_PUBLIC_SCHEMA_RULES
 
 ENUM_RULES: Final[tuple[EnumRule, ...]] = (
     ("daemon-event.v1.schema.json", ("properties", "event"), ("boot", "marker", "verifier", "attach", "state_changed", "stage_started", "lab_run_active", "stage_finished", "journal_record", "microvm_boot", "vm_marker", "bpf_register", "runtime_sample", "rollback", "rollback_completed", "cleanup", "validation", "incident", "refusal")),
@@ -87,12 +93,13 @@ ENUM_RULES: Final[tuple[EnumRule, ...]] = (
     ("benchmark-output.v1.schema.json", ("properties", "status"), ("RECORDED", "UNSUPPORTED_DEFERRED")),
     ("benchmark-output.v1.schema.json", ("properties", "tool"), ("cyclictest", "fio", "perf", "rtla", "stress-ng")),
     ("benchmark-output.v1.schema.json", ("properties", "command_family"), ("cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng")),
-)
+) + RUNNER_CLEANLINESS_ENUM_RULES
 
 FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
-    ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
+    ("benchmark-output.v1.schema.json", ("required",), ("schema", "status", "tool", "command_family", "record_only", "output_path", "output_sha256", "vm_evidence", "parser_provenance", "metrics", "units", "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced", "threshold_status", "privacy_sanitized")),
+    ("benchmark-output.v1.schema.json", ("properties", "parser_provenance", "required"), ("parser", "parser_version", "parser_status")),
     ("daemon-event.v1.schema.json", ("required",), ("schema", "event", "status", "host_mutation")),
-    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
+    ("evidence-manifest.v1.schema.json", ("required",), ("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "runner_cleanliness", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim")),
     ("evidence-manifest.v1.schema.json", ("properties", "vm_marker", "required"), ("path", "present", "checked_by")),
     ("evidence-manifest.v1.schema.json", ("properties", "benchmark_provenance", "oneOf", "1", "required"), ("status", "reason", "applies_to_outcomes")),
     ("evidence-manifest.v1.schema.json", ("properties", "privacy_scan", "required"), ("status", "private_fields_found", "artifact_paths")),
@@ -133,19 +140,20 @@ FROZEN_REQUIRED_RULES: Final[tuple[RequiredRule, ...]] = (
     ("runtime-sample.v1.schema.json", ("required",), ("schema", "sequence", "state", "ops", "enable_seq", "events", "events_hash", "nr_rejected", "debug_dump", "policy_abi", "cgroup_membership_digest", "workload_alive", "private_command_lines_sampled")),
     ("runtime-sample.v1.schema.json", ("$defs", "fact", "required"), ("status", "value")),
     ("runtime-sample.v1.schema.json", ("$defs", "digest_fact", "required"), ("status", "value")),
-    ("runtime-sample.v1.schema.json", ("$defs", "policy_counters", "required"), ("nr_rejected", "dispatch_failed", "fallback", "fatal")),
-    ("runtime-sample.v1.schema.json", ("$defs", "sample_loss", "required"), ("lost_samples", "backpressure_dropped")),
+    ("runtime-sample.v1.schema.json", ("$defs", "policy_counters", "oneOf", "0", "required"), ("nr_rejected", "dispatch_failed", "fallback", "fatal")),
+    ("runtime-sample.v1.schema.json", ("$defs", "sample_loss", "oneOf", "0", "required"), ("lost_samples", "backpressure_dropped")),
     ("runtime-sample.v1.schema.json", ("$defs", "policy_abi", "required"), ("policy_name", "policy_version", "struct_ops", "object_sha256", "btf_required")),
     ("runtime-sample.v1.schema.json", ("$defs", "cgroup_policy_semantics", "required"), ("cpu.weight", "cgroup.lifecycle", "cgroup.move", "cpuset.cpus", "cpuset.cpus.effective", "cpu.pressure", "cpu.max", "uclamp", "cgroup_set_idle")),
-    ("runtime-sample.v1.schema.json", ("$defs", "dsq_depth", "required"), ("global", "local", "shared")),
-    ("runtime-sample.v1.schema.json", ("$defs", "queue_latency", "required"), ("p50_us", "p95_us", "p99_us", "max_us")),
-    ("runtime-sample.v1.schema.json", ("$defs", "fairness", "required"), ("state", "starved_tasks", "max_wait_us")),
+    ("runtime-sample.v1.schema.json", ("$defs", "dsq_depth", "oneOf", "0", "required"), ("global", "local", "shared")),
+    ("runtime-sample.v1.schema.json", ("$defs", "queue_latency", "oneOf", "0", "required"), ("p50_us", "p95_us", "p99_us", "max_us")),
+    ("runtime-sample.v1.schema.json", ("$defs", "fairness", "oneOf", "0", "required"), ("state", "starved_tasks", "max_wait_us")),
     ("runtime-sample.v1.schema.json", ("$defs", "task_counts", "required"), ("by_cgroup_digest", "by_class")),
-    ("runtime-sample.v1.schema.json", ("$defs", "scheduler_counters", "required"), ("context_switches", "wakeups", "migrations")),
+    ("runtime-sample.v1.schema.json", ("$defs", "scheduler_counters", "oneOf", "0", "required"), ("context_switches", "wakeups", "migrations")),
     ("runtime-sample.v1.schema.json", ("$defs", "sched_ext_observation", "required"), ("dump", "tracepoints")),
     ("runtime-sample.v1.schema.json", ("$defs", "benchmark_histogram_ref", "required"), ("record_path", "record_sha256", "histogram_id", "record_only")),
+    ("runtime-sample.v1.schema.json", ("$defs", "unavailable_fact", "required"), ("status", "value")),
     ("runtime-sample.v1.schema.json", ("$defs", "task_ext_enabled_fact", "required"), ("status", "value")),
-)
+) + RUNNER_CLEANLINESS_REQUIRED_RULES
 
 
 def load_schema(path: Path) -> JsonObject:
@@ -217,7 +225,7 @@ def validate_schema_identifier(schema: JsonObject, name: str) -> None:
 
 def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]:
     found: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    match value:  # noqa: MATCH_OK -- JsonValue cases are exhausted by the union definition.
+    match value:
         case dict():
             required = value.get("required")
             if isinstance(required, list):
@@ -229,6 +237,8 @@ def collect_required_paths(value: JsonValue, path: tuple[str, ...] = ()) -> tupl
                 found.extend(collect_required_paths(child, path + (str(index),)))
         case None | bool() | int() | float() | str():
             pass
+        case unreachable:
+            assert_never(unreachable)
     return tuple(found)
 
 

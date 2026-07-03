@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import assert_never
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -36,7 +37,7 @@ def parse_args(argv: list[str]) -> Args:
 
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
-    match args.mode:  # noqa: MATCH_OK — Args.mode Literal cases are exhausted; pyright reports assert_never default as unreachable.
+    match args.mode:
         case "self-test":
             self_test()
         case "fixtures":
@@ -50,6 +51,8 @@ def run(argv: list[str]) -> int:
             validate_record(record)
             write_json(args.out, record)
             print(f"PASS benchmark output parsed: {args.out}")
+        case unreachable:
+            assert_never(unreachable)
     return 0
 
 

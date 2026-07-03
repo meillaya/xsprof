@@ -9,8 +9,14 @@
   },
   "output_path": "evidence/lab/run/bench/perf-bench-sched-messaging.txt",
   "output_sha256": "36cebffa314ac575060091209fa6d7992085c631663ec2262276e34d0bb4d48b",
+  "parser_provenance": {
+    "parser": "qa/benchmark_output_parse.py",
+    "parser_status": "PARSED",
+    "parser_version": "benchmark-output/v1"
+  },
   "privacy_sanitized": true,
   "production_capacity_claim": false,
+  "record_only": true,
   "release_eligible": false,
   "run_count": 1,
   "sample_count": 1,

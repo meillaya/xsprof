@@ -170,7 +170,10 @@ print(json.dumps({
     "vm_only": True,
     "host_mutation": False,
     "production_claim": False,
-    "release_eligible": False
+    "release_eligible": False,
+    "cgroup_policy_map": {"status": "unavailable", "reason": "observe_partial fixture does not attach VM BPF maps"},
+    "cgroup_callback_stats": {"status": "unavailable", "reason": "observe_partial fixture does not attach VM BPF maps"},
+    "dsq_counter_coherence": {"status": "unavailable", "reason": "observe_partial fixture does not attach VM BPF maps"}
   },
   "cgroup_semantic_labels": {
     "cpu.weight": "callback-observed",

@@ -5,8 +5,14 @@
   "metrics": {},
   "output_path": "evidence/lab/run/bench/rtla.txt",
   "output_sha256": "2d30b617d9e7c94912c2632cd9b076d7dc122162ea1c68d022768d46706c5a80",
+  "parser_provenance": {
+    "parser": "qa/benchmark_output_parse.py",
+    "parser_status": "UNSUPPORTED_DEFERRED",
+    "parser_version": "benchmark-output/v1"
+  },
   "privacy_sanitized": true,
   "production_capacity_claim": false,
+  "record_only": true,
   "release_eligible": false,
   "run_count": 0,
   "sample_count": 0,

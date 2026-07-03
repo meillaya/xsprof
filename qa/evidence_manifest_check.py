@@ -7,8 +7,7 @@
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
 # python3 qa/evidence_manifest_check.py --self-test
-# noqa: SIZE_OK — this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together.
-"""Validate VM proof evidence-manifest/v1 bundles."""
+"""Validate VM proof evidence-manifest/v1 bundles. # noqa: SIZE_OK - this boundary validator intentionally keeps schema, privacy, and artifact cross-checks together."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,7 +17,7 @@ import json
 import re
 import subprocess
 import sys
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, assert_never
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -36,13 +35,13 @@ SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 AUDIT_RE: Final[re.Pattern[str]] = re.compile(r"^AUD-[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9_.-]+$")
 ROLLBACK_RE: Final[re.Pattern[str]] = re.compile(r"^RB-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TUPLE_RE: Final[re.Pattern[str]] = re.compile(r"^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$")
-FIELDS: Final[frozenset[str]] = frozenset(("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
+FIELDS: Final[frozenset[str]] = frozenset(("schema", "outcome", "audit_id", "rollback_id", "vm_marker", "supported_tuple", "bpf_metadata_or_skip", "matrix_manifest", "daemon_events", "runner_substrate", "runner_cleanliness", "artifacts", "benchmark_provenance", "privacy_scan", "attestation", "required_sources", "host_mutation", "release_eligible", "production_capacity_claim"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
 MARKER_FIELDS: Final[frozenset[str]] = frozenset(("path", "present", "checked_by"))
 BENCHMARK_NA_FIELDS: Final[frozenset[str]] = frozenset(("status", "reason", "applies_to_outcomes"))
 PRIVACY_FIELDS: Final[frozenset[str]] = frozenset(("status", "private_fields_found", "artifact_paths"))
 ATTEST_FIELDS: Final[frozenset[str]] = frozenset(("status", "workflow_uses", "verify_command", "retention_days"))
-REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof", "protected-environment-review"))
+REQUIRED_ROLES: Final[frozenset[str]] = frozenset(("matrix-row", "rollback-proof", "cleanup-proof", "host-refusal-proof", "privacy-scan", "static-verification-log", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"))
 PROTECTED_REVIEW_ROLE: Final[str] = "protected-environment-review"
 BPF_ROLES: Final[frozenset[str]] = frozenset(("bpf-metadata", "bpf-skip-json"))
 ATTEST_STATUSES: Final[frozenset[str]] = frozenset(("pending-post-run-github-attestation", "verified-by-operator"))
@@ -62,6 +61,7 @@ MAX_TEXT_ARTIFACT_BYTES: Final[int] = 1024 * 1024
 class Args:
     manifest: Path | None
     schema: Path
+    source_root: Path
     self_test: bool
 
 
@@ -70,14 +70,16 @@ class ManifestError(Exception):
 
 
 def parse_args(argv: list[str]) -> Args:
-    if argv == ["--self-test"]:
-        return Args(None, Path("schemas/control/evidence-manifest.v1.schema.json"), True)
     manifest: Path | None = None
     schema = Path("schemas/control/evidence-manifest.v1.schema.json")
+    source_root = Path.cwd()
+    self_test_arg = False
     index = 0
     while index < len(argv):
         arg = argv[index]
-        if arg == "--manifest":
+        if arg == "--self-test":
+            self_test_arg = True
+        elif arg == "--manifest":
             index += 1
             if index >= len(argv):
                 raise ManifestError("--manifest requires a path")
@@ -87,12 +89,21 @@ def parse_args(argv: list[str]) -> Args:
             if index >= len(argv):
                 raise ManifestError("--schema requires a path")
             schema = Path(argv[index])
+        elif arg == "--source-root":
+            index += 1
+            if index >= len(argv):
+                raise ManifestError("--source-root requires a path")
+            source_root = Path(argv[index])
         else:
-            raise ManifestError("usage: evidence_manifest_check.py --manifest <path> [--schema <path>] | --self-test")
+            raise ManifestError("usage: evidence_manifest_check.py --manifest <path> [--schema <path>] [--source-root <repo>] | --self-test [--schema <path>] [--source-root <repo>]")
         index += 1
+    if self_test_arg:
+        if manifest is not None:
+            raise ManifestError("--self-test cannot be combined with --manifest")
+        return Args(None, schema, source_root, True)
     if manifest is None:
         raise ManifestError("--manifest is required")
-    return Args(manifest, schema, False)
+    return Args(manifest, schema, source_root, False)
 
 
 def load_json(path: Path) -> JsonObject:
@@ -170,7 +181,7 @@ def private_key_is_safe(key: str, role: str) -> bool:
 
 
 def reject_claim_value(value: JsonValue, context: str, role: str) -> None:
-    match value:  # noqa: MATCH_OK — JsonValue cases are exhausted by the union definition.
+    match value:
         case dict():
             for key, child in value.items():
                 if not private_key_is_safe(key, role) and private_key_has_pattern(key, FORBIDDEN_PRIVATE_KEY_PATTERNS):
@@ -187,6 +198,8 @@ def reject_claim_value(value: JsonValue, context: str, role: str) -> None:
             if isinstance(value, str):
                 reject_private_text(value, context)
             return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def reject_private_text(value: str, context: str) -> None:
@@ -208,10 +221,10 @@ def reject_text_artifact(path: Path, role: str) -> None:
     reject_private_text(text_value, str(path))
 
 
-def tracked_sources(paths: JsonValue | None) -> None:
+def tracked_sources(paths: JsonValue | None, source_root: Path) -> None:
     if not isinstance(paths, list) or not paths:
         raise ManifestError("required_sources must be a non-empty list")
-    result = subprocess.run(["git", "ls-files"], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(["git", "-C", source_root.as_posix(), "ls-files"], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
         raise ManifestError(f"git ls-files failed: {result.stderr.strip()}")
     tracked = set(result.stdout.splitlines())
@@ -220,7 +233,8 @@ def tracked_sources(paths: JsonValue | None) -> None:
         require(path in tracked, f"required source is not tracked: {path}")
 
 
-def validate_manifest(path: Path, schema_path: Path) -> None:
+def validate_manifest(path: Path, schema_path: Path, source_root: Path | None = None) -> None:
+    source_root_path = source_root if source_root is not None else Path.cwd()
     schema = load_json(schema_path)
     require(schema.get("$id") == SCHEMA, "evidence manifest schema $id mismatch")
     data = load_json(path)
@@ -245,7 +259,7 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
         require(marker_present is True, "VM marker proof is missing")
     roles: set[str] = set()
     artifact_paths: list[tuple[Path, str]] = []
-    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate"):
+    for field in ("matrix_manifest", "daemon_events", "bpf_metadata_or_skip", "runner_substrate", "runner_cleanliness"):
         value = data.get(field)
         role = validate_ref(value, field)
         roles.add(role)
@@ -263,19 +277,19 @@ def validate_manifest(path: Path, schema_path: Path) -> None:
     missing = sorted(REQUIRED_ROLES - roles)
     require(not missing, "missing required artifact role(s): " + ", ".join(missing))
     benchmark = data.get("benchmark_provenance")
-    if isinstance(benchmark, list):  # noqa: IF_VARIANT_OK -- boundary parsing known JSON shape alternatives.
+    if isinstance(benchmark, list):
         require(bool(benchmark), "benchmark_provenance must be a non-empty list")
         for index, item in enumerate(benchmark):
             require(validate_ref(item, f"benchmark_provenance[{index}]") == "benchmark-provenance", f"benchmark_provenance[{index}] must use benchmark-provenance role")
             if isinstance(item, dict):
                 artifact_paths.append((safe_path(item.get("path"), f"benchmark_provenance[{index}].path"), "benchmark-provenance"))
-    elif isinstance(benchmark, dict):
+    if isinstance(benchmark, dict):
         validate_benchmark_not_applicable(benchmark, outcome)
-    else:
+    elif not isinstance(benchmark, list):
         raise ManifestError("benchmark_provenance must be artifact references or a not-applicable object")
     validate_privacy(data.get("privacy_scan"))
     validate_attestation(data.get("attestation"))
-    tracked_sources(data.get("required_sources"))
+    tracked_sources(data.get("required_sources"), source_root_path)
     for artifact_path, role in artifact_paths:
         if role == PROTECTED_REVIEW_ROLE:
             try:
@@ -325,9 +339,9 @@ def validate_attestation(value: JsonValue | None) -> None:
         raise ManifestError("attestation.retention_days must be positive")
 
 
-def self_test(schema: Path) -> None:
+def self_test(schema: Path, source_root: Path) -> None:
     result = subprocess.run(
-        [sys.executable, "qa/evidence_manifest_selftest.py", "--schema", schema.as_posix()],
+        [sys.executable, "qa/evidence_manifest_selftest.py", "--schema", schema.as_posix(), "--source-root", source_root.as_posix()],
         check=False,
     )
     if result.returncode != 0:
@@ -338,9 +352,9 @@ def main(argv: list[str]) -> int:
     try:
         args = parse_args(argv)
         if args.self_test:
-            self_test(args.schema)
+            self_test(args.schema, args.source_root)
         elif args.manifest is not None:
-            validate_manifest(args.manifest, args.schema)
+            validate_manifest(args.manifest, args.schema, args.source_root)
             print(f"PASS evidence manifest: {args.manifest}")
         return 0
     except ManifestError as exc:

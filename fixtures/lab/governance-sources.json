@@ -12,7 +12,7 @@
       "path": "build.zig",
       "purpose": "Zig build graph wiring for host-safe governance gates",
       "required": true,
-      "sha256": "44cd82103ccb9c623ea7be6b542d5133e9b495dbced3959387cb0318663f8a4a"
+      "sha256": "2b27d4fe2b346d4220bef9ccfb7152570f6e7e8850afa289237a365b073a046f"
     },
     {
       "path": "README.md",
@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "39b94084fb18509f50a53ac8989d06c40cdd135716ccb7042c9fde5d8174ab3b"
+      "sha256": "4a13188f0ea883ca312bd8b6386799bc187a7dc618bd9f80099ab51c98725b9e"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,13 +60,13 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "f88b33fdedefffdec64b6d24d3c49701bd59652e7f78e8216e0ead328d377604"
+      "sha256": "6746f9cb6605a3ea3129653819c70ac14d60d8bfeae524eb5c2789baa03723ce"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
       "purpose": "backend frontend-contract API pack documentation and no-frontend boundary",
       "required": true,
-      "sha256": "1c6c5df5513ea78a278d72b0b8a6819dfd68b0f48ac43af7797420aa82d73ca0"
+      "sha256": "2e2ff9576abbf073056cd7f2050c9749a1cd13ec3ed042153cd5cbb6af690aae"
     },
     {
       "path": "docs/control/incident-taxonomy.md",
@@ -78,13 +78,13 @@
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "e7e91b6708aa65b5a9874abdb0f37cc37902745927e39d0a70a081bc5ee581d2"
+      "sha256": "5e03e95b12e79140a7c84a326cd7b49bdc1ca9b9f6d23399b3f9e31600b94343"
     },
     {
       "path": "docs/control/schema-compatibility.md",
       "purpose": "public schema compatibility policy for backend clients",
       "required": true,
-      "sha256": "133cb4658bcc2f2e27aafa5de7223d1055dc4edf517a38a36f91ab31cea3ae7c"
+      "sha256": "a4034ba9361d50348353b06a507a27ac9203482a28aba5afa6fc8aae9b5b9dd6"
     },
     {
       "path": "docs/control/stream-semantics.md",
@@ -96,7 +96,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "e1114b1274ed9813e0023dfa90b9ab2e6c9f6c01cdc3526e95ef06abd2d81430"
+      "sha256": "9c91983c318db7e8b67f6a851e5593f98628971a95907fed9b5f904cc3043cc3"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -120,13 +120,13 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "de1bcddd049f8d3adfa6a7c89dda887b19f91e040d80002942881ee6a8def970"
+      "sha256": "0f8b9cfc0ef69790545812d391a2b2a4e7367adc68c7de69fb36afb3b318c5ad"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "0843165308f3a5217b184c22bf0b2f5652eff3c4eea71327550eb6d7c77694ff"
+      "sha256": "92cbe53e3f6019ad5f993a1a804b5f6614688d4dcb8803e879a1b2c8b20fbc2e"
     },
     {
       "path": "docs/security/threat-model.md",
@@ -174,13 +174,13 @@
       "path": "schemas/control/benchmark-output.v1.schema.json",
       "purpose": "benchmark-output v1 record-only evidence schema",
       "required": true,
-      "sha256": "e692e6264dae4da66408d29c6fee55669063de8dfb1153e119a5d1d40f443df3"
+      "sha256": "86164f7a734ba7da2a177fb6ba51dce1ea9b29fbca243a671717f2fb2e6b6f9b"
     },
     {
       "path": "schemas/control/evidence-manifest.v1.schema.json",
       "purpose": "evidence-manifest v1 proof bundle schema",
       "required": true,
-      "sha256": "317bc03d5b8c3239d7dba78bb3673680b6eede181b89b808f64069dc239a815e"
+      "sha256": "35b10d7b41895ca30bd6629a452f4427f9611f506ba43f75227cf9a8a1bbe433"
     },
     {
       "path": "schemas/control/matrix-run.v1.schema.json",
@@ -201,10 +201,16 @@
       "sha256": "b2e8535877099d1eb5b5f7e577d86129fd717f2e61ab46c408f176b4a8c344f5"
     },
     {
+      "path": "schemas/control/runner-cleanliness-proof.v1.schema.json",
+      "purpose": "protected runner cleanliness proof schema",
+      "required": true,
+      "sha256": "a296855e13fc9cfee40604265e311907296458d39bbdcf449fe84e732a739b2d"
+    },
+    {
       "path": "schemas/control/runtime-sample.v1.schema.json",
       "purpose": "runtime-sample v1 sched_ext observation schema",
       "required": true,
-      "sha256": "3068bc36bd283e77d6473ef16bd6f4bf7b43add3411df583fd3b667900573955"
+      "sha256": "b5ceb078d8e5a1da8f01d15eb9eb342c9ceb7d1ac533d56555fa80c447f66c09"
     },
     {
       "path": "qa/backend_capability_matrix_check.py",
@@ -222,7 +228,7 @@
       "path": "qa/benchmark_output_check.py",
       "purpose": "benchmark-output v1 validator entrypoint",
       "required": true,
-      "sha256": "ef80ce426e91df7acc3f7ac5be0719480372c9deba769f0a7268d20eda40d415"
+      "sha256": "47a0f3e3d0b39cc3acb79a259eecc0cd93c6d8e35a6d92eaf3a98e109abd5b83"
     },
     {
       "path": "qa/benchmark_output_io.py",
@@ -234,13 +240,13 @@
       "path": "qa/benchmark_output_model.py",
       "purpose": "benchmark-output typed model and parser family source",
       "required": true,
-      "sha256": "c60b005db061c46c157713ce96b20635878ff59a0f3a5df6c33a9e6e6899bf8e"
+      "sha256": "4b712dd434aae2f2fcf8a43af4806357c1d78b54513f0afad09a6ce7ed0862a7"
     },
     {
       "path": "qa/benchmark_output_parse.py",
       "purpose": "benchmark-output raw parser source",
       "required": true,
-      "sha256": "728d6031caf5e6bc1f49b446fe46487e99b91961572cfb35a9b23ce6c1017f6e"
+      "sha256": "baf96c33452f900ae88a881678658f2a255310b959d68543760d960763602a2d"
     },
     {
       "path": "qa/benchmark_output_privacy.py",
@@ -252,13 +258,13 @@
       "path": "qa/benchmark_output_selftest.py",
       "purpose": "benchmark-output validator adversarial self-test cases",
       "required": true,
-      "sha256": "1e9b6801c1f67a2f64bf3f2dd206e4770ca5415cf83c08d995b895f7fa04d55a"
+      "sha256": "04debb8753d926f55e47a3022648d105d9962ef214ae09c997a37ccd6482aa14"
     },
     {
       "path": "qa/benchmark_output_validate.py",
       "purpose": "benchmark-output semantic validator",
       "required": true,
-      "sha256": "a62fe9ab8dc975fa51f29a8072ec51ed81165b708d5c7aa4bd530078be15d724"
+      "sha256": "bb68b957c78e6a4bc08a1eb6eca1774a408d4a3062273e13b5716c72bb6d97f1"
     },
     {
       "path": "qa/clean_archive_check.sh",
@@ -282,13 +288,13 @@
       "path": "qa/evidence_manifest_check.py",
       "purpose": "evidence-manifest v1 provenance validator",
       "required": true,
-      "sha256": "0d0ad3fca150dd6d1edf4c5f0bfebd2016779be7289aeeee29da7d29b3c5d4b2"
+      "sha256": "a47afb5988c863b73ad2b9af5b5b540c59061e7018228b7df62833a8f11b6af9"
     },
     {
       "path": "qa/evidence_manifest_selftest.py",
       "purpose": "evidence-manifest v1 validator self-test fixtures",
       "required": true,
-      "sha256": "f42b5d042aebab50030e8823d3531cb209c91d14fc6e749d02211e7e1923b069"
+      "sha256": "d9a1adf5bda735a2882f3c41493253651e3854e8b75261eb329fed74b8d997a1"
     },
     {
       "path": "qa/frontend_contract_matrix_ref.py",
@@ -324,19 +330,19 @@
       "path": "qa/governance_manifest_check.py",
       "purpose": "governance manifest schema and exact Task 11 source validator",
       "required": true,
-      "sha256": "03b49e446fe4960f38230cceb0bdf492a3da8847d66ae1177f169c1f994565c6"
+      "sha256": "852ebd318b72f6be1fd1f2820bab71e97ba3aaa21e4a1661ae88632349ec77de"
     },
     {
       "path": "qa/manual_vm_proof_ci_check.py",
       "purpose": "manual VM proof workflow and provenance static checker",
       "required": true,
-      "sha256": "3970fc4a7cd44e37c80439ea03430906e1460fe91724ed39b2857c3401c2da4d"
+      "sha256": "0a2649e326e179f1772695456a3717dfe63d068375361646d38c31a476da6e13"
     },
     {
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "bf8623661cd7951e32711e8baf6691de05853c071f517481d268b9b3f4926d15"
+      "sha256": "5dcd438a5be2eed25675526d3e5489fa9577da766486323c60293219af4c5cdb"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",
@@ -366,7 +372,31 @@
       "path": "qa/matrix_run_contract_check.py",
       "purpose": "matrix-run v1 contract validator and self-test gate",
       "required": true,
-      "sha256": "d26a34c99ddf0fe48a5166b4652529ed0f3a1f1f3b8c1e521b009f2a57a00ab7"
+      "sha256": "727df6ceaf3e8bd8626e4068e75791ace59baaa8e657773d91d00f39c57eccc3"
+    },
+    {
+      "path": "qa/protected_core_suite_check.py",
+      "purpose": "protected core matrix suite validator",
+      "required": true,
+      "sha256": "9e076477177b3df3b8ba2d30d9267a24feee8840fb5fb83bbd1fad7698c48eaa"
+    },
+    {
+      "path": "qa/protected_core_suite_selftest.py",
+      "purpose": "protected core matrix suite self-test fixtures",
+      "required": true,
+      "sha256": "33645a215f83df07961274197e42150d9cbcd4c1294c2e2084e8ae907eaecb61"
+    },
+    {
+      "path": "qa/protected_core_telemetry_check.py",
+      "purpose": "protected core runtime telemetry normalization validator",
+      "required": true,
+      "sha256": "aed2a70a5e0429a96fce9f435fac2f5a5c493921dabb47e845d4ba7061d2c811"
+    },
+    {
+      "path": "qa/protected_core_telemetry_selftest.py",
+      "purpose": "protected core runtime telemetry self-test fixtures",
+      "required": true,
+      "sha256": "4cbf6ba1217ff59d27ee218e1f87c5ecf4612a2f8b3893fac2cf028870148004"
     },
     {
       "path": "qa/no_frontend_root.sh",
@@ -414,7 +444,7 @@
       "path": "qa/runner_substrate_proof_check.py",
       "purpose": "protected runner substrate proof validator",
       "required": true,
-      "sha256": "9f897a3aacc0c90872fef2a7da061f5fd58f1d62905a9a351062b7551eaef838"
+      "sha256": "26c381205b8aa28a174785a21490c1c1ca2959cc99ec937c91b69754b55a0991"
     },
     {
       "path": "qa/runner_substrate_proof_common.py",
@@ -427,6 +457,12 @@
       "purpose": "protected runner substrate proof adversarial self-test cases",
       "required": true,
       "sha256": "f0947811dbe2d6b509bfc5a310204c625c7adb9122c1af3c1223bc4fe298d92c"
+    },
+    {
+      "path": "qa/runner_cleanliness_proof_check.py",
+      "purpose": "protected runner cleanliness proof validator",
+      "required": true,
+      "sha256": "396a6111c5129c065fe8cf9fa9c537877890a29b9c4bb777b1f1e609393fd3c8"
     },
     {
       "path": "qa/runtime_sample_check.py",
@@ -444,7 +480,7 @@
       "path": "qa/runtime_sample_core.py",
       "purpose": "runtime-sample core schema and alert semantics validator",
       "required": true,
-      "sha256": "ebe0cf7e69295724a5dfab9ff59c0248f19affb541d49727c32abda629df8f14"
+      "sha256": "7739a55b4195dde17e7dafd6398eba1a8fdaea378aa70e27fb889d4f247bab5b"
     },
     {
       "path": "qa/runtime_sample_digest.py",
@@ -462,13 +498,13 @@
       "path": "qa/runtime_sample_fixtures.py",
       "purpose": "runtime-sample safe fixture generator",
       "required": true,
-      "sha256": "15d79939673f2ffb43d08196b3d4dace3ca45e06b206d89df5a321f78b448dc6"
+      "sha256": "115a1b61342d0fd7efcc7d57b6cf142929af24fd2e1e73010b933b1ec3f6d8b4"
     },
     {
       "path": "qa/runtime_sample_policy_abi.py",
       "purpose": "runtime-sample policy ABI contract validator",
       "required": true,
-      "sha256": "9140f332d641bbc723c646f0d7ec5b819b8bc041912309cf520bf1cf013f8acc"
+      "sha256": "16a01b6d0b2d202bd0661323280d6e5b80c610df47ebe234f5a95911a5ea363d"
     },
     {
       "path": "qa/runtime_sample_sched_ext.py",
@@ -480,7 +516,7 @@
       "path": "qa/runtime_sample_selftest.py",
       "purpose": "runtime-sample adversarial self-test cases",
       "required": true,
-      "sha256": "5c220f272a20cf6c1055faad35bce54c786beafcdebe37fd526e6aae7a281123"
+      "sha256": "e3d0f2a754fecbb758e274347a4a01d022bedf437158cb9a4047b7386b8009bc"
     },
     {
       "path": "qa/schema_compatibility_check.py",
@@ -492,7 +528,31 @@
       "path": "qa/schema_compatibility_schema_rules.py",
       "purpose": "schema compatibility structural rules shared by control schema gates",
       "required": true,
-      "sha256": "08395c2cf11763d5b1b2f2849d3f92a82d8b8062e31c773bc907f7f8ef81d0ce"
+      "sha256": "89c27794ab24de25fb1cc765813426797f205a5f9627e03b8bb57ecec856c5b5"
+    },
+    {
+      "path": "qa/schema_compatibility_runner_cleanliness_rules.py",
+      "purpose": "schema compatibility runner cleanliness proof freeze rules",
+      "required": true,
+      "sha256": "be23a146937ebb7d3e01a52196691f342a8fb3f7789169c83426b3d7145565cb"
+    },
+    {
+      "path": "qa/evidence_bundle_compare_check.py",
+      "purpose": "protected evidence bundle comparison validator",
+      "required": true,
+      "sha256": "f067804eae0f35f5fea3345997fd4131236edc99445822cf610a76d63ffc9315"
+    },
+    {
+      "path": "qa/evidence_bundle_paths.py",
+      "purpose": "protected evidence bundle artifact path and digest helper",
+      "required": true,
+      "sha256": "93032f9da80a55f572414473831c5b0701c9b24f0716bbebb199959a4cac3ba7"
+    },
+    {
+      "path": "qa/evidence_bundle_compare_selftest.py",
+      "purpose": "protected evidence bundle comparison self-test fixtures",
+      "required": true,
+      "sha256": "5247d7777ae44e99bb1cb06dce6db7b562dffad858388265dee10e516a35ff57"
     },
     {
       "path": "qa/security_gate.sh",
@@ -522,7 +582,13 @@
       "path": "qa/vm/vm_harness_matrix.sh",
       "purpose": "canonical host-safe VM harness matrix runner",
       "required": true,
-      "sha256": "fb202e110724f1d7af095abb07bfeff86a84fccd694a6968fcc6a4122d353925"
+      "sha256": "d32de6ac045357cb695c32b34a72f988ff52276b794038af3ca31d45eda0e961"
+    },
+    {
+      "path": "qa/vm/workload_execution_check.py",
+      "purpose": "row-local VM workload execution PASS validator",
+      "required": true,
+      "sha256": "c996ccfe13b399d7b60902c98ade06e7feec213ee6f2c4b57aaf06e6be2cea76"
     },
     {
       "path": "qa/vm/workload_catalog_check.sh",

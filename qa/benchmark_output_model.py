@@ -16,10 +16,13 @@ SCHEMA: Final = "zig-scheduler/benchmark-output/v1"
 SUPPORTED: Final[frozenset[str]] = frozenset({"cyclictest", "fio", "perf_bench_sched_messaging", "stress_ng"})
 UNSUPPORTED: Final[frozenset[str]] = frozenset({"rtla", "perf_sched"})
 REQUIRED: Final[tuple[str, ...]] = (
-    "schema", "status", "tool", "command_family", "output_path", "output_sha256", "vm_evidence", "metrics", "units",
+    "schema", "status", "tool", "command_family", "record_only", "output_path", "output_sha256", "vm_evidence", "parser_provenance", "metrics", "units",
     "sample_count", "run_count", "host_mutation", "release_eligible", "production_capacity_claim", "hard_thresholds_enforced",
     "threshold_status", "privacy_sanitized",
 )
+PARSER_PROVENANCE_FIELDS: Final[frozenset[str]] = frozenset({"parser", "parser_version", "parser_status"})
+PARSER_NAME: Final = "qa/benchmark_output_parse.py"
+PARSER_VERSION: Final = "benchmark-output/v1"
 FORBIDDEN_KEYS: Final[frozenset[str]] = frozenset({
     "access_token", "command_line", "cmdline", "argv", "args", "environment", "env", "secret", "token", "api_key",
     "password", "threshold", "thresholds", "pass", "fail", "passed", "failed", "production_claim", "production_ready",
@@ -41,12 +44,12 @@ PERF_GROUPS_RE: Final = re.compile(r"#\s*(?P<groups>\d+)\s+groups")
 PERF_PROCS_RE: Final = re.compile(r"==\s*(?P<processes>\d+)\s+processes")
 STRESS_NG_METRIC_RE: Final = re.compile(
     r"\b(?P<stressor>[A-Za-z0-9_-]+)\s+"
-    r"(?P<bogo_ops>\d+(?:\.\d+)?)\s+"
-    r"(?P<real_time_seconds>\d+(?:\.\d+)?)\s+"
-    r"(?P<usr_time_seconds>\d+(?:\.\d+)?)\s+"
-    r"(?P<sys_time_seconds>\d+(?:\.\d+)?)\s+"
-    r"(?P<bogo_ops_per_second>\d+(?:\.\d+)?)\s+"
-    r"(?P<bogo_ops_per_second_usr_sys_time>\d+(?:\.\d+)?)\s*",
+    + r"(?P<bogo_ops>\d+(?:\.\d+)?)\s+"
+    + r"(?P<real_time_seconds>\d+(?:\.\d+)?)\s+"
+    + r"(?P<usr_time_seconds>\d+(?:\.\d+)?)\s+"
+    + r"(?P<sys_time_seconds>\d+(?:\.\d+)?)\s+"
+    + r"(?P<bogo_ops_per_second>\d+(?:\.\d+)?)\s+"
+    + r"(?P<bogo_ops_per_second_usr_sys_time>\d+(?:\.\d+)?)\s*",
 )
 
 
@@ -67,7 +70,7 @@ class BenchmarkOutputError(Exception):
 
 
 def family(value: str) -> CommandFamily:
-    match value:  # noqa: MATCH_OK — open CLI/schema string boundary; default raises typed rejection for unknown families.
+    match value:  # noqa: RUF100  # noqa: MATCH_OK - open CLI/schema string boundary; default raises typed rejection for unknown families.
         case "cyclictest" | "fio" | "perf_bench_sched_messaging" | "rtla" | "perf_sched" | "stress_ng":
             return value
         case _:

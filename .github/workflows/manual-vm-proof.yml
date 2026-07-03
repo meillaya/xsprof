@@ -95,7 +95,7 @@ jobs:
           set +e
           zig build vm-harness-matrix --summary all -- \
             --mode vm-required \
-            --scenario live-backend \
+            --suite protected-core \
             --out evidence/lab/matrix/manual-vm-proof \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/vm-harness-matrix.log
           matrix_rc=${PIPESTATUS[0]}
@@ -106,8 +106,74 @@ jobs:
             --schemas schemas/control \
             --docs docs/control \
             2>&1 | tee evidence/lab/manual-vm-proof/static-logs/matrix-contract.log
+          protected_core_candidate_env=evidence/lab/manual-vm-proof/static-logs/protected-core-pass-candidate.env
+          protected_core_non_pass_reasons=evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          manifest_path = Path('evidence/lab/matrix/manual-vm-proof/manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          required_rows = {'live-backend', 'workload-cpu-saturation', 'workload-cgroup-weight-quota'}
+          latency_or_churn_rows = {'workload-interactive-latency', 'workload-scheduler-affinity-churn'}
+          rows = manifest.get('rows')
+          if not isinstance(rows, list):
+              raise SystemExit('matrix manifest rows must be a list')
+          row_outcomes = {}
+          non_pass_reasons = []
+          for entry in rows:
+              if not isinstance(entry, dict):
+                  raise SystemExit('matrix manifest row entries must be objects')
+              scenario_id = str(entry.get('scenario_id', ''))
+              outcome = str(entry.get('outcome', ''))
+              reason = str(entry.get('reason', ''))
+              if scenario_id == '' or outcome == '':
+                  raise SystemExit('matrix manifest rows must include scenario_id and outcome')
+              if scenario_id in row_outcomes:
+                  raise SystemExit('matrix manifest rows must not duplicate protected-core scenarios')
+              row_outcomes[scenario_id] = outcome
+              if outcome != 'PASS':
+                  if reason == '':
+                      raise SystemExit('non-PASS protected-core row must include an explicit reason')
+                  non_pass_reasons.append(f'{scenario_id}={outcome}:{reason}')
+          actual_rows = set(row_outcomes)
+          selected_latency_rows = actual_rows & latency_or_churn_rows
+          if not required_rows.issubset(actual_rows):
+              raise SystemExit('protected-core suite is missing a required row')
+          if len(selected_latency_rows) != 1:
+              raise SystemExit('protected-core suite requires exactly one latency/churn row')
+          if actual_rows != required_rows | selected_latency_rows:
+              raise SystemExit('protected-core suite packaged unexpected row(s)')
+          protected_core_pass_candidate = all(row_outcomes[item] == 'PASS' for item in required_rows | selected_latency_rows)
+          env_path = Path('evidence/lab/manual-vm-proof/static-logs/protected-core-pass-candidate.env')
+          reasons_path = Path('evidence/lab/manual-vm-proof/static-logs/protected-core-non-pass-reasons.txt')
+          if protected_core_pass_candidate:
+              env_path.write_text('protected_core_pass_candidate=1\n')
+              reasons_path.write_text('')
+          else:
+              env_path.write_text('protected_core_pass_candidate=0\n')
+              reasons_path.write_text(''.join(f'non_pass_reason: {item}\n' for item in non_pass_reasons))
+          PY
+          # Validators are PASS-only gates: they must run before a protected-core PASS can be derived,
+          # but non-PASS SKIP/REFUSE/INCIDENT/FAIL/BLOCKED bundles remain packageable with explicit reasons.
+          # shellcheck disable=SC1090
+          . "$protected_core_candidate_env"
+          if [ "$protected_core_pass_candidate" = "1" ]; then
+            python3 qa/protected_core_suite_check.py \
+              --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
+              2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            python3 qa/protected_core_telemetry_check.py \
+              --manifest evidence/lab/matrix/manual-vm-proof/manifest.json \
+              2>&1 | tee evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          else
+            {
+              printf '%s\n' 'SKIP protected-core PASS validators: matrix outcome is non-PASS and will be packaged truthfully.'
+              grep '^non_pass_reason:' "$protected_core_non_pass_reasons"
+            } | tee evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log
+            cp evidence/lab/manual-vm-proof/static-logs/protected-core-suite.log evidence/lab/manual-vm-proof/static-logs/protected-core-telemetry.log
+          fi
           if [ "$matrix_rc" -ne 0 ]; then
-            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"' evidence/lab/matrix/manual-vm-proof/rows/live-backend >/dev/null
+            grep -R '"outcome"[[:space:]]*:[[:space:]]*"REFUSE"\|"outcome"[[:space:]]*:[[:space:]]*"SKIP"\|"outcome"[[:space:]]*:[[:space:]]*"INCIDENT"\|"outcome"[[:space:]]*:[[:space:]]*"FAIL"\|"outcome"[[:space:]]*:[[:space:]]*"BLOCKED"' evidence/lab/matrix/manual-vm-proof/rows >/dev/null
+            grep -R '"reason"[[:space:]]*:[[:space:]]*"[^"]' evidence/lab/matrix/manual-vm-proof >/dev/null
           fi
 
       - name: Assert required proof provenance files
@@ -125,6 +191,8 @@ jobs:
             printf '%s%s\n' '- supported tuple: ' "$INPUT_SUPPORTED_TUPLE"
             printf '%s\n' '- matrix manifest: evidence/lab/matrix/manual-vm-proof/manifest.json'
             printf '%s\n' '- matrix rows: evidence/lab/matrix/manual-vm-proof/rows/*/matrix-run.json'
+            printf '%s\n' '- protected-core suite: live-backend, workload-cpu-saturation, workload-cgroup-weight-quota, and exactly one latency/churn row (workload-interactive-latency or workload-scheduler-affinity-churn)'
+            printf '%s\n' '- protected-core telemetry: qa/protected_core_suite_check.py and qa/protected_core_telemetry_check.py validate VM-captured runtime samples before PASS derivation'
             printf '%s\n' '- BPF metadata: zig-out/bpf/zigsched_minimal.bpf.meta.json'
             printf '%s\n' '- BPF SKIP JSON: zig-out/bpf/zigsched_minimal.bpf.skip.json when object metadata is unavailable'
             printf '%s\n' '- daemon events: per-row daemon-events.jsonl or explicit SKIP/REFUSE evidence'
@@ -137,6 +205,7 @@ jobs:
             printf '%s\n' '- benchmark provenance: benchmark_provenance records for calibrated matrix rows when applicable'
             printf '%s\n' '- protected environment review: protected-environment-review.json with approved vm-proof-manual reviewer, exact non-release acknowledgement, run URL, and no release/production claim'
             printf '%s\n' '- runner substrate proof: runner-substrate-proof.json with runner class, runner group, runner labels, protected environment reviewer, run URL, QEMU path, QEMU version, /dev/kvm status, accel mode, kernel tuple, BPF metadata, attestation status, and unavailable reasons'
+            printf '%s\n' '- runner cleanliness proof: runner-cleanliness-proof.json with JIT config or clean-machine boot/run identity, no-reuse evidence, removal receipt, run URL, and links to protected review plus runner substrate proof; labels alone are not cleanliness proof'
             printf '%s\n' '- evidence manifest: evidence/lab/manual-vm-proof/evidence-manifest.json with SHA-256 hashes, schema roles, and attestation status'
             printf '%s\n' '- host_mutation=false'
             printf '%s\n' '- release_eligible=false'
@@ -144,6 +213,13 @@ jobs:
           } > evidence/lab/manual-vm-proof/provenance-requirements.txt
           test -f evidence/lab/matrix/manual-vm-proof/manifest.json
           find evidence/lab/matrix/manual-vm-proof/rows -name matrix-run.json -print -quit | grep -q .
+          test -f evidence/lab/matrix/manual-vm-proof/rows/live-backend/matrix-run.json
+          test -f evidence/lab/matrix/manual-vm-proof/rows/workload-cpu-saturation/matrix-run.json
+          test -f evidence/lab/matrix/manual-vm-proof/rows/workload-cgroup-weight-quota/matrix-run.json
+          latency_rows=0
+          [ -f evidence/lab/matrix/manual-vm-proof/rows/workload-interactive-latency/matrix-run.json ] && latency_rows=$((latency_rows + 1))
+          [ -f evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/matrix-run.json ] && latency_rows=$((latency_rows + 1))
+          test "$latency_rows" -eq 1
           if [ ! -f zig-out/bpf/zigsched_minimal.bpf.meta.json ] && [ ! -f zig-out/bpf/zigsched_minimal.bpf.skip.json ]; then
             echo "missing BPF metadata or SKIP JSON" >&2
             exit 1
@@ -165,6 +241,7 @@ jobs:
           from pathlib import Path
           import json
           import os
+          import time
           import urllib.error
           import urllib.request
 
@@ -175,44 +252,67 @@ jobs:
           run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + repository + '/actions/runs/' + run_id
           token = os.environ['GITHUB_TOKEN']
           required_comment = os.environ['REQUIRED_APPROVAL_COMMENT']
-          request = urllib.request.Request(
-              api_url,
-              headers={
-                  'Accept': 'application/vnd.github+json',
-                  'Authorization': 'Bearer ' + token,
-                  'User-Agent': 'zig-scheduler-manual-vm-proof',
-                  'X-GitHub-Api-Version': '2022-11-28',
-              },
-              method='GET',
-          )
-          try:
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  raw = response.read()
-          except urllib.error.URLError as exc:
-              raise SystemExit(f'protected review API request failed without exposing token: {exc}') from exc
-          payload = json.loads(raw)
-          if not isinstance(payload, list):
-              raise SystemExit('protected review API response must be a JSON array')
+          retry_delays = (1, 2, 4, 8, 12)
+          transient_http = {429, 500, 502, 503, 504}
+
+          def fetch_payload():
+              request = urllib.request.Request(
+                  api_url,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': 'Bearer ' + token,
+                      'User-Agent': 'zig-scheduler-manual-vm-proof',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+                  method='GET',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      raw = response.read()
+              except urllib.error.HTTPError as exc:
+                  if exc.code not in transient_http:
+                      raise SystemExit(f'protected review API request failed without exposing token: HTTP {exc.code}') from exc
+                  raise
+              except urllib.error.URLError as exc:
+                  raise SystemExit(f'protected review API request failed without exposing token: {exc}') from exc
+              payload = json.loads(raw)
+              if not isinstance(payload, list):
+                  raise SystemExit('protected review API response must be a JSON array')
+              return payload
+
+          def select_review(payload):
+              for row in payload:
+                  if not isinstance(row, dict):
+                      raise SystemExit('protected review API response row must be an object')
+                  environments = row.get('environments')
+                  if not isinstance(environments, list):
+                      raise SystemExit('protected review API response row environments must be an array')
+                  matching_environment = None
+                  for environment in environments:
+                      if not isinstance(environment, dict):
+                          raise SystemExit('protected review API response environment must be an object')
+                      if environment.get('name') == 'vm-proof-manual':
+                          matching_environment = environment
+                  if row.get('state') == 'approved' and row.get('comment') == required_comment and matching_environment is not None:
+                      return row, matching_environment
+              return None, None
 
           selected = None
           selected_environment = None
-          for row in payload:
-              if not isinstance(row, dict):
-                  raise SystemExit('protected review API response row must be an object')
-              environments = row.get('environments')
-              if not isinstance(environments, list):
-                  raise SystemExit('protected review API response row environments must be an array')
-              matching_environment = None
-              for environment in environments:
-                  if not isinstance(environment, dict):
-                      raise SystemExit('protected review API response environment must be an object')
-                  if environment.get('name') == 'vm-proof-manual':
-                      matching_environment = environment
-              if row.get('state') == 'approved' and row.get('comment') == required_comment and matching_environment is not None:
-                  selected = row
-                  selected_environment = matching_environment
+          last_transient_error = ''
+          for attempt in range(len(retry_delays) + 1):
+              try:
+                  selected, selected_environment = select_review(fetch_payload())
+              except urllib.error.HTTPError as exc:
+                  last_transient_error = f'HTTP {exc.code}'
+              if selected is not None and selected_environment is not None:
+                  break
+              if attempt < len(retry_delays):
+                  time.sleep(retry_delays[attempt])
 
           if selected is None or selected_environment is None:
+              if last_transient_error:
+                  raise SystemExit(f'no approved vm-proof-manual review with exact non-release acknowledgement was found after retrying transient {last_transient_error}')
               raise SystemExit('no approved vm-proof-manual review with exact non-release acknowledgement was found')
           user = selected.get('user')
           if not isinstance(user, dict):
@@ -440,6 +540,167 @@ jobs:
             --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json \
             --schema schemas/control/runner-substrate-proof.v1.schema.json
 
+      - name: Capture protected runner cleanliness proof
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          out = Path('evidence/lab/manual-vm-proof/runner-cleanliness-proof.json')
+          protected_review = Path('evidence/lab/manual-vm-proof/protected-environment-review.json')
+          runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          run_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID']
+
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def ref(path, role):
+              return {'path': path.as_posix(), 'sha256': digest(path), 'schema_role': role}
+
+          def write_json(path, value):
+              path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
+
+          def load_receipt_source(env_name, expected_name):
+              raw = os.environ.get(env_name, '')
+              if raw == '':
+                  return None
+              source = Path(raw)
+              if source.name != expected_name:
+                  raise SystemExit(f'{env_name} must point to {expected_name}')
+              if not source.is_file():
+                  raise SystemExit(f'{env_name} does not reference a file')
+              content = source.read_bytes()
+              if len(content) == 0 or len(content) > 8192:
+                  raise SystemExit(f'{env_name} must be a non-empty receipt <= 8192 bytes')
+              text = content.decode('utf-8', errors='strict')
+              lowered = text.lower()
+              for denied in ('authorization', 'bearer ', 'api_key', 'apikey', 'password', 'private_key', 'secret', 'token='):
+                  if denied in lowered:
+                      raise SystemExit(f'{env_name} appears to contain sensitive text')
+              return {
+                  'basename': source.name,
+                  'sha256': hashlib.sha256(content).hexdigest(),
+                  'size_bytes': len(content),
+                  'text': text,
+              }
+
+          def require_receipt_terms(receipt, terms, env_name):
+              text = receipt['text']
+              for term in terms:
+                  if term not in text:
+                      raise SystemExit(f'{env_name} missing required receipt term: {term}')
+
+          def first_existing_env(*names):
+              for name in names:
+                  value = os.environ.get(name, '')
+                  if value != '':
+                      return value
+              return ''
+
+          runner_name = os.environ.get('RUNNER_NAME', 'github-actions-runner')
+          runner_group = os.environ.get('RUNNER_GROUP_NAME', 'configured-by-repository-owners')
+          labels = ['self-hosted', 'zig-scheduler-vm-proof', 'disposable-vm']
+          jit_hash = first_existing_env('ZIGSCHED_JIT_CONFIG_SHA256', 'ACTIONS_RUNNER_JIT_CONFIG_SHA256')
+          ephemeral_id = os.environ.get('ZIGSCHED_EPHEMERAL_INSTANCE_ID', '')
+          boot_id_path = Path('/proc/sys/kernel/random/boot_id')
+          boot_id = boot_id_path.read_text().strip() if boot_id_path.is_file() else 'unavailable'
+          if len(jit_hash) == 64 and all(item in '0123456789abcdef' for item in jit_hash):
+              cleanliness_mode = {'kind': 'jit', 'jit_config_sha256': jit_hash}
+          elif ephemeral_id != '':
+              cleanliness_mode = {'kind': 'ephemeral', 'ephemeral_instance_id': ephemeral_id}
+          else:
+              cleanliness_mode = {'kind': 'clean_machine', 'clean_machine_boot_id': boot_id}
+          previous_runner_id = os.environ.get('ZIGSCHED_PREVIOUS_RUNNER_ID', 'unavailable')
+          current_runner_id = first_existing_env('ZIGSCHED_CURRENT_RUNNER_ID', 'RUNNER_TRACKING_ID')
+          if current_runner_id == '':
+              current_runner_id = runner_name + '-' + os.environ['GITHUB_RUN_ID']
+          no_reuse_claim = os.environ.get('ZIGSCHED_NO_REUSE_EVIDENCE', '')
+          no_reuse_status = 'PASS' if no_reuse_claim != '' and previous_runner_id != current_runner_id else 'REFUSE'
+          no_reuse_evidence = no_reuse_claim if no_reuse_claim != '' else 'runner labels are not cleanliness proof; provide ZIGSCHED_NO_REUSE_EVIDENCE from runner registration logs'
+          receipt_env = os.environ.get('ZIGSCHED_RUNNER_REMOVAL_RECEIPT', '')
+          removal_receipt = {'status': 'unavailable'}
+          if receipt_env != '':
+              removal_source = load_receipt_source('ZIGSCHED_RUNNER_REMOVAL_RECEIPT', 'zigsched-runner-removal-receipt.txt')
+              require_receipt_terms(removal_source, (current_runner_id, 'runner_removed=true'), 'ZIGSCHED_RUNNER_REMOVAL_RECEIPT')
+              local_receipt = Path('evidence/lab/manual-vm-proof/runner-removal-receipt.json')
+              write_json(local_receipt, {
+                  'schema': 'zig-scheduler/runner-removal-receipt/v1',
+                  'runner_id': current_runner_id,
+                  'runner_name': runner_name,
+                  'removed_at': os.environ.get('ZIGSCHED_RUNNER_REMOVED_AT', '1970-01-01T00:00:00Z'),
+                  'source_basename': removal_source['basename'],
+                  'source_sha256': removal_source['sha256'],
+                  'source_size_bytes': removal_source['size_bytes'],
+                  'host_mutation': False,
+                  'release_eligible': False,
+                  'production_capacity_claim': False,
+              })
+              removal_receipt = {
+                  'status': 'removed',
+                  'removed_at': os.environ.get('ZIGSCHED_RUNNER_REMOVED_AT', '1970-01-01T00:00:00Z'),
+                  'receipt_path': local_receipt.as_posix(),
+                  'sha256': digest(local_receipt),
+              }
+          elif cleanliness_mode['kind'] == 'ephemeral':
+              removal_receipt = {'status': 'not_applicable'}
+          ephemeral_registration = None
+          if cleanliness_mode['kind'] == 'ephemeral':
+              registration_source = load_receipt_source('ZIGSCHED_EPHEMERAL_REGISTRATION_RECEIPT', 'zigsched-runner-registration-receipt.txt')
+              if registration_source is not None:
+                  require_receipt_terms(registration_source, (ephemeral_id, current_runner_id, 'ephemeral_runner_configured=true'), 'ZIGSCHED_EPHEMERAL_REGISTRATION_RECEIPT')
+                  registration_receipt = Path('evidence/lab/manual-vm-proof/runner-ephemeral-registration-receipt.json')
+                  write_json(registration_receipt, {
+                      'schema': 'zig-scheduler/ephemeral-runner-registration-receipt/v1',
+                      'runner_id': current_runner_id,
+                      'runner_name': runner_name,
+                      'runner_labels': labels,
+                      'ephemeral_instance_id': ephemeral_id,
+                      'ephemeral_runner_configured': True,
+                      'no_reuse_evidence': no_reuse_evidence,
+                      'run_url': run_url,
+                      'source_basename': registration_source['basename'],
+                      'source_sha256': registration_source['sha256'],
+                      'source_size_bytes': registration_source['size_bytes'],
+                      'host_mutation': False,
+                      'release_eligible': False,
+                      'production_capacity_claim': False,
+                  })
+                  ephemeral_registration = ref(registration_receipt, 'ephemeral-runner-registration-receipt')
+          cleanup_accounted = removal_receipt['status'] == 'removed' or (cleanliness_mode['kind'] == 'ephemeral' and removal_receipt['status'] == 'not_applicable' and ephemeral_registration is not None)
+          outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'
+          proof = {
+              'schema': 'zig-scheduler/runner-cleanliness-proof/v1',
+              'proof_outcome': outcome,
+              'run_url': run_url,
+              'runner_identity': {
+                  'name': runner_name,
+                  'group': runner_group,
+                  'labels': labels,
+              },
+              'cleanliness_mode': cleanliness_mode,
+              'no_reuse_evidence': {
+                  'status': no_reuse_status,
+                  'previous_runner_id': previous_runner_id,
+                  'current_runner_id': current_runner_id,
+                  'evidence': no_reuse_evidence,
+              },
+              'removal_receipt': removal_receipt,
+              'protected_review': ref(protected_review, 'protected-environment-review'),
+              'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
+              'host_mutation': False,
+              'release_eligible': False,
+              'production_capacity_claim': False,
+          }
+          if ephemeral_registration is not None:
+              proof['ephemeral_registration'] = ephemeral_registration
+          out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          PY
+          python3 qa/runner_cleanliness_proof_check.py \
+            --proof evidence/lab/manual-vm-proof/runner-cleanliness-proof.json
+
       - name: Create and validate evidence manifest
         env:
           INPUT_AUDIT_ID: ${{ inputs.audit_id }}
@@ -473,35 +734,67 @@ jobs:
               artifacts.append(ref(row_dir / 'privacy-scan.json', 'privacy-scan'))
           for log in sorted(Path('evidence/lab/manual-vm-proof/static-logs').glob('*.log')):
               artifacts.append(ref(log, 'static-verification-log'))
+          for row_log in sorted((root / 'rows').glob('*/*.txt')):
+              artifacts.append(ref(row_log, 'static-verification-log'))
           runner_substrate = Path('evidence/lab/manual-vm-proof/runner-substrate-proof.json')
+          runner_cleanliness = Path('evidence/lab/manual-vm-proof/runner-cleanliness-proof.json')
           matrix_manifest = json.loads((root / 'manifest.json').read_text())
           matrix_outcomes = []
           marker_values = []
+          row_outcomes = {}
+          row_reasons = {}
           for entry in matrix_manifest.get('rows', []):
+              scenario_id = str(entry.get('scenario_id', ''))
               outcome = str(entry.get('outcome', ''))
-              if outcome:
-                  matrix_outcomes.append(outcome)
+              reason = str(entry.get('reason', ''))
+              if scenario_id == '' or outcome == '':
+                  raise SystemExit('matrix manifest rows must include scenario_id and outcome')
+              if scenario_id in row_outcomes:
+                  raise SystemExit('matrix manifest rows must not duplicate protected-core scenarios')
+              row_outcomes[scenario_id] = outcome
+              row_reasons[scenario_id] = reason
+              matrix_outcomes.append(outcome)
               artifact_path = Path(str(entry.get('artifact_path', '')))
               if artifact_path.is_file():
                   row_data = json.loads(artifact_path.read_text())
                   marker = row_data.get('vm_marker', {})
                   if isinstance(marker, dict) and isinstance(marker.get('present'), bool):
                       marker_values.append(marker['present'])
+          required_rows = {'live-backend', 'workload-cpu-saturation', 'workload-cgroup-weight-quota'}
+          latency_or_churn_rows = {'workload-interactive-latency', 'workload-scheduler-affinity-churn'}
+          actual_rows = set(row_outcomes)
+          selected_latency_rows = actual_rows & latency_or_churn_rows
+          if not required_rows.issubset(actual_rows):
+              raise SystemExit('protected-core suite is missing a required row')
+          if len(selected_latency_rows) != 1:
+              raise SystemExit('protected-core suite requires exactly one latency/churn row')
+          if actual_rows != required_rows | selected_latency_rows:
+              raise SystemExit('protected-core suite packaged unexpected row(s)')
+          for scenario_id, outcome in row_outcomes.items():
+              if outcome != 'PASS' and row_reasons.get(scenario_id, '') == '':
+                  raise SystemExit('non-PASS protected-core row must include an explicit reason')
+          protected_core_pass = all(row_outcomes[item] == 'PASS' for item in required_rows | selected_latency_rows)
           if not matrix_outcomes:
               raise SystemExit('matrix manifest rows must include at least one outcome')
           runner_data = json.loads(runner_substrate.read_text())
+          cleanliness_data = json.loads(runner_cleanliness.read_text())
           runner_outcome = str(runner_data.get('proof_outcome', ''))
+          cleanliness_outcome = str(cleanliness_data.get('proof_outcome', ''))
           if runner_outcome not in {'PASS', 'SKIP', 'REFUSE'}:
               raise SystemExit('runner_substrate_proof outcome is missing or unsupported')
+          if cleanliness_outcome not in {'PASS', 'SKIP', 'REFUSE'}:
+              raise SystemExit('runner_cleanliness_proof outcome is missing or unsupported')
           if runner_outcome != 'PASS':
               manifest_outcome = runner_outcome
+          elif cleanliness_outcome != 'PASS':
+              manifest_outcome = cleanliness_outcome
           elif 'REFUSE' in matrix_outcomes:
               manifest_outcome = 'REFUSE'
           elif 'SKIP' in matrix_outcomes:
               manifest_outcome = 'SKIP'
           elif any(item in {'FAIL', 'INCIDENT', 'BLOCKED'} for item in matrix_outcomes):
               manifest_outcome = 'BLOCKED'
-          elif all(item == 'PASS' for item in matrix_outcomes):
+          elif protected_core_pass:
               manifest_outcome = 'PASS'
           else:
               raise SystemExit('matrix manifest rows contain unsupported outcome values')
@@ -532,11 +825,12 @@ jobs:
               'matrix_manifest': ref(root / 'manifest.json', 'matrix-manifest'),
               'daemon_events': ref(root / 'daemon-events.jsonl', 'daemon-events'),
               'runner_substrate': ref(runner_substrate, 'runner-substrate-proof'),
+              'runner_cleanliness': ref(runner_cleanliness, 'runner-cleanliness-proof'),
               'artifacts': artifacts,
               'benchmark_provenance': benchmark_provenance,
               'privacy_scan': {'status': 'PASS', 'private_fields_found': False, 'artifact_paths': [item['path'] for item in artifacts]},
               'attestation': {'status': 'pending-post-run-github-attestation', 'workflow_uses': 'actions/attest-build-provenance@v2', 'verify_command': 'gh attestation verify ' + os.environ['VM_PROOF_BUNDLE'] + ' --repo ' + os.environ['GITHUB_REPOSITORY'], 'retention_days': 30},
-              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/protected_environment_review_check.py', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/matrix_run_contract_check.py', 'schemas/control/protected-environment-review.v1.schema.json', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json'],
+              'required_sources': ['.github/workflows/manual-vm-proof.yml', 'qa/protected_environment_review_check.py', 'qa/evidence_manifest_check.py', 'qa/evidence_manifest_selftest.py', 'qa/manual_vm_proof_ci_check.py', 'qa/manual_vm_proof_flow.py', 'qa/runner_substrate_proof_check.py', 'qa/runner_substrate_proof_common.py', 'qa/runner_substrate_proof_selftest.py', 'qa/runner_cleanliness_proof_check.py', 'qa/matrix_run_contract_check.py', 'schemas/control/protected-environment-review.v1.schema.json', 'schemas/control/evidence-manifest.v1.schema.json', 'schemas/control/runner-substrate-proof.v1.schema.json', 'schemas/control/runner-cleanliness-proof.v1.schema.json'],
               'host_mutation': False,
               'release_eligible': False,
               'production_capacity_claim': False,
@@ -552,7 +846,7 @@ jobs:
           set -euo pipefail
           test -f evidence/lab/manual-vm-proof/evidence-manifest.json
           mkdir -p "$(dirname "$VM_PROOF_BUNDLE")"
-          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/protected-environment-review.v1.schema.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json)
+          tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual-vm-proof schemas/control/protected-environment-review.v1.schema.json schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json schemas/control/runner-cleanliness-proof.v1.schema.json)
           if [ -f zig-out/bpf/zigsched_minimal.bpf.meta.json ]; then
             tar_inputs+=(zig-out/bpf/zigsched_minimal.bpf.meta.json)
           fi

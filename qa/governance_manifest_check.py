@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+# pyright: reportAny=false
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
 # ─── How to run ───
 # python3 qa/governance_manifest_check.py --manifest fixtures/lab/governance-sources.json
-# noqa: SIZE_OK — the exact Task 11 governance source matrix is intentionally colocated with the validator.
+"""# noqa: SIZE_OK - the exact Task 11 governance source matrix is intentionally colocated with the validator."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,7 +17,7 @@ import os
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from typing import Final
+from typing import Final, TypeAlias
 
 
 SCHEMA_VERSION: Final[int] = 1
@@ -54,6 +55,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('schemas/control/matrix-run.v1.schema.json', 'matrix-run v1 standalone evidence schema'),
     ('schemas/control/protected-environment-review.v1.schema.json', 'protected environment review approval schema'),
     ('schemas/control/runner-substrate-proof.v1.schema.json', 'protected runner substrate proof schema'),
+    ('schemas/control/runner-cleanliness-proof.v1.schema.json', 'protected runner cleanliness proof schema'),
     ('schemas/control/runtime-sample.v1.schema.json', 'runtime-sample v1 sched_ext observation schema'),
     ('qa/backend_capability_matrix_check.py', 'backend capability matrix contract validator'),
     ('qa/backend_capability_matrix_expected.json', 'backend capability matrix expected contract source'),
@@ -82,6 +84,10 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/matrix_benchmark_provenance_check.py', 'matrix benchmark provenance self-test entrypoint'),
     ('qa/matrix_benchmark_provenance_selftest.py', 'matrix benchmark provenance manifest mutation self-tests'),
     ('qa/matrix_run_contract_check.py', 'matrix-run v1 contract validator and self-test gate'),
+    ('qa/protected_core_suite_check.py', 'protected core matrix suite validator'),
+    ('qa/protected_core_suite_selftest.py', 'protected core matrix suite self-test fixtures'),
+    ('qa/protected_core_telemetry_check.py', 'protected core runtime telemetry normalization validator'),
+    ('qa/protected_core_telemetry_selftest.py', 'protected core runtime telemetry self-test fixtures'),
     ('qa/no_frontend_root.sh', 'root frontend and UI artifact exclusion gate'),
     ('qa/no_host_mutation.sh', 'host mutation denial gate'),
     ('qa/package_defaults.sh', 'package default safety inspection gate'),
@@ -92,6 +98,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/runner_substrate_proof_check.py', 'protected runner substrate proof validator'),
     ('qa/runner_substrate_proof_common.py', 'protected runner substrate proof shared JSON loader and error source'),
     ('qa/runner_substrate_proof_selftest.py', 'protected runner substrate proof adversarial self-test cases'),
+    ('qa/runner_cleanliness_proof_check.py', 'protected runner cleanliness proof validator'),
     ('qa/runtime_sample_check.py', 'runtime-sample v1 validator entrypoint'),
     ('qa/runtime_sample_common.py', 'runtime-sample shared parsing and primitive validators'),
     ('qa/runtime_sample_core.py', 'runtime-sample core schema and alert semantics validator'),
@@ -103,11 +110,16 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/runtime_sample_selftest.py', 'runtime-sample adversarial self-test cases'),
     ('qa/schema_compatibility_check.py', 'public schema compatibility validator'),
     ('qa/schema_compatibility_schema_rules.py', 'schema compatibility structural rules shared by control schema gates'),
+    ('qa/schema_compatibility_runner_cleanliness_rules.py', 'schema compatibility runner cleanliness proof freeze rules'),
+    ('qa/evidence_bundle_compare_check.py', 'protected evidence bundle comparison validator'),
+    ('qa/evidence_bundle_paths.py', 'protected evidence bundle artifact path and digest helper'),
+    ('qa/evidence_bundle_compare_selftest.py', 'protected evidence bundle comparison self-test fixtures'),
     ('qa/security_gate.sh', 'security profile gate consumed by governance checks'),
     ('qa/unsafe_cli_matrix.sh', 'unsafe CLI refusal matrix gate'),
     ('qa/vm/contract_check.sh', 'disposable VM execution contract validator'),
     ('qa/vm/execution_contract.json', 'disposable VM execution contract source'),
     ('qa/vm/vm_harness_matrix.sh', 'canonical host-safe VM harness matrix runner'),
+    ('qa/vm/workload_execution_check.py', 'row-local VM workload execution PASS validator'),
     ('qa/vm/workload_catalog_check.sh', 'VM workload catalog and matrix fixture validator'),
     ('qa/wording_audit.sh', 'wording, contradiction, and prompt-injection audit gate'),
     ('fixtures/protected-environment-review/valid/github-review-run-28539973410.json', 'protected environment review approved GitHub run fixture'),
@@ -133,6 +145,8 @@ EXPECTED_REQUIRED_SOURCE_PATHS: Final[frozenset[str]] = frozenset(
 )
 EXPECTED_PURPOSE_BY_PATH: Final[dict[str, str]] = dict(EXPECTED_REQUIRED_SOURCES)
 HEX_DIGITS: Final[frozenset[str]] = frozenset("0123456789abcdef")
+JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject: TypeAlias = dict[str, JsonValue]
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +166,18 @@ class Source:
 
 class ManifestError(Exception):
     """Raised when the governance manifest is malformed or stale."""
+
+
+def load_json_object(path: Path, context: str) -> JsonObject:
+    try:
+        raw: JsonValue = json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise ManifestError(f"missing {context}: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ManifestError(f"invalid {context} JSON: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ManifestError(f"{context} must be a JSON object")
+    return raw
 
 
 def parse_args(argv: list[str]) -> Args:
@@ -178,14 +204,7 @@ def parse_args(argv: list[str]) -> Args:
 
 
 def parse_manifest(path: Path) -> list[Source]:
-    try:
-        raw = json.loads(path.read_text())
-    except FileNotFoundError as exc:
-        raise ManifestError(f"missing governance manifest: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise ManifestError(f"invalid governance manifest JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ManifestError("governance manifest must be a JSON object")
+    raw = load_json_object(path, "governance manifest")
     schema_version = raw.get("schema_version")
     if schema_version != SCHEMA_VERSION:
         raise ManifestError(f"unsupported governance manifest schema_version: {schema_version!r}")
@@ -320,9 +339,9 @@ def validate_production_matrix() -> None:
     require_text(checklist, "security signoff", "security signoff checklist")
     require_text(checklist, "privacy review", "privacy review checklist")
     try:
-        summary = json.loads(release_summary.read_text())
-    except FileNotFoundError as exc:
-        raise ManifestError(f"missing release summary: {release_summary}") from exc
+        summary = load_json_object(release_summary, "release summary")
+    except ManifestError as exc:
+        raise ManifestError(str(exc)) from exc
     if summary.get("production_ready") is not False:
         raise ManifestError("current release summary must keep production_ready=false")
     if summary.get("arbitrary_host_safe") is not False:
@@ -335,9 +354,7 @@ def run_self_test() -> None:
     manifest = Path("fixtures/lab/governance-sources.json")
     sources = parse_manifest(manifest)
     validate_sources(sources)
-    raw = json.loads(manifest.read_text())
-    if not isinstance(raw, dict):
-        raise ManifestError("self-test manifest fixture must be an object")
+    raw = load_json_object(manifest, "self-test manifest fixture")
     source_rows = raw.get("sources")
     if not isinstance(source_rows, list) or not source_rows:
         raise ManifestError("self-test manifest fixture must contain sources")
@@ -345,9 +362,9 @@ def run_self_test() -> None:
         missing_path = Path(tmp) / "missing-source.json"
         mutated = dict(raw)
         mutated["sources"] = source_rows[1:]
-        missing_path.write_text(json.dumps(mutated, indent=2, sort_keys=True) + "\n")
+        _ = missing_path.write_text(json.dumps(mutated, indent=2, sort_keys=True) + "\n")
         try:
-            parse_manifest(missing_path)
+            _ = parse_manifest(missing_path)
         except ManifestError as exc:
             print(f"PASS governance manifest self-test rejected missing source: {exc}")
         else:
@@ -356,11 +373,14 @@ def run_self_test() -> None:
         stale_path = Path(tmp) / "stale-hash.json"
         stale = dict(raw)
         stale_rows = list(source_rows)
-        first = dict(stale_rows[0])
+        first_row = stale_rows[0]
+        if not isinstance(first_row, dict):
+            raise ManifestError("self-test first source must be an object")
+        first = dict(first_row)
         first["sha256"] = "0" * 64
         stale_rows[0] = first
         stale["sources"] = stale_rows
-        stale_path.write_text(json.dumps(stale, indent=2, sort_keys=True) + "\n")
+        _ = stale_path.write_text(json.dumps(stale, indent=2, sort_keys=True) + "\n")
         try:
             validate_sources(parse_manifest(stale_path))
         except ManifestError as exc:

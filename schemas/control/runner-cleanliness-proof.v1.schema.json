@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zig-scheduler/runner-cleanliness-proof/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "proof_outcome",
+    "run_url",
+    "runner_identity",
+    "cleanliness_mode",
+    "no_reuse_evidence",
+    "removal_receipt",
+    "protected_review",
+    "runner_substrate",
+    "host_mutation",
+    "release_eligible",
+    "production_capacity_claim"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zig-scheduler/runner-cleanliness-proof/v1"
+    },
+    "proof_outcome": {
+      "enum": [
+        "PASS",
+        "SKIP",
+        "REFUSE"
+      ]
+    },
+    "run_url": {
+      "type": "string"
+    },
+    "runner_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "group",
+        "labels"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "cleanliness_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "jit",
+            "ephemeral",
+            "clean_machine"
+          ]
+        },
+        "jit_config_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "clean_machine_boot_id": {
+          "type": "string"
+        },
+        "ephemeral_instance_id": {
+          "type": "string"
+        }
+      }
+    },
+    "no_reuse_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "previous_runner_id",
+        "current_runner_id",
+        "evidence"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "SKIP",
+            "REFUSE"
+          ]
+        },
+        "previous_runner_id": {
+          "type": "string"
+        },
+        "current_runner_id": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "ephemeral_registration": {
+      "$ref": "#/definitions/artifact_ref"
+    },
+    "removal_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "removed",
+            "not_applicable",
+            "unavailable"
+          ]
+        },
+        "removed_at": {
+          "type": "string"
+        },
+        "receipt_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "protected_review": {
+      "$ref": "#/definitions/artifact_ref"
+    },
+    "runner_substrate": {
+      "$ref": "#/definitions/artifact_ref"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "production_capacity_claim": {
+      "const": false
+    }
+  },
+  "definitions": {
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "schema_role"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema_role": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

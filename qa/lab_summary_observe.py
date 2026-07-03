@@ -21,8 +21,8 @@ import shutil
 import sys
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good
-from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file
+from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good  # noqa: E402
+from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file  # noqa: E402
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -115,7 +115,14 @@ def validate_links(samples: Path, ledger: Path) -> None:
         raise ObserveSummaryError(str(exc)) from exc
 
 
-def validate_sample_series(samples: Path, expected_count: int) -> None:
+def workload_execution_passed(summary: JsonObject) -> bool:
+    value = summary.get("workload_execution")
+    if not isinstance(value, dict):
+        return False
+    return value.get("status") == "PASS" and value.get("host_mutation") is False and value.get("scenario") != "live-backend"
+
+
+def validate_sample_series(summary: JsonObject, samples: Path, expected_count: int) -> None:
     rows = load_jsonl(samples)
     if len(rows) < 3 or len(rows) != expected_count:
         raise ObserveSummaryError("observe samples must include before/during/after rows")
@@ -124,7 +131,10 @@ def validate_sample_series(samples: Path, expected_count: int) -> None:
         raise ObserveSummaryError("observe samples never show zigsched_minimal during attach")
     if not all(row.get("private_command_lines_sampled") is False for row in rows):
         raise ObserveSummaryError("observe samples include private command-line sampling")
-    if not all(row.get("workload_alive") is True for row in rows):
+    workload_alive_all_samples = all(row.get("workload_alive") is True for row in rows)
+    if require_bool(summary, "workload_alive_all_samples", "observe") != workload_alive_all_samples:
+        raise ObserveSummaryError("observe workload_alive_all_samples conflicts with sample rows")
+    if not workload_alive_all_samples and not workload_execution_passed(summary):
         raise ObserveSummaryError("observe workload was not alive for every sample")
 
 
@@ -156,7 +166,7 @@ def validate_observe(path: Path) -> None:
     sibling_path(path, summary, "transcript")
     daemon_events = sibling_path(path, summary, "daemon_runtime_events")
     validate_links(samples, ledger)
-    validate_sample_series(samples, require_int(summary, "sample_count", "observe"))
+    validate_sample_series(summary, samples, require_int(summary, "sample_count", "observe"))
     validate_daemon_events(daemon_events)
     validate_snapshot(summary)
 
@@ -206,6 +216,7 @@ def write_fixture(root: Path, mode: str = "vm-configured-fixture", release_proof
         "final_state": "disabled",
         "final_ops": "none",
         "final_state_disabled_or_rolled_back": True,
+        "workload_alive_all_samples": True,
     }
     summary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return summary
@@ -225,6 +236,24 @@ def self_test() -> None:
     shutil.rmtree(root, ignore_errors=True)
     good = write_fixture(root / "good")
     validate_observe(good)
+    bounded = write_fixture(root / "bounded-workload")
+    bounded_payload = load_object(bounded)
+    bounded_samples = root / "bounded-workload/runtime-samples.jsonl"
+    bounded_rows = load_jsonl(bounded_samples)
+    bounded_rows = [
+        row if row["sequence"] == 0 else row | {"workload_alive": False, "workload": {"status": "present", "value": "not_alive"}}
+        for row in bounded_rows
+    ]
+    bounded_samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in bounded_rows))
+    bounded_payload["workload_alive_all_samples"] = False
+    bounded_payload["workload_execution"] = {
+        "host_mutation": False,
+        "reason": "bounded VM-local workload completed",
+        "scenario": "workload-interactive-latency",
+        "status": "PASS",
+    }
+    bounded.write_text(json.dumps(bounded_payload, indent=2, sort_keys=True) + "\n")
+    validate_observe(bounded)
     release_bad = write_fixture(root / "release-bad", release_proof=True)
     reject(release_bad, "fixture release proof")
     relabeled = write_fixture(root / "relabeled", mode="vm-live", release_proof=True)

@@ -65,6 +65,6 @@
   "workload": {
     "name": "cpu-saturation",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-cpu-saturation.json",
-    "spec_sha256": "6c2b4a891bc9d99eca5464c3525d8a683e70adb3a34ed9440ffca5955d957142"
+    "spec_sha256": "752ef90ef78cabb17a2698a65dd879e0d36596192e67e8ea15dc0a16aefedff5"
   }
 }

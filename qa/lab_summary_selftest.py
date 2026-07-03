@@ -71,12 +71,16 @@ def self_test() -> None:
 def reject(path: Path, label: str) -> None:
     try:
         validate_summary(path)
-    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
+    except LabSummaryError as exc:
+        print(f"PASS reject {label}: {exc}")
+        return
     raise LabSummaryError(f"expected rejection did not occur: {label}")
 
 
 def reject_partial(path: Path, label: str) -> None:
     try:
         validate_partial(path)
-    except LabSummaryError as exc: print(f"PASS reject {label}: {exc}"); return
+    except LabSummaryError as exc:
+        print(f"PASS reject {label}: {exc}")
+        return
     raise LabSummaryError(f"expected rejection did not occur: {label}")

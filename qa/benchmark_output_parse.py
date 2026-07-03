@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Literal, assert_never
 
 from qa.benchmark_output_io import load_json, read_text, sha256_file
 from qa.benchmark_output_model import (
@@ -12,6 +12,8 @@ from qa.benchmark_output_model import (
     PERF_GROUPS_RE,
     PERF_PROCS_RE,
     PERF_TIME_RE,
+    PARSER_NAME,
+    PARSER_VERSION,
     SCHEMA,
     STRESS_NG_METRIC_RE,
     BenchmarkOutputError,
@@ -30,7 +32,7 @@ def num(value: JsonValue, context: str) -> float:
 
 
 def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "perf", "rtla", "stress-ng"]:
-    match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
+    match command_family:
         case "cyclictest":
             return "cyclictest"
         case "fio":
@@ -41,6 +43,8 @@ def tool_for(command_family: CommandFamily) -> Literal["cyclictest", "fio", "per
             return "rtla"
         case "stress_ng":
             return "stress-ng"
+        case unreachable:
+            assert_never(unreachable)
 
 
 def parse_cyclictest_json(data: JsonObject) -> tuple[JsonObject, JsonObject, int, int]:
@@ -140,7 +144,7 @@ def parse_stress_ng(text: str) -> tuple[JsonObject, JsonObject, int, int]:
 
 
 def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Status, JsonObject, JsonObject, int, int]:
-    match command_family:  # noqa: MATCH_OK — CommandFamily Literal cases are exhausted; pyright reports assert_never default as unreachable.
+    match command_family:
         case "cyclictest":
             if input_path.suffix == ".json":
                 metrics, units, samples, runs = parse_cyclictest_json(load_json(input_path))
@@ -159,8 +163,11 @@ def parse_metrics(command_family: CommandFamily, input_path: Path) -> tuple[Stat
         case "rtla" | "perf_sched":
             _ = read_text(input_path)
             return "UNSUPPORTED_DEFERRED", {}, {}, 0, 0
+        case unreachable:
+            assert_never(unreachable)
 
 
 def build_record(command_family: CommandFamily, input_path: Path, output_path: str, vm_evidence: str) -> JsonObject:
     status, metrics, units, samples, runs = parse_metrics(command_family, input_path)
-    return {"schema": SCHEMA, "status": status, "tool": tool_for(command_family), "command_family": command_family, "output_path": safe_relative(output_path, "output_path"), "output_sha256": sha256_file(input_path), "vm_evidence": safe_relative(vm_evidence, "vm_evidence"), "metrics": metrics, "units": units, "sample_count": samples, "run_count": runs, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False, "hard_thresholds_enforced": False, "threshold_status": "record_only", "privacy_sanitized": True}
+    parser_status = "PARSED" if status == "RECORDED" else "UNSUPPORTED_DEFERRED"
+    return {"schema": SCHEMA, "status": status, "tool": tool_for(command_family), "command_family": command_family, "record_only": True, "output_path": safe_relative(output_path, "output_path"), "output_sha256": sha256_file(input_path), "vm_evidence": safe_relative(vm_evidence, "vm_evidence"), "parser_provenance": {"parser": PARSER_NAME, "parser_version": PARSER_VERSION, "parser_status": parser_status}, "metrics": metrics, "units": units, "sample_count": samples, "run_count": runs, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False, "hard_thresholds_enforced": False, "threshold_status": "record_only", "privacy_sanitized": True}

@@ -65,6 +65,6 @@
   "workload": {
     "name": "mixed-io",
     "spec_path": "fixtures/matrix-run/workload-specs/workload-mixed-io.json",
-    "spec_sha256": "db77080e3fc620f39c2214c2957c0de5bd763ac5e039890f86e66f65275e4571"
+    "spec_sha256": "058f1f9fca89395a9ea8fce4a977925b9a106926dc02477307b962b4549b1d3c"
   }
 }

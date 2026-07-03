@@ -7,6 +7,15 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Final, TypeAlias
 
+from qa.bpf_abi_cgroup_model import (
+    ABI_V3_ACCEPTED_CALLBACKS as ABI_V3_ACCEPTED_CALLBACKS,
+    ABI_V3_PROGRAM_SECTIONS as ABI_V3_PROGRAM_SECTIONS,
+    ABI_V3_STRUCT_OPS_USED_FIELDS as ABI_V3_STRUCT_OPS_USED_FIELDS,
+    CGROUP_KNOB_SEMANTICS as CGROUP_KNOB_SEMANTICS,
+    EXPECTED_CGROUP_EVIDENCE as EXPECTED_CGROUP_EVIDENCE,
+    EXPECTED_CGROUP_POLICY_FIELDS as EXPECTED_CGROUP_POLICY_FIELDS,
+)
+
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 
@@ -79,36 +88,6 @@ EXPECTED_POLICY_CONFIG_FIELDS: Final = (
     "zigsched_u64 mode",
     "zigsched_u64 cgroup_knob_support",
 )
-EXPECTED_CGROUP_POLICY_FIELDS: Final = (
-    "zigsched_u64 last_weight",
-    "zigsched_u64 weight_generation",
-    "zigsched_u64 move_generation",
-    "zigsched_u64 callback_observed_knobs",
-    "zigsched_u64 observed_knobs",
-    "zigsched_u64 deferred_knobs",
-)
-STRUCT_OPS_USED_FIELDS: Final = ("name", "flags", "init", "enqueue", "dispatch")
-ABI_V2_ACCEPTED_CALLBACKS: Final = ("select_cpu", "init", "enqueue", "dispatch")
-ABI_V3_ACCEPTED_CALLBACKS: Final = (
-    "select_cpu",
-    "init",
-    "cgroup_init",
-    "cgroup_exit",
-    "cgroup_prep_move",
-    "cgroup_move",
-    "cgroup_cancel_move",
-    "cgroup_set_weight",
-    "enqueue",
-    "dispatch",
-)
-CGROUP_KNOB_SEMANTICS: Final[dict[str, str]] = {
-    "cpu.weight": "callback-observed",
-    "cpu.max": "deferred",
-    "cpuset.cpus": "observed-only",
-    "cpuset.cpus.effective": "observed-only",
-    "cpu.pressure": "observed-only",
-    "uclamp": "deferred",
-}
 REQUIRED_HEADER_TEXT: Final = (
     "#define ZIGSCHED_ABI_VERSION 3u",
     "ZIGSCHED_DSQ_FIFO",
@@ -148,32 +127,6 @@ ABI_V2_PROGRAM_SECTIONS: Final = (
     "struct_ops/zigsched_minimal_dispatch",
 )
 ABI_V2_STRUCT_OPS_USED_FIELDS: Final = ("name", "flags", "select_cpu", "init", "enqueue", "dispatch")
-ABI_V3_PROGRAM_SECTIONS: Final = (
-    "struct_ops/zigsched_minimal_select_cpu",
-    "struct_ops.s/zigsched_minimal_init",
-    "struct_ops/zigsched_minimal_cgroup_init",
-    "struct_ops/zigsched_minimal_cgroup_exit",
-    "struct_ops/zigsched_minimal_cgroup_prep_move",
-    "struct_ops/zigsched_minimal_cgroup_move",
-    "struct_ops/zigsched_minimal_cgroup_cancel_move",
-    "struct_ops/zigsched_minimal_cgroup_set_weight",
-    "struct_ops/zigsched_minimal_enqueue",
-    "struct_ops/zigsched_minimal_dispatch",
-)
-ABI_V3_STRUCT_OPS_USED_FIELDS: Final = (
-    "name",
-    "flags",
-    "select_cpu",
-    "init",
-    "cgroup_init",
-    "cgroup_exit",
-    "cgroup_prep_move",
-    "cgroup_move",
-    "cgroup_cancel_move",
-    "cgroup_set_weight",
-    "enqueue",
-    "dispatch",
-)
 EXPECTED_MAP_LAYOUTS: Final[dict[str, dict[str, str]]] = {
     "zigsched_stats": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_STATS", "key": "u32", "value": "u64"},
     "zigsched_events": {"type": "BPF_MAP_TYPE_ARRAY", "max_entries": "ZIGSCHED_MINIMAL_NR_EVENTS", "key": "u32", "value": "u64"},

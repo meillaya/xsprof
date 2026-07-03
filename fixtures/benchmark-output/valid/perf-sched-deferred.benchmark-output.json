@@ -5,8 +5,14 @@
   "metrics": {},
   "output_path": "evidence/lab/run/bench/perf-sched.txt",
   "output_sha256": "c5ae1dc6a6b52c2233d800054793e2a8032981430a7467d14b1ef321f740c51e",
+  "parser_provenance": {
+    "parser": "qa/benchmark_output_parse.py",
+    "parser_status": "UNSUPPORTED_DEFERRED",
+    "parser_version": "benchmark-output/v1"
+  },
   "privacy_sanitized": true,
   "production_capacity_claim": false,
+  "record_only": true,
   "release_eligible": false,
   "run_count": 0,
   "sample_count": 0,

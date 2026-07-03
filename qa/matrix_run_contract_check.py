@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 # ─── How to run ───
-# noqa: SIZE_OK — integration gate driver intentionally keeps schema/docs/fixture/manifest dereference checks in one audited fail-closed entrypoint; split next by moving manifest artifact validators and self-test case builders.
+"""# noqa: SIZE_OK - integration gate driver intentionally keeps schema/docs/fixture/manifest dereference checks in one audited fail-closed entrypoint; split next by moving manifest artifact validators and self-test case builders."""
 # python3 qa/matrix_run_contract_check.py --fixtures fixtures/matrix-run --schemas schemas/control --docs docs/control
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias, assert_never
 
 from qa.daemon_event_contract_check import ContractError as DaemonEventContractError
 from qa.daemon_event_contract_check import validate as validate_daemon_event_stream
@@ -224,7 +224,7 @@ def require_only_fields(row: JsonObject, allowed: frozenset[str], context: str) 
 
 
 def reject_private(value: JsonValue, context: str) -> None:
-    match value:  # noqa: MATCH_OK — JsonValue cases are exhausted; pyright reports an assert_never default as unreachable.
+    match value:
         case dict():
             for key, child in value.items():
                 lowered = key.lower()
@@ -240,10 +240,12 @@ def reject_private(value: JsonValue, context: str) -> None:
             require(CLAIM_TEXT_RE.search(value) is None, f"claim-unsafe text in {context}")
         case None | bool() | int() | float():
             return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def reject_workload_artifact_private(value: JsonValue, context: str) -> None:
-    match value:  # noqa: MATCH_OK — JsonValue cases are exhausted; pyright reports an assert_never default as unreachable.
+    match value:
         case dict():
             for key, child in value.items():
                 lowered = key.lower()
@@ -259,6 +261,8 @@ def reject_workload_artifact_private(value: JsonValue, context: str) -> None:
             require(PRIVATE_PATH_RE.search(value) is None, f"privacy-unsafe workload path in {context}")
         case None | bool() | int() | float():
             return
+        case unreachable:
+            assert_never(unreachable)
 
 
 def require_sched_enable_seq(value: JsonValue | None, context: str) -> int | None:
@@ -504,16 +508,16 @@ def validate_semantics_exact(value: JsonValue | None, expected: JsonObject, cont
 
 
 def validate_workload_semantics(spec: JsonObject, scenario_id: str, context: str) -> None:
-    match scenario_id:  # noqa: MATCH_OK — workload scenario IDs are runtime strings and default rejects unexpected semantics fields.
-        case "workload-cgroup-weight-quota":
-            validate_semantics_exact(spec.get("cgroup_semantics"), CGROUP_WORKLOAD_SEMANTICS, f"{context}.cgroup_semantics")
-            require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
-        case "workload-cpu-hotplug":
-            validate_semantics_exact(spec.get("cpu_hotplug_semantics"), CPU_HOTPLUG_SEMANTICS, f"{context}.cpu_hotplug_semantics")
-            require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
-        case _:
-            require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
-            require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
+    if scenario_id == "workload-cgroup-weight-quota":
+        validate_semantics_exact(spec.get("cgroup_semantics"), CGROUP_WORKLOAD_SEMANTICS, f"{context}.cgroup_semantics")
+        require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
+        return
+    if scenario_id == "workload-cpu-hotplug":
+        validate_semantics_exact(spec.get("cpu_hotplug_semantics"), CPU_HOTPLUG_SEMANTICS, f"{context}.cpu_hotplug_semantics")
+        require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
+        return
+    require("cgroup_semantics" not in spec, f"{context}.cgroup_semantics is only allowed for workload-cgroup-weight-quota")
+    require("cpu_hotplug_semantics" not in spec, f"{context}.cpu_hotplug_semantics is only allowed for workload-cpu-hotplug")
 
 
 def workload_semantic_fields(scenario_id: str) -> JsonObject:
@@ -1049,7 +1053,8 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
     bench_raw_path = row_dir / "bench" / "perf-bench-sched-messaging.txt"
     bench_raw_path.parent.mkdir()
     _ = bench_raw_path.write_text("# Running 'sched/messaging' benchmark:\n# 20 sender and receiver processes per group\n# 10 groups == 400 processes run\n     Total time: 0.123 [sec]\n")
-    benchmark_record_path = row_dir / "benchmark-provenance.json"
+    benchmark_record_path = row_dir / "benchmark-provenance" / "perf_bench_sched_messaging.benchmark-output.json"
+    benchmark_record_path.parent.mkdir()
     workload_spec: JsonObject = {
         "schema": WORKLOAD_SPEC_SCHEMA,
         "name": workload_class,
@@ -1065,9 +1070,15 @@ def write_manifest_self_test_pack(run_root: Path, good: JsonObject, scenario: st
                 "status": "RECORDED",
                 "tool": "perf",
                 "command_family": "perf_bench_sched_messaging",
+                "record_only": True,
                 "output_path": bench_raw_path.as_posix(),
                 "output_sha256": file_sha256(bench_raw_path),
                 "vm_evidence": (run_root / "manifest.json").as_posix(),
+                "parser_provenance": {
+                    "parser": "qa/benchmark_output_parse.py",
+                    "parser_version": "benchmark-output/v1",
+                    "parser_status": "PARSED",
+                },
                 "metrics": {"groups": 10.0, "processes": 400.0, "total_time_seconds": 0.123},
                 "units": {"groups": "count", "processes": "count", "total_time_seconds": "seconds"},
                 "sample_count": 1,
@@ -1162,464 +1173,467 @@ def run_manifest_self_test_case(good: JsonObject, name: str, index: int) -> None
             raise MatrixRunContractError("manifest self-test setup produced non-list rows")
         row = obj(rows[0], "manifest self-test first row")
         artifact_path = Path(text(row.get("artifact_path"), "manifest self-test artifact_path"))
-        match name:  # noqa: MATCH_OK — self-test case names are runtime strings; default raises a contract error.
-            case "root-outside-matrix":
-                assert_invalid_manifest(Path("evidence/lab/self-test-root") / MANIFEST_FILE, name)
-            case "absolute-artifact-path":
-                row["artifact_path"] = "/tmp/matrix-run.json"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "artifact-outside-run-root":
-                row["artifact_path"] = "fixtures/matrix-run/pass.json"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "duplicate-scenario":
-                rows.append(dict(row))
-                manifest["row_count"] = 2
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "duplicate-artifact":
-                second = dict(row)
-                second["scenario_id"] = "fixture-pass-copy"
-                rows.append(second)
-                manifest["row_count"] = 2
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "row-count-mismatch":
-                manifest["row_count"] = 2
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "manifest-out-dir-mismatch":
-                manifest["out_dir"] = "evidence/lab/matrix/other-run"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "manifest-run-id-basename-mismatch":
-                manifest["matrix_run_id"] = "other-run"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "row-run-id-manifest-mismatch":
-                row_data = load_json(artifact_path)
-                row_data["matrix_run_id"] = "other-run"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "row-internal-path-outside-root":
-                row_data = load_json(artifact_path)
-                row_data["runtime_sample_path"] = "fixtures/matrix-run/pass.json"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "missing-proof-artifact":
-                row_data = load_json(artifact_path)
-                Path(text(row_data.get("rollback_proof_path"), "manifest self-test rollback_proof_path")).unlink()
-                assert_invalid_manifest(manifest_path, name, "missing JSON file")
-            case "invalid-runtime-sample-artifact":
-                row_data = load_json(artifact_path)
-                runtime_path = Path(text(row_data.get("runtime_sample_path"), "manifest self-test runtime_sample_path"))
-                _ = runtime_path.write_text(json.dumps({"schema": "zig-scheduler/runtime-sample/v1", "sequence": 0}) + "\n")
-                assert_invalid_manifest(manifest_path, name, "invalid runtime sample artifact")
-            case "host-safe-vm-live-claim":
-                manifest["mode"] = "host-safe"
-                manifest["fixture_mode"] = True
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name, "fixture manifest must not claim")
-            case "forged-pass-host-refusal-no-marker":
-                row_data = load_json(artifact_path)
-                row_data["evidence_mode"] = "host-refusal-only"
-                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
-                marker["required"] = False
-                marker["present"] = False
-                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "PASS requires vm-live proof or explicit fixture evidence")
-            case "forged-fixture-mode-false-fixture-pass":
-                row_data = load_json(artifact_path)
-                row_data["evidence_mode"] = "fixture"
-                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
-                marker["required"] = False
-                marker["present"] = False
-                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
-            case "host-safe-fixture-mode-false-fixture-pass":
-                manifest["mode"] = "host-safe"
-                manifest["fixture_mode"] = False
-                row_data = load_json(artifact_path)
-                row_data["evidence_mode"] = "fixture"
-                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
-                marker["required"] = False
-                marker["present"] = False
-                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
-                write_json(artifact_path, row_data)
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
-            case "vm-live-missing-marker-proof":
-                row_data = load_json(artifact_path)
-                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
-                marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "vm_marker.checked_by must stay under")
-            case "vm-live-marker-proof-mismatch":
-                row_data = load_json(artifact_path)
-                marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
-                marker_path = Path(text(marker.get("checked_by"), "manifest self-test vm_marker.checked_by"))
-                proof = load_json(marker_path)
-                proof["present"] = False
-                write_json(marker_path, proof)
-                assert_invalid_manifest(manifest_path, name, "present must match row marker")
-            case "malicious-workload-spec-token":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                spec_data["api_key"] = "must-not-persist"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "malicious-capability-token":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["environment"] = "api_key=must-not-persist"
-                write_json(capability_path, capability_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "false-private-fields-found":
-                row_data = load_json(artifact_path)
-                privacy = obj(row_data.get("privacy_scan"), "manifest self-test privacy_scan")
-                privacy_path = Path(text(privacy.get("report_path"), "manifest self-test privacy_scan.report_path"))
-                privacy_data = load_json(privacy_path)
-                privacy_data["private_fields_found"] = False
-                write_json(privacy_path, privacy_data)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                spec_data["notes"] = "contains api_key while report claims clean"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-claim-leakage":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
-                thresholds["calibration_status"] = "production ready"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "claim-unsafe workload text")
-            case "workload-spec-class-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                spec_data["workload_class"] = "mixed-io"
-                spec_data["name"] = "mixed-io"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-spec-required-tools-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                spec_data["required_tools"] = ["fio"]
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "workload.spec.required_tools must match scenario workload-cpu-saturation required tools: stress-ng")
-            case "workload-mixed-metadata-canonical-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                spec_data["required_tools"] = ["fio"]
-                spec_data["threshold_source"] = "calibrated"
-                thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
-                thresholds["source"] = "calibrated"
-                write_json(spec_path, spec_data)
-                capability_data = load_json(capability_path)
-                capability_data["required_tools"] = ["fio"]
-                capability_data["threshold_source"] = "calibrated"
-                write_json(capability_path, capability_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "workload.spec.required_tools must match scenario workload-cpu-saturation required tools: stress-ng")
-            case "workload-spec-threshold-source-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                spec_data["threshold_source"] = "calibrated"
-                thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
-                thresholds["source"] = "calibrated"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-cgroup-semantic-label-mismatch":
-                cgroup_manifest = write_manifest_self_test_pack(run_root, good, "workload-cgroup-weight-quota")
-                cgroup_rows = load_json(cgroup_manifest).get("rows")
-                if not isinstance(cgroup_rows, list):
-                    raise MatrixRunContractError("cgroup semantic self-test setup produced non-list rows")
-                cgroup_artifact_path = Path(text(obj(cgroup_rows[0], "cgroup semantic manifest row").get("artifact_path"), "cgroup semantic artifact_path"))
-                row_data = load_json(cgroup_artifact_path)
-                workload = obj(row_data.get("workload"), "cgroup semantic workload")
-                spec_path = Path(text(workload.get("spec_path"), "cgroup semantic workload.spec_path"))
-                spec_data = load_json(spec_path)
-                semantics = obj(spec_data.get("cgroup_semantics"), "cgroup semantic workload.spec.cgroup_semantics")
-                semantics["cpu.weight"] = "honored"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(cgroup_artifact_path, row_data)
-                assert_invalid_manifest(cgroup_manifest, name, "cgroup_semantics.cpu.weight must be callback-observed")
-            case "workload-cpu-hotplug-semantic-label-mismatch":
-                hotplug_manifest = write_manifest_self_test_pack(run_root, good, "workload-cpu-hotplug")
-                hotplug_rows = load_json(hotplug_manifest).get("rows")
-                if not isinstance(hotplug_rows, list):
-                    raise MatrixRunContractError("hotplug semantic self-test setup produced non-list rows")
-                hotplug_artifact_path = Path(text(obj(hotplug_rows[0], "hotplug semantic manifest row").get("artifact_path"), "hotplug semantic artifact_path"))
-                row_data = load_json(hotplug_artifact_path)
-                workload = obj(row_data.get("workload"), "hotplug semantic workload")
-                spec_path = Path(text(workload.get("spec_path"), "hotplug semantic workload.spec_path"))
-                spec_data = load_json(spec_path)
-                semantics = obj(spec_data.get("cpu_hotplug_semantics"), "hotplug semantic workload.spec.cpu_hotplug_semantics")
-                semantics["allowed-mask"] = "accepted"
-                write_json(spec_path, spec_data)
-                workload["spec_sha256"] = file_sha256(spec_path)
-                write_json(hotplug_artifact_path, row_data)
-                assert_invalid_manifest(hotplug_manifest, name, "cpu_hotplug_semantics.allowed-mask must be rejected")
-            case "unsupported-bpf-abi-drift":
-                row_data = load_json(artifact_path)
-                row_data["bpf_abi_version"] = "zigsched-bpf-abi-v3"
-                write_json(artifact_path, row_data)
-                assert_invalid_manifest(manifest_path, name, "bpf_abi_version must be zigsched-bpf-abi-v1")
-            case _ if name in BENCHMARK_PROVENANCE_SELF_TEST_CASES:
-                try:
-                    apply_benchmark_provenance_self_test_case(name, manifest_path, artifact_path, assert_invalid_manifest)
-                except MatrixBenchmarkSelfTestError as exc:
-                    raise MatrixRunContractError(str(exc)) from exc
-            case "workload-uncataloged-scenario":
-                row_data = load_json(artifact_path)
-                row_data["scenario_id"] = "workload-uncataloged"
-                write_json(artifact_path, row_data)
-                manifest_row = obj(rows[0], "manifest self-test manifest row")
-                manifest_row["scenario_id"] = "workload-uncataloged"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-capability-required-tools-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["required_tools"] = ["fio"]
-                write_json(capability_path, capability_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-capability-threshold-source-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["threshold_source"] = "calibrated"
-                write_json(capability_path, capability_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-capability-missing-prereq-mismatch":
-                row_data = load_json(artifact_path)
-                row_data["outcome"] = "REFUSE"
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["status"] = "REFUSE"
-                capability_data["typed_outcome"] = "REFUSE"
-                capability_data["missing_prereq"] = "fio"
-                write_json(capability_path, capability_data)
-                write_json(artifact_path, row_data)
-                manifest_row = obj(rows[0], "manifest self-test manifest row")
-                manifest_row["outcome"] = "REFUSE"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name, "workload.capability.missing_prereq must be empty or one of scenario workload-cpu-saturation required tools: stress-ng")
-            case "workload-capability-outcome-mismatch":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["status"] = "REFUSE"
-                capability_data["typed_outcome"] = "REFUSE"
-                capability_data["missing_prereq"] = "stress-ng"
-                write_json(capability_path, capability_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-capability-pass-missing-prereq":
-                row_data = load_json(artifact_path)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["missing_prereq"] = "stress-ng"
-                write_json(capability_path, capability_data)
-                assert_invalid_manifest(manifest_path, name)
-            case "workload-capability-skip-empty-missing-prereq":
-                row_data = load_json(artifact_path)
-                row_data["outcome"] = "SKIP"
-                write_json(artifact_path, row_data)
-                workload = obj(row_data.get("workload"), "manifest self-test workload")
-                spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
-                spec_data = load_json(spec_path)
-                capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
-                capability_data = load_json(capability_path)
-                capability_data["status"] = "SKIP"
-                capability_data["typed_outcome"] = "SKIP"
-                capability_data["missing_prereq"] = ""
-                write_json(capability_path, capability_data)
-                manifest_row = obj(rows[0], "manifest self-test manifest row")
-                manifest_row["outcome"] = "SKIP"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case "live-backend-forged-pass-without-marker-proof":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_manifest_data = load_json(live_manifest)
-                live_rows = live_manifest_data.get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                live_row = load_json(live_artifact_path)
-                marker = obj(live_row.get("vm_marker"), "live-backend self-test vm_marker")
-                marker["checked_by"] = "qa/vm/marker-check"
-                write_json(live_artifact_path, live_row)
-                assert_invalid_manifest(live_manifest, name, "vm_marker.checked_by must stay under")
-            case "live-backend-missing-cleanup-proof-artifact":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                live_row = load_json(live_artifact_path)
-                Path(text(live_row.get("cleanup_proof_path"), "live-backend cleanup_proof_path")).unlink()
-                assert_invalid_manifest(live_manifest, name, "missing JSON file")
-            case "live-backend-missing-host-refusal-proof-artifact":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                live_row = load_json(live_artifact_path)
-                Path(text(live_row.get("host_refusal_proof_path"), "live-backend host_refusal_proof_path")).unlink()
-                assert_invalid_manifest(live_manifest, name, "missing JSON file")
-            case "live-backend-daemon-events-outside-root":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                live_row = load_json(live_artifact_path)
-                live_row["daemon_event_path"] = "fixtures/matrix-run/pass.json"
-                write_json(live_artifact_path, live_row)
-                assert_invalid_manifest(live_manifest, name, "daemon_event_path must stay under")
-            case "live-backend-dirty-summary-masked-pass":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                backend_dir = live_artifact_path.parent / "backend"
-                live_dir = backend_dir / "live"
-                live_dir.mkdir(parents=True)
-                write_json(live_dir / "summary.json", {"schema": "zig-scheduler/run-all-lab/v1", "status": "PASS", "git_sha": "abcdef012345", "git_dirty": True, "host_mutation": False})
-                write_json(backend_dir / "summary.json", {"schema": "zig-scheduler/vm-backend-run/v1", "status": "PASS", "live_summary": (live_dir / "summary.json").as_posix(), "host_mutation": False})
-                assert_invalid_manifest(live_manifest, name, "dirty live backend summary cannot back")
-            case "live-backend-missing-live-summary-artifact":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                backend_dir = live_artifact_path.parent / "backend"
-                backend_dir.mkdir(parents=True, exist_ok=True)
-                write_json(
-                    backend_dir / "summary.json",
-                    {
-                        "schema": "zig-scheduler/vm-backend-run/v1",
-                        "status": "PASS",
-                        "host_mutation": False,
-                    },
-                )
-                assert_invalid_manifest(live_manifest, name, "live-backend PASS row requires backend/live/summary.json live summary path")
-            case "live-backend-noncanonical-live-summary-path":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                backend_dir = live_artifact_path.parent / "backend"
-                observe_dir = backend_dir / "live" / "observe-partial"
-                observe_dir.mkdir(parents=True, exist_ok=True)
-                write_json(
-                    observe_dir / "summary.json",
-                    {
-                        "schema": "zig-scheduler/observe-partial-summary/v1",
-                        "status": "PASS",
-                        "evidence_mode": "vm-live",
-                        "host_mutation": False,
-                    },
-                )
-                write_json(
-                    backend_dir / "summary.json",
-                    {
-                        "schema": "zig-scheduler/vm-backend-run/v1",
-                        "status": "PASS",
-                        "live_summary": (observe_dir / "summary.json").as_posix(),
-                        "host_mutation": False,
-                    },
-                )
-                assert_invalid_manifest(live_manifest, name, "canonical backend/live/summary.json bundle")
-            case "live-backend-fake-unavailable-counter":
-                live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
-                live_rows = load_json(live_manifest).get("rows")
-                if not isinstance(live_rows, list):
-                    raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
-                live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
-                live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
-                backend_dir = live_artifact_path.parent / "backend"
-                live_dir = backend_dir / "live"
-                from qa.live_behavior_check import write_bundle as write_live_behavior_bundle
+        try:
+            match name:  # noqa: RUF100  # noqa: MATCH_OK - self-test case names are runtime strings; default raises a contract error.
+                case "root-outside-matrix":
+                    assert_invalid_manifest(Path("evidence/lab/self-test-root") / MANIFEST_FILE, name)
+                case "absolute-artifact-path":
+                    row["artifact_path"] = "/tmp/matrix-run.json"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "artifact-outside-run-root":
+                    row["artifact_path"] = "fixtures/matrix-run/pass.json"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "duplicate-scenario":
+                    rows.append(dict(row))
+                    manifest["row_count"] = 2
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "duplicate-artifact":
+                    second = dict(row)
+                    second["scenario_id"] = "fixture-pass-copy"
+                    rows.append(second)
+                    manifest["row_count"] = 2
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "row-count-mismatch":
+                    manifest["row_count"] = 2
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "manifest-out-dir-mismatch":
+                    manifest["out_dir"] = "evidence/lab/matrix/other-run"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "manifest-run-id-basename-mismatch":
+                    manifest["matrix_run_id"] = "other-run"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "row-run-id-manifest-mismatch":
+                    row_data = load_json(artifact_path)
+                    row_data["matrix_run_id"] = "other-run"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "row-internal-path-outside-root":
+                    row_data = load_json(artifact_path)
+                    row_data["runtime_sample_path"] = "fixtures/matrix-run/pass.json"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "missing-proof-artifact":
+                    row_data = load_json(artifact_path)
+                    Path(text(row_data.get("rollback_proof_path"), "manifest self-test rollback_proof_path")).unlink()
+                    assert_invalid_manifest(manifest_path, name, "missing JSON file")
+                case "invalid-runtime-sample-artifact":
+                    row_data = load_json(artifact_path)
+                    runtime_path = Path(text(row_data.get("runtime_sample_path"), "manifest self-test runtime_sample_path"))
+                    _ = runtime_path.write_text(json.dumps({"schema": "zig-scheduler/runtime-sample/v1", "sequence": 0}) + "\n")
+                    assert_invalid_manifest(manifest_path, name, "invalid runtime sample artifact")
+                case "host-safe-vm-live-claim":
+                    manifest["mode"] = "host-safe"
+                    manifest["fixture_mode"] = True
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name, "fixture manifest must not claim")
+                case "forged-pass-host-refusal-no-marker":
+                    row_data = load_json(artifact_path)
+                    row_data["evidence_mode"] = "host-refusal-only"
+                    marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                    marker["required"] = False
+                    marker["present"] = False
+                    marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "PASS requires vm-live proof or explicit fixture evidence")
+                case "forged-fixture-mode-false-fixture-pass":
+                    row_data = load_json(artifact_path)
+                    row_data["evidence_mode"] = "fixture"
+                    marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                    marker["required"] = False
+                    marker["present"] = False
+                    marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
+                case "host-safe-fixture-mode-false-fixture-pass":
+                    manifest["mode"] = "host-safe"
+                    manifest["fixture_mode"] = False
+                    row_data = load_json(artifact_path)
+                    row_data["evidence_mode"] = "fixture"
+                    marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                    marker["required"] = False
+                    marker["present"] = False
+                    marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                    write_json(artifact_path, row_data)
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name, "fixture evidence requires explicit fixture_mode=true")
+                case "vm-live-missing-marker-proof":
+                    row_data = load_json(artifact_path)
+                    marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                    marker["checked_by"] = "qa/vm/vm_harness_matrix.sh"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "vm_marker.checked_by must stay under")
+                case "vm-live-marker-proof-mismatch":
+                    row_data = load_json(artifact_path)
+                    marker = obj(row_data.get("vm_marker"), "manifest self-test vm_marker")
+                    marker_path = Path(text(marker.get("checked_by"), "manifest self-test vm_marker.checked_by"))
+                    proof = load_json(marker_path)
+                    proof["present"] = False
+                    write_json(marker_path, proof)
+                    assert_invalid_manifest(manifest_path, name, "present must match row marker")
+                case "malicious-workload-spec-token":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    spec_data["api_key"] = "must-not-persist"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "malicious-capability-token":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["environment"] = "api_key=must-not-persist"
+                    write_json(capability_path, capability_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "false-private-fields-found":
+                    row_data = load_json(artifact_path)
+                    privacy = obj(row_data.get("privacy_scan"), "manifest self-test privacy_scan")
+                    privacy_path = Path(text(privacy.get("report_path"), "manifest self-test privacy_scan.report_path"))
+                    privacy_data = load_json(privacy_path)
+                    privacy_data["private_fields_found"] = False
+                    write_json(privacy_path, privacy_data)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    spec_data["notes"] = "contains api_key while report claims clean"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-claim-leakage":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
+                    thresholds["calibration_status"] = "production ready"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "claim-unsafe workload text")
+                case "workload-spec-class-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    spec_data["workload_class"] = "mixed-io"
+                    spec_data["name"] = "mixed-io"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-spec-required-tools-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    spec_data["required_tools"] = ["fio"]
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "workload.spec.required_tools must match scenario workload-cpu-saturation required tools: stress-ng")
+                case "workload-mixed-metadata-canonical-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    spec_data["required_tools"] = ["fio"]
+                    spec_data["threshold_source"] = "calibrated"
+                    thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
+                    thresholds["source"] = "calibrated"
+                    write_json(spec_path, spec_data)
+                    capability_data = load_json(capability_path)
+                    capability_data["required_tools"] = ["fio"]
+                    capability_data["threshold_source"] = "calibrated"
+                    write_json(capability_path, capability_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "workload.spec.required_tools must match scenario workload-cpu-saturation required tools: stress-ng")
+                case "workload-spec-threshold-source-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    spec_data["threshold_source"] = "calibrated"
+                    thresholds = obj(spec_data.get("thresholds"), "manifest self-test workload.spec.thresholds")
+                    thresholds["source"] = "calibrated"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-cgroup-semantic-label-mismatch":
+                    cgroup_manifest = write_manifest_self_test_pack(run_root, good, "workload-cgroup-weight-quota")
+                    cgroup_rows = load_json(cgroup_manifest).get("rows")
+                    if not isinstance(cgroup_rows, list):
+                        raise MatrixRunContractError("cgroup semantic self-test setup produced non-list rows")
+                    cgroup_artifact_path = Path(text(obj(cgroup_rows[0], "cgroup semantic manifest row").get("artifact_path"), "cgroup semantic artifact_path"))
+                    row_data = load_json(cgroup_artifact_path)
+                    workload = obj(row_data.get("workload"), "cgroup semantic workload")
+                    spec_path = Path(text(workload.get("spec_path"), "cgroup semantic workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    semantics = obj(spec_data.get("cgroup_semantics"), "cgroup semantic workload.spec.cgroup_semantics")
+                    semantics["cpu.weight"] = "honored"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(cgroup_artifact_path, row_data)
+                    assert_invalid_manifest(cgroup_manifest, name, "cgroup_semantics.cpu.weight must be callback-observed")
+                case "workload-cpu-hotplug-semantic-label-mismatch":
+                    hotplug_manifest = write_manifest_self_test_pack(run_root, good, "workload-cpu-hotplug")
+                    hotplug_rows = load_json(hotplug_manifest).get("rows")
+                    if not isinstance(hotplug_rows, list):
+                        raise MatrixRunContractError("hotplug semantic self-test setup produced non-list rows")
+                    hotplug_artifact_path = Path(text(obj(hotplug_rows[0], "hotplug semantic manifest row").get("artifact_path"), "hotplug semantic artifact_path"))
+                    row_data = load_json(hotplug_artifact_path)
+                    workload = obj(row_data.get("workload"), "hotplug semantic workload")
+                    spec_path = Path(text(workload.get("spec_path"), "hotplug semantic workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    semantics = obj(spec_data.get("cpu_hotplug_semantics"), "hotplug semantic workload.spec.cpu_hotplug_semantics")
+                    semantics["allowed-mask"] = "accepted"
+                    write_json(spec_path, spec_data)
+                    workload["spec_sha256"] = file_sha256(spec_path)
+                    write_json(hotplug_artifact_path, row_data)
+                    assert_invalid_manifest(hotplug_manifest, name, "cpu_hotplug_semantics.allowed-mask must be rejected")
+                case "unsupported-bpf-abi-drift":
+                    row_data = load_json(artifact_path)
+                    row_data["bpf_abi_version"] = "zigsched-bpf-abi-v3"
+                    write_json(artifact_path, row_data)
+                    assert_invalid_manifest(manifest_path, name, "bpf_abi_version must be zigsched-bpf-abi-v1")
+                case _ if name in BENCHMARK_PROVENANCE_SELF_TEST_CASES:
+                    try:
+                        apply_benchmark_provenance_self_test_case(name, manifest_path, artifact_path, assert_invalid_manifest)
+                    except MatrixBenchmarkSelfTestError as exc:
+                        raise MatrixRunContractError(str(exc)) from exc
+                case "workload-uncataloged-scenario":
+                    row_data = load_json(artifact_path)
+                    row_data["scenario_id"] = "workload-uncataloged"
+                    write_json(artifact_path, row_data)
+                    manifest_row = obj(rows[0], "manifest self-test manifest row")
+                    manifest_row["scenario_id"] = "workload-uncataloged"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-capability-required-tools-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["required_tools"] = ["fio"]
+                    write_json(capability_path, capability_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-capability-threshold-source-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["threshold_source"] = "calibrated"
+                    write_json(capability_path, capability_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-capability-missing-prereq-mismatch":
+                    row_data = load_json(artifact_path)
+                    row_data["outcome"] = "REFUSE"
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["status"] = "REFUSE"
+                    capability_data["typed_outcome"] = "REFUSE"
+                    capability_data["missing_prereq"] = "fio"
+                    write_json(capability_path, capability_data)
+                    write_json(artifact_path, row_data)
+                    manifest_row = obj(rows[0], "manifest self-test manifest row")
+                    manifest_row["outcome"] = "REFUSE"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name, "workload.capability.missing_prereq must be empty or one of scenario workload-cpu-saturation required tools: stress-ng")
+                case "workload-capability-outcome-mismatch":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["status"] = "REFUSE"
+                    capability_data["typed_outcome"] = "REFUSE"
+                    capability_data["missing_prereq"] = "stress-ng"
+                    write_json(capability_path, capability_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-capability-pass-missing-prereq":
+                    row_data = load_json(artifact_path)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["missing_prereq"] = "stress-ng"
+                    write_json(capability_path, capability_data)
+                    assert_invalid_manifest(manifest_path, name)
+                case "workload-capability-skip-empty-missing-prereq":
+                    row_data = load_json(artifact_path)
+                    row_data["outcome"] = "SKIP"
+                    write_json(artifact_path, row_data)
+                    workload = obj(row_data.get("workload"), "manifest self-test workload")
+                    spec_path = Path(text(workload.get("spec_path"), "manifest self-test workload.spec_path"))
+                    spec_data = load_json(spec_path)
+                    capability_path = Path(text(spec_data.get("capability_artifact_path"), "manifest self-test capability_artifact_path"))
+                    capability_data = load_json(capability_path)
+                    capability_data["status"] = "SKIP"
+                    capability_data["typed_outcome"] = "SKIP"
+                    capability_data["missing_prereq"] = ""
+                    write_json(capability_path, capability_data)
+                    manifest_row = obj(rows[0], "manifest self-test manifest row")
+                    manifest_row["outcome"] = "SKIP"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case "live-backend-forged-pass-without-marker-proof":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_manifest_data = load_json(live_manifest)
+                    live_rows = live_manifest_data.get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    live_row = load_json(live_artifact_path)
+                    marker = obj(live_row.get("vm_marker"), "live-backend self-test vm_marker")
+                    marker["checked_by"] = "qa/vm/marker-check"
+                    write_json(live_artifact_path, live_row)
+                    assert_invalid_manifest(live_manifest, name, "vm_marker.checked_by must stay under")
+                case "live-backend-missing-cleanup-proof-artifact":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    live_row = load_json(live_artifact_path)
+                    Path(text(live_row.get("cleanup_proof_path"), "live-backend cleanup_proof_path")).unlink()
+                    assert_invalid_manifest(live_manifest, name, "missing JSON file")
+                case "live-backend-missing-host-refusal-proof-artifact":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    live_row = load_json(live_artifact_path)
+                    Path(text(live_row.get("host_refusal_proof_path"), "live-backend host_refusal_proof_path")).unlink()
+                    assert_invalid_manifest(live_manifest, name, "missing JSON file")
+                case "live-backend-daemon-events-outside-root":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    live_row = load_json(live_artifact_path)
+                    live_row["daemon_event_path"] = "fixtures/matrix-run/pass.json"
+                    write_json(live_artifact_path, live_row)
+                    assert_invalid_manifest(live_manifest, name, "daemon_event_path must stay under")
+                case "live-backend-dirty-summary-masked-pass":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    backend_dir = live_artifact_path.parent / "backend"
+                    live_dir = backend_dir / "live"
+                    live_dir.mkdir(parents=True)
+                    write_json(live_dir / "summary.json", {"schema": "zig-scheduler/run-all-lab/v1", "status": "PASS", "git_sha": "abcdef012345", "git_dirty": True, "host_mutation": False})
+                    write_json(backend_dir / "summary.json", {"schema": "zig-scheduler/vm-backend-run/v1", "status": "PASS", "live_summary": (live_dir / "summary.json").as_posix(), "host_mutation": False})
+                    assert_invalid_manifest(live_manifest, name, "dirty live backend summary cannot back")
+                case "live-backend-missing-live-summary-artifact":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    backend_dir = live_artifact_path.parent / "backend"
+                    backend_dir.mkdir(parents=True, exist_ok=True)
+                    write_json(
+                        backend_dir / "summary.json",
+                        {
+                            "schema": "zig-scheduler/vm-backend-run/v1",
+                            "status": "PASS",
+                            "host_mutation": False,
+                        },
+                    )
+                    assert_invalid_manifest(live_manifest, name, "live-backend PASS row requires backend/live/summary.json live summary path")
+                case "live-backend-noncanonical-live-summary-path":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    backend_dir = live_artifact_path.parent / "backend"
+                    observe_dir = backend_dir / "live" / "observe-partial"
+                    observe_dir.mkdir(parents=True, exist_ok=True)
+                    write_json(
+                        observe_dir / "summary.json",
+                        {
+                            "schema": "zig-scheduler/observe-partial-summary/v1",
+                            "status": "PASS",
+                            "evidence_mode": "vm-live",
+                            "host_mutation": False,
+                        },
+                    )
+                    write_json(
+                        backend_dir / "summary.json",
+                        {
+                            "schema": "zig-scheduler/vm-backend-run/v1",
+                            "status": "PASS",
+                            "live_summary": (observe_dir / "summary.json").as_posix(),
+                            "host_mutation": False,
+                        },
+                    )
+                    assert_invalid_manifest(live_manifest, name, "canonical backend/live/summary.json bundle")
+                case "live-backend-fake-unavailable-counter":
+                    live_manifest = write_manifest_self_test_pack(run_root, good, "live-backend")
+                    live_rows = load_json(live_manifest).get("rows")
+                    if not isinstance(live_rows, list):
+                        raise MatrixRunContractError("live-backend self-test setup produced non-list rows")
+                    live_row_ref = obj(live_rows[0], "live-backend self-test manifest row")
+                    live_artifact_path = Path(text(live_row_ref.get("artifact_path"), "live-backend self-test artifact_path"))
+                    backend_dir = live_artifact_path.parent / "backend"
+                    live_dir = backend_dir / "live"
+                    from qa.live_behavior_check import write_bundle as write_live_behavior_bundle
 
-                _ = write_live_behavior_bundle(live_dir, fake_unavailable_counter=True)
-                write_json(
-                    backend_dir / "summary.json",
-                    {
-                        "schema": "zig-scheduler/vm-backend-run/v1",
-                        "status": "PASS",
-                        "live_summary": (live_dir / "summary.json").as_posix(),
-                        "host_mutation": False,
-                    },
-                )
-                assert_invalid_manifest(live_manifest, name, "claims numeric value while events are unavailable")
-            case "extra-property":
-                manifest["unexpected_field_not_in_schema"] = "reject"
-                write_json(manifest_path, manifest)
-                assert_invalid_manifest(manifest_path, name)
-            case _:
-                raise MatrixRunContractError(f"unknown manifest self-test case: {name}")
+                    _ = write_live_behavior_bundle(live_dir, fake_unavailable_counter=True)
+                    write_json(
+                        backend_dir / "summary.json",
+                        {
+                            "schema": "zig-scheduler/vm-backend-run/v1",
+                            "status": "PASS",
+                            "live_summary": (live_dir / "summary.json").as_posix(),
+                            "host_mutation": False,
+                        },
+                    )
+                    assert_invalid_manifest(live_manifest, name, "claims numeric value while events are unavailable")
+                case "extra-property":
+                    manifest["unexpected_field_not_in_schema"] = "reject"
+                    write_json(manifest_path, manifest)
+                    assert_invalid_manifest(manifest_path, name)
+                case _:
+                    raise MatrixRunContractError(f"unknown manifest self-test case: {name}")
+        except AssertionError as exc:
+            raise MatrixRunContractError(f"unknown manifest self-test case: {name}") from exc
     finally:
         shutil.rmtree(run_root)
 

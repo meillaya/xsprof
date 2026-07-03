@@ -3,12 +3,12 @@
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/stress-ng.benchmark-output.json",
-      "record_sha256": "25c87bb3a4bd062dfb213cfc3300fae05224da6b56f39bd41b3991d19fdde248"
+      "record_sha256": "4c87d8200b42f180ec7ccd2d1568041c6cf6848d9352b01028fe09454ab331d2"
     },
     {
       "record_only": true,
       "record_path": "fixtures/benchmark-output/valid/perf-sched-deferred.benchmark-output.json",
-      "record_sha256": "0230b880ddd89e3d0ac4c822e3377a0031bf1f57e633ae7f2836b236fbcff143"
+      "record_sha256": "21ee558b4a878816f391d5a56363759d2558dbf5af276e1c0f3c0de634795de8"
     }
   ],
   "host_mutation": false,

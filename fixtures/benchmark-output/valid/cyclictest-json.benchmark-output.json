@@ -11,8 +11,14 @@
   },
   "output_path": "evidence/lab/run/bench/cyclictest.json",
   "output_sha256": "075b38a601fbdf2c562c343b95956c2dcbc54a64b95dd17896800f013bfad098",
+  "parser_provenance": {
+    "parser": "qa/benchmark_output_parse.py",
+    "parser_status": "PARSED",
+    "parser_version": "benchmark-output/v1"
+  },
   "privacy_sanitized": true,
   "production_capacity_claim": false,
+  "record_only": true,
   "release_eligible": false,
   "run_count": 2,
   "sample_count": 2000,

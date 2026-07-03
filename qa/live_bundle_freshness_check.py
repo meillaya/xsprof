@@ -1,9 +1,9 @@
 #!/usr/bin/env -S uv run --script
-# noqa: SIZE_OK - standalone Task 9 freshness validator keeps CLI, dirty snapshot proof, and self-test cases together.
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
+"""# noqa: SIZE_OK - standalone Task 9 freshness validator keeps CLI, dirty snapshot proof, and self-test cases together."""
 
 # ─── How to run ───
 # 1. Install uv (optional):
@@ -25,7 +25,7 @@ import sys
 from typing import Final, TypeAlias
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.bpf_artifacts import BpfArtifactError, ensure_canonical_bpf_artifacts
+from qa.bpf_artifacts import BpfArtifactError, ensure_canonical_bpf_artifacts  # noqa: E402
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]

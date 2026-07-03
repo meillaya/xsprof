@@ -1,17 +1,184 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "zig-scheduler/benchmark-output/v1",
-  "title": "Record-only VM benchmark output calibration record",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "RECORDED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "parser_provenance": {
+            "properties": {
+              "parser_status": {
+                "const": "PARSED"
+              }
+            }
+          },
+          "run_count": {
+            "minimum": 1
+          },
+          "sample_count": {
+            "minimum": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "UNSUPPORTED_DEFERRED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "metrics": {
+            "maxProperties": 0
+          },
+          "parser_provenance": {
+            "properties": {
+              "parser_status": {
+                "const": "UNSUPPORTED_DEFERRED"
+              }
+            }
+          },
+          "run_count": {
+            "const": 0
+          },
+          "sample_count": {
+            "const": 0
+          },
+          "units": {
+            "maxProperties": 0
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "command_family": {
+      "enum": [
+        "cyclictest",
+        "fio",
+        "perf_bench_sched_messaging",
+        "rtla",
+        "perf_sched",
+        "stress_ng"
+      ]
+    },
+    "hard_thresholds_enforced": {
+      "const": false
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "metrics": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "type": "object"
+    },
+    "output_path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "output_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "parser_provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "parser": {
+          "const": "qa/benchmark_output_parse.py"
+        },
+        "parser_status": {
+          "enum": [
+            "PARSED",
+            "UNSUPPORTED_DEFERRED"
+          ]
+        },
+        "parser_version": {
+          "const": "benchmark-output/v1"
+        }
+      },
+      "type": "object",
+      "required": [
+        "parser",
+        "parser_version",
+        "parser_status"
+      ]
+    },
+    "privacy_sanitized": {
+      "const": true
+    },
+    "production_capacity_claim": {
+      "const": false
+    },
+    "record_only": {
+      "const": true
+    },
+    "release_eligible": {
+      "const": false
+    },
+    "run_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sample_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "zig-scheduler/benchmark-output/v1"
+    },
+    "status": {
+      "enum": [
+        "RECORDED",
+        "UNSUPPORTED_DEFERRED"
+      ]
+    },
+    "threshold_status": {
+      "const": "record_only"
+    },
+    "tool": {
+      "enum": [
+        "cyclictest",
+        "fio",
+        "perf",
+        "rtla",
+        "stress-ng"
+      ]
+    },
+    "units": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "vm_evidence": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
   "required": [
     "schema",
     "status",
     "tool",
     "command_family",
+    "record_only",
     "output_path",
     "output_sha256",
     "vm_evidence",
+    "parser_provenance",
     "metrics",
     "units",
     "sample_count",
@@ -23,39 +190,6 @@
     "threshold_status",
     "privacy_sanitized"
   ],
-  "properties": {
-    "schema": { "const": "zig-scheduler/benchmark-output/v1" },
-    "status": { "enum": ["RECORDED", "UNSUPPORTED_DEFERRED"] },
-    "tool": { "enum": ["cyclictest", "fio", "perf", "rtla", "stress-ng"] },
-    "command_family": { "enum": ["cyclictest", "fio", "perf_bench_sched_messaging", "rtla", "perf_sched", "stress_ng"] },
-    "output_path": { "type": "string", "minLength": 1 },
-    "output_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "vm_evidence": { "type": "string", "minLength": 1 },
-    "metrics": {
-      "type": "object",
-      "additionalProperties": { "type": "number" }
-    },
-    "units": {
-      "type": "object",
-      "additionalProperties": { "type": "string", "minLength": 1 }
-    },
-    "sample_count": { "type": "integer", "minimum": 0 },
-    "run_count": { "type": "integer", "minimum": 0 },
-    "host_mutation": { "const": false },
-    "release_eligible": { "const": false },
-    "production_capacity_claim": { "const": false },
-    "hard_thresholds_enforced": { "const": false },
-    "threshold_status": { "const": "record_only" },
-    "privacy_sanitized": { "const": true }
-  },
-  "allOf": [
-    {
-      "if": { "properties": { "status": { "const": "RECORDED" } } },
-      "then": { "properties": { "sample_count": { "minimum": 1 }, "run_count": { "minimum": 1 } } }
-    },
-    {
-      "if": { "properties": { "status": { "const": "UNSUPPORTED_DEFERRED" } } },
-      "then": { "properties": { "sample_count": { "const": 0 }, "run_count": { "const": 0 }, "metrics": { "maxProperties": 0 }, "units": { "maxProperties": 0 } } }
-    }
-  ]
+  "title": "Record-only VM benchmark output calibration record",
+  "type": "object"
 }

@@ -1,9 +1,9 @@
 #!/usr/bin/env -S uv run --script
-# noqa: SIZE_OK - standalone Task 9 VM-live behavior validator keeps bundle parsing, artifact checks, and adversarial self-tests together.
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
+"""# noqa: SIZE_OK - standalone Task 9 VM-live behavior validator keeps bundle parsing, artifact checks, and adversarial self-tests together."""
 
 # ─── How to run ───
 # 1. Install uv (if not installed):
@@ -26,10 +26,10 @@ from typing import Final, TypeAlias
 
 _ = sys.path.insert(0, str(Path(__file__).resolve().parent))
 _ = sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good
-from qa.lab_summary_observe import ObserveSummaryError, validate_observe
-from qa.partial_attach_check import PartialAttachError, validate_evidence
-from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file
+from qa.audit_ledger_check import AuditLedgerError, validate_ledger, write_good  # noqa: E402
+from qa.lab_summary_observe import ObserveSummaryError, validate_observe  # noqa: E402
+from qa.partial_attach_check import PartialAttachError, validate_evidence  # noqa: E402
+from qa.runtime_sample_check import RuntimeSampleError, good_sample, validate_file  # noqa: E402
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -129,8 +129,9 @@ def validate_bundle(path: Path) -> None:
     validate_file(samples)
     validate_ledger(ledger)
     validate_partial_behavior(load_object(partial))
-    validate_observe_behavior(load_object(observe))
-    validate_samples(load_jsonl(samples))
+    observe_summary = load_object(observe)
+    validate_observe_behavior(observe_summary)
+    validate_samples(load_jsonl(samples), observe_summary)
     validate_daemon_events(load_jsonl(daemon_events))
 
 
@@ -181,13 +182,20 @@ def validate_partial_behavior(partial: JsonObject) -> None:
 def validate_observe_behavior(observe: JsonObject) -> None:
     if require_text(observe, "evidence_mode", "observe") != "vm-live":
         raise LiveBehaviorError("observe summary is not VM-live")
-    if not require_bool(observe, "workload_alive_all_samples", "observe"):
+    if not require_bool(observe, "workload_alive_all_samples", "observe") and not workload_execution_passed(observe):
         raise LiveBehaviorError("workload was not alive across samples")
     if not require_bool(observe, "final_state_disabled_or_rolled_back", "observe"):
         raise LiveBehaviorError("rollback did not restore scheduler state")
 
 
-def validate_samples(rows: list[JsonObject]) -> None:
+def workload_execution_passed(observe: JsonObject) -> bool:
+    value = observe.get("workload_execution")
+    if not isinstance(value, dict):
+        return False
+    return value.get("status") == "PASS" and value.get("host_mutation") is False and value.get("scenario") != "live-backend"
+
+
+def validate_samples(rows: list[JsonObject], observe: JsonObject) -> None:
     if len(rows) < 3:
         raise LiveBehaviorError("behavior proof requires before/during/after samples")
     if sample_ops(rows[0]) == "zigsched_minimal":
@@ -198,7 +206,10 @@ def validate_samples(rows: list[JsonObject]) -> None:
         raise LiveBehaviorError("last sample must be after rollback")
     if sample_state(rows[-1]) not in {"disabled", "previous"}:
         raise LiveBehaviorError("last sample does not prove rollback-restored state")
-    if not all(row.get("workload_alive") is True for row in rows):
+    workload_alive_all_samples = all(row.get("workload_alive") is True for row in rows)
+    if require_bool(observe, "workload_alive_all_samples", "observe") != workload_alive_all_samples:
+        raise LiveBehaviorError("observe workload_alive_all_samples conflicts with samples")
+    if not workload_alive_all_samples and not workload_execution_passed(observe):
         raise LiveBehaviorError("workload is not alive in every sample")
     for index, row in enumerate(rows):
         validate_cgroup_membership(row, index)
@@ -300,6 +311,9 @@ def self_test() -> None:
     shutil.rmtree(SELF_ROOT, ignore_errors=True)
     good = write_bundle(SELF_ROOT / "good")
     validate_bundle(good)
+    bounded = write_bundle(SELF_ROOT / "bounded-workload")
+    mark_bounded_workload_complete(bounded.parent)
+    validate_bundle(bounded)
     reject(write_bundle(SELF_ROOT / "attach-only", include_observe=False), "attach-only proof")
     reject(write_bundle(SELF_ROOT / "counter-growth", counter_growth=True), "counter growth")
     reject(write_bundle(SELF_ROOT / "host-mutation", host_mutation=True), "host mutation")
@@ -391,12 +405,34 @@ def rewrite_sample_counters(samples: Path, *, eventless_numeric_counter: bool) -
     samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
+def mark_bounded_workload_complete(root: Path) -> None:
+    samples = root / "observe-partial" / "runtime-samples.jsonl"
+    rows = load_jsonl(samples)
+    rows = [
+        row if row["sequence"] == 0 else row | {"workload_alive": False, "workload": {"status": "present", "value": "not_alive"}}
+        for row in rows
+    ]
+    samples.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+    summary = root / "observe-partial" / "summary.json"
+    payload = load_object(summary)
+    payload["workload_alive_all_samples"] = False
+    payload["workload_execution"] = {
+        "host_mutation": False,
+        "reason": "bounded VM-local workload completed",
+        "scenario": "workload-interactive-latency",
+        "status": "PASS",
+    }
+    summary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def observe_summary(samples: Path, daemon: Path, ledger: Path, transcript: Path) -> JsonObject:
     return {"audit_ledger": ledger.as_posix(), "daemon_runtime_events": daemon.as_posix(), "evidence_mode": "vm-live", "final_ops": "none", "final_state": "disabled", "final_state_disabled_or_rolled_back": True, "private_command_lines_sampled": False, "release_eligible_live_proof": False, "runtime_samples": samples.as_posix(), "sample_count": 3, "scheduler_snapshot": {"root_ops": {"status": "present", "value": "none"}, "state": {"status": "present", "value": "disabled"}}, "schema": "zig-scheduler/observe-partial-summary/v1", "status": "PASS", "transcript": transcript.as_posix(), "workload_alive_all_samples": True}
 
 
 def bundle_summary(artifacts: list[str], host_mutation: bool) -> JsonObject:
-    return {"artifact_paths": artifacts, "evidence_mode": "vm-live", "host_mutation": host_mutation, "release_eligible_live_proof": False, "rollback_result": "PASS", "schema": SUMMARY_SCHEMA, "status": "PASS", "vm_kind": "qemu-vm", "vm_marker_path": VM_MARKER, "vm_marker_present": True}
+    artifact_paths: list[JsonValue] = [artifact for artifact in artifacts]
+    summary: JsonObject = {"artifact_paths": artifact_paths, "evidence_mode": "vm-live", "host_mutation": host_mutation, "release_eligible_live_proof": False, "rollback_result": "PASS", "schema": SUMMARY_SCHEMA, "status": "PASS", "vm_kind": "qemu-vm", "vm_marker_path": VM_MARKER, "vm_marker_present": True}
+    return summary
 
 
 def reject(path: Path, label: str) -> None:

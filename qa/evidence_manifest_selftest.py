@@ -5,14 +5,16 @@
 # ///
 # ─── How to run ───
 # python3 qa/evidence_manifest_check.py --self-test
-"""Self-test fixtures for evidence_manifest_check.py."""
+"""Self-test fixtures for evidence_manifest_check.py. # noqa: SIZE_OK - evidence-manifest adversarial fixture matrix stays colocated with its self-test runner."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 import json
 import shutil
-from typing import Final, Literal
+import tempfile
+from typing import Final, Literal, assert_never
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -32,9 +34,9 @@ def ref(path: Path, role: str) -> JsonObject:
     return {"path": path.as_posix(), "sha256": file_sha(path), "schema_role": role}
 
 
-def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
+def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path, Path]:
     rows = root / "rows" / "fixture-pass"
-    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof", "protected-environment-review"):
+    for name in ("matrix-run", "rollback-proof", "cleanup-proof", "host-refusal", "privacy-scan", "benchmark", "runner-substrate-proof", "runner-cleanliness-proof", "protected-environment-review"):
         write_json(rows / f"{name}.json", {"schema": f"zig-scheduler/{name}/v1", "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     write_json(
         rows / "protected-environment-review.json",
@@ -78,17 +80,17 @@ def write_artifacts(root: Path) -> tuple[Path, Path, Path, Path, Path, Path, Pat
     write_json(bpf, {"schema": "zig-scheduler/bpf-skip/v1", "host_mutation": False})
     manifest = root / "manifest.json"
     write_json(manifest, {"schema": "zig-scheduler/vm-harness-matrix-index/v1", "host_mutation": False, "release_eligible": False})
-    return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json", rows / "protected-environment-review.json"
+    return rows, log, daemon, bpf, manifest, rows / "runner-substrate-proof.json", rows / "runner-cleanliness-proof.json", rows / "protected-environment-review.json"
 
 
 def good_manifest(root: Path, *, outcome: str = "PASS", benchmark_applicable: bool = True) -> Path:
-    rows, log, daemon, bpf, manifest, runner, review = write_artifacts(root)
+    rows, log, daemon, bpf, manifest, runner, cleanliness, review = write_artifacts(root)
     out = root / "evidence-manifest.json"
     benchmark: JsonValue = [ref(rows / "benchmark.json", "benchmark-provenance")]
     if not benchmark_applicable:
         benchmark = {"status": "not_applicable", "reason": "live proof refused before benchmark artifacts were produced", "applies_to_outcomes": ["SKIP", "REFUSE", "BLOCKED"]}
     marker_present = outcome == "PASS"
-    write_json(out, {"schema": SCHEMA, "outcome": outcome, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": marker_present, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "artifacts": [ref(review, "protected-environment-review"), ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": benchmark, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+    write_json(out, {"schema": SCHEMA, "outcome": outcome, "audit_id": "AUD-20990101T000000Z-deadbee-abc123", "rollback_id": "RB-demo", "vm_marker": {"path": VM_MARKER, "present": marker_present, "checked_by": "manual-vm-proof"}, "supported_tuple": "linux-6.12.0-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only", "bpf_metadata_or_skip": ref(bpf, "bpf-skip-json"), "matrix_manifest": ref(manifest, "matrix-manifest"), "daemon_events": ref(daemon, "daemon-events"), "runner_substrate": ref(runner, "runner-substrate-proof"), "runner_cleanliness": ref(cleanliness, "runner-cleanliness-proof"), "artifacts": [ref(review, "protected-environment-review"), ref(rows / "matrix-run.json", "matrix-row"), ref(rows / "rollback-proof.json", "rollback-proof"), ref(rows / "cleanup-proof.json", "cleanup-proof"), ref(rows / "host-refusal.json", "host-refusal-proof"), ref(rows / "privacy-scan.json", "privacy-scan"), ref(log, "static-verification-log")], "benchmark_provenance": benchmark, "privacy_scan": {"status": "PASS", "private_fields_found": False, "artifact_paths": [(rows / "privacy-scan.json").as_posix()]}, "attestation": {"status": "pending-post-run-github-attestation", "workflow_uses": "actions/attest-build-provenance@v2", "verify_command": "gh attestation verify evidence/lab/manual-vm-proof/vm-proof-bundle.tar.zst --repo owner/repo", "retention_days": 30}, "required_sources": ["qa/manual_vm_proof_ci_check.py", ".github/workflows/manual-vm-proof.yml"], "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
     return out
 
 
@@ -101,7 +103,7 @@ def without_role(data: JsonObject, role: str) -> list[JsonValue]:
 
 def mutate(data: JsonObject, mutator: Mutator) -> None:
     matrix_manifest = data.get("matrix_manifest")
-    match mutator:  # noqa: MATCH_OK -- Mutator Literal cases are exhaustively listed below.
+    match mutator:
         case "missing-hash":
             if isinstance(matrix_manifest, dict):
                 del matrix_manifest["sha256"]
@@ -138,6 +140,8 @@ def mutate(data: JsonObject, mutator: Mutator) -> None:
         case "refuse-benchmark-missing-outcome":
             data["outcome"] = "REFUSE"
             data["benchmark_provenance"] = {"status": "not_applicable", "reason": "refused before benchmarks", "applies_to_outcomes": ["SKIP"]}
+        case unreachable:
+            assert_never(unreachable)
 
 
 def expect_reject(path: Path, schema: Path, label: str, mutator: Mutator) -> None:
@@ -196,6 +200,34 @@ def expect_static_log_privacy_reject(path: Path, schema: Path) -> None:
     raise ManifestError("expected rejection did not occur: static log secret")
 
 
+def expect_extracted_bundle_source_root_accept(schema: Path, source_root: Path) -> None:
+    schema_path, source_path = schema.resolve(), source_root.resolve()
+    protected_schema_source = source_path / "schemas/control/protected-environment-review.v1.schema.json"
+    with tempfile.TemporaryDirectory(prefix="evidence-manifest-bundle-") as temp:
+        bundle_root = Path(temp) / "bundle"
+        bundle_schema = bundle_root / "schemas/control" / protected_schema_source.name
+        bundle_schema.parent.mkdir(parents=True)
+        _ = shutil.copy2(protected_schema_source, bundle_schema)
+        original = Path.cwd()
+        try:
+            os.chdir(bundle_root)
+            manifest = good_manifest(Path("."))
+            validate_manifest(manifest, schema_path, source_root=source_path)
+            print("PASS accept extracted evidence manifest with separate source root")
+            data = load_json(manifest)
+            mutate(data, "untracked-source")
+            bad = Path("bad-extracted-untracked-source.json")
+            write_json(bad, data)
+            try:
+                validate_manifest(bad, schema_path, source_root=source_path)
+            except ManifestError as exc:
+                print(f"PASS reject extracted untracked required source: {exc}")
+                return
+            raise ManifestError("expected rejection did not occur: extracted untracked required source")
+        finally:
+            os.chdir(original)
+
+
 def expect_corrupt_protected_review_reject(path: Path, schema: Path) -> None:
     data = load_json(path)
     review_artifact = path.parent / "rows" / "fixture-pass" / "protected-environment-review.json"
@@ -213,12 +245,13 @@ def expect_corrupt_protected_review_reject(path: Path, schema: Path) -> None:
     raise ManifestError("expected rejection did not occur: corrupt protected review with updated hash")
 
 
-def run_self_test(schema: Path) -> None:
+def run_self_test(schema: Path, source_root: Path) -> None:
     root = Path("evidence/lab/evidence-manifest-self-test")
     shutil.rmtree(root, ignore_errors=True)
     good = good_manifest(root)
     validate_manifest(good, schema)
     print("PASS accept complete evidence manifest")
+    expect_extracted_bundle_source_root_accept(schema, source_root)
     refuse = good_manifest(root / "refuse-na", outcome="REFUSE", benchmark_applicable=False)
     validate_manifest(refuse, schema)
     print("PASS accept REFUSE evidence manifest with benchmark_provenance not_applicable")
@@ -234,17 +267,30 @@ def run_self_test(schema: Path) -> None:
     print("PASS evidence manifest self-test: provenance, hashes, paths, VM marker, rollback, cleanup, host refusal, protected review normalization, compound privacy keys, case-variant text privacy, flags, tracked sources, and attestation rejected when unsafe")
 
 
-def parse_args(argv: list[str]) -> Path:
-    if len(argv) == 2 and argv[0] == "--schema":
-        return Path(argv[1])
-    if not argv:
-        return Path("schemas/control/evidence-manifest.v1.schema.json")
-    raise ManifestError("usage: evidence_manifest_selftest.py [--schema <path>]")
+def parse_args(argv: list[str]) -> tuple[Path, Path]:
+    schema = Path("schemas/control/evidence-manifest.v1.schema.json")
+    source_root = Path.cwd()
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        index += 1
+        if index >= len(argv):
+            raise ManifestError(f"{arg} requires a path")
+        value = Path(argv[index])
+        if arg == "--schema":
+            schema = value
+        elif arg == "--source-root":
+            source_root = value
+        else:
+            raise ManifestError("usage: evidence_manifest_selftest.py [--schema <path>] [--source-root <repo>]")
+        index += 1
+    return schema, source_root
 
 
 def main(argv: list[str]) -> int:
     try:
-        run_self_test(parse_args(argv))
+        schema, source_root = parse_args(argv)
+        run_self_test(schema, source_root)
         return 0
     except ManifestError as exc:
         print(f"FAIL evidence manifest self-test: {exc}", file=sys.stderr)
