@@ -68,132 +68,23 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 if [ "$self_test" = true ]; then
+  reject_nohost_bypass_env
   validate_governance_manifest
   rm -rf evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad evidence/releases/release-gate-self-test-matrix-good evidence/releases/release-gate-self-test-matrix-bad
   bash qa/vm/vm_harness_matrix.sh --mode host-safe --scenario fixture-pass --out evidence/lab/matrix/release-gate-self-test-good >/dev/null
   validate_matrix_manifest evidence/lab/matrix/release-gate-self-test-good/manifest.json
   cp -R evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad
-  python3 - <<'PY'
-import json
-from pathlib import Path
-manifest = Path('evidence/lab/matrix/release-gate-self-test-bad/manifest.json')
-data = json.loads(manifest.read_text())
-data['matrix_run_id'] = 'release-gate-self-test-bad'
-data['out_dir'] = 'evidence/lab/matrix/release-gate-self-test-bad'
-data['release_eligible'] = True
-manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
-for row_path in Path('evidence/lab/matrix/release-gate-self-test-bad/rows').glob('*/matrix-run.json'):
-    row = json.loads(row_path.read_text())
-    row['matrix_run_id'] = 'release-gate-self-test-bad'
-    row_path.write_text(json.dumps(row, indent=2, sort_keys=True) + '\n')
-PY
+  python3 qa/release_gate_selftest.py mutate-matrix-manifest \
+    evidence/lab/matrix/release-gate-self-test-bad/manifest.json \
+    release-gate-self-test-bad \
+    evidence/lab/matrix/release-gate-self-test-bad
   if bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/release-gate-self-test-matrix-bad --matrix-manifest evidence/lab/matrix/release-gate-self-test-bad/manifest.json --no-approval >/dev/null 2>&1; then
     fail 'self-test expected release_eligible matrix manifest rejection'
   fi
   printf 'PASS accept release-ineligible matrix manifest validation\n'
   printf 'PASS reject release_eligible matrix manifest\n'
   rm -rf evidence/lab/matrix/release-gate-self-test-good evidence/lab/matrix/release-gate-self-test-bad evidence/releases/release-gate-self-test-matrix-good evidence/releases/release-gate-self-test-matrix-bad
-  python3 - <<'PY'
-from pathlib import Path
-import shutil
-from qa.live_behavior_check import LiveBehaviorError, validate_bundle, write_bundle
-current = 'f' * 40
-
-def reject(label, func):
-    try:
-        func()
-    except SystemExit as exc:
-        print(f'PASS reject {label}: {exc}')
-        return
-    raise SystemExit(f'expected rejection did not occur: {label}')
-
-def check_dsq(dsq):
-    if dsq.get('status') != 'PASS': raise SystemExit('dsq summary not PASS')
-    if dsq.get('rollback_success') is not True: raise SystemExit('dsq rollback_success is not true')
-    if dsq.get('starvation_breach') is not False: raise SystemExit('dsq starvation threshold breached')
-    if dsq.get('repeated_fallback_or_reject_counters') is not False: raise SystemExit('dsq fallback/reject counters repeated')
-    if dsq.get('release_eligible') is not True: raise SystemExit('dsq is not release eligible')
-    if dsq.get('vm_kind') != 'disposable-vm-marker-present': raise SystemExit('dsq evidence is not disposable VM evidence')
-    if not dsq.get('bpf_metadata_object_sha256'): raise SystemExit('dsq missing BPF metadata sha')
-    if dsq.get('verifier_metadata_object_sha256') != dsq.get('bpf_metadata_object_sha256'):
-        raise SystemExit('dsq verifier metadata sha mismatch')
-
-def check_stress(stress):
-    if stress.get('status') != 'PASS': raise SystemExit('stress summary not PASS')
-    if stress.get('release_ready') is True and stress.get('status') != 'PASS': raise SystemExit('skipped stress marked release-ready')
-
-def check_existing_approval(approval):
-    if approval.get('git_sha') and approval.get('git_sha') != current and approval.get('historical') is not True:
-        raise SystemExit('stale current release approval git_sha')
-    reviewer = str(approval.get('reviewer') or '')
-    if reviewer.lower() in {'todo', 'tbd', 'placeholder', 'unknown', 'repository-owner-operator'}:
-        raise SystemExit('placeholder release reviewer')
-    att = approval.get('signed_attestation') or {}
-    for key in ['kind', 'signed_by', 'signed_at', 'statement', 'authorized_status', 'scope']:
-        if approval and not att.get(key):
-            raise SystemExit('missing signed release attestation')
-    if approval and att.get('signed_by') != reviewer:
-        raise SystemExit('release attestation signer mismatch')
-    if approval and att.get('authorized_status') != approval.get('status'):
-        raise SystemExit('release attestation status mismatch')
-    if approval.get('historical') is True and not approval.get('historical_reason'):
-        raise SystemExit('historical approval missing reason')
-    manifest = approval.get('artifact_hash_manifest')
-    if manifest and not Path(str(manifest)).is_file() and approval.get('historical') is not True:
-        raise SystemExit('missing artifact hash manifest')
-
-def check_summary(summary):
-    if summary.get('status') == 'PASS' and summary.get('release_status') == 'skipped_no_vm':
-        raise SystemExit('summary/status contradiction')
-
-def check_live_behavior_gate():
-    root = Path('evidence/lab/run-all/release-gate-live-behavior-self-test')
-    shutil.rmtree(root, ignore_errors=True)
-    good = write_bundle(root / 'good')
-    validate_bundle(good)
-    bad = write_bundle(root / 'attach-only', include_observe=False)
-    try:
-        validate_bundle(bad)
-    except LiveBehaviorError as exc:
-        print(f'PASS reject surrogate attach-only live behavior: {exc}')
-    else:
-        raise SystemExit('expected rejection did not occur: surrogate attach-only live behavior')
-    shutil.rmtree(root, ignore_errors=True)
-
-def check_skip_cleanup():
-    out = Path('evidence/releases/self-test-skip-cleanup')
-    out.mkdir(parents=True, exist_ok=True)
-    stale_names = ['release-approval.json', 'artifact-hashes.json']
-    for name in stale_names:
-        (out / name).write_text('stale release claim\n')
-    for name in stale_names:
-        stale = out / name
-        if stale.exists() or stale.is_symlink():
-            stale.unlink()
-    if any((out / name).exists() for name in stale_names):
-        raise SystemExit('stale skip approval/hash cleanup failed')
-    for child in out.iterdir():
-        child.unlink()
-    out.rmdir()
-
-reject('rollback_success=false', lambda: check_dsq({'status': 'PASS', 'rollback_success': False}))
-reject('starvation breach', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': True}))
-reject('fallback reject counters', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': True}))
-reject('host-safe dsq release eligible', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'host-safe-disposable-sysroot', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'}))
-reject('missing verifier metadata', lambda: check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc'}))
-reject('stale current approval', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': False}))
-reject('missing hash manifest', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'artifact_hash_manifest': 'evidence/releases/missing-hashes.json', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'current'}}))
-reject('placeholder release reviewer', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'TODO', 'status': 'controlled_lab_pilot_candidate'}))
-reject('unsigned release approval', lambda: check_existing_approval({'git_sha': current, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate'}))
-reject('historical missing reason', lambda: check_existing_approval({'git_sha': '0' * 40, 'historical': True, 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'historical'}}))
-reject('skipped stress release-ready', lambda: check_stress({'status': 'SKIP', 'release_ready': True}))
-reject('summary contradiction', lambda: check_summary({'status': 'PASS', 'release_status': 'skipped_no_vm'}))
-check_existing_approval({'git_sha': '0' * 40, 'historical': True, 'historical_reason': 'archived approval only', 'reviewer': 'owner-override:repo', 'status': 'controlled_lab_pilot_candidate', 'signed_attestation': {'kind': 'owner-override-release-attestation', 'signed_by': 'owner-override:repo', 'signed_at': '2026-06-11T00:00:00Z', 'authorized_status': 'controlled_lab_pilot_candidate', 'scope': 'controlled-lab-only', 'statement': 'historical'}})
-check_dsq({'status': 'PASS', 'rollback_success': True, 'starvation_breach': False, 'repeated_fallback_or_reject_counters': False, 'release_eligible': True, 'vm_kind': 'disposable-vm-marker-present', 'bpf_metadata_object_sha256': 'abc', 'verifier_metadata_object_sha256': 'abc'})
-check_live_behavior_gate()
-check_skip_cleanup()
-print('PASS release gate self-test: reviewer policy, stale SHA, rollback, DSQ policy, live behavior proof, skip cleanup, hash manifest, skipped stress, and contradictions rejected')
-PY
+  python3 qa/release_gate_selftest.py self-test-policy
   python3 qa/live_bundle_freshness_check.py --self-test >/dev/null
   printf 'PASS live bundle freshness self-test covered by release gate\n'
   if ZIG_SCHEDULER_ALLOW_NO_STRACE=1 bash qa/release_gate.sh --version 0.2.0-lab --evidence evidence/releases/0.2.0-lab >/dev/null 2>&1; then
@@ -251,37 +142,7 @@ cleanup_release_lock() {
 }
 trap cleanup_release_lock EXIT
 if [ "$current_run" = true ] && [ ! -f "$live_behavior_bundle" ]; then
-  python3 - <<'PY' "$evidence_dir" "$version" "$live_behavior_bundle"
-import json
-import sys
-from pathlib import Path
-
-out = Path(sys.argv[1])
-version = sys.argv[2]
-bundle = sys.argv[3]
-for stale_name in ("release-approval.json", "artifact-hashes.json"):
-    stale_path = out / stale_name
-    if stale_path.exists() or stale_path.is_symlink():
-        stale_path.unlink()
-summary = {
-    "schema": "zig-scheduler/release-gate-summary/v1",
-    "version": version,
-    "status": "SKIP",
-    "release_status": "skipped_no_vm",
-    "reason": "VM-live release evidence missing: " + bundle,
-    "production_ready": False,
-    "arbitrary_host_safe": False,
-    "required_artifacts_present": False,
-    "artifact_count": 0,
-    "artifact_hash_manifest": "",
-    "evidence_dir": str(out),
-    "current_run_evidence": True,
-    "evidence_retention": "ignored-current-run-not-for-commit",
-}
-summary_tmp = out / "summary.json.tmp"
-summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-summary_tmp.replace(out / "summary.json")
-PY
+  python3 qa/release_gate_selftest.py write-skip-missing-live "$evidence_dir" "$version" "$live_behavior_bundle"
   printf 'summary=%s\n' "$evidence_dir/summary.json"
   fail "VM-live release evidence missing: $live_behavior_bundle"
 fi
@@ -308,36 +169,7 @@ require_file docs/releases/governance-gate.md
 if [ "$missing" -ne 0 ]; then fail 'release gate missing required artifacts'; fi
 bash qa/wording_audit.sh >/dev/null
 if [ "$no_approval" = true ]; then
-  python3 - <<'DRYRUNPY' "$evidence_dir" "$version" "$current_run"
-import json, sys
-from pathlib import Path
-out = Path(sys.argv[1])
-version = sys.argv[2]
-current_run = sys.argv[3] == 'true'
-for stale_name in ('release-approval.json', 'artifact-hashes.json'):
-    stale_path = out / stale_name
-    if stale_path.exists() or stale_path.is_symlink():
-        stale_path.unlink()
-summary = {
-    'schema': 'zig-scheduler/release-gate-summary/v1',
-    'version': version,
-    'status': 'SKIP',
-    'release_status': 'non_approval_dry_run',
-    'reason': 'non-approval release gate path used by run-all harness recursion guard',
-    'production_ready': False,
-    'arbitrary_host_safe': False,
-    'required_artifacts_present': True,
-    'artifact_count': 0,
-    'artifact_hash_manifest': '',
-    'evidence_dir': str(out),
-    'no_host_gate': 'not_required_non_approval_dry_run',
-    'current_run_evidence': current_run,
-    'evidence_retention': 'ignored-current-run-not-for-commit' if current_run else 'tracked-release-snapshot',
-}
-summary_tmp = out / 'summary.json.tmp'
-summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
-summary_tmp.replace(out / 'summary.json')
-DRYRUNPY
+  python3 qa/release_gate_selftest.py write-no-approval-summary "$evidence_dir" "$version" "$current_run"
   printf 'summary=%s\n' "$evidence_dir/summary.json"
   printf 'SKIP: release gate did not create approval in non-approval mode\n'
   exit 0
@@ -692,13 +524,7 @@ summary_tmp = out / 'summary.json.tmp'
 summary_tmp.write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
 summary_tmp.replace(out / 'summary.json')
 PY
-release_summary_status="$(python3 - "$evidence_dir/summary.json" <<'PY'
-import json, sys
-from pathlib import Path
-path = Path(sys.argv[1])
-print(json.loads(path.read_text()).get('status', 'missing') if path.is_file() else 'missing')
-PY
-)"
+release_summary_status="$(python3 qa/release_gate_selftest.py summary-status "$evidence_dir/summary.json")"
 if [ "$release_summary_status" = "SKIP" ]; then
   printf 'summary=%s\n' "$evidence_dir/summary.json"
   printf 'SKIP: release gate skipped approval for non-release-eligible evidence\n'

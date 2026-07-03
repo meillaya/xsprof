@@ -24,9 +24,11 @@ scenario="${ZIG_SCHEDULER_VM_WORKLOAD_SCENARIO:-live-backend}"
 object_file="zig-out/bpf/zigsched_minimal.bpf.o"
 meta_file="zig-out/bpf/zigsched_minimal.bpf.meta.json"
 scratch=""
+self_test=false
+self_test_serial=""
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-usage() { printf 'usage: %s --out evidence/lab/run-all/<name> [--scenario live-backend|workload-*] [--kernel /boot/vmlinuz-...] [--qemu /path/to/qemu-system-x86_64]\n' "$0" >&2; }
+usage() { printf 'usage: %s [--self-test [--self-test-serial serial.txt]] | --out evidence/lab/run-all/<name> [--scenario live-backend|workload-*] [--kernel /boot/vmlinuz-...] [--qemu /path/to/qemu-system-x86_64]\n' "$0" >&2; }
 
 qemu_iouring_enomem_message='Failed to initialize io_uring: Cannot allocate memory'
 qemu_boot_event_marker='ZIGSCHED_JSON {"event":"boot"'
@@ -60,8 +62,12 @@ qemu_run_with_mode() {
   set -e
 }
 
+source qa/vm/run_microvm_live_lab_selftest.sh
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --self-test) self_test=true; shift ;;
+    --self-test-serial) [ "$#" -ge 2 ] || fail '--self-test-serial requires value'; self_test_serial="$2"; shift 2 ;;
     --out) [ "$#" -ge 2 ] || fail '--out requires value'; out_dir="$2"; shift 2 ;;
     --kernel) [ "$#" -ge 2 ] || fail '--kernel requires value'; kernel_arg="$2"; shift 2 ;;
     --qemu) [ "$#" -ge 2 ] || fail '--qemu requires value'; qemu_arg="$2"; shift 2 ;;
@@ -70,6 +76,12 @@ while [ "$#" -gt 0 ]; do
     *) fail "unknown argument: $1" ;;
   esac
 done
+
+if [ "$self_test" = true ]; then
+  run_microvm_live_lab_self_test "$self_test_serial"
+  exit 0
+fi
+[ -z "$self_test_serial" ] || fail '--self-test-serial requires --self-test'
 
 [ -n "$out_dir" ] || fail '--out is required'
 case "$scenario" in live-backend|workload-cpu-saturation|workload-cgroup-weight-quota|workload-interactive-latency|workload-scheduler-affinity-churn) ;; *) fail '--scenario must be live-backend or a protected-core workload scenario' ;; esac

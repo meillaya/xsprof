@@ -257,6 +257,19 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     const workload_catalog = b.addSystemCommand(&.{"bash"});
     workload_catalog.addFileArg(b.path("qa/vm/workload_catalog_check.sh"));
 
+    const package_defaults_self_test = b.addSystemCommand(&.{"bash"});
+    package_defaults_self_test.has_side_effects = true;
+    package_defaults_self_test.addFileArg(b.path("qa/package_defaults.sh"));
+    package_defaults_self_test.addArg("--self-test");
+    const package_defaults_self_test_step = b.step("package-defaults-self-test", "Run package default safety self-test");
+    package_defaults_self_test_step.dependOn(&package_defaults_self_test.step);
+
+    const microvm_rootfs_self_test = b.addSystemCommand(&.{"bash"});
+    microvm_rootfs_self_test.addFileArg(b.path("qa/vm/microvm_rootfs.sh"));
+    microvm_rootfs_self_test.addArg("--self-test");
+    const microvm_rootfs_self_test_step = b.step("microvm-rootfs-self-test", "Run microVM rootfs helper self-test");
+    microvm_rootfs_self_test_step.dependOn(&microvm_rootfs_self_test.step);
+
     const root_ui_absence = b.addSystemCommand(&.{"bash"});
     root_ui_absence.addFileArg(b.path("qa/no_frontend_root.sh"));
 
@@ -394,6 +407,8 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
     const host_safe_gates = b.step("host-safe-gates", "Run host-safe matrix, safety, release-withheld, privacy, and docs gates");
     host_safe_gates.dependOn(bpf_step);
     host_safe_gates.dependOn(&workload_catalog.step);
+    host_safe_gates.dependOn(&package_defaults_self_test.step);
+    host_safe_gates.dependOn(&microvm_rootfs_self_test.step);
     host_safe_gates.dependOn(&root_ui_absence.step);
     host_safe_gates.dependOn(&no_host_mutation.step);
     host_safe_gates.dependOn(&release_gate.step);
@@ -422,14 +437,20 @@ fn addHostSafeGatesStep(b: *Build, bpf_step: *Build.Step) *Build.Step {
 }
 
 fn addVmLabBackendStep(b: *Build) void {
+    const microvm_runner_self_test = b.addSystemCommand(&.{"bash"});
+    microvm_runner_self_test.addFileArg(b.path("qa/vm/run_microvm_live_lab.sh"));
+    microvm_runner_self_test.addArg("--self-test");
+
     const vm_lab_backend = b.addSystemCommand(&.{"bash"});
     vm_lab_backend.has_side_effects = true;
     vm_lab_backend.addFileArg(b.path("qa/vm/vm_lab_backend.sh"));
     if (b.args) |args| {
         vm_lab_backend.addArgs(args);
     }
+    vm_lab_backend.step.dependOn(&microvm_runner_self_test.step);
 
     const vm_lab_backend_step = b.step("vm-lab-backend", "Run fail-closed disposable VM backend lab harness");
+    vm_lab_backend_step.dependOn(&microvm_runner_self_test.step);
     vm_lab_backend_step.dependOn(&vm_lab_backend.step);
 }
 

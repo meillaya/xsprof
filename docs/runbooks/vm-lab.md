@@ -257,7 +257,7 @@ zig build host-safe-gates --summary all
 zig build vm-harness-matrix --summary all
 ```
 
-`client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`; without a real VM marker, that row is `PASS` with `evidence_mode=fixture`, while vm-required marker-missing rows fail closed as `REFUSE` and prerequisite-missing rows remain `SKIP`/`REFUSE`. None of these default build targets require QEMU/KVM or VM kernel inputs.
+`client-contract` covers matrix fixtures, backend client API fixtures, runtime samples, control schema drift, and daemon golden transcripts. `host-safe-gates` covers workload catalog, package default safety self-test, microVM rootfs helper self-test, BPF ABI/repro, root UI absence, no-host-mutation, release-withheld self-test, wording/privacy, read-only security, and Zig vendor-doc checks. `vm-harness-matrix` selects only the host-safe `fixture-pass` row unless explicit arguments are supplied after `--`; without a real VM marker, that row is `PASS` with `evidence_mode=fixture`, while vm-required marker-missing rows fail closed as `REFUSE` and prerequisite-missing rows remain `SKIP`/`REFUSE`. None of these default build targets require QEMU/KVM or VM kernel inputs.
 
 The canonical protected live row is:
 
@@ -268,7 +268,7 @@ zig build vm-harness-matrix -- \
   --out evidence/lab/matrix/<run-id>
 ```
 
-That row invokes `qa/vm/vm_lab_backend.sh --mode vm-required`, and the backend stages BPF metadata before delegating real disposable-VM execution to `qa/vm/run_microvm_live_lab.sh`. If QEMU, `/dev/kvm`, a trusted kernel image, Nix/busybox staging, or the supported tuple is unavailable, the row must still leave a manifest with a validated `SKIP` or `REFUSE` artifact and `host_mutation=false`; it must not fall back to loading or attaching sched_ext on the host. On a capable protected runner, a PASS row must be `evidence_mode=vm-live`, include a row-local VM marker proof, and retain rollback, cleanup, host-refusal, runtime-sample, daemon-event, and privacy artifacts under the matrix run root.
+That row invokes `qa/vm/vm_lab_backend.sh --mode vm-required`, and the backend stages BPF metadata before delegating real disposable-VM execution to `qa/vm/run_microvm_live_lab.sh`. The `zig build vm-lab-backend` target runs `qa/vm/run_microvm_live_lab.sh --self-test` first so QEMU fallback handling remains covered before any operator-selected VM-required path. If QEMU, `/dev/kvm`, a trusted kernel image, Nix/busybox staging, or the supported tuple is unavailable, the row must still leave a manifest with a validated `SKIP` or `REFUSE` artifact and `host_mutation=false`; it must not fall back to loading or attaching sched_ext on the host. On a capable protected runner, a PASS row must be `evidence_mode=vm-live`, include a row-local VM marker proof, and retain rollback, cleanup, host-refusal, runtime-sample, daemon-event, and privacy artifacts under the matrix run root.
 
 Protected live operator checklist:
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# pyright: reportAny=false
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
@@ -9,6 +8,7 @@
 """# noqa: SIZE_OK - the exact Task 11 governance source matrix is intentionally colocated with the validator."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from typing import Final, TypeAlias
+from typing import TYPE_CHECKING, Final, NoReturn, Protocol, TypeAlias
 
 
 SCHEMA_VERSION: Final[int] = 1
@@ -84,6 +84,18 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/matrix_benchmark_provenance_check.py', 'matrix benchmark provenance self-test entrypoint'),
     ('qa/matrix_benchmark_provenance_selftest.py', 'matrix benchmark provenance manifest mutation self-tests'),
     ('qa/matrix_run_contract_check.py', 'matrix-run v1 contract validator and self-test gate'),
+    ('qa/matrix_run_json.py', 'matrix-run v1 JSON IO and path boundary helper'),
+    ('qa/matrix_run_live_backend.py', 'matrix-run v1 live backend row validator helper'),
+    ('qa/matrix_run_manifest_validate.py', 'matrix-run v1 manifest semantic validator helper'),
+    ('qa/matrix_run_model.py', 'matrix-run v1 typed model and parser source'),
+    ('qa/matrix_run_selftest.py', 'matrix-run v1 adversarial self-test entrypoint helper'),
+    ('qa/matrix_run_selftest_cases_basic.py', 'matrix-run v1 basic self-test fixture cases'),
+    ('qa/matrix_run_selftest_cases_live.py', 'matrix-run v1 live backend self-test fixture cases'),
+    ('qa/matrix_run_selftest_cases_workload.py', 'matrix-run v1 workload self-test fixture cases'),
+    ('qa/matrix_run_selftest_common.py', 'matrix-run v1 self-test fixture builder helpers'),
+    ('qa/matrix_run_selftest_pack.py', 'matrix-run v1 self-test fixture pack validator helper'),
+    ('qa/matrix_run_validate.py', 'matrix-run v1 fixture and manifest validation orchestrator'),
+    ('qa/matrix_run_workload.py', 'matrix-run v1 workload metadata validator helper'),
     ('qa/protected_core_suite_check.py', 'protected core matrix suite validator'),
     ('qa/protected_core_suite_selftest.py', 'protected core matrix suite self-test fixtures'),
     ('qa/protected_core_telemetry_check.py', 'protected core runtime telemetry normalization validator'),
@@ -95,6 +107,7 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/package_manifest_check.py', 'package manifest semantic safety validator'),
     ('qa/protected_environment_review_check.py', 'protected environment review contract validator'),
     ('qa/release_gate.sh', 'release evidence gate consumed by lab/release checks'),
+    ('qa/release_gate_selftest.py', 'release evidence gate helper and adversarial self-test logic'),
     ('qa/runner_substrate_proof_check.py', 'protected runner substrate proof validator'),
     ('qa/runner_substrate_proof_common.py', 'protected runner substrate proof shared JSON loader and error source'),
     ('qa/runner_substrate_proof_selftest.py', 'protected runner substrate proof adversarial self-test cases'),
@@ -118,7 +131,13 @@ EXPECTED_REQUIRED_SOURCES: Final[tuple[tuple[str, str], ...]] = (
     ('qa/unsafe_cli_matrix.sh', 'unsafe CLI refusal matrix gate'),
     ('qa/vm/contract_check.sh', 'disposable VM execution contract validator'),
     ('qa/vm/execution_contract.json', 'disposable VM execution contract source'),
+    ('qa/vm/microvm_rootfs.sh', 'microVM rootfs public build wrapper and self-test dispatcher'),
+    ('qa/vm/microvm_rootfs_guest_init.sh', 'microVM rootfs guest init script writer helper'),
+    ('qa/vm/microvm_rootfs_selftest.sh', 'microVM rootfs workload-tool self-test helper'),
+    ('qa/vm/run_microvm_live_lab.sh', 'microVM live lab public runner wrapper and self-test dispatcher'),
+    ('qa/vm/run_microvm_live_lab_selftest.sh', 'microVM live runner fallback self-test helper'),
     ('qa/vm/vm_harness_matrix.sh', 'canonical host-safe VM harness matrix runner'),
+    ('qa/vm/vm_harness_matrix_emit.py', 'VM harness matrix JSON row and manifest emit helper'),
     ('qa/vm/workload_execution_check.py', 'row-local VM workload execution PASS validator'),
     ('qa/vm/workload_catalog_check.sh', 'VM workload catalog and matrix fixture validator'),
     ('qa/wording_audit.sh', 'wording, contradiction, and prompt-injection audit gate'),
@@ -168,13 +187,27 @@ class ManifestError(Exception):
     """Raised when the governance manifest is malformed or stale."""
 
 
+class JsonLoader(Protocol):
+    def loads(self, text: str, *, parse_constant: Callable[[str], NoReturn]) -> JsonValue: ...
+
+
+if TYPE_CHECKING:
+    json_loader: JsonLoader
+else:
+    json_loader = json
+
+
+def reject_json_constant(value: str) -> NoReturn:
+    raise ManifestError(f"invalid JSON constant: {value}")
+
+
 def load_json_object(path: Path, context: str) -> JsonObject:
     try:
-        raw: JsonValue = json.loads(path.read_text())
+        raw = json_loader.loads(path.read_text(), parse_constant=reject_json_constant)
     except FileNotFoundError as exc:
         raise ManifestError(f"missing {context}: {path}") from exc
     except json.JSONDecodeError as exc:
-        raise ManifestError(f"invalid {context} JSON: {exc}") from exc
+        raise ManifestError(f"invalid {context} JSON at byte {exc.pos}: {exc.msg}") from exc
     if not isinstance(raw, dict):
         raise ManifestError(f"{context} must be a JSON object")
     return raw
@@ -359,6 +392,15 @@ def run_self_test() -> None:
     if not isinstance(source_rows, list) or not source_rows:
         raise ManifestError("self-test manifest fixture must contain sources")
     with TemporaryDirectory(prefix="zigsched-governance-manifest-") as tmp:
+        escaped_path = Path(tmp) / "escaped-slash.json"
+        manifest_text = manifest.read_text()
+        docs_ci_path = '"docs/ci.md"'
+        if docs_ci_path not in manifest_text:
+            raise ManifestError("self-test manifest fixture missing docs/ci.md source")
+        _ = escaped_path.write_text(manifest_text.replace(docs_ci_path, r'"docs\/ci.md"', 1))
+        validate_sources(parse_manifest(escaped_path))
+        print("PASS governance manifest self-test accepted escaped slash source path")
+
         missing_path = Path(tmp) / "missing-source.json"
         mutated = dict(raw)
         mutated["sources"] = source_rows[1:]
