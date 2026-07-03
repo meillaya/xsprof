@@ -5,6 +5,23 @@ multi-row VM scheduler proof branch repairs. It is lab evidence only: it is not 
 release approval, not a production-capacity claim, not a performance claim, and
 not permission to attach sched_ext on a real host.
 
+## Latest protected-core PASS refresh
+
+A newer protected manual run reconfirmed the backend maturity gate for frontend
+planning only. This remains lab-only evidence: it is not release approval, not
+production approval, not a performance claim, and not permission for real-host
+sched_ext attach.
+
+- Workflow run: `28676890573`
+- URL: <https://github.com/Meillaya/zig-scheduler/actions/runs/28676890573>
+- Head branch: `work/protected-multi-row-vm-scheduler-proof`
+- Head commit: `be4aa14da4fc6bc3325cf5f2dbc566b52679a24f`
+- Bundle SHA-256: `642446227f69075ad5df81277b0ad01d66862d4c0271940d811bb425893460fe`
+- Evidence manifest: `PASS` with `host_mutation=false`, `release_eligible=false`, and `production_capacity_claim=false`
+- Protected-core rows: `live-backend`, `workload-cpu-saturation`, `workload-cgroup-weight-quota`, and `workload-interactive-latency` all `PASS`
+- Runner proof: substrate `PASS`, cleanliness `PASS`, KVM acceleration `kvm`, supported tuple `linux-7.1.2-3-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`
+- Post-run cleanup: disposable runner auto-deregistered and local runner state removed
+
 ## GitHub Actions run
 
 - Workflow: `manual-vm-proof`

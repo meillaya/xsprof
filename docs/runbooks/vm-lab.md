@@ -328,11 +328,11 @@ Before opening the protected run, capture this operator preflight on the self-ho
 ```bash
 set -euo pipefail
 kernel_release="$(uname -r)"
-supported_tuple="linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # choose the exact protected tuple matching uname -r
+supported_tuple="linux-7.1.2-3-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only" # choose the exact protected tuple matching uname -r
 printf 'kernel_release=%s\n' "$kernel_release"
 printf 'workflow_supported_tuple=%s\n' "$supported_tuple"
 case "$kernel_release" in
-  6.1[2-9]*|6.[2-9][0-9]*|7.1.1-2-cachyos) ;;
+  6.1[2-9]*|6.[2-9][0-9]*|7.1.1-2-cachyos|7.1.2-3-cachyos) ;;
   *) echo "REFUSE: kernel release does not match the supported protected tuple input"; exit 1 ;;
 esac
 test -d /sys/kernel/sched_ext
@@ -340,10 +340,10 @@ test -r /sys/kernel/btf/vmlinux
 test -e /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
 command -v qemu-system-x86_64
 qemu-system-x86_64 -accel help | grep -E '(^|[[:space:]])kvm($|[[:space:]])'
-echo "$supported_tuple" | grep -E '^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.1-2-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
+echo "$supported_tuple" | grep -E '^linux-(6\.(1[2-9]|[2-9][0-9])([.][0-9]+)?|7\.1\.(1-2|2-3)-cachyos)-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only$'
 ```
 
-CachyOS is accepted only for the exact protected tuple `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`; other CachyOS/downstream releases remain out of scope.
+CachyOS is accepted only for the exact protected tuples `linux-7.1.1-2-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only` and `linux-7.1.2-3-cachyos-x86_64-sched_ext-bpf-bpf_jit-btf-vm_lab_only`; other CachyOS/downstream releases remain out of scope.
 
 The protected workflow runs the canonical `protected-core` suite command: `zig build vm-harness-matrix --summary all -- --mode vm-required --suite protected-core --out evidence/lab/matrix/manual-vm-proof`. A non-zero matrix command is reviewable only when it left a valid manifest and protected-core rows are explicitly `SKIP`, `REFUSE`, `INCIDENT`, or `FAIL`, or the evidence manifest truthfully records a bundle-level `BLOCKED` outcome; the workflow validates that manifest before packaging evidence so unavailable substrate is recorded as proof of fail-closed behavior rather than silently discarded. The bundle must include `live-backend`, `workload-cpu-saturation`, `workload-cgroup-weight-quota`, and exactly one latency/churn row (`workload-interactive-latency` or `workload-scheduler-affinity-churn`).
 
