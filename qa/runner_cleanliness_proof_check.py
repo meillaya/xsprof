@@ -29,12 +29,13 @@ Mode: TypeAlias = Literal["proof", "fixtures", "self-test"]
 SAFE_PATH_RE: Final[re.Pattern[str]] = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$")
 SHA_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 RUN_URL_RE: Final[re.Pattern[str]] = re.compile(r"^https://github\.com/.+/actions/runs/[0-9]+$")
-ROOT_FIELDS: Final[frozenset[str]] = frozenset(("schema", "proof_outcome", "run_url", "runner_identity", "cleanliness_mode", "no_reuse_evidence", "removal_receipt", "protected_review", "runner_substrate", "host_mutation", "release_eligible", "production_capacity_claim"))
+ROOT_FIELDS: Final[frozenset[str]] = frozenset(("schema", "proof_outcome", "run_url", "runner_identity", "cleanliness_mode", "no_reuse_evidence", "removal_receipt", "ephemeral_registration", "protected_review", "runner_substrate", "host_mutation", "release_eligible", "production_capacity_claim"))
 IDENTITY_FIELDS: Final[frozenset[str]] = frozenset(("name", "group", "labels"))
 MODE_FIELDS: Final[frozenset[str]] = frozenset(("kind", "jit_config_sha256", "clean_machine_boot_id", "ephemeral_instance_id"))
 NO_REUSE_FIELDS: Final[frozenset[str]] = frozenset(("status", "previous_runner_id", "current_runner_id", "evidence"))
 REMOVAL_FIELDS: Final[frozenset[str]] = frozenset(("status", "removed_at", "receipt_path", "sha256"))
 REF_FIELDS: Final[frozenset[str]] = frozenset(("path", "sha256", "schema_role"))
+EPHEMERAL_REGISTRATION_FIELDS: Final[frozenset[str]] = frozenset(("schema", "runner_id", "runner_name", "runner_labels", "ephemeral_instance_id", "ephemeral_runner_configured", "no_reuse_evidence", "run_url", "source_basename", "source_sha256", "source_size_bytes", "host_mutation", "release_eligible", "production_capacity_claim"))
 @dataclass(frozen=True, slots=True)
 class Args:
     mode: Mode
@@ -113,7 +114,7 @@ def validate_schema_file() -> None:
     require(schema.get("$id") == SCHEMA, "runner cleanliness schema $id mismatch")
 
 
-def validate_ref(value: JsonValue | None, role: str, context: str) -> None:
+def validate_ref(value: JsonValue | None, role: str, context: str) -> Path:
     ref = obj(value, context)
     only_fields(ref, REF_FIELDS, context)
     path = safe_path(ref.get("path"), f"{context}.path")
@@ -121,6 +122,7 @@ def validate_ref(value: JsonValue | None, role: str, context: str) -> None:
     require(SHA_RE.fullmatch(digest) is not None, f"{context}.sha256 must be sha256 hex")
     require(sha_file(path) == digest, f"{context}.sha256 does not match {path}")
     require(ref.get("schema_role") == role, f"{context}.schema_role must be {role}")
+    return path
 
 
 def validate_mode(value: JsonValue | None, outcome: str) -> None:
@@ -162,19 +164,49 @@ def validate_no_reuse(value: JsonValue | None, outcome: str) -> None:
     _ = text(evidence.get("evidence"), "no_reuse_evidence.evidence")
 
 
-def validate_removal(value: JsonValue | None, outcome: str, ephemeral_mode: bool) -> None:
+def validate_removal(value: JsonValue | None, outcome: str, ephemeral_mode: bool) -> str:
     receipt = obj(value, "removal_receipt")
     only_fields(receipt, REMOVAL_FIELDS, "removal_receipt")
     status = text(receipt.get("status"), "removal_receipt.status")
     require(status in {"removed", "not_applicable", "unavailable"}, "removal_receipt.status unsupported")
     if outcome == "PASS":
-        require(status == "removed" or (ephemeral_mode and status == "not_applicable"), "PASS proof requires runner removal receipt unless ephemeral runner cleanup is not applicable inside the job")
+        require(status == "removed" or (ephemeral_mode and status == "not_applicable"), "PASS proof requires runner removal receipt or validator-enforced ephemeral registration proof")
     if status == "removed":
         _ = text(receipt.get("removed_at"), "removal_receipt.removed_at")
         receipt_path = safe_path(receipt.get("receipt_path"), "removal_receipt.receipt_path")
         digest = text(receipt.get("sha256"), "removal_receipt.sha256")
         require(SHA_RE.fullmatch(digest) is not None, "removal_receipt.sha256 must be sha256 hex")
         require(sha_file(receipt_path) == digest, f"removal_receipt.sha256 does not match {receipt_path}")
+    return status
+
+
+def validate_ephemeral_registration(value: JsonValue | None, data: JsonObject, removal_status: str) -> None:
+    mode = obj(data.get("cleanliness_mode"), "cleanliness_mode")
+    ephemeral_pass = data.get("proof_outcome") == "PASS" and mode.get("kind") == "ephemeral" and removal_status == "not_applicable"
+    if not ephemeral_pass:
+        require(value is None, "ephemeral_registration is only allowed for PASS ephemeral cleanup without an in-job removal receipt")
+        return
+    receipt_path = validate_ref(value, "ephemeral-runner-registration-receipt", "ephemeral_registration")
+    receipt = load_json_object(receipt_path)
+    only_fields(receipt, EPHEMERAL_REGISTRATION_FIELDS, "ephemeral_registration receipt")
+    require(receipt.get("schema") == "zig-scheduler/ephemeral-runner-registration-receipt/v1", "ephemeral_registration receipt schema mismatch")
+    identity = obj(data.get("runner_identity"), "runner_identity")
+    no_reuse = obj(data.get("no_reuse_evidence"), "no_reuse_evidence")
+    require(receipt.get("runner_id") == no_reuse.get("current_runner_id"), "ephemeral_registration runner_id must match current runner id")
+    require(receipt.get("runner_name") == identity.get("name"), "ephemeral_registration runner_name must match runner identity")
+    require(receipt.get("ephemeral_instance_id") == mode.get("ephemeral_instance_id"), "ephemeral_registration instance id must match cleanliness mode")
+    require(receipt.get("ephemeral_runner_configured") is True, "ephemeral_registration must prove ephemeral runner configuration")
+    require(receipt.get("run_url") == data.get("run_url"), "ephemeral_registration run_url must match proof run_url")
+    labels = receipt.get("runner_labels")
+    require(isinstance(labels, list) and labels == identity.get("labels"), "ephemeral_registration labels must match runner identity")
+    require(receipt.get("no_reuse_evidence") == no_reuse.get("evidence"), "ephemeral_registration no-reuse evidence must match proof")
+    require(text(receipt.get("source_basename"), "ephemeral_registration.source_basename") == "zigsched-runner-registration-receipt.txt", "ephemeral_registration source basename unsupported")
+    require(SHA_RE.fullmatch(text(receipt.get("source_sha256"), "ephemeral_registration.source_sha256")) is not None, "ephemeral_registration.source_sha256 must be sha256 hex")
+    size = receipt.get("source_size_bytes")
+    require(isinstance(size, int) and 0 < size <= 8192, "ephemeral_registration source size must be 1..8192 bytes")
+    require(receipt.get("host_mutation") is False, "ephemeral_registration host_mutation must be false")
+    require(receipt.get("release_eligible") is False, "ephemeral_registration release_eligible must be false")
+    require(receipt.get("production_capacity_claim") is False, "ephemeral_registration production_capacity_claim must be false")
 
 
 def validate_proof(path: Path) -> None:
@@ -193,7 +225,8 @@ def validate_proof(path: Path) -> None:
     mode = obj(data.get("cleanliness_mode"), "cleanliness_mode")
     validate_mode(mode, outcome)
     validate_no_reuse(data.get("no_reuse_evidence"), outcome)
-    validate_removal(data.get("removal_receipt"), outcome, mode.get("kind") == "ephemeral")
+    removal_status = validate_removal(data.get("removal_receipt"), outcome, mode.get("kind") == "ephemeral")
+    validate_ephemeral_registration(data.get("ephemeral_registration"), data, removal_status)
     validate_ref(data.get("protected_review"), "protected-environment-review", "protected_review")
     validate_ref(data.get("runner_substrate"), "runner-substrate-proof", "runner_substrate")
 
@@ -240,6 +273,10 @@ def set_ephemeral_cleanup_not_applicable(data: JsonObject) -> None:
     data["removal_receipt"] = {"status": "not_applicable"}
 
 
+def remove_ephemeral_registration(data: JsonObject) -> None:
+    _ = data.pop("ephemeral_registration", None)
+
+
 def set_no_reuse_current_id(data: JsonObject) -> None:
     obj(data.get("no_reuse_evidence"), "no_reuse")["current_runner_id"] = "none"
 
@@ -276,10 +313,18 @@ def self_test() -> None:
         print("PASS accept runner cleanliness proof")
         ephemeral = load_json_object(proof)
         set_ephemeral_cleanup_not_applicable(ephemeral)
+        registration = root / "runner-ephemeral-registration-receipt.json"
+        write_json(registration, {"schema": "zig-scheduler/ephemeral-runner-registration-receipt/v1", "runner_id": "runner-28560605183", "runner_name": "zigsched-proof-001", "runner_labels": ["self-hosted", "zig-scheduler-vm-proof", "disposable-vm"], "ephemeral_instance_id": "runner-cleanliness-self-test", "ephemeral_runner_configured": True, "no_reuse_evidence": "runner registered for this run only", "run_url": "https://github.com/Meillaya/zig-scheduler/actions/runs/28560605183", "source_basename": "zigsched-runner-registration-receipt.txt", "source_sha256": "b" * 64, "source_size_bytes": 128, "host_mutation": False, "release_eligible": False, "production_capacity_claim": False})
+        ephemeral["ephemeral_registration"] = artifact_ref(registration, "ephemeral-runner-registration-receipt")
         ephemeral_path = root / "ephemeral-not-applicable.json"
         write_json(ephemeral_path, ephemeral)
         validate_proof(ephemeral_path)
-        print("PASS accept ephemeral runner cleanliness proof with not-applicable in-job removal")
+        print("PASS accept ephemeral runner cleanliness proof with registration-bound in-job cleanup")
+        missing_ephemeral = load_json_object(ephemeral_path)
+        remove_ephemeral_registration(missing_ephemeral)
+        missing_ephemeral_path = root / "bad-ephemeral-registration.json"
+        write_json(missing_ephemeral_path, missing_ephemeral)
+        expect_reject(missing_ephemeral_path, "missing-ephemeral-registration")
         mutations: tuple[tuple[str, Callable[[JsonObject], None]], ...] = (
             ("reused-runner", set_no_reuse_current_id),
             ("missing-removal", set_removal_unavailable),

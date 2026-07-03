@@ -124,7 +124,7 @@ jobs:
           python3 qa/runner_substrate_proof_check.py --proof evidence/lab/manual-vm-proof/runner-substrate-proof.json --schema schemas/control/runner-substrate-proof.v1.schema.json
       - run: echo "protected_core_pass protected_core_pass_candidate non-PASS protected-core row must include an explicit reason manifest_outcome = runner_outcome 'outcome': manifest_outcome 'present': marker_present benchmark_provenance = { 'status': 'not_applicable' 'applies_to_outcomes': ['SKIP', 'REFUSE', 'BLOCKED'] PASS evidence manifest requires benchmark_provenance records runner_substrate_proof outcome is missing or unsupported runner_cleanliness_proof outcome is missing or unsupported"
       - run: python3 qa/runner_cleanliness_proof_check.py --proof evidence/lab/manual-vm-proof/runner-cleanliness-proof.json
-      - run: echo "runner labels are not cleanliness proof ZIGSCHED_NO_REUSE_EVIDENCE ZIGSCHED_RUNNER_REMOVAL_RECEIPT no_reuse_status = 'PASS' removal_receipt = {'status': 'unavailable'} removal_receipt = {'status': 'not_applicable'} cleanup_accounted = removal_receipt['status'] == 'removed' outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'"
+      - run: echo "runner labels are not cleanliness proof ZIGSCHED_NO_REUSE_EVIDENCE ZIGSCHED_RUNNER_REMOVAL_RECEIPT ZIGSCHED_EPHEMERAL_REGISTRATION_RECEIPT ephemeral_id = os.environ.get('ZIGSCHED_EPHEMERAL_INSTANCE_ID', '') no_reuse_status = 'PASS' removal_receipt = {'status': 'unavailable'} removal_receipt = {'status': 'not_applicable'} ephemeral_registration is not None cleanup_accounted = removal_receipt['status'] == 'removed' or (cleanliness_mode['kind'] == 'ephemeral' and removal_receipt['status'] == 'not_applicable' and ephemeral_registration is not None) outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'"
       - run: python3 qa/evidence_manifest_check.py --manifest evidence/lab/manual-vm-proof/evidence-manifest.json --schema schemas/control/evidence-manifest.v1.schema.json
       - run: |
           tar_inputs=(evidence/lab/manual-vm-proof evidence/lab/matrix/manual schemas/control/evidence-manifest.v1.schema.json schemas/control/runner-substrate-proof.v1.schema.json schemas/control/runner-cleanliness-proof.v1.schema.json qa/runner_substrate_proof_check.py qa/runner_cleanliness_proof_check.py runner-substrate-proof.json runner-cleanliness-proof.json)
@@ -236,6 +236,8 @@ def run_self_test() -> None:
     expect_reject("workflow omits BTF PASS gate", workflow.replace("not btf_available", "btf_available is False", 1), docs)
     expect_reject("workflow omits sched_ext PASS gate", workflow.replace("not sched_ext_available", "sched_ext_available is False", 1), docs)
     expect_reject("workflow omits placeholder config gate", workflow.replace("config_sha256 == '' or config_sha256 == '0' * 64", "config_sha256 == ''", 1), docs)
+    expect_reject("workflow uses runner tracking as ephemeral proof", workflow.replace("ephemeral_id = os.environ.get('ZIGSCHED_EPHEMERAL_INSTANCE_ID', '')", "ephemeral_id = first_existing_env('ZIGSCHED_EPHEMERAL_INSTANCE_ID', 'RUNNER_TRACKING_ID')", 1), docs)
+    expect_reject("workflow copies arbitrary removal receipt", workflow + "\nlocal_receipt.write_bytes(receipt_path.read_bytes())\n", docs)
     expect_reject("docs omit reviewer gate", workflow, docs.replace("required reviewers", ""))
     print("PASS manual VM proof CI self-test: unsafe triggers, gates, runners, artifacts, archive self-inclusion, release claims, attach allowance, and docs drift rejected")
 

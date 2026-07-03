@@ -560,6 +560,39 @@ jobs:
           def ref(path, role):
               return {'path': path.as_posix(), 'sha256': digest(path), 'schema_role': role}
 
+          def write_json(path, value):
+              path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
+
+          def load_receipt_source(env_name, expected_name):
+              raw = os.environ.get(env_name, '')
+              if raw == '':
+                  return None
+              source = Path(raw)
+              if source.name != expected_name:
+                  raise SystemExit(f'{env_name} must point to {expected_name}')
+              if not source.is_file():
+                  raise SystemExit(f'{env_name} does not reference a file')
+              content = source.read_bytes()
+              if len(content) == 0 or len(content) > 8192:
+                  raise SystemExit(f'{env_name} must be a non-empty receipt <= 8192 bytes')
+              text = content.decode('utf-8', errors='strict')
+              lowered = text.lower()
+              for denied in ('authorization', 'bearer ', 'api_key', 'apikey', 'password', 'private_key', 'secret', 'token='):
+                  if denied in lowered:
+                      raise SystemExit(f'{env_name} appears to contain sensitive text')
+              return {
+                  'basename': source.name,
+                  'sha256': hashlib.sha256(content).hexdigest(),
+                  'size_bytes': len(content),
+                  'text': text,
+              }
+
+          def require_receipt_terms(receipt, terms, env_name):
+              text = receipt['text']
+              for term in terms:
+                  if term not in text:
+                      raise SystemExit(f'{env_name} missing required receipt term: {term}')
+
           def first_existing_env(*names):
               for name in names:
                   value = os.environ.get(name, '')
@@ -571,7 +604,7 @@ jobs:
           runner_group = os.environ.get('RUNNER_GROUP_NAME', 'configured-by-repository-owners')
           labels = ['self-hosted', 'zig-scheduler-vm-proof', 'disposable-vm']
           jit_hash = first_existing_env('ZIGSCHED_JIT_CONFIG_SHA256', 'ACTIONS_RUNNER_JIT_CONFIG_SHA256')
-          ephemeral_id = first_existing_env('ZIGSCHED_EPHEMERAL_INSTANCE_ID', 'RUNNER_TRACKING_ID')
+          ephemeral_id = os.environ.get('ZIGSCHED_EPHEMERAL_INSTANCE_ID', '')
           boot_id_path = Path('/proc/sys/kernel/random/boot_id')
           boot_id = boot_id_path.read_text().strip() if boot_id_path.is_file() else 'unavailable'
           if len(jit_hash) == 64 and all(item in '0123456789abcdef' for item in jit_hash):
@@ -588,11 +621,23 @@ jobs:
           no_reuse_status = 'PASS' if no_reuse_claim != '' and previous_runner_id != current_runner_id else 'REFUSE'
           no_reuse_evidence = no_reuse_claim if no_reuse_claim != '' else 'runner labels are not cleanliness proof; provide ZIGSCHED_NO_REUSE_EVIDENCE from runner registration logs'
           receipt_env = os.environ.get('ZIGSCHED_RUNNER_REMOVAL_RECEIPT', '')
-          receipt_path = Path(receipt_env) if receipt_env != '' else Path('')
           removal_receipt = {'status': 'unavailable'}
-          if receipt_env != '' and receipt_path.is_file():
-              local_receipt = Path('evidence/lab/manual-vm-proof/runner-removal-receipt.txt')
-              local_receipt.write_bytes(receipt_path.read_bytes())
+          if receipt_env != '':
+              removal_source = load_receipt_source('ZIGSCHED_RUNNER_REMOVAL_RECEIPT', 'zigsched-runner-removal-receipt.txt')
+              require_receipt_terms(removal_source, (current_runner_id, 'runner_removed=true'), 'ZIGSCHED_RUNNER_REMOVAL_RECEIPT')
+              local_receipt = Path('evidence/lab/manual-vm-proof/runner-removal-receipt.json')
+              write_json(local_receipt, {
+                  'schema': 'zig-scheduler/runner-removal-receipt/v1',
+                  'runner_id': current_runner_id,
+                  'runner_name': runner_name,
+                  'removed_at': os.environ.get('ZIGSCHED_RUNNER_REMOVED_AT', '1970-01-01T00:00:00Z'),
+                  'source_basename': removal_source['basename'],
+                  'source_sha256': removal_source['sha256'],
+                  'source_size_bytes': removal_source['size_bytes'],
+                  'host_mutation': False,
+                  'release_eligible': False,
+                  'production_capacity_claim': False,
+              })
               removal_receipt = {
                   'status': 'removed',
                   'removed_at': os.environ.get('ZIGSCHED_RUNNER_REMOVED_AT', '1970-01-01T00:00:00Z'),
@@ -601,7 +646,30 @@ jobs:
               }
           elif cleanliness_mode['kind'] == 'ephemeral':
               removal_receipt = {'status': 'not_applicable'}
-          cleanup_accounted = removal_receipt['status'] == 'removed' or (cleanliness_mode['kind'] == 'ephemeral' and removal_receipt['status'] == 'not_applicable')
+          ephemeral_registration = None
+          if cleanliness_mode['kind'] == 'ephemeral':
+              registration_source = load_receipt_source('ZIGSCHED_EPHEMERAL_REGISTRATION_RECEIPT', 'zigsched-runner-registration-receipt.txt')
+              if registration_source is not None:
+                  require_receipt_terms(registration_source, (ephemeral_id, current_runner_id, 'ephemeral_runner_configured=true'), 'ZIGSCHED_EPHEMERAL_REGISTRATION_RECEIPT')
+                  registration_receipt = Path('evidence/lab/manual-vm-proof/runner-ephemeral-registration-receipt.json')
+                  write_json(registration_receipt, {
+                      'schema': 'zig-scheduler/ephemeral-runner-registration-receipt/v1',
+                      'runner_id': current_runner_id,
+                      'runner_name': runner_name,
+                      'runner_labels': labels,
+                      'ephemeral_instance_id': ephemeral_id,
+                      'ephemeral_runner_configured': True,
+                      'no_reuse_evidence': no_reuse_evidence,
+                      'run_url': run_url,
+                      'source_basename': registration_source['basename'],
+                      'source_sha256': registration_source['sha256'],
+                      'source_size_bytes': registration_source['size_bytes'],
+                      'host_mutation': False,
+                      'release_eligible': False,
+                      'production_capacity_claim': False,
+                  })
+                  ephemeral_registration = ref(registration_receipt, 'ephemeral-runner-registration-receipt')
+          cleanup_accounted = removal_receipt['status'] == 'removed' or (cleanliness_mode['kind'] == 'ephemeral' and removal_receipt['status'] == 'not_applicable' and ephemeral_registration is not None)
           outcome = 'PASS' if no_reuse_status == 'PASS' and cleanup_accounted else 'SKIP'
           proof = {
               'schema': 'zig-scheduler/runner-cleanliness-proof/v1',
@@ -626,6 +694,8 @@ jobs:
               'release_eligible': False,
               'production_capacity_claim': False,
           }
+          if ephemeral_registration is not None:
+              proof['ephemeral_registration'] = ephemeral_registration
           out.write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
           PY
           python3 qa/runner_cleanliness_proof_check.py \

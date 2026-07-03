@@ -30,7 +30,7 @@
       "path": ".github/workflows/manual-vm-proof.yml",
       "purpose": "protected manual VM proof workflow contract",
       "required": true,
-      "sha256": "6502a0e539c80eef6a5e390b88c6c421cf8feedcd7c14a6d1ac7f3519b2e1ca9"
+      "sha256": "4a13188f0ea883ca312bd8b6386799bc187a7dc618bd9f80099ab51c98725b9e"
     },
     {
       "path": "docs/adr/0001-sched-ext-production-claim-boundary.md",
@@ -60,13 +60,13 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "b59ac147460b18feecc9a9f7b60f5d87f15207a5652e6588c33fe583a46149a0"
+      "sha256": "6746f9cb6605a3ea3129653819c70ac14d60d8bfeae524eb5c2789baa03723ce"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
       "purpose": "backend frontend-contract API pack documentation and no-frontend boundary",
       "required": true,
-      "sha256": "07e91004c12d94704e9f523b9d309cb05e5e1d4bea49c2032a874306a7364f20"
+      "sha256": "2e2ff9576abbf073056cd7f2050c9749a1cd13ec3ed042153cd5cbb6af690aae"
     },
     {
       "path": "docs/control/incident-taxonomy.md",
@@ -78,7 +78,7 @@
       "path": "docs/control/matrix-run-contract.md",
       "purpose": "matrix-run v1 evidence contract documentation",
       "required": true,
-      "sha256": "fec0b198fde37519229b462b4cf6fad863bc3c711758976945d24dff16cc3c4d"
+      "sha256": "5e03e95b12e79140a7c84a326cd7b49bdc1ca9b9f6d23399b3f9e31600b94343"
     },
     {
       "path": "docs/control/schema-compatibility.md",
@@ -96,7 +96,7 @@
       "path": "docs/releases/governance-gate.md",
       "purpose": "release governance gate and evidence matrix",
       "required": true,
-      "sha256": "6f5013e1d4ede4e89a24696431492d3e4278578efecb424416c68bcb42b2b282"
+      "sha256": "9c91983c318db7e8b67f6a851e5593f98628971a95907fed9b5f904cc3043cc3"
     },
     {
       "path": "docs/releases/supported-kernel-tuples.md",
@@ -120,13 +120,13 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "f339c02a99f4eee2f14e9a2f03eafae32f575ce580c213a565dbe06a26565efb"
+      "sha256": "0f8b9cfc0ef69790545812d391a2b2a4e7367adc68c7de69fb36afb3b318c5ad"
     },
     {
       "path": "docs/security/review-checklist.md",
       "purpose": "security signoff and privacy review checklist",
       "required": true,
-      "sha256": "f56f25756c1400945a63f69127ef48e8adb99eb02d4c3f61ac1408e0e16bcc6c"
+      "sha256": "92cbe53e3f6019ad5f993a1a804b5f6614688d4dcb8803e879a1b2c8b20fbc2e"
     },
     {
       "path": "docs/security/threat-model.md",
@@ -204,7 +204,7 @@
       "path": "schemas/control/runner-cleanliness-proof.v1.schema.json",
       "purpose": "protected runner cleanliness proof schema",
       "required": true,
-      "sha256": "68cc60e2edd487703515b14c610818c85dec5b2326af01f3a2e6c021806e01dc"
+      "sha256": "a296855e13fc9cfee40604265e311907296458d39bbdcf449fe84e732a739b2d"
     },
     {
       "path": "schemas/control/runtime-sample.v1.schema.json",
@@ -336,13 +336,13 @@
       "path": "qa/manual_vm_proof_ci_check.py",
       "purpose": "manual VM proof workflow and provenance static checker",
       "required": true,
-      "sha256": "f96b9d0b818083c513bfab17879f8d3ceda8fcfa90b47d79225ed525157905dd"
+      "sha256": "0a2649e326e179f1772695456a3717dfe63d068375361646d38c31a476da6e13"
     },
     {
       "path": "qa/manual_vm_proof_ci_selftest.py",
       "purpose": "manual VM proof workflow checker self-test fixtures",
       "required": true,
-      "sha256": "4051bca2ae7dec511e0b79bb925d6a5a98bd3ece1f2311bce2e4ac8e76b52a6d"
+      "sha256": "5dcd438a5be2eed25675526d3e5489fa9577da766486323c60293219af4c5cdb"
     },
     {
       "path": "qa/manual_vm_proof_flow.py",
@@ -462,7 +462,7 @@
       "path": "qa/runner_cleanliness_proof_check.py",
       "purpose": "protected runner cleanliness proof validator",
       "required": true,
-      "sha256": "f7866d58dd8ad95dd0ff5f64f7d6a120a7cc3ca128f7a90cf0d0acd9fa3097e0"
+      "sha256": "396a6111c5129c065fe8cf9fa9c537877890a29b9c4bb777b1f1e609393fd3c8"
     },
     {
       "path": "qa/runtime_sample_check.py",
@@ -534,7 +534,7 @@
       "path": "qa/schema_compatibility_runner_cleanliness_rules.py",
       "purpose": "schema compatibility runner cleanliness proof freeze rules",
       "required": true,
-      "sha256": "f0d0e67a88c3624eb4ba19557316e71507ccf38d4bfdf729c86b4225e01dd3bd"
+      "sha256": "be23a146937ebb7d3e01a52196691f342a8fb3f7789169c83426b3d7145565cb"
     },
     {
       "path": "qa/evidence_bundle_compare_check.py",

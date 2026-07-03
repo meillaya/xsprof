@@ -109,6 +109,9 @@
         }
       }
     },
+    "ephemeral_registration": {
+      "$ref": "#/definitions/artifact_ref"
+    },
     "removal_receipt": {
       "type": "object",
       "additionalProperties": false,

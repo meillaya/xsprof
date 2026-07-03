@@ -12,7 +12,7 @@ RUNNER_CLEANLINESS_PUBLIC_SCHEMA_RULES: Final[tuple[PublicSchemaRule, ...]] = (
         "zig-scheduler/runner-cleanliness-proof/v1",
         (
             "schema", "proof_outcome", "run_url", "runner_identity", "cleanliness_mode",
-            "no_reuse_evidence", "removal_receipt", "protected_review", "runner_substrate",
+            "no_reuse_evidence", "removal_receipt", "ephemeral_registration", "protected_review", "runner_substrate",
             "host_mutation", "release_eligible", "production_capacity_claim",
         ),
     ),

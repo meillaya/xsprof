@@ -18,7 +18,7 @@ The API pack freezes the root backend surface future clients can consume without
 | proof bundle manifests | `zig-scheduler/evidence-manifest/v1` | Protected VM proof hash indexes for PASS and fail-closed SKIP/REFUSE/BLOCKED bundles; not release or production approval. |
 | protected environment reviews | `zig-scheduler/protected-environment-review/v1` | Manual protected-environment approval proof for the VM proof workflow; not a release approval. |
 | runner substrate proofs | `zig-scheduler/runner-substrate-proof/v1` | Protected runner tuple/QEMU/KVM/BPF substrate evidence for VM-only proof bundles. |
-| runner cleanliness proofs | `zig-scheduler/runner-cleanliness-proof/v1` | Companion proof for JIT/ephemeral-or-clean runner identity, no-reuse evidence, and runner removal receipt. |
+| runner cleanliness proofs | `zig-scheduler/runner-cleanliness-proof/v1` | Companion proof for JIT/ephemeral-or-clean runner identity, no-reuse evidence, and runner removal or validator-enforced ephemeral registration receipt. |
 
 ## Transports
 
@@ -194,8 +194,8 @@ manifests keep `host_mutation=false`, `release_eligible=false`, and
 `production_capacity_claim=false`.
 
 Runner cleanliness is deliberately separate from runner substrate evidence:
-`runner-cleanliness-proof/v1` records JIT or clean-machine identity, no-reuse
-evidence, a removal receipt, and links to both
+`runner-cleanliness-proof/v1` records JIT, ephemeral, or clean-machine identity, no-reuse
+evidence, a removal receipt or validator-enforced ephemeral registration receipt, and links to both
 `protected-environment-review.json` and `runner-substrate-proof.json`. GitHub
 runner labels alone are never sufficient cleanliness proof. Repeat protected
 bundles may be compared with `qa/evidence_bundle_compare_check.py` for expected
