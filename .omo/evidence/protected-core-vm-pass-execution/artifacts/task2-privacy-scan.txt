@@ -1,3 +1,0 @@
-$ test ! -f /home/mei/.omx-runs/zig-scheduler-gh-runner-20260702T144806Z/.registration-token
-$ privacy scan for token-shaped strings in task2 evidence artifacts (count + paths only)
-raw_registration_token_shape_hits=0

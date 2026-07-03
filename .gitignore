@@ -9,6 +9,10 @@ simulator/zig-out/
 .omx/
 .debug-journal.md
 
+# Raw ad-hoc proof/log bundles belong outside git. Curated evidence must live
+# under evidence/ with a reviewed summary and be force-added deliberately.
+artifacts/
+
 # Python/local test caches
 __pycache__/
 *.py[cod]

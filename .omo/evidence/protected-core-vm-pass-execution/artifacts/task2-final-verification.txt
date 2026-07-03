@@ -1,7 +1,0 @@
-$ gh api repos/Meillaya/zig-scheduler/actions/runners --jq final live check
-{"matching":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"online"}],"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"online"}],"total_count":1}
-$ test -s evidence markdown and task2 artifacts
-$ privacy grep for token-looking strings in evidence markdown/artifacts
-token_shape_hits=0
-$ git status --short -- product scope
-$ git status --short

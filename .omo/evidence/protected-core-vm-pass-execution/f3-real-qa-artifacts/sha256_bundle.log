@@ -1,3 +1,0 @@
-Surface: CLI validator rerun
-Invocation: (cd /home/mei/projects/zig/zig-scheduler && sha256sum -c artifacts/task-8-final-qemu-rerun/vm-proof-bundle.sha256)
-sha256sum: artifacts/task-8-final-qemu-rerun/vm-proof-bundle.sha256: No such file or directory

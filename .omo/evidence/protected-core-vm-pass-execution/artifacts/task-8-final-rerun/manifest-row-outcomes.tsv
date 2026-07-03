@@ -1,5 +1,0 @@
-scenario_id	outcome	reason
-live-backend	REFUSE	live backend live summary malformed
-workload-cpu-saturation	REFUSE	live workload workload-cpu-saturation refused or unavailable: status=PASS reason=vm_live_complete
-workload-cgroup-weight-quota	REFUSE	live workload workload-cgroup-weight-quota refused or unavailable: status=PASS reason=vm_live_complete
-workload-scheduler-affinity-churn	REFUSE	live workload workload-scheduler-affinity-churn refused or unavailable: status=PASS reason=vm_live_complete

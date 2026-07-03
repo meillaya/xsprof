@@ -1,4 +1,0 @@
-# privacy marker scan
-timestamp_utc=2026-07-02T15:16:16Z
-surface=CLI local artifact inspection
-invocation=find .omo/evidence/protected-core-vm-pass-execution/artifacts/task-5-review-watch -type f ! -name 15-privacy-marker-scan.txt -print0 | xargs -0 grep -InE '(gh[pousr]_|github_pat_|Authorization:|X-GitHub-Token|access_token|refresh_token)' || true

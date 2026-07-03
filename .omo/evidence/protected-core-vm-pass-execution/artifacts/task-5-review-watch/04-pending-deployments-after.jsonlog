@@ -1,5 +1,0 @@
-# post-approval pending deployments
-timestamp_utc=2026-07-02T15:14:31Z
-surface=CLI/GitHub API
-invocation=gh api repos/Meillaya/zig-scheduler/actions/runs/28600509667/pending_deployments
-[]

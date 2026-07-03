@@ -1,3 +1,0 @@
-Surface: final bundle checksum verification
-Invocation: (cd /home/mei/projects/zig/zig-scheduler && sha256sum -c .omo/evidence/protected-core-vm-pass-execution/artifacts/task-8-final-qemu-rerun/vm-proof-bundle.sha256)
-/home/mei/projects/zig/zig-scheduler/artifacts/task-8-final-qemu-rerun/download/vm-proof-bundle.tar.zst: OK

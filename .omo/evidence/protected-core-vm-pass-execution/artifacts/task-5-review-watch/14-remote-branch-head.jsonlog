@@ -1,5 +1,0 @@
-# remote branch head check
-timestamp_utc=2026-07-02T15:15:59Z
-surface=CLI/GitHub API
-invocation=gh api repos/Meillaya/zig-scheduler/git/ref/heads/work/protected-multi-row-vm-scheduler-proof
-{"ref":"refs/heads/work/protected-multi-row-vm-scheduler-proof","node_id":"REF_kwDOSItSCdoANnJlZnMvaGVhZHMvd29yay9wcm90ZWN0ZWQtbXVsdGktcm93LXZtLXNjaGVkdWxlci1wcm9vZg","url":"https://api.github.com/repos/Meillaya/zig-scheduler/git/refs/heads/work/protected-multi-row-vm-scheduler-proof","object":{"sha":"8c451e0a5143f03f633edeaa8a13711ff0e5c3df","type":"commit","url":"https://api.github.com/repos/Meillaya/zig-scheduler/git/commits/8c451e0a5143f03f633edeaa8a13711ff0e5c3df"}}

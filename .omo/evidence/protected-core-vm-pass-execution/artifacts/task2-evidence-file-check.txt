@@ -1,4 +1,0 @@
-$ test -s .omo/evidence/protected-core-vm-pass-execution/task-2-runner-registration.md
-$ grep -n "Final classification" .omo/evidence/protected-core-vm-pass-execution/task-2-runner-registration.md
-6:Final classification: **PASS**
-119:## Final classification

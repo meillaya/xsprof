@@ -1,5 +1,0 @@
-# run view before watch
-timestamp_utc=2026-07-02T15:14:32Z
-surface=CLI/GitHub CLI
-invocation=gh run view 28600509667 --repo Meillaya/zig-scheduler --json databaseId,status,conclusion,headBranch,headSha,event,url,createdAt,updatedAt
-{"conclusion":"","createdAt":"2026-07-02T15:08:05Z","databaseId":28600509667,"event":"workflow_dispatch","headBranch":"work/protected-multi-row-vm-scheduler-proof","headSha":"8c451e0a5143f03f633edeaa8a13711ff0e5c3df","status":"in_progress","updatedAt":"2026-07-02T15:14:17Z","url":"https://github.com/Meillaya/zig-scheduler/actions/runs/28600509667"}

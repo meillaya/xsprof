@@ -1,3 +1,0 @@
-Surface: CLI validator rerun
-Invocation: (cd /home/mei/projects/zig/zig-scheduler/artifacts/task-8-final-qemu-rerun/extracted && python3 /home/mei/projects/zig/zig-scheduler/../zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof/qa/protected_core_telemetry_check.py --manifest evidence/lab/matrix/manual-vm-proof/manifest.json)
-FAIL protected-core telemetry: sample[0].policy_counters must be unavailable when events are unavailable

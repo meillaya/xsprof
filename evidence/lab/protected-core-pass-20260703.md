@@ -89,3 +89,12 @@ frontend implementation planning against the backend-only contract pack. It does
 not remove the root project guard against accidental frontend code: actual UI work
 must start from an explicit frontend scope, a `DESIGN.md` contract, and the
 backend API surfaces documented under `docs/control/`.
+
+## Consolidation note
+
+This ledger supersedes the earlier tracked raw runtime packs under
+`.omo/evidence/protected-core-vm-pass-execution/` and `artifacts/task-9-cleanup/`.
+Those directories contained task-local dispatch, approval, runner cleanup, and
+validator transcripts for earlier non-PASS/SKIP attempts. Keep future raw proof
+bundles outside git unless a small curated evidence summary is intentionally
+force-added after review.

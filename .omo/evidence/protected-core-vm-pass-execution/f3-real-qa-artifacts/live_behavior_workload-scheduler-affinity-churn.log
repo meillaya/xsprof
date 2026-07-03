@@ -1,3 +1,0 @@
-Surface: CLI validator rerun
-Invocation: (cd /home/mei/projects/zig/zig-scheduler/artifacts/task-8-final-qemu-rerun/extracted && python3 /home/mei/projects/zig/zig-scheduler/../zig-scheduler-worktrees/protected-multi-row-vm-scheduler-proof/qa/live_behavior_check.py --bundle evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/summary.json)
-PASS live behavior bundle: evidence/lab/matrix/manual-vm-proof/rows/workload-scheduler-affinity-churn/backend/live/summary.json

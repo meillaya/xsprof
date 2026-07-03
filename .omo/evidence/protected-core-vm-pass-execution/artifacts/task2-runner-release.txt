@@ -1,2 +1,0 @@
-$ gh api repos/actions/runner/releases/latest --jq .tag_name
-v2.335.1

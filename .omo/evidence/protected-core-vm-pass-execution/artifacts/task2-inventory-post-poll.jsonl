@@ -1,5 +1,0 @@
-$ for i in {1..18}; do gh api repos/Meillaya/zig-scheduler/actions/runners --jq ...; sleep 5; done
---- poll 1 2026-07-02T14:48:46Z ---
-{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"offline"}],"total_count":1}
---- poll 2 2026-07-02T14:48:52Z ---
-{"runners":[{"busy":false,"id":25,"labels":["self-hosted","Linux","X64","zig-scheduler-vm-proof","disposable-vm"],"name":"zig-scheduler-vm-proof-20260702T144806Z-3202578","status":"online"}],"total_count":1}
