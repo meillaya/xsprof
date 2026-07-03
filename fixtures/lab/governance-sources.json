@@ -60,13 +60,13 @@
       "path": "docs/ci.md",
       "purpose": "CI gate documentation for lab readiness checks",
       "required": true,
-      "sha256": "6746f9cb6605a3ea3129653819c70ac14d60d8bfeae524eb5c2789baa03723ce"
+      "sha256": "bcb3225e1b8c5abcf0dd2453ff63c636df087b7577c98b58a67483eb938a3262"
     },
     {
       "path": "docs/control/frontend-api-pack.md",
       "purpose": "backend frontend-contract API pack documentation and no-frontend boundary",
       "required": true,
-      "sha256": "2e2ff9576abbf073056cd7f2050c9749a1cd13ec3ed042153cd5cbb6af690aae"
+      "sha256": "c6c9f6c9b42e361046b9574c486b2a907c8d1232ce3a161d1498c204dcc2e266"
     },
     {
       "path": "docs/control/incident-taxonomy.md",
@@ -120,7 +120,7 @@
       "path": "docs/runbooks/vm-lab.md",
       "purpose": "VM lab runbook for backend readiness evidence",
       "required": true,
-      "sha256": "0f8b9cfc0ef69790545812d391a2b2a4e7367adc68c7de69fb36afb3b318c5ad"
+      "sha256": "b455b5ec7b94aa18225077e05b493c418e5e7c52937529761b9aabbea3686670"
     },
     {
       "path": "docs/security/review-checklist.md",

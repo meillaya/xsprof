@@ -4,7 +4,7 @@ This is a backend contract document. It intentionally contains no frontend imple
 
 ## Purpose
 
-The API pack freezes the root backend surface future clients can consume without reconstructing scheduler state from internal files. The daemon remains fail-closed on the host: ordinary host modes do not load BPF, mutate cgroups/cpusets/affinity/priority/scheduler state, write `/sys` or `/proc`, and must not claim production readiness.
+The API pack freezes the root backend surface future clients can consume without reconstructing scheduler state from internal files. The daemon remains fail-closed on the host: ordinary host modes do not load BPF, mutate cgroups/cpusets/affinity/priority/scheduler state, write `/sys` or `/proc`, and must not claim production readiness. Frontend readiness planning is captured below while keeping this document as the backend source of truth and adding no UI code.
 
 ## Public contract surfaces
 
@@ -250,3 +250,51 @@ requires lost streams to end as incidents, and deep-validates referenced
 `matrix-run/v1` manifests before matrix evidence can be considered proof.
 
 These commands are backend contract checks only; they do not launch frontend code and do not require QEMU.
+
+## Frontend readiness plan
+
+The backend contract is ready for future client planning after the 2026-07-03
+protected-core PASS evidence, but this remains a backend-only contract document.
+It does not add frontend code, UI assets, build steps, browser tests, desktop
+surfaces, or TUI surfaces.
+
+### Start conditions
+
+Future client implementation may begin only when explicitly scoped as frontend
+work and when these facts stay true:
+
+- The backend remains fail-closed on ordinary hosts.
+- Real sched_ext load/attach stays VM-lab-only unless a later explicit approval
+  changes that boundary.
+- The protected-core PASS is lab evidence only; it is not release approval,
+  production approval, or a performance claim.
+- Clients must not reinterpret `SKIP`, `REFUSE`, `BLOCKED`, `INCIDENT`, or `FAIL`
+  backend evidence as success.
+- Any status surface presenting lab proof must preserve `host_mutation=false`,
+  `release_eligible=false`, and `production_capacity_claim=false`.
+
+### Contract surfaces to consume first
+
+1. This API pack and `docs/control/daemon-openrpc.json` for JSON-RPC and JSONL semantics.
+2. `schemas/control/*.json` for machine-readable event/action/runtime/proof shapes.
+3. `fixtures/frontend-contract/` for golden request/response and replay fixtures.
+4. `docs/control/matrix-run-contract.md` for matrix row and protected-core proof semantics.
+5. `evidence/lab/protected-core-pass-20260703.md` for the current protected-core PASS ledger.
+
+### First implementation slice
+
+The first client slice should be read-only and contract-driven: define a design
+contract before components, render committed fixture data before live host state,
+exercise the daemon JSON-RPC client against replay fixtures, show protected-core
+row outcomes with explicit safety flags, and keep logs privacy-filtered so argv,
+environment, tokens, passwords, command lines, API keys, and raw debug payloads
+never appear.
+
+### Verification before merging future client code
+
+A future client branch must pass the existing backend gates plus client-specific
+contract and visual gates. At minimum, preserve `bash qa/no_host_mutation.sh`,
+run `zig build client-contract --summary all`, and run
+`python3 qa/frontend_contract_pack_check.py --fixtures fixtures/frontend-contract --schemas schemas/control --docs docs/control`.
+The root no-frontend guard may change only in an explicitly reviewed frontend
+scope; this backend evidence merge does not change it.
