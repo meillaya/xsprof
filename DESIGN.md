@@ -15,7 +15,7 @@ Identity rules before implementation:
 - Primary artifact relationship: `frontend.html` is `reference-only`; use it to preserve recognizable look and workflow, not as source to copy or commit.
 - Extraction policy: **Balanced extraction**; do not perform pixel-perfect cloning, and do not flatten the design into a generic admin panel.
 - Safety copy is part of the visual identity. Every screen that shows lab proof, attach-like VM evidence, rollback, cleanup, or release eligibility must visibly retain `VM-only`, `host_mutation=false`, `not release`, and `not production` semantics.
-- Tone: terse operator labels, schema terms, artifact references, exact reason codes, and visible refusal/incidence rows. Avoid celebratory language for proof states.
+- Tone: terse operator labels, schema terms, artifact references, exact reason codes, and visible refusal/incident rows. Avoid celebratory language for proof states.
 - Product promise boundary: the design may describe future client planning only. It must not claim release readiness, production readiness, performance capacity, or real-host scheduler approval.
 
 Core screens and states to preserve from the reference and contract maps:

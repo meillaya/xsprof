@@ -59,3 +59,6 @@ evidence/releases/0.2.0-lab-runall/
 # Ignored current-run release evidence breaks the HEAD/freshness loop; curated
 # tracked snapshots under evidence/releases/<version>/ remain explicit git adds.
 evidence/releases/*-runall/current/
+
+# Local frontend reference artifact; DESIGN.md is the committed contract.
+/frontend.html
