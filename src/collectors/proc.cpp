@@ -13,10 +13,14 @@ namespace xsprof {
 
 std::string cap_state_name(CapState s) {
     switch (s) {
-        case CapState::Ready: return "READY";
-        case CapState::Degraded: return "DEGRADED";
-        case CapState::Skip: return "SKIP";
-        case CapState::Refuse: return "REFUSE";
+    case CapState::Ready:
+        return "READY";
+    case CapState::Degraded:
+        return "DEGRADED";
+    case CapState::Skip:
+        return "SKIP";
+    case CapState::Refuse:
+        return "REFUSE";
     }
     return "UNKNOWN";
 }
@@ -34,7 +38,8 @@ namespace {
 
 bool read_file(const std::string& path, std::string& out) {
     std::ifstream in(path);
-    if (!in) return false;
+    if (!in)
+        return false;
     std::ostringstream ss;
     ss << in.rdbuf();
     out = ss.str();
@@ -43,7 +48,8 @@ bool read_file(const std::string& path, std::string& out) {
 
 std::string trim(const std::string& s) {
     std::size_t b = s.find_first_not_of(" \t\r\n");
-    if (b == std::string::npos) return "";
+    if (b == std::string::npos)
+        return "";
     std::size_t e = s.find_last_not_of(" \t\r\n");
     return s.substr(b, e - b + 1);
 }
@@ -67,9 +73,10 @@ bool parse_cpu_line(const std::string& line, CpuStat& out) {
     std::istringstream ss(line);
     std::string label;
     ss >> label;
-    if (label.rfind("cpu", 0) != 0) return false;
-    ss >> out.user >> out.nice >> out.system >> out.idle >> out.iowait >> out.irq >>
-        out.softirq >> out.steal;
+    if (label.rfind("cpu", 0) != 0)
+        return false;
+    ss >> out.user >> out.nice >> out.system >> out.idle >> out.iowait >> out.irq >> out.softirq >>
+        out.steal;
     return true;
 }
 
@@ -106,8 +113,8 @@ std::vector<Capability> ProcSource::probe_capabilities() {
             c.reason = "sched:sched_switch format readable";
         } else if (file_exists("/sys/kernel/tracing")) {
             c.state = CapState::Skip;
-            c.reason = "tracefs mounted but " + sched_events +
-                       " permission denied (fail-closed SKIP)";
+            c.reason =
+                "tracefs mounted but " + sched_events + " permission denied (fail-closed SKIP)";
         } else {
             c.state = CapState::Refuse;
             c.reason = "tracefs not mounted";
@@ -144,8 +151,10 @@ std::vector<Capability> ProcSource::probe_capabilities() {
             struct dirent* ent;
             std::string names;
             while ((ent = readdir(d)) != nullptr) {
-                if (ent->d_name[0] == '.') continue;
-                if (count) names += ",";
+                if (ent->d_name[0] == '.')
+                    continue;
+                if (count)
+                    names += ",";
                 names += ent->d_name;
                 ++count;
             }
@@ -165,10 +174,12 @@ SystemFacts ProcSource::collect_facts() {
     SystemFacts f;
 
     char host[256] = {0};
-    if (gethostname(host, sizeof(host) - 1) == 0) f.hostname = host;
+    if (gethostname(host, sizeof(host) - 1) == 0)
+        f.hostname = host;
 
-    struct utsname u {};
-    if (uname(&u) == 0) f.kernel_release = u.release;
+    struct utsname u{};
+    if (uname(&u) == 0)
+        f.kernel_release = u.release;
 
     f.online_cpus = static_cast<int>(sysconf(_SC_NPROCESSORS_ONLN));
 
@@ -179,9 +190,11 @@ SystemFacts ProcSource::collect_facts() {
             std::istringstream ss(content);
             std::string line;
             while (std::getline(ss, line)) {
-                if (line.rfind("cpu", 0) != 0) continue;
+                if (line.rfind("cpu", 0) != 0)
+                    continue;
                 CpuStat cs;
-                if (!parse_cpu_line(line, cs)) continue;
+                if (!parse_cpu_line(line, cs))
+                    continue;
                 if (line.rfind("cpu ", 0) == 0) {
                     f.aggregate_cpu = cs;
                 } else {
@@ -199,11 +212,16 @@ SystemFacts ProcSource::collect_facts() {
             std::string key, unit;
             long long val;
             while (ss >> key >> val >> unit) {
-                if (key == "MemTotal:") f.mem.mem_total_kb = val;
-                else if (key == "MemAvailable:") f.mem.mem_available_kb = val;
-                else if (key == "HugePages_Total:") f.mem.huge_pages_total = val;
-                else if (key == "HugePages_Free:") f.mem.huge_pages_free = val;
-                else if (key == "Hugepagesize:") f.mem.hugepage_size_kb = val;
+                if (key == "MemTotal:")
+                    f.mem.mem_total_kb = val;
+                else if (key == "MemAvailable:")
+                    f.mem.mem_available_kb = val;
+                else if (key == "HugePages_Total:")
+                    f.mem.huge_pages_total = val;
+                else if (key == "HugePages_Free:")
+                    f.mem.huge_pages_free = val;
+                else if (key == "Hugepagesize:")
+                    f.mem.hugepage_size_kb = val;
             }
         }
     }
@@ -215,7 +233,8 @@ SystemFacts ProcSource::collect_facts() {
             std::istringstream ss(content);
             std::string line;
             while (std::getline(ss, line)) {
-                if (!trim(line).empty()) f.buddyinfo.push_back(trim(line));
+                if (!trim(line).empty())
+                    f.buddyinfo.push_back(trim(line));
             }
         }
     }
@@ -227,7 +246,8 @@ SystemFacts ProcSource::collect_facts() {
             struct dirent* ent;
             while ((ent = readdir(d)) != nullptr) {
                 std::string name = ent->d_name;
-                if (name.rfind("node", 0) != 0) continue;
+                if (name.rfind("node", 0) != 0)
+                    continue;
                 NumaNode n;
                 n.id = static_cast<int>(parse_ll(name.substr(4)));
                 std::string cpus;
@@ -277,15 +297,21 @@ SystemFacts ProcSource::collect_facts() {
             while ((ent = readdir(d)) != nullptr) {
                 bool numeric = ent->d_name[0] != '\0';
                 for (const char* p = ent->d_name; *p; ++p) {
-                    if (*p < '0' || *p > '9') { numeric = false; break; }
+                    if (*p < '0' || *p > '9') {
+                        numeric = false;
+                        break;
+                    }
                 }
-                if (!numeric) continue;
+                if (!numeric)
+                    continue;
                 std::string stat;
-                if (!read_file(std::string("/proc/") + ent->d_name + "/stat", stat)) continue;
+                if (!read_file(std::string("/proc/") + ent->d_name + "/stat", stat))
+                    continue;
                 // Format: pid (comm) state ppid ...; comm may contain spaces/parens,
                 // so anchor on the last ')'.
                 auto rp = stat.find_last_of(')');
-                if (rp == std::string::npos || rp + 2 >= stat.size()) continue;
+                if (rp == std::string::npos || rp + 2 >= stat.size())
+                    continue;
                 ProcessInfo pi;
                 pi.pid = static_cast<int>(parse_ll(ent->d_name));
                 std::istringstream ss(stat.substr(rp + 2));
@@ -296,8 +322,8 @@ SystemFacts ProcSource::collect_facts() {
                 // fields: pgrp session tty_nr tpgid flags minflt cminflt majflt
                 //         cmaxflt utime stime ...
                 long long skip;
-                ss >> skip >> skip >> skip >> skip >> skip;       // pgrp..flags
-                ss >> skip >> skip >> skip >> skip;               // minflt..cmaxflt
+                ss >> skip >> skip >> skip >> skip >> skip; // pgrp..flags
+                ss >> skip >> skip >> skip >> skip;         // minflt..cmaxflt
                 ss >> pi.utime >> pi.stime;
                 // cutime cstime priority nice num_threads...
                 ss >> skip >> skip >> skip >> skip >> pi.threads;
@@ -341,7 +367,8 @@ json::Value ProcSource::facts_to_json(const SystemFacts& f) {
     v.set("memory", mem);
 
     json::Value buddy = json::Value::make_array();
-    for (const auto& b : f.buddyinfo) buddy.push_back(json::Value(b));
+    for (const auto& b : f.buddyinfo)
+        buddy.push_back(json::Value(b));
     v.set("buddyinfo", buddy);
 
     json::Value nodes = json::Value::make_array();

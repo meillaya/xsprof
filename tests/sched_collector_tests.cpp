@@ -1,8 +1,8 @@
 // Catch2 tests for the scheduler collector (story G002, Phase 2).
 // The host runs perf_event_paranoid=2, so the probe must return SKIP.
 #include <catch2/catch_test_macros.hpp>
-#include <string>
 #include <linux/perf_event.h>
+#include <string>
 
 #include "xsprof/sched_collector.hpp"
 
@@ -66,7 +66,7 @@ TEST_CASE("sample_runqueues returns data or empty (read-only)", "[sched][schedst
 
 TEST_CASE("wakeup-to-switch correlation", "[sched][correlation]") {
     SchedCollector collector;
-    collector.set_correlation_window_ns(1'000'000);  // 1 ms
+    collector.set_correlation_window_ns(1'000'000); // 1 ms
 
     // Wakeup at t=0 for pid 42 targeting cpu 1.
     collector.record_wakeup(0, 42, 1);
@@ -84,7 +84,7 @@ TEST_CASE("wakeup-to-switch correlation", "[sched][correlation]") {
 
 TEST_CASE("wakeup correlation respects window", "[sched][correlation]") {
     SchedCollector collector;
-    collector.set_correlation_window_ns(1'000'000);  // 1 ms
+    collector.set_correlation_window_ns(1'000'000); // 1 ms
 
     // Wakeup at t=0 for pid 7 targeting cpu 2.
     collector.record_wakeup(0, 7, 2);
@@ -113,8 +113,7 @@ TEST_CASE("PerfEvent open fails gracefully at paranoid=2", "[sched][perf]") {
     // PERF_TYPE_SOFTWARE / PERF_COUNT_SW_CPU_CLOCK should fail at paranoid=2
     // for a target pid we don't own. We just verify the RAII wrapper handles
     // the error without crashing.
-    auto ev = PerfEvent::open(PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK,
-                              999999, -1, -1);
+    auto ev = PerfEvent::open(PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK, 999999, -1, -1);
     // On paranoid=2 this should fail (invalid fd).
     // We don't REQUIRE failure because the test environment may vary,
     // but we verify the wrapper is safe either way.

@@ -21,7 +21,7 @@ using Array = std::vector<Value>;
 using Object = std::map<std::string, Value>;
 
 class Value {
-public:
+  public:
     enum class Type { Null, Bool, Int, Double, String, Array, Object };
 
     Value() : type_(Type::Null) {}
@@ -40,8 +40,16 @@ public:
     Value(Array a) : type_(Type::Array), arr_(std::move(a)) {}
     Value(Object o) : type_(Type::Object), obj_(std::move(o)) {}
 
-    static Value make_array() { Value v; v.type_ = Type::Array; return v; }
-    static Value make_object() { Value v; v.type_ = Type::Object; return v; }
+    static Value make_array() {
+        Value v;
+        v.type_ = Type::Array;
+        return v;
+    }
+    static Value make_object() {
+        Value v;
+        v.type_ = Type::Object;
+        return v;
+    }
 
     Type type() const { return type_; }
     bool is_null() const { return type_ == Type::Null; }
@@ -50,18 +58,25 @@ public:
 
     // Object accessors.
     Value& operator[](const std::string& key) {
-        if (type_ != Type::Object) { type_ = Type::Object; obj_.clear(); }
+        if (type_ != Type::Object) {
+            type_ = Type::Object;
+            obj_.clear();
+        }
         return obj_[key];
     }
     void set(const std::string& key, Value v) {
-        if (type_ != Type::Object) { type_ = Type::Object; obj_.clear(); }
+        if (type_ != Type::Object) {
+            type_ = Type::Object;
+            obj_.clear();
+        }
         obj_[key] = std::move(v);
     }
     bool contains(const std::string& key) const {
         return type_ == Type::Object && obj_.count(key) != 0;
     }
     const Value* find(const std::string& key) const {
-        if (type_ != Type::Object) return nullptr;
+        if (type_ != Type::Object)
+            return nullptr;
         auto it = obj_.find(key);
         return it == obj_.end() ? nullptr : &it->second;
     }
@@ -69,13 +84,18 @@ public:
 
     // Array accessors.
     void push_back(Value v) {
-        if (type_ != Type::Array) { type_ = Type::Array; arr_.clear(); }
+        if (type_ != Type::Array) {
+            type_ = Type::Array;
+            arr_.clear();
+        }
         arr_.push_back(std::move(v));
     }
     const Array& as_array() const { return arr_; }
     std::size_t size() const {
-        if (type_ == Type::Array) return arr_.size();
-        if (type_ == Type::Object) return obj_.size();
+        if (type_ == Type::Array)
+            return arr_.size();
+        if (type_ == Type::Object)
+            return obj_.size();
         return 0;
     }
 
@@ -83,8 +103,10 @@ public:
     bool as_bool() const { return type_ == Type::Bool ? bool_ : false; }
     long long as_int() const { return type_ == Type::Int ? int_ : 0; }
     double as_double() const {
-        if (type_ == Type::Double) return double_;
-        if (type_ == Type::Int) return static_cast<double>(int_);
+        if (type_ == Type::Double)
+            return double_;
+        if (type_ == Type::Int)
+            return static_cast<double>(int_);
         return 0.0;
     }
     const std::string& as_string() const {
@@ -94,7 +116,7 @@ public:
 
     std::string dump(bool pretty = false) const;
 
-private:
+  private:
     void dump_to(std::string& out, bool pretty, int indent) const;
 
     Type type_;

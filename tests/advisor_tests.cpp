@@ -48,7 +48,8 @@ TEST_CASE("advisor detects false sharing only with PMU evidence", "[advisor][fal
     auto findings = advisor.analyze(fs);
     bool found_critical = false;
     for (const auto& f : findings)
-        if (f.id == "false-sharing" && f.sev == Severity::Critical) found_critical = true;
+        if (f.id == "false-sharing" && f.sev == Severity::Critical)
+            found_critical = true;
     REQUIRE(found_critical);
 }
 
@@ -63,7 +64,8 @@ TEST_CASE("false sharing fires at threshold boundary", "[advisor][false-sharing]
     auto findings = advisor.analyze(at_boundary);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "false-sharing" && f.sev == Severity::Critical) found = true;
+        if (f.id == "false-sharing" && f.sev == Severity::Critical)
+            found = true;
     REQUIRE(found);
 }
 
@@ -129,7 +131,8 @@ TEST_CASE("excessive locking respects configurable threshold", "[advisor][excess
     auto findings = advisor.analyze(agg);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "excessive-locking") found = true;
+        if (f.id == "excessive-locking")
+            found = true;
     REQUIRE(found);
 }
 
@@ -176,7 +179,8 @@ TEST_CASE("unnecessary wakeups respects configurable ratio", "[advisor][unnecess
     auto findings = advisor.analyze(agg);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "unnecessary-wakeups") found = true;
+        if (f.id == "unnecessary-wakeups")
+            found = true;
     REQUIRE(found);
 }
 
@@ -227,7 +231,8 @@ TEST_CASE("affinity churn respects configurable migration threshold", "[advisor]
     auto findings = advisor.analyze(agg);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "cpu-affinity-churn") found = true;
+        if (f.id == "cpu-affinity-churn")
+            found = true;
     REQUIRE(found);
 }
 
@@ -277,7 +282,8 @@ TEST_CASE("NUMA placement respects configurable ratio", "[advisor][numa]") {
     auto findings = advisor.analyze(agg);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "poor-numa-placement") found = true;
+        if (f.id == "poor-numa-placement")
+            found = true;
     REQUIRE(found);
 }
 
@@ -322,7 +328,8 @@ TEST_CASE("fragmentation respects configurable threshold", "[advisor][fragmentat
     auto findings = advisor.analyze(agg);
     bool found = false;
     for (const auto& f : findings)
-        if (f.id == "allocator-fragmentation") found = true;
+        if (f.id == "allocator-fragmentation")
+            found = true;
     REQUIRE(found);
 }
 
@@ -399,7 +406,8 @@ TEST_CASE("advisor report_json includes all fired findings", "[advisor][report]"
     REQUIRE(s.find("\"host_mutation\":false") != std::string::npos);
 }
 
-TEST_CASE("advisor report_markdown includes recommendations as suggestions only", "[advisor][report]") {
+TEST_CASE("advisor report_markdown includes recommendations as suggestions only",
+          "[advisor][report]") {
     Advisor advisor;
     Aggregates agg;
     agg.remote_fault_ratio = 0.6;
@@ -471,7 +479,8 @@ TEST_CASE("all seven rules fire on fully stressed aggregates", "[advisor][integr
     // Verify all rule IDs present.
     auto has = [&](const std::string& id) {
         for (const auto& f : findings)
-            if (f.id == id) return true;
+            if (f.id == id)
+                return true;
         return false;
     };
     REQUIRE(has("false-sharing"));

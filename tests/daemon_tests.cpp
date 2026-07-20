@@ -15,7 +15,8 @@ static std::string read_fixture(const std::string& name) {
     std::string path = "tests/fixtures/" + name;
 #endif
     std::ifstream f(path);
-    if (!f) return {};
+    if (!f)
+        return {};
     std::ostringstream ss;
     ss << f.rdbuf();
     return ss.str();
@@ -101,8 +102,8 @@ TEST_CASE("action_from_json round-trips", "[daemon]") {
 }
 
 TEST_CASE("action_from_json rejects unknown action", "[daemon]") {
-    auto j = xsprof::json::parse(
-        R"({"schema":"xsprof/operator-action/v1","action":"nonexistent"})");
+    auto j =
+        xsprof::json::parse(R"({"schema":"xsprof/operator-action/v1","action":"nonexistent"})");
     OperatorAction act;
     REQUIRE_FALSE(action_from_json(j, act));
 }
@@ -122,8 +123,10 @@ TEST_CASE("Replay golden transcript succeeds with host_mutation=false", "[daemon
 
 TEST_CASE("Replay rejects non-monotonic seq", "[daemon]") {
     std::string bad =
-        R"({"schema":"xsprof/daemon-event/v1","event":"boot","action_id":"","status":"PASS","host_mutation":false,"seq":5})" "\n"
-        R"({"schema":"xsprof/daemon-event/v1","event":"marker","action_id":"","status":"PASS","host_mutation":false,"seq":3})" "\n";
+        R"({"schema":"xsprof/daemon-event/v1","event":"boot","action_id":"","status":"PASS","host_mutation":false,"seq":5})"
+        "\n"
+        R"({"schema":"xsprof/daemon-event/v1","event":"marker","action_id":"","status":"PASS","host_mutation":false,"seq":3})"
+        "\n";
     auto result = replay_transcript(bad);
     REQUIRE_FALSE(result.ok);
     REQUIRE(result.error.find("non-monotonic") != std::string::npos);
@@ -145,7 +148,8 @@ TEST_CASE("Replay from_seq filters earlier events", "[daemon]") {
 
 TEST_CASE("process_action_line handles preflight", "[daemon]") {
     std::uint64_t seq = 1;
-    std::string line = R"({"schema":"xsprof/operator-action/v1","action":"preflight","action_id":"a1"})";
+    std::string line =
+        R"({"schema":"xsprof/operator-action/v1","action":"preflight","action_id":"a1"})";
     std::string out = process_action_line(line, seq);
     REQUIRE(out.find("\"event\":\"marker\"") != std::string::npos);
     REQUIRE(out.find("\"status\":\"PASS\"") != std::string::npos);
@@ -155,7 +159,8 @@ TEST_CASE("process_action_line handles preflight", "[daemon]") {
 
 TEST_CASE("process_action_line refuses VM-lab actions on host", "[daemon]") {
     std::uint64_t seq = 1;
-    std::string line = R"({"schema":"xsprof/operator-action/v1","action":"run_lab_vm","action_id":"a2"})";
+    std::string line =
+        R"({"schema":"xsprof/operator-action/v1","action":"run_lab_vm","action_id":"a2"})";
     std::string out = process_action_line(line, seq);
     REQUIRE(out.find("\"event\":\"refusal\"") != std::string::npos);
     REQUIRE(out.find("\"status\":\"REFUSE\"") != std::string::npos);
@@ -171,8 +176,10 @@ TEST_CASE("process_action_line handles invalid JSON", "[daemon]") {
 
 TEST_CASE("run_foreground_stdio produces boot + action events", "[daemon]") {
     std::istringstream in(
-        R"({"schema":"xsprof/operator-action/v1","action":"preflight","action_id":"a1"})" "\n"
-        R"({"schema":"xsprof/operator-action/v1","action":"observe","action_id":"a2"})" "\n");
+        R"({"schema":"xsprof/operator-action/v1","action":"preflight","action_id":"a1"})"
+        "\n"
+        R"({"schema":"xsprof/operator-action/v1","action":"observe","action_id":"a2"})"
+        "\n");
     std::ostringstream out;
     run_foreground_stdio(in, out);
 
@@ -210,12 +217,12 @@ TEST_CASE("JSON-RPC error format with host_mutation=false", "[daemon]") {
 
 TEST_CASE("All EventKind names are non-empty and unique", "[daemon]") {
     const EventKind all[] = {
-        EventKind::Boot, EventKind::Marker, EventKind::Verifier,
-        EventKind::Attach, EventKind::StateChanged, EventKind::StageStarted,
-        EventKind::LabRunActive, EventKind::StageFinished, EventKind::JournalRecord,
-        EventKind::MicrovmBoot, EventKind::VmMarker, EventKind::BpfRegister,
-        EventKind::RuntimeSample, EventKind::Rollback, EventKind::RollbackCompleted,
-        EventKind::Cleanup, EventKind::Validation, EventKind::Incident,
+        EventKind::Boot,          EventKind::Marker,        EventKind::Verifier,
+        EventKind::Attach,        EventKind::StateChanged,  EventKind::StageStarted,
+        EventKind::LabRunActive,  EventKind::StageFinished, EventKind::JournalRecord,
+        EventKind::MicrovmBoot,   EventKind::VmMarker,      EventKind::BpfRegister,
+        EventKind::RuntimeSample, EventKind::Rollback,      EventKind::RollbackCompleted,
+        EventKind::Cleanup,       EventKind::Validation,    EventKind::Incident,
         EventKind::Refusal,
     };
     for (auto k : all) {
@@ -231,10 +238,10 @@ TEST_CASE("All EventKind names are non-empty and unique", "[daemon]") {
 
 TEST_CASE("All ActionKind names are non-empty and unique", "[daemon]") {
     const ActionKind all[] = {
-        ActionKind::Preflight, ActionKind::RunLabHostSafe, ActionKind::RunLabVm,
-        ActionKind::RunLabMicrovmLive, ActionKind::VerifierOnly, ActionKind::PartialAttach,
-        ActionKind::Observe, ActionKind::Stop, ActionKind::Rollback,
-        ActionKind::StopLabRun, ActionKind::RollbackLabRun, ActionKind::IncidentDrill,
+        ActionKind::Preflight,         ActionKind::RunLabHostSafe, ActionKind::RunLabVm,
+        ActionKind::RunLabMicrovmLive, ActionKind::VerifierOnly,   ActionKind::PartialAttach,
+        ActionKind::Observe,           ActionKind::Stop,           ActionKind::Rollback,
+        ActionKind::StopLabRun,        ActionKind::RollbackLabRun, ActionKind::IncidentDrill,
     };
     for (auto k : all) {
         auto name = action_kind_name(k);

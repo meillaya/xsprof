@@ -22,10 +22,10 @@ std::string_view mutation_name(Mutation m);
 bool is_unsafe_verb(std::string_view verb);
 
 struct AuditContext {
-    bool allow_mutate = false;     // explicit --allow-mutate
-    std::string audit_id;          // required
-    std::string rollback_id;       // required
-    bool vm_lab_marker = false;    // required: disposable VM lab marker present
+    bool allow_mutate = false;  // explicit --allow-mutate
+    std::string audit_id;       // required
+    std::string rollback_id;    // required
+    bool vm_lab_marker = false; // required: disposable VM lab marker present
 };
 
 struct GateDecision {
@@ -34,7 +34,7 @@ struct GateDecision {
 };
 
 class SafetyGate {
-public:
+  public:
     // Refuse-by-default. A mutation is allowed only with an explicit opt-in
     // plus audit id, rollback id, and a VM-lab marker.
     GateDecision decide(Mutation m, const AuditContext& ctx) const;
@@ -48,7 +48,7 @@ struct SafePathResult {
 };
 
 class SafePath {
-public:
+  public:
     static SafePathResult under(std::string_view root, std::string_view candidate);
 };
 

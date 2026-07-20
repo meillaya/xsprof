@@ -41,15 +41,15 @@ std::string_view event_kind_name(EventKind k);
 // allocation-free; richer context lives in `detail`.
 struct RawEvent {
     EventKind kind = EventKind::Marker;
-    std::uint64_t ts_ns = 0;   // perf-clock nanoseconds
+    std::uint64_t ts_ns = 0; // perf-clock nanoseconds
     std::int32_t cpu = -1;
     std::int32_t pid = -1;
     std::int32_t tid = -1;
     std::uint64_t a = 0;
     std::uint64_t b = 0;
     std::uint64_t c = 0;
-    std::string comm;          // bounded (16 bytes), privacy-filtered
-    std::string detail;        // optional, privacy-filtered
+    std::string comm;   // bounded (16 bytes), privacy-filtered
+    std::string detail; // optional, privacy-filtered
 };
 
 json::Value event_to_json(const RawEvent& e);

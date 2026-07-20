@@ -114,8 +114,7 @@ struct ReplayResult {
     std::string error;
 };
 
-ReplayResult replay_transcript(std::string_view jsonl_input,
-                               std::uint64_t from_seq = 0);
+ReplayResult replay_transcript(std::string_view jsonl_input, std::uint64_t from_seq = 0);
 
 // Process a single operator action line (stdio mode).
 // Returns the daemon event JSON line to emit.

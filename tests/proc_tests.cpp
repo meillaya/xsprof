@@ -11,8 +11,10 @@ TEST_CASE("capability probes return records and never mutate", "[proc]") {
     bool have_perf = false;
     bool have_btf = false;
     for (const auto& c : caps) {
-        if (c.name == "perf_event") have_perf = true;
-        if (c.name == "btf") have_btf = true;
+        if (c.name == "perf_event")
+            have_perf = true;
+        if (c.name == "btf")
+            have_btf = true;
         // Every capability record carries the read-only invariant.
         REQUIRE(c.to_json().dump().find("\"host_mutation\":false") != std::string::npos);
     }

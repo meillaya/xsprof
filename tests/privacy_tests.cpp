@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <string>
 
-#include "xsprof/privacy.hpp"
 #include "xsprof/event.hpp"
+#include "xsprof/privacy.hpp"
 
 using xsprof::PrivacyFilter;
 

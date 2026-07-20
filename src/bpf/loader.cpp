@@ -11,11 +11,16 @@ namespace xsprof::bpf {
 
 std::string_view load_result_name(LoadResult r) {
     switch (r) {
-        case LoadResult::Loaded: return "loaded";
-        case LoadResult::Refused: return "refused";
-        case LoadResult::SkipNoBtf: return "skip_no_btf";
-        case LoadResult::SkipNoLibbpf: return "skip_no_libbpf";
-        case LoadResult::Error: return "error";
+    case LoadResult::Loaded:
+        return "loaded";
+    case LoadResult::Refused:
+        return "refused";
+    case LoadResult::SkipNoBtf:
+        return "skip_no_btf";
+    case LoadResult::SkipNoLibbpf:
+        return "skip_no_libbpf";
+    case LoadResult::Error:
+        return "error";
     }
     return "unknown";
 }
@@ -39,8 +44,7 @@ LoadResult BpfLoader::load(std::string_view object_name, const AuditContext& ctx
     SafetyGate gate;
     auto decision = gate.decide(Mutation::SchedExtLoad, ctx);
     if (!decision.allowed) {
-        reason_ = "refused: " + decision.reason +
-                  " (object=" + std::string(object_name) + ")";
+        reason_ = "refused: " + decision.reason + " (object=" + std::string(object_name) + ")";
         return LoadResult::Refused;
     }
 

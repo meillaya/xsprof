@@ -74,12 +74,15 @@ if(XSPROF_BUILD_TESTS)
       tests/pipeline_tests.cpp
       tests/sched_collector_tests.cpp
       tests/memory_collector_tests.cpp
+      tests/cli_tests.cpp
       ${XSPROF_BPF_TEST_SOURCES}
       ${XSPROF_DAEMON_TEST_SOURCES}
     )
     target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_compile_definitions(xsprof_tests PRIVATE
-      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
+      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+      XSPROF_CLI_BINARY_PATH="$<TARGET_FILE:xsprof>")
+    add_dependencies(xsprof_tests xsprof)
     target_link_libraries(xsprof_tests PRIVATE xsprof_core Catch2::Catch2WithMain)
     include(Catch)
     catch_discover_tests(xsprof_tests)
@@ -91,7 +94,9 @@ if(XSPROF_BUILD_TESTS)
     )
     target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_compile_definitions(xsprof_tests PRIVATE
-      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
+      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+      XSPROF_CLI_BINARY_PATH="$<TARGET_FILE:xsprof>")
+    add_dependencies(xsprof_tests xsprof)
     target_link_libraries(xsprof_tests PRIVATE xsprof_core)
     add_test(NAME xsprof_tests COMMAND xsprof_tests)
   endif()

@@ -23,11 +23,8 @@ struct Capability {
 };
 
 struct CpuStat {
-    long long user = 0, nice = 0, system = 0, idle = 0, iowait = 0,
-              irq = 0, softirq = 0, steal = 0;
-    long long total() const {
-        return user + nice + system + idle + iowait + irq + softirq + steal;
-    }
+    long long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0;
+    long long total() const { return user + nice + system + idle + iowait + irq + softirq + steal; }
 };
 
 struct MemInfo {
@@ -66,21 +63,21 @@ struct SystemFacts {
     std::string hostname;
     std::string kernel_release;
     int online_cpus = 0;
-    std::vector<CpuStat> per_cpu;     // per-CPU jiffies since boot
+    std::vector<CpuStat> per_cpu; // per-CPU jiffies since boot
     CpuStat aggregate_cpu;
     MemInfo mem;
-    std::vector<std::string> buddyinfo;   // raw lines (fragmentation evidence)
+    std::vector<std::string> buddyinfo; // raw lines (fragmentation evidence)
     std::vector<NumaNode> numa_nodes;
     SchedExtState sched_ext;
     int perf_event_paranoid = 99;
     int kptr_restrict = 99;
     bool btf_present = false;
     bool tracefs_present = false;
-    std::vector<ProcessInfo> processes;   // numeric-only, privacy-safe
+    std::vector<ProcessInfo> processes; // numeric-only, privacy-safe
 };
 
 class ProcSource {
-public:
+  public:
     // Probe collector capabilities against the live kernel (read-only).
     static std::vector<Capability> probe_capabilities();
     // Collect a read-only snapshot of host facts.

@@ -25,8 +25,8 @@ std::string severity_name(Severity s);
 std::string confidence_name(Confidence c);
 
 struct Recommendation {
-    std::string kind;    // "sched_setaffinity" | "numa_bind" | "tuning"
-    std::string detail;  // copy-pasteable suggestion
+    std::string kind;   // "sched_setaffinity" | "numa_bind" | "tuning"
+    std::string detail; // copy-pasteable suggestion
     std::string rationale;
 };
 
@@ -69,7 +69,7 @@ struct Thresholds {
 };
 
 class Advisor {
-public:
+  public:
     // Construct with default thresholds.
     Advisor() = default;
     // Construct with custom thresholds.
@@ -83,7 +83,7 @@ public:
     json::Value report_json(const Aggregates& agg) const;
     std::string report_markdown(const Aggregates& agg) const;
 
-private:
+  private:
     Thresholds thresholds_;
 };
 

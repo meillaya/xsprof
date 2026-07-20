@@ -22,7 +22,8 @@ namespace xsprof::sched {
 // ---------------------------------------------------------------------------
 
 PerfEvent::~PerfEvent() {
-    if (fd_ >= 0) ::close(fd_);
+    if (fd_ >= 0)
+        ::close(fd_);
 }
 
 PerfEvent::PerfEvent(PerfEvent&& o) noexcept : fd_(o.fd_), err_(o.err_) {
@@ -32,7 +33,8 @@ PerfEvent::PerfEvent(PerfEvent&& o) noexcept : fd_(o.fd_), err_(o.err_) {
 
 PerfEvent& PerfEvent::operator=(PerfEvent&& o) noexcept {
     if (this != &o) {
-        if (fd_ >= 0) ::close(fd_);
+        if (fd_ >= 0)
+            ::close(fd_);
         fd_ = o.fd_;
         err_ = o.err_;
         o.fd_ = -1;
@@ -41,14 +43,14 @@ PerfEvent& PerfEvent::operator=(PerfEvent&& o) noexcept {
     return *this;
 }
 
-PerfEvent PerfEvent::open(std::uint32_t type, std::uint64_t config,
-                          pid_t pid, int cpu, int group_fd) {
-    struct perf_event_attr attr {};
+PerfEvent PerfEvent::open(std::uint32_t type, std::uint64_t config, pid_t pid, int cpu,
+                          int group_fd) {
+    struct perf_event_attr attr{};
     attr.size = sizeof(attr);
     attr.type = type;
     attr.config = config;
     attr.disabled = 1;
-    attr.exclude_kernel = 0;  // scheduler events need kernel context
+    attr.exclude_kernel = 0; // scheduler events need kernel context
     attr.exclude_hv = 1;
     attr.sample_period = 1;
     attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU;
@@ -85,8 +87,8 @@ Capability SchedCollector::probe() const {
         // for tracepoints or PMU. We do NOT auto-elevate.
         return {"sched_collector", CapState::Skip,
                 "perf_event_paranoid=" + std::to_string(paranoid) +
-                " (need CAP_PERFMON or paranoid<=1 for tracepoint collection; "
-                "fail-closed SKIP, never auto-elevate)"};
+                    " (need CAP_PERFMON or paranoid<=1 for tracepoint collection; "
+                    "fail-closed SKIP, never auto-elevate)"};
     }
 
     // Check tracefs sched events readability.
@@ -98,15 +100,14 @@ Capability SchedCollector::probe() const {
 
     return {"sched_collector", CapState::Ready,
             "perf_event_paranoid=" + std::to_string(paranoid) +
-            " (tracepoint collection permitted)"};
+                " (tracepoint collection permitted)"};
 }
 
 // ---------------------------------------------------------------------------
 // Run-queue sampling from /proc/schedstat
 // ---------------------------------------------------------------------------
 
-bool SchedCollector::parse_schedstat_cpu_line(const std::string& line,
-                                               RunqueueSample& out) {
+bool SchedCollector::parse_schedstat_cpu_line(const std::string& line, RunqueueSample& out) {
     // /proc/schedstat CPU lines look like:
     // cpu0 0 0 0 0 0 0 0 123456789 987654321 0 0 0
     // Fields (0-indexed after "cpuN"):
@@ -127,15 +128,18 @@ bool SchedCollector::parse_schedstat_cpu_line(const std::string& line,
     std::istringstream ss(line);
     std::string label;
     ss >> label;
-    if (label.rfind("cpu", 0) != 0) return false;
+    if (label.rfind("cpu", 0) != 0)
+        return false;
 
     // Extract CPU number.
     int cpu = -1;
     {
         std::string num_part = label.substr(3);
-        if (num_part.empty()) return false;
+        if (num_part.empty())
+            return false;
         for (char c : num_part) {
-            if (c < '0' || c > '9') return false;
+            if (c < '0' || c > '9')
+                return false;
         }
         cpu = std::stoi(num_part);
     }
@@ -147,7 +151,8 @@ bool SchedCollector::parse_schedstat_cpu_line(const std::string& line,
     while (ss >> v && count < 10) {
         fields[count++] = v;
     }
-    if (count < 7) return false;  // need at least 7 fields
+    if (count < 7)
+        return false; // need at least 7 fields
 
     out.cpu = cpu;
     out.nr_switches = fields[1];
@@ -162,11 +167,13 @@ bool SchedCollector::parse_schedstat_cpu_line(const std::string& line,
 std::vector<RunqueueSample> SchedCollector::sample_runqueues() {
     std::vector<RunqueueSample> samples;
     std::ifstream schedstat("/proc/schedstat");
-    if (!schedstat) return samples;
+    if (!schedstat)
+        return samples;
 
     std::string line;
     while (std::getline(schedstat, line)) {
-        if (line.rfind("cpu", 0) != 0) continue;
+        if (line.rfind("cpu", 0) != 0)
+            continue;
         RunqueueSample s;
         if (parse_schedstat_cpu_line(line, s)) {
             samples.push_back(s);
@@ -192,7 +199,7 @@ void SchedCollector::record_wakeup(std::uint64_t ts_ns, int pid, int target_cpu)
                                      ++unnecessary_wakeups_;
                                      return true;
                                  }
-                                 return w.matched;  // remove matched records
+                                 return w.matched; // remove matched records
                              });
     pending_wakeups_.erase(it, pending_wakeups_.end());
 }
@@ -201,9 +208,9 @@ void SchedCollector::record_switch(std::uint64_t ts_ns, int cpu, int next_pid) {
     // Try to correlate: find a pending wakeup for next_pid targeting this CPU
     // within the correlation window.
     for (auto& w : pending_wakeups_) {
-        if (w.matched) continue;
-        if (w.pid == next_pid && w.target_cpu == cpu &&
-            ts_ns >= w.ts_ns &&
+        if (w.matched)
+            continue;
+        if (w.pid == next_pid && w.target_cpu == cpu && ts_ns >= w.ts_ns &&
             (ts_ns - w.ts_ns) <= correlation_window_ns_) {
             w.matched = true;
             ++correlated_wakeups_;

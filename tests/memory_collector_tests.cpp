@@ -32,8 +32,10 @@ TEST_CASE("memory collector probe never auto-elevates", "[memory][capability]") 
 
 TEST_CASE("buddyinfo line parsing", "[memory][buddyinfo]") {
     BuddyInfo bi;
-    bool ok = MemoryCollector::parse_buddyinfo_line(
-        "Node 0, zone      DMA      1      1      1      0      2      1      1      0      1      1      3", bi);
+    bool ok =
+        MemoryCollector::parse_buddyinfo_line("Node 0, zone      DMA      1      1      1      0   "
+                                              "   2      1      1      0      1      1      3",
+                                              bi);
     REQUIRE(ok);
     REQUIRE(bi.node == 0);
     REQUIRE(bi.zone_name == "DMA");
@@ -107,10 +109,10 @@ TEST_CASE("numa_maps line parsing", "[memory][numa_maps]") {
 
 TEST_CASE("numa_maps parse handles multi-node", "[memory][numa_maps]") {
     NumaMapEntry entry;
-    bool ok = MemoryCollector::parse_numa_maps_line(
-        "7f0000000000 default anon=100 N0=30 N1=70", entry);
+    bool ok =
+        MemoryCollector::parse_numa_maps_line("7f0000000000 default anon=100 N0=30 N1=70", entry);
     REQUIRE(ok);
-    REQUIRE(entry.node == 1);  // dominant node
+    REQUIRE(entry.node == 1); // dominant node
     REQUIRE(entry.pages == 70);
 }
 

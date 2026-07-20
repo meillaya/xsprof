@@ -1,0 +1,14 @@
+# xsprof C++ style — LLVM-based, 4-space indent, 100-col limit.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+PointerAlignment: Left
+SortIncludes: CaseInsensitive
+IncludeBlocks: Preserve
+SpaceAfterCStyleCast: true
+Standard: c++20

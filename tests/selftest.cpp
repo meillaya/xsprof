@@ -11,24 +11,24 @@
 #include "xsprof/chrome_trace.hpp"
 #include "xsprof/event.hpp"
 #include "xsprof/json.hpp"
+#include "xsprof/memory_collector.hpp"
 #include "xsprof/pipeline.hpp"
 #include "xsprof/privacy.hpp"
 #include "xsprof/proc.hpp"
 #include "xsprof/ring_buffer.hpp"
 #include "xsprof/safety.hpp"
 #include "xsprof/sched_collector.hpp"
-#include "xsprof/memory_collector.hpp"
 
 static int g_failures = 0;
 static int g_checks = 0;
 
-#define CHECK(cond)                                                            \
-    do {                                                                       \
-        ++g_checks;                                                            \
-        if (!(cond)) {                                                         \
-            ++g_failures;                                                      \
-            std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-        }                                                                      \
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        ++g_checks;                                                                                \
+        if (!(cond)) {                                                                             \
+            ++g_failures;                                                                          \
+            std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                            \
+        }                                                                                          \
     } while (0)
 
 using namespace xsprof;
@@ -42,7 +42,8 @@ static std::string read_fixture(const std::string& name) {
     std::string path = "tests/fixtures/" + name;
 #endif
     std::ifstream f(path);
-    if (!f) return {};
+    if (!f)
+        return {};
     std::ostringstream ss;
     ss << f.rdbuf();
     return ss.str();
@@ -87,13 +88,15 @@ static void test_event() {
 
     // All 18 event kinds have non-empty, non-unknown names.
     const EventKind all[] = {
-        EventKind::SchedSwitch, EventKind::SchedWakeup, EventKind::SchedMigrate,
-        EventKind::RunqueueSample, EventKind::PriorityInversion, EventKind::LockContention,
-        EventKind::PageFault, EventKind::TlbMiss, EventKind::CacheMiss,
-        EventKind::HugePage, EventKind::NumaBalance, EventKind::AllocSample,
-        EventKind::MallocHotspot,
-        EventKind::Marker, EventKind::Capability, EventKind::Refusal,
-        EventKind::Incident, EventKind::RuntimeSample,
+        EventKind::SchedSwitch,       EventKind::SchedWakeup,
+        EventKind::SchedMigrate,      EventKind::RunqueueSample,
+        EventKind::PriorityInversion, EventKind::LockContention,
+        EventKind::PageFault,         EventKind::TlbMiss,
+        EventKind::CacheMiss,         EventKind::HugePage,
+        EventKind::NumaBalance,       EventKind::AllocSample,
+        EventKind::MallocHotspot,     EventKind::Marker,
+        EventKind::Capability,        EventKind::Refusal,
+        EventKind::Incident,          EventKind::RuntimeSample,
     };
     for (auto k : all) {
         auto name = event_kind_name(k);
@@ -291,8 +294,10 @@ static void test_proc() {
     CHECK(!caps.empty());
     bool have_perf = false, have_btf = false;
     for (const auto& c : caps) {
-        if (c.name == "perf_event") have_perf = true;
-        if (c.name == "btf") have_btf = true;
+        if (c.name == "perf_event")
+            have_perf = true;
+        if (c.name == "btf")
+            have_btf = true;
         // Every capability record must carry host_mutation=false.
         CHECK(c.to_json().dump().find("\"host_mutation\":false") != std::string::npos);
     }
@@ -353,7 +358,8 @@ static void test_advisor() {
     auto fsf = advisor.analyze(fs);
     bool found_fs = false;
     for (const auto& f : fsf)
-        if (f.id == "false-sharing" && f.sev == Severity::Critical) found_fs = true;
+        if (f.id == "false-sharing" && f.sev == Severity::Critical)
+            found_fs = true;
     CHECK(found_fs);
 
     // False sharing heuristic without PMU.
@@ -363,7 +369,8 @@ static void test_advisor() {
     auto fsf2 = advisor.analyze(fs_heur);
     bool found_fs_heur = false;
     for (const auto& f : fsf2)
-        if (f.id == "false-sharing" && f.confidence == Confidence::Heuristic) found_fs_heur = true;
+        if (f.id == "false-sharing" && f.confidence == Confidence::Heuristic)
+            found_fs_heur = true;
     CHECK(found_fs_heur);
 
     // Rule 2: Excessive locking.
@@ -373,7 +380,10 @@ static void test_advisor() {
     auto lf = advisor.analyze(lock);
     bool found_lock = false;
     for (const auto& f : lf)
-        if (f.id == "excessive-locking") { found_lock = true; CHECK(f.sev == Severity::Warning); }
+        if (f.id == "excessive-locking") {
+            found_lock = true;
+            CHECK(f.sev == Severity::Warning);
+        }
     CHECK(found_lock);
 
     // Rule 3: Unnecessary wakeups.
@@ -384,7 +394,8 @@ static void test_advisor() {
     auto wf = advisor.analyze(wk);
     bool found_wk = false;
     for (const auto& f : wf)
-        if (f.id == "unnecessary-wakeups") found_wk = true;
+        if (f.id == "unnecessary-wakeups")
+            found_wk = true;
     CHECK(found_wk);
 
     // Rule 4: CPU affinity churn.
@@ -409,7 +420,8 @@ static void test_advisor() {
     auto ff = advisor.analyze(frag);
     bool found_frag = false;
     for (const auto& f : ff)
-        if (f.id == "allocator-fragmentation") found_frag = true;
+        if (f.id == "allocator-fragmentation")
+            found_frag = true;
     CHECK(found_frag);
 
     // Rule 7: Priority inversion.
@@ -418,7 +430,10 @@ static void test_advisor() {
     auto pf = advisor.analyze(pi);
     bool found_pi = false;
     for (const auto& f : pf)
-        if (f.id == "priority-inversion") { found_pi = true; CHECK(f.sev == Severity::Critical); }
+        if (f.id == "priority-inversion") {
+            found_pi = true;
+            CHECK(f.sev == Severity::Critical);
+        }
     CHECK(found_pi);
 
     // Configurable thresholds: custom Advisor with raised thresholds stays silent.
@@ -482,8 +497,8 @@ static void test_viz() {
     auto doc = viz::export_events(events);
     std::string s = doc.dump();
     CHECK(s.find("\"traceEvents\"") != std::string::npos);
-    CHECK(s.find("\"ph\":\"X\"") != std::string::npos);   // complete event
-    CHECK(s.find("\"ph\":\"i\"") != std::string::npos);   // instant event
+    CHECK(s.find("\"ph\":\"X\"") != std::string::npos); // complete event
+    CHECK(s.find("\"ph\":\"i\"") != std::string::npos); // instant event
     CHECK(s.find("kworker") != std::string::npos);
 
     viz::ChromeTraceBuilder b;
@@ -536,10 +551,12 @@ static void test_schema_golden() {
         std::string actual = event_to_json(e).dump();
         std::string golden = read_fixture("event_v1_golden.json");
         if (!golden.empty()) {
-            if (!golden.empty() && golden.back() == '\n') golden.pop_back();
+            if (!golden.empty() && golden.back() == '\n')
+                golden.pop_back();
             CHECK(actual == golden);
         } else {
-            std::printf("WARN: fixture event_v1_golden.json not found (skipping byte-stable check)\n");
+            std::printf(
+                "WARN: fixture event_v1_golden.json not found (skipping byte-stable check)\n");
         }
     }
     // aggregates-v1 golden fixture byte-stability.
@@ -548,10 +565,12 @@ static void test_schema_golden() {
         std::string actual = agg.to_json().dump();
         std::string golden = read_fixture("aggregates_v1_golden.json");
         if (!golden.empty()) {
-            if (!golden.empty() && golden.back() == '\n') golden.pop_back();
+            if (!golden.empty() && golden.back() == '\n')
+                golden.pop_back();
             CHECK(actual == golden);
         } else {
-            std::printf("WARN: fixture aggregates_v1_golden.json not found (skipping byte-stable check)\n");
+            std::printf(
+                "WARN: fixture aggregates_v1_golden.json not found (skipping byte-stable check)\n");
         }
     }
     // journal-v1 golden fixture invariants.
@@ -613,8 +632,10 @@ static void test_memory_collector() {
 
     // Buddyinfo parsing.
     BuddyInfo bi;
-    bool ok = MemoryCollector::parse_buddyinfo_line(
-        "Node 0, zone      DMA      1      1      1      0      2      1      1      0      1      1      3", bi);
+    bool ok =
+        MemoryCollector::parse_buddyinfo_line("Node 0, zone      DMA      1      1      1      0   "
+                                              "   2      1      1      0      1      1      3",
+                                              bi);
     CHECK(ok);
     CHECK(bi.node == 0);
     CHECK(bi.zone_name == "DMA");
@@ -632,8 +653,8 @@ static void test_memory_collector() {
 
     // Numa_maps parsing.
     NumaMapEntry entry;
-    ok = MemoryCollector::parse_numa_maps_line(
-        "00400000 default file=/usr/bin/foo mapped=10 N0=10", entry);
+    ok = MemoryCollector::parse_numa_maps_line("00400000 default file=/usr/bin/foo mapped=10 N0=10",
+                                               entry);
     CHECK(ok);
     CHECK(entry.vaddr == 0x00400000);
     CHECK(entry.node == 0);
@@ -652,7 +673,6 @@ static void test_memory_collector() {
     CHECK(agg.pmu_collected);
     CHECK(agg.page_faults == 42);
 }
-
 
 static void test_json_parser() {
     // Parse a simple object.
@@ -739,17 +759,23 @@ static void test_window_selection() {
     RawEvent e1;
     e1.kind = EventKind::PageFault;
     e1.ts_ns = 1000000; // 1000 us
-    e1.pid = 1; e1.tid = 1; e1.a = 1;
+    e1.pid = 1;
+    e1.tid = 1;
+    e1.a = 1;
     events.push_back(e1);
     RawEvent e2;
     e2.kind = EventKind::PageFault;
     e2.ts_ns = 5000000; // 5000 us
-    e2.pid = 1; e2.tid = 1; e2.a = 1;
+    e2.pid = 1;
+    e2.tid = 1;
+    e2.a = 1;
     events.push_back(e2);
     RawEvent e3;
     e3.kind = EventKind::PageFault;
     e3.ts_ns = 9000000; // 9000 us
-    e3.pid = 1; e3.tid = 1; e3.a = 1;
+    e3.pid = 1;
+    e3.tid = 1;
+    e3.a = 1;
     events.push_back(e3);
 
     viz::TimeWindow w{2000, 6000};
@@ -792,14 +818,17 @@ static void test_replay_from_journal() {
     RawEvent e1;
     e1.kind = EventKind::SchedSwitch;
     e1.ts_ns = 1000000;
-    e1.cpu = 0; e1.pid = 42; e1.tid = 42;
+    e1.cpu = 0;
+    e1.pid = 42;
+    e1.tid = 42;
     e1.comm = "test";
     e1.a = 500000;
     journal += event_to_json(e1).dump() + "\n";
     RawEvent e2;
     e2.kind = EventKind::PageFault;
     e2.ts_ns = 2000000;
-    e2.pid = 42; e2.tid = 42;
+    e2.pid = 42;
+    e2.tid = 42;
     e2.a = 5;
     journal += event_to_json(e2).dump() + "\n";
 
@@ -825,7 +854,8 @@ static void test_replay_from_journal() {
     CHECK(te2->size() == 2);
 
     // Gap detection: unparseable line triggers SAMPLE_LOSS marker.
-    std::string gapped = event_to_json(e1).dump() + "\n{bad json\n" + event_to_json(e2).dump() + "\n";
+    std::string gapped =
+        event_to_json(e1).dump() + "\n{bad json\n" + event_to_json(e2).dump() + "\n";
     std::istringstream in3(gapped);
     long long rows3 = 0;
     auto doc3 = viz::replay_from_journal(in3, rows3);

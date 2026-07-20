@@ -8,22 +8,28 @@ namespace xsprof {
 
 std::string_view mutation_name(Mutation m) {
     switch (m) {
-        case Mutation::SchedAffinity: return "sched_setaffinity";
-        case Mutation::SchedPriority: return "sched_setpriority";
-        case Mutation::CgroupWrite: return "cgroup_write";
-        case Mutation::SchedExtLoad: return "sched_ext_load";
-        case Mutation::NumaBind: return "numa_bind";
+    case Mutation::SchedAffinity:
+        return "sched_setaffinity";
+    case Mutation::SchedPriority:
+        return "sched_setpriority";
+    case Mutation::CgroupWrite:
+        return "cgroup_write";
+    case Mutation::SchedExtLoad:
+        return "sched_ext_load";
+    case Mutation::NumaBind:
+        return "numa_bind";
     }
     return "unknown_mutation";
 }
 
 bool is_unsafe_verb(std::string_view verb) {
     constexpr std::array<std::string_view, 9> unsafe = {
-        "load", "attach", "enable", "mutate", "apply",
-        "sched-ext-attach", "setaffinity", "setpriority", "bind",
+        "load",        "attach",      "enable", "mutate", "apply", "sched-ext-attach",
+        "setaffinity", "setpriority", "bind",
     };
     for (auto u : unsafe) {
-        if (verb == u) return true;
+        if (verb == u)
+            return true;
     }
     return false;
 }
@@ -52,7 +58,8 @@ SafePathResult SafePath::under(std::string_view root, std::string_view candidate
         return {false, "", "empty path"};
     }
     if (candidate.front() == '/') {
-        return {false, "", "absolute path not allowed; paths must be relative and under the state dir"};
+        return {false, "",
+                "absolute path not allowed; paths must be relative and under the state dir"};
     }
 
     auto split = [](std::string_view p) {
@@ -60,18 +67,23 @@ SafePathResult SafePath::under(std::string_view root, std::string_view candidate
         std::string cur;
         for (char c : p) {
             if (c == '/') {
-                if (!cur.empty()) { parts.push_back(cur); cur.clear(); }
+                if (!cur.empty()) {
+                    parts.push_back(cur);
+                    cur.clear();
+                }
             } else {
                 cur += c;
             }
         }
-        if (!cur.empty()) parts.push_back(cur);
+        if (!cur.empty())
+            parts.push_back(cur);
         return parts;
     };
 
     std::vector<std::string> stack;
     for (const auto& part : split(candidate)) {
-        if (part == ".") continue;
+        if (part == ".")
+            continue;
         if (part == "..") {
             if (stack.empty()) {
                 return {false, "", "path escapes the state dir via .."};
@@ -83,9 +95,11 @@ SafePathResult SafePath::under(std::string_view root, std::string_view candidate
     }
 
     std::string resolved(root);
-    if (!resolved.empty() && resolved.back() != '/') resolved += '/';
+    if (!resolved.empty() && resolved.back() != '/')
+        resolved += '/';
     for (std::size_t i = 0; i < stack.size(); ++i) {
-        if (i) resolved += '/';
+        if (i)
+            resolved += '/';
         resolved += stack[i];
     }
     return {true, resolved, ""};

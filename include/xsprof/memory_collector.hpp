@@ -29,7 +29,7 @@ struct HugePageState {
     std::uint64_t total = 0;
     std::uint64_t free = 0;
     std::uint64_t size_kb = 0;
-    std::string label;  // e.g. "hugepages-2048kB"
+    std::string label; // e.g. "hugepages-2048kB"
 };
 
 // Parsed NUMA map entry for a single VMA.
@@ -42,7 +42,7 @@ struct NumaMapEntry {
 
 // AMD IBS (Instruction-Based Sampling) capability detection.
 struct IbsCapability {
-    bool ibs_op_present = false;   // /sys/bus/event_source/devices/ibs_op
+    bool ibs_op_present = false; // /sys/bus/event_source/devices/ibs_op
     bool ibs_fetch_present = false;
     std::string reason;
 };
@@ -50,7 +50,7 @@ struct IbsCapability {
 // The memory collector. Implements the ICollector pattern from
 // docs/rewrite/COLLECTORS.md: probe() is read-only and never mutates.
 class MemoryCollector {
-public:
+  public:
     // Probe capabilities. Returns SKIP when perf_event_paranoid >= 2 and
     // the process lacks CAP_PERFMON (fail-closed). Never auto-elevates.
     Capability probe() const;
@@ -92,7 +92,7 @@ public:
     void add_small_alloc_churn(std::uint64_t n) { small_alloc_churn_ += n; }
     void set_pmu_collected(bool v) { pmu_collected_ = v; }
 
-private:
+  private:
     std::uint64_t page_faults_ = 0;
     std::uint64_t tlb_misses_ = 0;
     std::uint64_t llc_misses_ = 0;

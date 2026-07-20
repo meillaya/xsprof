@@ -7,9 +7,12 @@ namespace xsprof::advisor {
 
 std::string severity_name(Severity s) {
     switch (s) {
-        case Severity::Info: return "info";
-        case Severity::Warning: return "warning";
-        case Severity::Critical: return "critical";
+    case Severity::Info:
+        return "info";
+    case Severity::Warning:
+        return "warning";
+    case Severity::Critical:
+        return "critical";
     }
     return "info";
 }
@@ -25,7 +28,8 @@ json::Value Finding::to_json() const {
     v.set("confidence", json::Value(confidence_name(confidence)));
     v.set("summary", json::Value(summary));
     json::Value ev = json::Value::make_array();
-    for (const auto& e : evidence) ev.push_back(json::Value(e));
+    for (const auto& e : evidence)
+        ev.push_back(json::Value(e));
     v.set("evidence", ev);
     json::Value rs = json::Value::make_array();
     for (const auto& r : recs) {
@@ -42,9 +46,12 @@ json::Value Finding::to_json() const {
 namespace {
 int severity_rank(Severity s) {
     switch (s) {
-        case Severity::Critical: return 2;
-        case Severity::Warning: return 1;
-        case Severity::Info: return 0;
+    case Severity::Critical:
+        return 2;
+    case Severity::Warning:
+        return 1;
+    case Severity::Info:
+        return 0;
     }
     return 0;
 }
@@ -88,7 +95,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
                              " llc_domains=" + std::to_string(agg.llc_domains));
         Recommendation r;
         r.kind = "sched_setaffinity";
-        r.detail = "sched_setaffinity(<pid>, mask_of_one_llc_domain);  // e.g. cpus 0-7 for domain 0";
+        r.detail =
+            "sched_setaffinity(<pid>, mask_of_one_llc_domain);  // e.g. cpus 0-7 for domain 0";
         r.rationale = "Pin the task group to a single LLC domain to stop cross-LLC migration.";
         f.recs.push_back(r);
         out.push_back(std::move(f));
@@ -163,7 +171,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         f.sev = Severity::Info;
         f.confidence = Confidence::Measured;
         f.summary = "High-order buddy lists are depleted relative to low-order (fragmentation).";
-        f.evidence.push_back("buddy_fragmentation_index=" + std::to_string(agg.buddy_fragmentation));
+        f.evidence.push_back("buddy_fragmentation_index=" +
+                             std::to_string(agg.buddy_fragmentation));
         Recommendation r;
         r.kind = "tuning";
         r.detail = "Use huge pages / a slab-friendly allocator; reduce small-allocation churn.";
@@ -178,7 +187,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         f.id = "priority-inversion";
         f.sev = Severity::Critical;
         f.confidence = Confidence::Measured;
-        f.summary = "A high-priority task was blocked on a lock held by a preempted low-priority task.";
+        f.summary =
+            "A high-priority task was blocked on a lock held by a preempted low-priority task.";
         f.evidence.push_back("priority_inversion observed via lock-owner + sched_switch chain");
         Recommendation r;
         r.kind = "tuning";
@@ -204,7 +214,8 @@ json::Value Advisor::report_json(const Aggregates& agg) const {
     caps.set("sched_collected", json::Value(agg.sched_collected));
     doc.set("capabilities", caps);
     json::Value arr = json::Value::make_array();
-    for (const auto& f : analyze(agg)) arr.push_back(f.to_json());
+    for (const auto& f : analyze(agg))
+        arr.push_back(f.to_json());
     doc.set("findings", arr);
     doc.set("host_mutation", json::Value(false));
     return doc;
@@ -233,7 +244,8 @@ std::string Advisor::report_markdown(const Aggregates& agg) const {
            << confidence_name(f.confidence) << ")\n\n";
         md << f.summary << "\n\n";
         md << "Evidence:\n";
-        for (const auto& e : f.evidence) md << "- `" << e << "`\n";
+        for (const auto& e : f.evidence)
+            md << "- `" << e << "`\n";
         if (!f.recs.empty()) {
             md << "\nRecommendations (suggestions only — never auto-applied):\n";
             for (const auto& r : f.recs) {
@@ -265,15 +277,19 @@ Aggregates aggregates_from_facts(const SystemFacts& facts) {
         std::istringstream ss(counts);
         long long v;
         std::vector<long long> orders;
-        while (ss >> v) orders.push_back(v);
+        while (ss >> v)
+            orders.push_back(v);
         if (orders.size() >= 2) {
             long long low = 0, high = 0;
             for (std::size_t i = 0; i < orders.size(); ++i) {
-                if (i < 4) low += orders[i];
-                else high += orders[i];
+                if (i < 4)
+                    low += orders[i];
+                else
+                    high += orders[i];
             }
             long long total = low + high;
-            agg.buddy_fragmentation = total > 0 ? static_cast<double>(low) / static_cast<double>(total) : 0.0;
+            agg.buddy_fragmentation =
+                total > 0 ? static_cast<double>(low) / static_cast<double>(total) : 0.0;
         }
     }
     return agg;

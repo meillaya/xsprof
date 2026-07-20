@@ -22,14 +22,14 @@ enum class LoadResult {
 std::string_view load_result_name(LoadResult r);
 
 struct BpfObjectInfo {
-    std::string name;         // e.g. "sched_monitor", "mem_monitor"
-    std::string object_path;  // path to .bpf.o
+    std::string name;        // e.g. "sched_monitor", "mem_monitor"
+    std::string object_path; // path to .bpf.o
     bool loaded = false;
     int prog_fd = -1;
 };
 
 class BpfLoader {
-public:
+  public:
     // Attempt to load a BPF CO-RE object.
     // Fail-closed: refuses unless the AuditContext has allow_mutate=true,
     // a valid audit_id, rollback_id, and vm_lab_marker=true.
@@ -44,7 +44,7 @@ public:
     // Get the last error/reason string.
     const std::string& last_reason() const { return reason_; }
 
-private:
+  private:
     std::string reason_;
 };
 

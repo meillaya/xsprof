@@ -24,8 +24,10 @@ void write_help(std::ostream& os, const char* prog) {
        << "USAGE:\n"
        << "  " << prog << " <command> [options]\n\n"
        << "COMMANDS (read-only, fail-closed):\n"
-       << "  preflight --json        Collect read-only host facts + capability probes (host_mutation=false)\n"
-       << "  capabilities --json     Probe collector capabilities (perf/tracepoint/BPF/PMU/sched_ext)\n"
+       << "  preflight --json        Collect read-only host facts + capability probes "
+          "(host_mutation=false)\n"
+       << "  capabilities --json     Probe collector capabilities "
+          "(perf/tracepoint/BPF/PMU/sched_ext)\n"
        << "  advise --json|--md      Run the Performance Advisor over a read-only snapshot\n"
        << "  timeline --input <journal.jsonl> [--window start:end] [--chunk-size N]\n"
        << "                          Emit a Chrome Trace timeline from a recorded JSONL journal\n"
@@ -54,7 +56,8 @@ int write_refusal(std::string_view verb) {
 
 bool wants_json(int argc, char** argv) {
     for (int i = 0; i < argc; ++i)
-        if (std::string_view(argv[i]) == "--json") return true;
+        if (std::string_view(argv[i]) == "--json")
+            return true;
     return false;
 }
 
@@ -72,7 +75,8 @@ int cmd_preflight(int argc, char** argv) {
     doc.set("host_mutation", Value(false));
 
     Value cap_arr = Value::make_array();
-    for (const auto& c : caps) cap_arr.push_back(c.to_json());
+    for (const auto& c : caps)
+        cap_arr.push_back(c.to_json());
     doc.set("capabilities", cap_arr);
     doc.set("facts", xsprof::ProcSource::facts_to_json(facts));
 
@@ -87,7 +91,8 @@ int cmd_capabilities(int argc, char** argv) {
     }
     auto caps = xsprof::ProcSource::probe_capabilities();
     Value arr = Value::make_array();
-    for (const auto& c : caps) arr.push_back(c.to_json());
+    for (const auto& c : caps)
+        arr.push_back(c.to_json());
     std::cout << arr.dump() << "\n";
     return 0;
 }
@@ -95,7 +100,8 @@ int cmd_capabilities(int argc, char** argv) {
 int cmd_advise(int argc, char** argv) {
     bool md = false;
     for (int i = 0; i < argc; ++i)
-        if (std::string_view(argv[i]) == "--md") md = true;
+        if (std::string_view(argv[i]) == "--md")
+            md = true;
     auto facts = xsprof::ProcSource::collect_facts();
     auto agg = xsprof::advisor::aggregates_from_facts(facts);
     xsprof::advisor::Advisor advisor;
@@ -118,10 +124,16 @@ int cmd_timeline(int argc, char** argv) {
 
     for (int i = 0; i < argc; ++i) {
         std::string_view arg = argv[i];
-        if (arg == "--input" && i + 1 < argc) input = argv[++i];
-        else if (arg == "--window" && i + 1 < argc) window_str = argv[++i];
+        if (arg == "--input" && i + 1 < argc)
+            input = argv[++i];
+        else if (arg == "--window" && i + 1 < argc)
+            window_str = argv[++i];
         else if (arg == "--chunk-size" && i + 1 < argc) {
-            try { chunk_size = std::stoll(argv[++i]); } catch (...) { chunk_size = 0; }
+            try {
+                chunk_size = std::stoll(argv[++i]);
+            } catch (...) {
+                chunk_size = 0;
+            }
         }
     }
     if (input.empty()) {
@@ -166,8 +178,10 @@ int cmd_timeline(int argc, char** argv) {
                 Value chunk = Value::make_object();
                 Value chunk_arr = Value::make_array();
                 std::size_t end = offset + static_cast<std::size_t>(chunk_size);
-                if (end > arr.size()) end = arr.size();
-                for (std::size_t j = offset; j < end; ++j) chunk_arr.push_back(arr[j]);
+                if (end > arr.size())
+                    end = arr.size();
+                for (std::size_t j = offset; j < end; ++j)
+                    chunk_arr.push_back(arr[j]);
                 chunk.set("traceEvents", chunk_arr);
                 chunk.set("displayTimeUnit", Value("ns"));
                 chunks.push_back(std::move(chunk));
@@ -209,10 +223,14 @@ int main(int argc, char** argv) {
         return write_refusal(cmd);
     }
 
-    if (cmd == "preflight") return cmd_preflight(argc - 2, argv + 2);
-    if (cmd == "capabilities") return cmd_capabilities(argc - 2, argv + 2);
-    if (cmd == "advise") return cmd_advise(argc - 2, argv + 2);
-    if (cmd == "timeline") return cmd_timeline(argc - 2, argv + 2);
+    if (cmd == "preflight")
+        return cmd_preflight(argc - 2, argv + 2);
+    if (cmd == "capabilities")
+        return cmd_capabilities(argc - 2, argv + 2);
+    if (cmd == "advise")
+        return cmd_advise(argc - 2, argv + 2);
+    if (cmd == "timeline")
+        return cmd_timeline(argc - 2, argv + 2);
 
     // Unknown verb: refuse (fail-closed), like the Zig default branch.
     return write_refusal(cmd);

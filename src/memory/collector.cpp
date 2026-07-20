@@ -34,8 +34,8 @@ Capability MemoryCollector::probe() const {
         // for HW_CACHE or software page-fault sampling. We do NOT auto-elevate.
         return {"memory_collector", CapState::Skip,
                 "perf_event_paranoid=" + std::to_string(paranoid) +
-                " (need CAP_PERFMON or paranoid<=1 for PMU/page-fault collection; "
-                "fail-closed SKIP, never auto-elevate)"};
+                    " (need CAP_PERFMON or paranoid<=1 for PMU/page-fault collection; "
+                    "fail-closed SKIP, never auto-elevate)"};
     }
 
     // Check for PMU devices.
@@ -44,7 +44,8 @@ Capability MemoryCollector::probe() const {
     if (d) {
         struct dirent* ent;
         while ((ent = readdir(d)) != nullptr) {
-            if (ent->d_name[0] == '.') continue;
+            if (ent->d_name[0] == '.')
+                continue;
             have_pmu = true;
             break;
         }
@@ -54,7 +55,7 @@ Capability MemoryCollector::probe() const {
     if (!have_pmu) {
         return {"memory_collector", CapState::Degraded,
                 "perf_event_paranoid=" + std::to_string(paranoid) +
-                " but no PMU devices found; software page faults only"};
+                    " but no PMU devices found; software page faults only"};
     }
 
     // Check for AMD IBS.
@@ -62,8 +63,8 @@ Capability MemoryCollector::probe() const {
     std::string ibs_note = ibs.ibs_op_present ? " (AMD IBS ibs_op available)" : "";
 
     return {"memory_collector", CapState::Ready,
-            "perf_event_paranoid=" + std::to_string(paranoid) +
-            " (PMU collection permitted)" + ibs_note};
+            "perf_event_paranoid=" + std::to_string(paranoid) + " (PMU collection permitted)" +
+                ibs_note};
 }
 
 IbsCapability MemoryCollector::probe_ibs() {
@@ -85,19 +86,21 @@ IbsCapability MemoryCollector::probe_ibs() {
 // Buddyinfo poller
 // ---------------------------------------------------------------------------
 
-bool MemoryCollector::parse_buddyinfo_line(const std::string& line,
-                                            BuddyInfo& out) {
+bool MemoryCollector::parse_buddyinfo_line(const std::string& line, BuddyInfo& out) {
     // Format: "Node N, zone   ZoneName   free1 free2 ... freeN"
-    // Example: "Node 0, zone      DMA      1      1      1      0      2      1      1      0      1      1      3"
+    // Example: "Node 0, zone      DMA      1      1      1      0      2      1      1      0 1 1
+    // 3"
     std::istringstream ss(line);
     std::string tok;
-    ss >> tok;  // "Node"
-    if (tok != "Node") return false;
+    ss >> tok; // "Node"
+    if (tok != "Node")
+        return false;
     int node = -1;
     ss >> node;
-    ss >> tok;  // comma
-    ss >> tok;  // "zone"
-    if (tok != "zone") return false;
+    ss >> tok; // comma
+    ss >> tok; // "zone"
+    if (tok != "zone")
+        return false;
     std::string zone_name;
     ss >> zone_name;
 
@@ -106,7 +109,8 @@ bool MemoryCollector::parse_buddyinfo_line(const std::string& line,
     while (ss >> v) {
         free_per_order.push_back(v);
     }
-    if (free_per_order.empty()) return false;
+    if (free_per_order.empty())
+        return false;
 
     out.node = node;
     out.zone_name = zone_name;
@@ -117,7 +121,8 @@ bool MemoryCollector::parse_buddyinfo_line(const std::string& line,
 std::vector<BuddyInfo> MemoryCollector::poll_buddyinfo() {
     std::vector<BuddyInfo> result;
     std::ifstream f("/proc/buddyinfo");
-    if (!f) return result;
+    if (!f)
+        return result;
     std::string line;
     while (std::getline(f, line)) {
         BuddyInfo bi;
@@ -128,8 +133,7 @@ std::vector<BuddyInfo> MemoryCollector::poll_buddyinfo() {
     return result;
 }
 
-double MemoryCollector::estimate_fragmentation(
-    const std::vector<BuddyInfo>& info) {
+double MemoryCollector::estimate_fragmentation(const std::vector<BuddyInfo>& info) {
     // Fragmentation heuristic: ratio of free pages in low orders (0-3) to
     // total free pages across all orders. High ratio = fragmented.
     // Returns 0..1 (0 = no fragmentation, 1 = fully fragmented).
@@ -144,7 +148,8 @@ double MemoryCollector::estimate_fragmentation(
             }
         }
     }
-    if (total_pages == 0) return 0.0;
+    if (total_pages == 0)
+        return 0.0;
     return static_cast<double>(low_order_pages) / static_cast<double>(total_pages);
 }
 
@@ -156,13 +161,16 @@ std::vector<HugePageState> MemoryCollector::poll_hugepages() {
     std::vector<HugePageState> result;
     const std::string base = "/sys/kernel/mm/hugepages";
     DIR* d = opendir(base.c_str());
-    if (!d) return result;
+    if (!d)
+        return result;
 
     struct dirent* ent;
     while ((ent = readdir(d)) != nullptr) {
-        if (ent->d_name[0] == '.') continue;
+        if (ent->d_name[0] == '.')
+            continue;
         std::string dir_name = ent->d_name;
-        if (dir_name.rfind("hugepages-", 0) != 0) continue;
+        if (dir_name.rfind("hugepages-", 0) != 0)
+            continue;
 
         HugePageState hp;
         hp.label = dir_name;
@@ -176,17 +184,20 @@ std::vector<HugePageState> MemoryCollector::poll_hugepages() {
                 else
                     break;
             }
-            if (!num_str.empty()) hp.size_kb = std::stoull(num_str);
+            if (!num_str.empty())
+                hp.size_kb = std::stoull(num_str);
         }
 
         // Read nr_hugepages and free_hugepages.
         {
             std::ifstream nr(base + "/" + dir_name + "/nr_hugepages");
-            if (nr) nr >> hp.total;
+            if (nr)
+                nr >> hp.total;
         }
         {
             std::ifstream fr(base + "/" + dir_name + "/free_hugepages");
-            if (fr) fr >> hp.free;
+            if (fr)
+                fr >> hp.free;
         }
         result.push_back(std::move(hp));
     }
@@ -198,14 +209,14 @@ std::vector<HugePageState> MemoryCollector::poll_hugepages() {
 // Numa_maps poller
 // ---------------------------------------------------------------------------
 
-bool MemoryCollector::parse_numa_maps_line(const std::string& line,
-                                            NumaMapEntry& out) {
+bool MemoryCollector::parse_numa_maps_line(const std::string& line, NumaMapEntry& out) {
     // Format: "<hex_addr> <flags> [key=value ...] [N<node>=<pages> ...]"
     // Example: "00400000 default file=/usr/bin/foo mapped=10 N0=10"
     std::istringstream ss(line);
     std::string addr_str;
     ss >> addr_str;
-    if (addr_str.empty()) return false;
+    if (addr_str.empty())
+        return false;
 
     // Parse hex address.
     std::uint64_t vaddr = 0;
@@ -213,10 +224,14 @@ bool MemoryCollector::parse_numa_maps_line(const std::string& line,
         // Simple hex parse.
         for (char c : addr_str) {
             int d = 0;
-            if (c >= '0' && c <= '9') d = c - '0';
-            else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
-            else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
-            else return false;
+            if (c >= '0' && c <= '9')
+                d = c - '0';
+            else if (c >= 'a' && c <= 'f')
+                d = c - 'a' + 10;
+            else if (c >= 'A' && c <= 'F')
+                d = c - 'A' + 10;
+            else
+                return false;
             vaddr = vaddr * 16 + static_cast<std::uint64_t>(d);
         }
     }
@@ -253,7 +268,8 @@ std::vector<NumaMapEntry> MemoryCollector::poll_numa_maps(int pid) {
     std::vector<NumaMapEntry> result;
     std::string path = "/proc/" + std::to_string(pid) + "/numa_maps";
     std::ifstream f(path);
-    if (!f) return result;  // permission denied or process gone
+    if (!f)
+        return result; // permission denied or process gone
 
     std::string line;
     while (std::getline(f, line)) {

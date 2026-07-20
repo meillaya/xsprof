@@ -17,7 +17,7 @@ namespace xsprof::sched {
 
 // RAII wrapper for a perf_event_open file descriptor.
 class PerfEvent {
-public:
+  public:
     PerfEvent() = default;
     ~PerfEvent();
     PerfEvent(PerfEvent&& o) noexcept;
@@ -27,13 +27,13 @@ public:
 
     // Open a perf event. Returns fd >= 0 on success, -errno on failure.
     // `type` and `config` map to perf_event_attr fields.
-    static PerfEvent open(std::uint32_t type, std::uint64_t config,
-                          pid_t pid, int cpu, int group_fd);
+    static PerfEvent open(std::uint32_t type, std::uint64_t config, pid_t pid, int cpu,
+                          int group_fd);
     bool valid() const { return fd_ >= 0; }
     int fd() const { return fd_; }
     int error() const { return err_; }
 
-private:
+  private:
     int fd_ = -1;
     int err_ = 0;
 };
@@ -44,8 +44,8 @@ struct RunqueueSample {
     std::uint64_t nr_running = 0;
     std::uint64_t nr_uninterruptible = 0;
     std::uint64_t nr_switches = 0;
-    std::uint64_t run_delay_ns = 0;   // cumulative run-delay (schedstat field 7)
-    std::uint64_t timeslices_ns = 0;  // cumulative timeslice (schedstat field 8)
+    std::uint64_t run_delay_ns = 0;  // cumulative run-delay (schedstat field 7)
+    std::uint64_t timeslices_ns = 0; // cumulative timeslice (schedstat field 8)
 };
 
 // Wakeup-to-switch correlation state.
@@ -53,13 +53,13 @@ struct WakeupRecord {
     std::uint64_t ts_ns = 0;
     int pid = -1;
     int target_cpu = -1;
-    bool matched = false;  // true once a sched_switch follows within the window
+    bool matched = false; // true once a sched_switch follows within the window
 };
 
 // The scheduler collector. Implements the ICollector pattern from
 // docs/rewrite/COLLECTORS.md: probe() is read-only and never mutates.
 class SchedCollector {
-public:
+  public:
     // Probe capabilities. Returns SKIP when perf_event_paranoid >= 2 and
     // the process lacks CAP_PERFMON (fail-closed). Never auto-elevates.
     Capability probe() const;
@@ -90,8 +90,8 @@ public:
     void set_correlation_window_ns(std::uint64_t ns) { correlation_window_ns_ = ns; }
     std::uint64_t correlation_window_ns() const { return correlation_window_ns_; }
 
-private:
-    std::uint64_t correlation_window_ns_ = 1'000'000;  // 1 ms default
+  private:
+    std::uint64_t correlation_window_ns_ = 1'000'000; // 1 ms default
     std::vector<WakeupRecord> pending_wakeups_;
     std::uint64_t unnecessary_wakeups_ = 0;
     std::uint64_t correlated_wakeups_ = 0;

@@ -11,7 +11,7 @@
 namespace xsprof {
 
 class PrivacyFilter {
-public:
+  public:
     // Default pattern: secret|api[_-]?key|token|password|passwd|credential|auth|private[_-]?key
     PrivacyFilter();
     explicit PrivacyFilter(std::string redaction_pattern);
@@ -28,7 +28,7 @@ public:
 
     static constexpr std::string_view kRedacted = "[REDACTED]";
 
-private:
+  private:
     std::string pattern_;
 };
 

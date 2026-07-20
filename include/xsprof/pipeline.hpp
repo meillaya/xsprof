@@ -18,16 +18,16 @@ namespace xsprof::pipeline {
 // so a partially-filled struct never produces false findings (fail-closed).
 struct Aggregates {
     // --- NUMA / placement (memory collector) ---
-    double remote_fault_ratio = 0.0;   // remote / (local+remote) hint faults
-    int dominant_node = -1;            // node holding most of a task's memory
-    int task_cpu_node = -1;            // node the task currently runs on
+    double remote_fault_ratio = 0.0; // remote / (local+remote) hint faults
+    int dominant_node = -1;          // node holding most of a task's memory
+    int task_cpu_node = -1;          // node the task currently runs on
 
     // --- scheduler (sched collector) ---
     long long migrations = 0;
     bool cross_llc_migration = false;
     int llc_domains = 1;
     long long wakeups = 0;
-    long long unnecessary_wakeups = 0;  // wakeups not followed by a run in-window
+    long long unnecessary_wakeups = 0; // wakeups not followed by a run in-window
     long long lock_contentions = 0;
     double avg_lock_wait_ms = 0.0;
 
@@ -35,10 +35,10 @@ struct Aggregates {
     long long llc_misses = 0;
     long long tlb_misses = 0;
     long long page_faults = 0;
-    double remote_hitm = 0.0;           // cross-cache-line HITM (false sharing)
+    double remote_hitm = 0.0; // cross-cache-line HITM (false sharing)
 
     // --- allocator (memory collector) ---
-    double buddy_fragmentation = 0.0;   // 0..1 from /proc/buddyinfo
+    double buddy_fragmentation = 0.0; // 0..1 from /proc/buddyinfo
     long long small_alloc_churn = 0;
 
     // --- priority inversion (sched collector) ---
@@ -56,7 +56,7 @@ struct Aggregates {
 // the pipeline; downstream stages (advisor, viz, journal) consume them.
 // Implementations must be safe to call from the collector thread.
 class PipelineSink {
-public:
+  public:
     virtual ~PipelineSink() = default;
 
     // Accept one raw event. Returns false if the event was dropped (e.g. ring
@@ -72,8 +72,11 @@ public:
 
 // A no-op sink that counts events (useful for testing and dry-run mode).
 class CountingSink final : public PipelineSink {
-public:
-    bool on_event(const RawEvent&) override { ++events_; return true; }
+  public:
+    bool on_event(const RawEvent&) override {
+        ++events_;
+        return true;
+    }
     void on_aggregates(const Aggregates&) override { ++snapshots_; }
     void on_complete() override { complete_ = true; }
 
@@ -81,7 +84,7 @@ public:
     std::uint64_t snapshots() const { return snapshots_; }
     bool complete() const { return complete_; }
 
-private:
+  private:
     std::uint64_t events_ = 0;
     std::uint64_t snapshots_ = 0;
     bool complete_ = false;
