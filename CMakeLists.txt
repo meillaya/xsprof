@@ -72,6 +72,8 @@ if(XSPROF_BUILD_TESTS)
       tests/viz_tests.cpp
       tests/schema_tests.cpp
       tests/pipeline_tests.cpp
+      tests/sched_collector_tests.cpp
+      tests/memory_collector_tests.cpp
     )
     target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_compile_definitions(xsprof_tests PRIVATE

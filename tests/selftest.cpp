@@ -16,6 +16,8 @@
 #include "xsprof/proc.hpp"
 #include "xsprof/ring_buffer.hpp"
 #include "xsprof/safety.hpp"
+#include "xsprof/sched_collector.hpp"
+#include "xsprof/memory_collector.hpp"
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -330,6 +332,94 @@ static void test_schema_golden() {
     }
 }
 
+static void test_sched_collector() {
+    using namespace xsprof::sched;
+    SchedCollector collector;
+    auto cap = collector.probe();
+    CHECK(cap.name == "sched_collector");
+    // On this host perf_event_paranoid=2, probe must return SKIP (fail-closed).
+    CHECK(cap.state == CapState::Skip || cap.state == CapState::Refuse);
+    CHECK(cap.reason.find("fail-closed") != std::string::npos);
+    CHECK(cap.reason.find("never auto-elevate") != std::string::npos);
+    CHECK(cap.to_json().dump().find("\"host_mutation\":false") != std::string::npos);
+
+    // Schedstat parsing.
+    RunqueueSample s;
+    bool ok = SchedCollector::parse_schedstat_cpu_line(
+        "cpu0 0 12345 67890 54321 9876543210 123456789 11111 0 0", s);
+    CHECK(ok);
+    CHECK(s.cpu == 0);
+    CHECK(s.nr_switches == 12345);
+    CHECK(s.run_delay_ns == 123456789);
+
+    // Wakeup-to-switch correlation.
+    SchedCollector corr;
+    corr.set_correlation_window_ns(1000000);
+    corr.record_wakeup(0, 42, 1);
+    corr.record_switch(500000, 1, 42);
+    CHECK(corr.correlated_wakeups() == 1);
+    CHECK(corr.unnecessary_wakeups() == 0);
+
+    // fill_aggregates sets sched_collected.
+    pipeline::Aggregates agg;
+    CHECK(!agg.sched_collected);
+    collector.fill_aggregates(agg);
+    CHECK(agg.sched_collected);
+}
+
+static void test_memory_collector() {
+    using namespace xsprof::memory;
+    MemoryCollector collector;
+    auto cap = collector.probe();
+    CHECK(cap.name == "memory_collector");
+    // On this host perf_event_paranoid=2, probe must return SKIP (fail-closed).
+    CHECK(cap.state == CapState::Skip || cap.state == CapState::Refuse);
+    CHECK(cap.reason.find("fail-closed") != std::string::npos);
+    CHECK(cap.reason.find("never auto-elevate") != std::string::npos);
+    CHECK(cap.to_json().dump().find("\"host_mutation\":false") != std::string::npos);
+
+    // Buddyinfo parsing.
+    BuddyInfo bi;
+    bool ok = MemoryCollector::parse_buddyinfo_line(
+        "Node 0, zone      DMA      1      1      1      0      2      1      1      0      1      1      3", bi);
+    CHECK(ok);
+    CHECK(bi.node == 0);
+    CHECK(bi.zone_name == "DMA");
+    CHECK(bi.free_per_order.size() == 11);
+
+    // Fragmentation estimation.
+    std::vector<BuddyInfo> fragmented;
+    BuddyInfo fbi;
+    fbi.node = 0;
+    fbi.zone_name = "Normal";
+    fbi.free_per_order = {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    fragmented.push_back(fbi);
+    CHECK(MemoryCollector::estimate_fragmentation(fragmented) > 0.9);
+    CHECK(MemoryCollector::estimate_fragmentation({}) == 0.0);
+
+    // Numa_maps parsing.
+    NumaMapEntry entry;
+    ok = MemoryCollector::parse_numa_maps_line(
+        "00400000 default file=/usr/bin/foo mapped=10 N0=10", entry);
+    CHECK(ok);
+    CHECK(entry.vaddr == 0x00400000);
+    CHECK(entry.node == 0);
+    CHECK(entry.pages == 10);
+
+    // IBS probe is read-only and safe.
+    auto ibs = MemoryCollector::probe_ibs();
+    CHECK(!ibs.reason.empty());
+
+    // fill_aggregates sets pmu_collected.
+    pipeline::Aggregates agg;
+    CHECK(!agg.pmu_collected);
+    collector.set_pmu_collected(true);
+    collector.add_page_faults(42);
+    collector.fill_aggregates(agg);
+    CHECK(agg.pmu_collected);
+    CHECK(agg.page_faults == 42);
+}
+
 int main() {
     test_json();
     test_event();
@@ -341,6 +431,8 @@ int main() {
     test_viz();
     test_pipeline();
     test_schema_golden();
+    test_sched_collector();
+    test_memory_collector();
     std::printf("\n[xsprof selftest] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
