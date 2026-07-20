@@ -420,6 +420,188 @@ static void test_memory_collector() {
     CHECK(agg.page_faults == 42);
 }
 
+
+static void test_json_parser() {
+    // Parse a simple object.
+    auto v = json::parse(R"({"schema":"xsprof/event/v1","count":42,"ok":true,"ratio":0.5})");
+    CHECK(!v.is_null());
+    CHECK(v.is_object());
+    CHECK(v.find("schema") && v.find("schema")->as_string() == "xsprof/event/v1");
+    CHECK(v.find("count") && v.find("count")->as_int() == 42);
+    CHECK(v.find("ok") && v.find("ok")->as_bool() == true);
+    CHECK(v.find("ratio") && v.find("ratio")->as_double() > 0.49);
+
+    // Parse an array.
+    auto arr = json::parse("[1,2,3]");
+    CHECK(!arr.is_null());
+    CHECK(arr.is_array());
+    CHECK(arr.size() == 3);
+
+    // Parse nested.
+    auto nested = json::parse(R"({"a":{"b":[1,2]}})");
+    CHECK(!nested.is_null());
+    CHECK(nested.find("a") && nested.find("a")->is_object());
+
+    // Parse string with escapes.
+    auto esc = json::parse(R"("hello\nworld")");
+    CHECK(!esc.is_null());
+    CHECK(esc.as_string() == "hello\nworld");
+
+    // Invalid JSON returns null.
+    CHECK(json::parse("{invalid}").is_null());
+    CHECK(json::parse("").is_null());
+}
+
+static void test_event_from_json() {
+    // Round-trip: event_to_json -> event_from_json.
+    RawEvent orig;
+    orig.kind = EventKind::SchedSwitch;
+    orig.ts_ns = 1000000;
+    orig.cpu = 3;
+    orig.pid = 100;
+    orig.tid = 101;
+    orig.a = 5000;
+    orig.comm = "worker";
+    auto j = event_to_json(orig);
+    RawEvent parsed;
+    CHECK(event_from_json(j, parsed));
+    CHECK(parsed.kind == EventKind::SchedSwitch);
+    CHECK(parsed.ts_ns == 1000000);
+    CHECK(parsed.cpu == 3);
+    CHECK(parsed.pid == 100);
+    CHECK(parsed.tid == 101);
+    CHECK(parsed.a == 5000);
+    CHECK(parsed.comm == "worker");
+
+    // Invalid JSON fails.
+    RawEvent bad;
+    CHECK(!event_from_json(json::Value::make_object(), bad));
+    CHECK(!event_from_json(json::parse(R"({"schema":"wrong"})"), bad));
+}
+
+static void test_window_selection() {
+    // parse_window tests.
+    auto w1 = viz::parse_window("1000:5000");
+    CHECK(w1.has_value());
+    CHECK(w1->start_us == 1000);
+    CHECK(w1->end_us == 5000);
+    CHECK(w1->contains(1000));
+    CHECK(w1->contains(3000));
+    CHECK(w1->contains(5000));
+    CHECK(!w1->contains(999));
+    CHECK(!w1->contains(5001));
+
+    // Unbounded end.
+    auto w2 = viz::parse_window("1000:");
+    CHECK(w2.has_value());
+    CHECK(w2->end_us == 0);
+    CHECK(w2->contains(999999));
+
+    // Invalid.
+    CHECK(!viz::parse_window("invalid").has_value());
+    CHECK(!viz::parse_window("").has_value());
+
+    // Windowed export filters events.
+    std::vector<RawEvent> events;
+    RawEvent e1;
+    e1.kind = EventKind::PageFault;
+    e1.ts_ns = 1000000; // 1000 us
+    e1.pid = 1; e1.tid = 1; e1.a = 1;
+    events.push_back(e1);
+    RawEvent e2;
+    e2.kind = EventKind::PageFault;
+    e2.ts_ns = 5000000; // 5000 us
+    e2.pid = 1; e2.tid = 1; e2.a = 1;
+    events.push_back(e2);
+    RawEvent e3;
+    e3.kind = EventKind::PageFault;
+    e3.ts_ns = 9000000; // 9000 us
+    e3.pid = 1; e3.tid = 1; e3.a = 1;
+    events.push_back(e3);
+
+    viz::TimeWindow w{2000, 6000};
+    auto doc = viz::export_events_windowed(events, w);
+    std::string s = doc.dump();
+    // Only e2 (5000us) should be in the window; e1 (1000us) and e3 (9000us) excluded.
+    // Metadata event is always included.
+    CHECK(s.find("\"traceEvents\"") != std::string::npos);
+    // Count instant events: should have 1 data event + 1 metadata.
+    auto* te = doc.find("traceEvents");
+    CHECK(te && te->is_array());
+    // Metadata + 1 windowed event = 2.
+    CHECK(te->size() == 2);
+}
+
+static void test_chunked_output() {
+    viz::ChromeTraceBuilder b;
+    b.add_metadata_name("CPUs", -1);
+    for (int i = 0; i < 10; ++i) {
+        b.add_instant("evt", "test", static_cast<std::uint64_t>(i * 1000), 1, 1);
+    }
+    CHECK(b.size() == 11); // 1 metadata + 10 data
+
+    auto chunked = b.build_chunked(3);
+    CHECK(chunked.find("chunks") != nullptr);
+    auto* chunks = chunked.find("chunks");
+    CHECK(chunks && chunks->is_array());
+    // 10 data events / 3 per chunk = 4 chunks (3+3+3+1).
+    CHECK(chunks->size() == 4);
+    // Each chunk has metadata + data events.
+    auto& c0 = chunks->as_array()[0];
+    auto* c0te = c0.find("traceEvents");
+    CHECK(c0te && c0te->is_array());
+    CHECK(c0te->size() == 4); // 1 metadata + 3 data
+}
+
+static void test_replay_from_journal() {
+    // Create a JSONL journal in memory.
+    std::string journal;
+    RawEvent e1;
+    e1.kind = EventKind::SchedSwitch;
+    e1.ts_ns = 1000000;
+    e1.cpu = 0; e1.pid = 42; e1.tid = 42;
+    e1.comm = "test";
+    e1.a = 500000;
+    journal += event_to_json(e1).dump() + "\n";
+    RawEvent e2;
+    e2.kind = EventKind::PageFault;
+    e2.ts_ns = 2000000;
+    e2.pid = 42; e2.tid = 42;
+    e2.a = 5;
+    journal += event_to_json(e2).dump() + "\n";
+
+    std::istringstream in(journal);
+    long long rows = 0;
+    auto doc = viz::replay_from_journal(in, rows);
+    CHECK(rows == 2);
+    std::string s = doc.dump();
+    CHECK(s.find("\"traceEvents\"") != std::string::npos);
+    CHECK(s.find("test") != std::string::npos);
+    CHECK(s.find("\"ph\":\"X\"") != std::string::npos); // sched_switch -> complete
+    CHECK(s.find("\"ph\":\"i\"") != std::string::npos); // page_fault -> instant
+
+    // Replay with window.
+    std::istringstream in2(journal);
+    viz::TimeWindow w{1500, 2500}; // only e2 at 2000us
+    long long rows2 = 0;
+    auto doc2 = viz::replay_from_journal_windowed(in2, w, rows2);
+    CHECK(rows2 == 2); // both parsed, but only e2 in window
+    auto* te2 = doc2.find("traceEvents");
+    CHECK(te2 && te2->is_array());
+    // metadata + 1 windowed event = 2.
+    CHECK(te2->size() == 2);
+
+    // Gap detection: unparseable line triggers SAMPLE_LOSS marker.
+    std::string gapped = event_to_json(e1).dump() + "\n{bad json\n" + event_to_json(e2).dump() + "\n";
+    std::istringstream in3(gapped);
+    long long rows3 = 0;
+    auto doc3 = viz::replay_from_journal(in3, rows3);
+    CHECK(rows3 == 2); // 2 valid rows
+    std::string s3 = doc3.dump();
+    CHECK(s3.find("SAMPLE_LOSS") != std::string::npos);
+    CHECK(s3.find("journal gap") != std::string::npos);
+}
+
 int main() {
     test_json();
     test_event();
@@ -433,6 +615,11 @@ int main() {
     test_schema_golden();
     test_sched_collector();
     test_memory_collector();
+    test_json_parser();
+    test_event_from_json();
+    test_window_selection();
+    test_chunked_output();
+    test_replay_from_journal();
     std::printf("\n[xsprof selftest] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

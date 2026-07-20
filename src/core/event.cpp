@@ -44,4 +44,51 @@ json::Value event_to_json(const RawEvent& e) {
     return v;
 }
 
+bool event_from_json(const json::Value& v, RawEvent& out) {
+    if (!v.is_object()) return false;
+    const auto* schema = v.find("schema");
+    if (!schema || schema->as_string() != "xsprof/event/v1") return false;
+    const auto* ev = v.find("event");
+    if (!ev) return false;
+
+    const std::string& name = ev->as_string();
+    // Map event name back to EventKind.
+    static const std::pair<std::string_view, EventKind> table[] = {
+        {"sched_switch", EventKind::SchedSwitch},
+        {"sched_wakeup", EventKind::SchedWakeup},
+        {"sched_migrate", EventKind::SchedMigrate},
+        {"runqueue_sample", EventKind::RunqueueSample},
+        {"priority_inversion", EventKind::PriorityInversion},
+        {"lock_contention", EventKind::LockContention},
+        {"page_fault", EventKind::PageFault},
+        {"tlb_miss", EventKind::TlbMiss},
+        {"cache_miss", EventKind::CacheMiss},
+        {"huge_page", EventKind::HugePage},
+        {"numa_balance", EventKind::NumaBalance},
+        {"alloc_sample", EventKind::AllocSample},
+        {"malloc_hotspot", EventKind::MallocHotspot},
+        {"marker", EventKind::Marker},
+        {"capability", EventKind::Capability},
+        {"refusal", EventKind::Refusal},
+        {"incident", EventKind::Incident},
+        {"runtime_sample", EventKind::RuntimeSample},
+    };
+    bool found = false;
+    for (const auto& [n, k] : table) {
+        if (name == n) { out.kind = k; found = true; break; }
+    }
+    if (!found) return false;
+
+    if (const auto* f = v.find("ts_ns")) out.ts_ns = static_cast<std::uint64_t>(f->as_int());
+    if (const auto* f = v.find("cpu")) out.cpu = static_cast<std::int32_t>(f->as_int());
+    if (const auto* f = v.find("pid")) out.pid = static_cast<std::int32_t>(f->as_int());
+    if (const auto* f = v.find("tid")) out.tid = static_cast<std::int32_t>(f->as_int());
+    if (const auto* f = v.find("a")) out.a = static_cast<std::uint64_t>(f->as_int());
+    if (const auto* f = v.find("b")) out.b = static_cast<std::uint64_t>(f->as_int());
+    if (const auto* f = v.find("c")) out.c = static_cast<std::uint64_t>(f->as_int());
+    if (const auto* f = v.find("comm")) out.comm = f->as_string();
+    if (const auto* f = v.find("detail")) out.detail = f->as_string();
+    return true;
+}
+
 } // namespace xsprof

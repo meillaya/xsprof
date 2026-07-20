@@ -54,4 +54,8 @@ struct RawEvent {
 
 json::Value event_to_json(const RawEvent& e);
 
+// Parse an xsprof/event/v1 JSON object back into a RawEvent (replay path).
+// Returns false if the JSON is not a valid event record.
+bool event_from_json(const json::Value& v, RawEvent& out);
+
 } // namespace xsprof

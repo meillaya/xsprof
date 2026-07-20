@@ -109,4 +109,8 @@ private:
 // Escape a string for JSON (quotes, control chars, backslash).
 std::string escape(std::string_view s);
 
+// Minimal recursive-descent JSON parser for fixture/replay ingestion.
+// Returns a Null value on parse error; check is_null() to detect failure.
+Value parse(std::string_view input);
+
 } // namespace xsprof::json

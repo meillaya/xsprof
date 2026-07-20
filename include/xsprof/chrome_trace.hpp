@@ -2,6 +2,7 @@
 // (openable in chrome://tracing and the Perfetto UI). See docs/rewrite/VISUALIZATION.md.
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,21 @@ struct TraceEvent {
     json::Value args = json::Value::make_object();
 };
 
+// Time window for focused inspection (--window start_us:end_us).
+struct TimeWindow {
+    std::uint64_t start_us = 0;
+    std::uint64_t end_us = 0;  // 0 means unbounded
+
+    bool contains(std::uint64_t ts_us) const {
+        if (ts_us < start_us) return false;
+        if (end_us > 0 && ts_us > end_us) return false;
+        return true;
+    }
+};
+
+// Parse a "start:end" window string (microseconds). Returns nullopt on error.
+std::optional<TimeWindow> parse_window(const std::string& s);
+
 class ChromeTraceBuilder {
 public:
     void add_metadata_name(const std::string& group_name, long long pid);
@@ -44,6 +60,14 @@ public:
     json::Value build() const;
     std::string dump(bool pretty = false) const;
 
+    // Build with a time window filter: only events within the window are included.
+    json::Value build_windowed(const TimeWindow& w) const;
+
+    // Build chunked output: splits traceEvents into arrays of at most chunk_size
+    // events each. Returns a JSON object with "chunks" array, each element being
+    // a {"traceEvents":[...]} object. Metadata events are replicated in each chunk.
+    json::Value build_chunked(std::size_t chunk_size) const;
+
 private:
     std::vector<TraceEvent> events_;
 };
@@ -51,5 +75,18 @@ private:
 // Convert a stream of RawEvents into a Chrome Trace document. CPU lanes use
 // pid = -1 (rendered as a "CPUs" group); thread lanes use the real pid/tid.
 json::Value export_events(const std::vector<RawEvent>& events);
+
+// Convert a stream of RawEvents with a time window filter.
+json::Value export_events_windowed(const std::vector<RawEvent>& events, const TimeWindow& w);
+
+// Replay from a JSONL journal: parse each line as an xsprof/event/v1 record,
+// convert to RawEvents, and export as a Chrome Trace document. Lost/gapped
+// streams render as explicit unsafe markers. Returns the trace JSON and sets
+// `rows_parsed` to the number of successfully parsed journal lines.
+json::Value replay_from_journal(std::istream& in, long long& rows_parsed);
+
+// Replay with a time window filter.
+json::Value replay_from_journal_windowed(std::istream& in, const TimeWindow& w,
+                                         long long& rows_parsed);
 
 } // namespace xsprof::viz

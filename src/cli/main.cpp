@@ -27,7 +27,8 @@ void write_help(std::ostream& os, const char* prog) {
        << "  preflight --json        Collect read-only host facts + capability probes (host_mutation=false)\n"
        << "  capabilities --json     Probe collector capabilities (perf/tracepoint/BPF/PMU/sched_ext)\n"
        << "  advise --json|--md      Run the Performance Advisor over a read-only snapshot\n"
-       << "  timeline --json         Emit a Chrome Trace timeline from a recorded JSONL journal\n"
+       << "  timeline --input <journal.jsonl> [--window start:end] [--chunk-size N]\n"
+       << "                          Emit a Chrome Trace timeline from a recorded JSONL journal\n"
        << "  version                 Print version\n"
        << "  help                    Print this help\n\n"
        << "REFUSED (unsafe verbs; non-zero exit on host by design):\n"
@@ -107,12 +108,21 @@ int cmd_advise(int argc, char** argv) {
 }
 
 // Read a recorded JSONL journal of xsprof/event/v1 rows and emit a Chrome Trace
-// timeline. Mirrors the Zig daemon's replay discipline (deterministic, fail-closed
-// on gaps). Phase-1 accepts the event JSON shape produced by event_to_json.
+// timeline. Supports --window start:end (microseconds) for focused inspection
+// and --chunk-size N for chunked output on large captures. Lost/gapped streams
+// render as explicit unsafe markers (never interpolated).
 int cmd_timeline(int argc, char** argv) {
     std::string input;
+    std::string window_str;
+    long long chunk_size = 0;
+
     for (int i = 0; i < argc; ++i) {
-        if (std::string_view(argv[i]) == "--input" && i + 1 < argc) input = argv[++i];
+        std::string_view arg = argv[i];
+        if (arg == "--input" && i + 1 < argc) input = argv[++i];
+        else if (arg == "--window" && i + 1 < argc) window_str = argv[++i];
+        else if (arg == "--chunk-size" && i + 1 < argc) {
+            try { chunk_size = std::stoll(argv[++i]); } catch (...) { chunk_size = 0; }
+        }
     }
     if (input.empty()) {
         std::cerr << "timeline requires --input <journal.jsonl>\n";
@@ -123,19 +133,53 @@ int cmd_timeline(int argc, char** argv) {
         std::cerr << "timeline: cannot open " << input << "\n";
         return 1;
     }
-    // Phase-1: emit an empty-but-valid trace skeleton with metadata; full event
-    // reconstruction from the journal is a Phase-4 milestone. The exporter is
-    // exercised directly in tests via export_events().
-    xsprof::viz::ChromeTraceBuilder b;
-    b.add_metadata_name("CPUs", -1);
-    std::string line;
-    long long rows = 0;
-    while (std::getline(in, line)) {
-        if (!line.empty()) ++rows;
+
+    // Parse optional time window.
+    std::optional<xsprof::viz::TimeWindow> window;
+    if (!window_str.empty()) {
+        window = xsprof::viz::parse_window(window_str);
+        if (!window) {
+            std::cerr << "timeline: invalid --window format (expected start:end in microseconds)\n";
+            return 2;
+        }
     }
-    auto doc = b.build();
-    doc.set("journal_rows", Value(rows));
-    doc.set("note", Value("Phase-1 skeleton; full timeline reconstruction is a Phase-4 milestone"));
+
+    long long rows_parsed = 0;
+    Value doc;
+    if (window) {
+        doc = xsprof::viz::replay_from_journal_windowed(in, *window, rows_parsed);
+    } else {
+        doc = xsprof::viz::replay_from_journal(in, rows_parsed);
+    }
+
+    // Apply chunked output if requested.
+    if (chunk_size > 0) {
+        // Re-build from the trace events using the builder's chunked path.
+        // For simplicity, we wrap the existing doc into a chunked structure.
+        const auto* trace_events = doc.find("traceEvents");
+        if (trace_events && trace_events->is_array()) {
+            const auto& arr = trace_events->as_array();
+            Value chunked = Value::make_object();
+            Value chunks = Value::make_array();
+            std::size_t offset = 0;
+            while (offset < arr.size()) {
+                Value chunk = Value::make_object();
+                Value chunk_arr = Value::make_array();
+                std::size_t end = offset + static_cast<std::size_t>(chunk_size);
+                if (end > arr.size()) end = arr.size();
+                for (std::size_t j = offset; j < end; ++j) chunk_arr.push_back(arr[j]);
+                chunk.set("traceEvents", chunk_arr);
+                chunk.set("displayTimeUnit", Value("ns"));
+                chunks.push_back(std::move(chunk));
+                offset = end;
+            }
+            chunked.set("chunks", chunks);
+            chunked.set("displayTimeUnit", Value("ns"));
+            doc = std::move(chunked);
+        }
+    }
+
+    doc.set("journal_rows", Value(rows_parsed));
     std::cout << doc.dump() << "\n";
     return 0;
 }
