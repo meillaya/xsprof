@@ -1,6 +1,11 @@
 // Live capture implementation — perf_event_open ring-buffer capture loop.
 // See include/xsprof/live_capture.hpp. Capability-gated and fail-closed: when
 // unprivileged, probe() returns SKIP and run() emits no events.
+//
+// Security hardening (independent review F-01/F-02): all reads from a perf raw
+// sample are bounds-checked against the sample's raw_size, and the ring-buffer
+// record header is read with wrap-safe modular indexing plus an upper size bound
+// so a truncated/malformed sample cannot cause an out-of-bounds read.
 #include "xsprof/live_capture.hpp"
 
 #include <linux/perf_event.h>
@@ -60,6 +65,32 @@ std::uint32_t read_u32(const char* base, int offset) {
     return v;
 }
 
+// Bounds-checked 32-bit tracepoint field read (F-01). Returns 0 if the field is
+// absent or would extend past the raw sample payload.
+std::uint32_t read_field(const std::map<std::string, std::pair<int, int>>& fmt, const char* raw,
+                         std::uint32_t raw_size, const std::string& field) {
+    auto it = fmt.find(field);
+    if (it == fmt.end() || it->second.first < 0)
+        return 0;
+    if (static_cast<std::uint32_t>(it->second.first) + 4 > raw_size)
+        return 0;
+    return read_u32(raw, it->second.first);
+}
+
+// Bounds-checked 16-byte comm read (F-01). Returns false if absent/out-of-bounds.
+bool read_comm(const std::map<std::string, std::pair<int, int>>& fmt, const char* raw,
+               std::uint32_t raw_size, const std::string& field, char (&out)[16]) {
+    auto it = fmt.find(field);
+    if (it == fmt.end() || it->second.first < 0)
+        return false;
+    if (static_cast<std::uint32_t>(it->second.first) + 16 > raw_size)
+        return false;
+    std::memset(out, 0, 16);
+    std::memcpy(out, raw + it->second.first, 16);
+    out[15] = '\0';
+    return true;
+}
+
 } // namespace
 
 long resolve_tracepoint_id(const std::string& subsys, const std::string& name) {
@@ -108,6 +139,7 @@ int LiveCapture::open_tracepoint(long tp_id, int cpu, int mmap_pages) {
     attr.config = static_cast<std::uint64_t>(tp_id);
     attr.sample_period = 1;
     attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU | PERF_SAMPLE_RAW;
+    attr.disabled = 1; // enabled after mmap is set up (F-04: avoid pre-mmap sample loss)
     long fd = perf_open(&attr, -1, cpu, -1);
     return fd < 0 ? -errno : static_cast<int>(fd);
 }
@@ -120,6 +152,7 @@ int LiveCapture::open_software(std::uint64_t config, int cpu, int mmap_pages) {
     attr.config = config;
     attr.sample_period = 1;
     attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU;
+    attr.disabled = 1; // enabled after mmap is set up (F-04)
     long fd = perf_open(&attr, -1, cpu, -1);
     return fd < 0 ? -errno : static_cast<int>(fd);
 }
@@ -185,6 +218,10 @@ CaptureSummary LiveCapture::run(const CaptureConfig& cfg, std::vector<RawEvent>&
         return summary;
     }
 
+    // Enable events only after all ring buffers are mapped (F-04).
+    for (auto& s : slots)
+        ioctl(s.fd, PERF_EVENT_IOC_ENABLE, 0);
+
     std::vector<struct pollfd> pfds(slots.size());
     for (size_t i = 0; i < slots.size(); ++i) {
         pfds[i].fd = slots[i].fd;
@@ -198,19 +235,32 @@ CaptureSummary LiveCapture::run(const CaptureConfig& cfg, std::vector<RawEvent>&
         std::uint64_t tail = mc->data_tail;
         while (tail + sizeof(struct perf_event_header) <= head) {
             size_t pos = tail % data_size;
+            // Read the header with wrap-safe modular indexing (F-02).
             struct perf_event_header hdr;
-            std::memcpy(&hdr, data + pos, sizeof(hdr));
-            if (hdr.size < sizeof(hdr)) break;
+            char* hbytes = reinterpret_cast<char*>(&hdr);
+            for (std::size_t b = 0; b < sizeof(hdr); ++b)
+                hbytes[b] = data[(pos + b) % data_size];
+            // Reject corrupt or oversized records (F-02).
+            if (hdr.size < sizeof(hdr) || hdr.size > data_size)
+                break;
             std::vector<char> rec(hdr.size);
             for (std::uint32_t b = 0; b < hdr.size; ++b)
                 rec[b] = data[(pos + b) % data_size];
             const char* p = rec.data();
             if (hdr.type == PERF_RECORD_LOST) {
-                std::uint64_t lost = 0;
-                std::memcpy(&lost, p + sizeof(hdr) + 8, 8);
-                summary.lost_samples += lost;
+                if (hdr.size >= sizeof(hdr) + 16) {
+                    std::uint64_t lost = 0;
+                    std::memcpy(&lost, p + sizeof(hdr) + 8, 8);
+                    summary.lost_samples += lost;
+                }
             } else if (hdr.type == PERF_RECORD_SAMPLE) {
                 const char* cur = p + sizeof(hdr);
+                const char* rec_end = p + hdr.size;
+                // sample_type order: TID, TIME, CPU, RAW (need 24 bytes minimum).
+                if (cur + 24 > rec_end) {
+                    tail += hdr.size;
+                    continue;
+                }
                 std::uint32_t pid = 0, tid = 0, cpu = 0, res = 0;
                 std::uint64_t time = 0;
                 std::memcpy(&pid, cur, 4); cur += 4;
@@ -229,30 +279,29 @@ CaptureSummary LiveCapture::run(const CaptureConfig& cfg, std::vector<RawEvent>&
                     std::memcpy(&raw_size, cur, 4);
                     const char* raw = cur + 4;
                     e.kind = EventKind::SchedSwitch;
-                    if (sw_fmt.count("next_pid")) e.a = read_u32(raw, sw_fmt["next_pid"].first);
-                    if (sw_fmt.count("prev_pid")) e.b = read_u32(raw, sw_fmt["prev_pid"].first);
-                    if (sw_fmt.count("next_comm")) {
-                        char comm[16] = {0};
-                        std::memcpy(comm, raw + sw_fmt["next_comm"].first, 16);
+                    e.a = read_field(sw_fmt, raw, raw_size, "next_pid");
+                    e.b = read_field(sw_fmt, raw, raw_size, "prev_pid");
+                    char comm[16];
+                    if (read_comm(sw_fmt, raw, raw_size, "next_comm", comm))
                         e.comm = comm;
-                    }
                     summary.sched_switches++;
                 } else if (s.kind == Slot::WK) {
                     std::uint32_t raw_size = 0;
                     std::memcpy(&raw_size, cur, 4);
                     const char* raw = cur + 4;
                     e.kind = EventKind::SchedWakeup;
-                    if (wk_fmt.count("pid")) e.a = read_u32(raw, wk_fmt["pid"].first);
-                    if (wk_fmt.count("target_cpu")) e.b = read_u32(raw, wk_fmt["target_cpu"].first);
+                    e.a = read_field(wk_fmt, raw, raw_size, "pid");
+                    e.b = read_field(wk_fmt, raw, raw_size, "target_cpu");
                     summary.sched_wakeups++;
                 } else if (s.kind == Slot::MG) {
                     std::uint32_t raw_size = 0;
                     std::memcpy(&raw_size, cur, 4);
                     const char* raw = cur + 4;
                     e.kind = EventKind::SchedMigrate;
-                    if (mg_fmt.count("pid")) e.pid = static_cast<int>(read_u32(raw, mg_fmt["pid"].first));
-                    if (mg_fmt.count("orig_cpu")) e.a = read_u32(raw, mg_fmt["orig_cpu"].first);
-                    if (mg_fmt.count("dest_cpu")) e.b = read_u32(raw, mg_fmt["dest_cpu"].first);
+                    std::uint32_t mpid = read_field(mg_fmt, raw, raw_size, "pid");
+                    if (mpid) e.pid = static_cast<int>(mpid);
+                    e.a = read_field(mg_fmt, raw, raw_size, "orig_cpu");
+                    e.b = read_field(mg_fmt, raw, raw_size, "dest_cpu");
                     summary.sched_migrations++;
                 } else { // PF
                     e.kind = EventKind::PageFault;

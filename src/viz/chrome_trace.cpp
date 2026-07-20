@@ -333,7 +333,6 @@ json::Value replay_from_journal(std::istream& in, long long& rows_parsed) {
     auto doc = export_events(events);
     if (gap_detected) {
         // Append an explicit unsafe marker for the gap.
-        auto* arr = const_cast<json::Array*>(&doc.find("traceEvents")->as_array());
         json::Value marker = json::Value::make_object();
         marker.set("name", json::Value("SAMPLE_LOSS"));
         marker.set("ph", json::Value("i"));
@@ -346,7 +345,7 @@ json::Value replay_from_journal(std::istream& in, long long& rows_parsed) {
         args.set("unsafe", json::Value(true));
         args.set("reason", json::Value("journal gap or unparseable line detected"));
         marker.set("args", args);
-        arr->push_back(std::move(marker));
+        doc["traceEvents"].push_back(std::move(marker));
     }
     return doc;
 }
@@ -380,7 +379,6 @@ json::Value replay_from_journal_windowed(std::istream& in, const TimeWindow& w,
 
     auto doc = export_events_windowed(events, w);
     if (gap_detected) {
-        auto* arr = const_cast<json::Array*>(&doc.find("traceEvents")->as_array());
         json::Value marker = json::Value::make_object();
         marker.set("name", json::Value("SAMPLE_LOSS"));
         marker.set("ph", json::Value("i"));
@@ -393,7 +391,7 @@ json::Value replay_from_journal_windowed(std::istream& in, const TimeWindow& w,
         args.set("unsafe", json::Value(true));
         args.set("reason", json::Value("journal gap or unparseable line detected"));
         marker.set("args", args);
-        arr->push_back(std::move(marker));
+        doc["traceEvents"].push_back(std::move(marker));
     }
     return doc;
 }
@@ -417,7 +415,6 @@ void stream_timeline_chunked(std::istream& in, std::ostream& out, std::size_t ch
             return;
         auto doc = export_events(batch); // {"traceEvents":[...],"displayTimeUnit":"ns"}
         if (gap_in_batch) {
-            auto* arr = const_cast<json::Array*>(&doc.find("traceEvents")->as_array());
             json::Value marker = json::Value::make_object();
             marker.set("name", json::Value("SAMPLE_LOSS"));
             marker.set("ph", json::Value("i"));
@@ -430,7 +427,7 @@ void stream_timeline_chunked(std::istream& in, std::ostream& out, std::size_t ch
             args.set("unsafe", json::Value(true));
             args.set("reason", json::Value("journal gap or unparseable line detected"));
             marker.set("args", args);
-            arr->push_back(std::move(marker));
+            doc["traceEvents"].push_back(std::move(marker));
             gap_in_batch = false;
         }
         if (!first_chunk)
