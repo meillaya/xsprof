@@ -1,17 +1,27 @@
 # Worklog
 
-## Current posture
+## Current posture (C++ rewrite)
 
-- Root `zig-scheduler` is a fail-closed Linux scheduler operator surface.
-- Root code exposes read-only preflight, dry-run planning, disabled-safe daemon actions, VM/lab evidence validators, package safety checks, and governance gates.
-- Root UI surfaces have been removed by request: no root terminal UI, no browser UI, no desktop WebView shell, and no root build steps for those surfaces.
-- The deterministic simulator remains archived under `simulator/` and must be run from that package root.
-- Root must not claim production readiness.
-- Root must not load BPF programs or mutate cgroups, cpusets, affinities, priorities, or scheduler state without a later explicit approval and lab evidence gate.
+- `main` is the **C++ rewrite** of the project as `xsprof`, a Linux Scheduler & Memory Profiler.
+- The complete historical Zig project is preserved on the **`archive/zig-historical`** branch.
+- Phase 1 is implemented and verified: Nix devshell (cmake + ninja + bear + clang + libbpf + catch2),
+  `libxsprof_core`, the `xsprof` CLI, read-only `/proc`+`/sys` collection, capability probing,
+  privacy filter, fail-closed safety gate, Chrome-Trace exporter, and the Performance Advisor.
+- Build is green: `cmake -G Ninja` + `bear -- cmake --build` + `ctest` (21 Catch2 cases, all pass);
+  `bear` emits `compile_commands.json` for clangd/LSP.
+- The fail-closed, evidence-led, privacy-preserving posture is preserved: every read-only record
+  carries `host_mutation=false`; unsafe verbs refuse non-zero; mutation is VM-lab-only.
+
+## Verified on this host
+
+- `perf_event_paranoid=2` and `/sys/kernel/tracing/events/sched` permission-denied → perf/tracepoint
+  collectors report `SKIP` (fail-closed) without privilege.
+- `btf`, `sched_ext`, and `pmu` (incl. AMD `ibs_op`/`ibs_fetch`) report `READY` for read-only use.
 
 ## Future-agent notes
 
-- Keep ordinary root commands host-safe and fail-closed.
-- Do not restore root UI/WebView code unless the user explicitly requests a new UI direction.
-- Do not touch `simulator/` when working on root operator cleanup unless the user explicitly scopes simulator work.
-- Treat `.omo/` and `.omx/` as local workflow state, not repository behavior.
+- Keep observation read-only and fail-closed; do not auto-elevate or mutate the host.
+- Follow `docs/rewrite/IMPLEMENTATION_PLAN.md` for the next phases.
+- Do not touch `simulator/` unless explicitly scoped.
+- The Zig reference (schemas, daemon contract, safety scripts) lives on `archive/zig-historical`.
+- `.omx/`/`.omo/` are local workflow state, not repository behavior.

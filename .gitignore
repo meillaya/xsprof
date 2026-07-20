@@ -62,3 +62,13 @@ evidence/releases/*-runall/current/
 
 # Local frontend reference artifact; DESIGN.md is the committed contract.
 /frontend.html
+
+# ---- C++ rewrite (xsprof) build artifacts ----
+/build/
+compile_commands.json
+/build-selftest
+/xsprof-bin
+*.o
+*.a
+*.so
+.cache/
