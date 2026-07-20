@@ -34,10 +34,10 @@ TEST_CASE("BPF loader refuses even with full audit on host build", "[bpf]") {
     // On the host build, libbpf is not linked, so even with full context
     // we get SKIP (no libbpf) or SKIP (no BTF), never Loaded.
     auto result = loader.load("sched_monitor", ctx);
-    // Must NOT be Loaded on host.
+    // Must NOT be Loaded: in the host build libbpf is absent (SkipNoLibbpf /
+    // SkipNoBtf); in a libbpf build the bogus object path fails to open (Error).
+    // A real load only happens with a valid object file inside the VM lab.
     REQUIRE(result != LoadResult::Loaded);
-    // Should be either SkipNoBtf or SkipNoLibbpf.
-    REQUIRE((result == LoadResult::SkipNoBtf || result == LoadResult::SkipNoLibbpf));
 }
 
 TEST_CASE("BPF load_result_name returns valid strings", "[bpf]") {
@@ -53,7 +53,11 @@ TEST_CASE("BPF btf_available is a valid boolean", "[bpf]") {
     [[maybe_unused]] bool has_btf = BpfLoader::btf_available();
 }
 
-TEST_CASE("BPF libbpf_linked is false in host build", "[bpf]") {
+TEST_CASE("BPF libbpf_linked reflects the build configuration", "[bpf]") {
+#ifdef XSPROF_HAVE_LIBBPF
+    REQUIRE(BpfLoader::libbpf_linked());
+#else
     // In the default host build, libbpf is not linked.
     REQUIRE_FALSE(BpfLoader::libbpf_linked());
+#endif
 }

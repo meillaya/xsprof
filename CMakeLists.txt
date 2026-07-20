@@ -43,6 +43,19 @@ target_include_directories(xsprof_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# ---- optional libbpf (VM-lab BPF CO-RE capture path) ---------------------
+# OFF by default so the host build stays fail-closed (loader compiled without
+# libbpf). Enable only for the disposable VM-lab build that actually loads BPF.
+option(XSPROF_ENABLE_LIBBPF "Link libbpf for the VM-lab BPF CO-RE capture path" OFF)
+if(XSPROF_ENABLE_LIBBPF)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(LIBBPF REQUIRED libbpf)
+  target_compile_definitions(xsprof_core PUBLIC XSPROF_HAVE_LIBBPF)
+  target_include_directories(xsprof_core PUBLIC ${LIBBPF_INCLUDE_DIRS})
+  target_link_libraries(xsprof_core PUBLIC ${LIBBPF_LINK_LIBRARIES})
+  message(STATUS "xsprof: libbpf ENABLED (XSPROF_HAVE_LIBBPF) - VM-lab BPF capture path compiled")
+endif()
+
 # ---- CLI -----------------------------------------------------------------
 add_executable(xsprof src/cli/main.cpp)
 target_link_libraries(xsprof PRIVATE xsprof_core)

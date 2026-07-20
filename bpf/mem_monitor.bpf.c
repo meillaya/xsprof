@@ -50,7 +50,7 @@ struct {
 } mem_stats_map SEC(".maps");
 
 SEC("tracepoint/exceptions/page_fault_user")
-int handle_page_fault(struct trace_event_raw_sched_switch *ctx)
+int handle_page_fault(void *ctx)
 {
 	struct mem_event *e;
 	__u64 pid_tgid;
@@ -105,7 +105,7 @@ int handle_alloc_pages(struct pt_regs *ctx)
 /* Periodic memory stats sampler — called from userspace via BPF_PROG_TYPE_RAW_TRACEPOINT
  * or a perf event. Reads task_struct->mm fields via CO-RE. */
 SEC("tracepoint/sched/sched_process_fork")
-int handle_process_fork(struct trace_event_raw_sched_wakeup *ctx)
+int handle_process_fork(struct trace_event_raw_sched_process_fork *ctx)
 {
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 	struct mem_stats stats = {};

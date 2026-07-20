@@ -28,4 +28,12 @@
 /bin/xsprof timeline --input /journal | /bin/busybox head -c 300
 /bin/busybox echo ""
 /bin/busybox echo "=== XSProf VM LIVE VALIDATION DONE ==="
+/bin/busybox echo "=== BPF CO-RE live capture (VM-lab-only, with audit context) ==="
+/bin/busybox echo "loading + attaching sched_monitor.bpf.o via libbpf..."
+/bin/xsprof record --bpf /sched_monitor.bpf.o --allow-mutate --vm-lab --audit-id vm-lab-audit --rollback-id vm-lab-rollback --duration 2000 --output /bpf_journal
+/bin/busybox echo "=== BPF captured journal line count ==="
+/bin/busybox wc -l /bpf_journal
+/bin/busybox echo "=== first 3 BPF-captured events ==="
+/bin/busybox head -3 /bpf_journal
+/bin/busybox echo "=== XSProf BPF LIVE CAPTURE DONE ==="
 /bin/busybox poweroff -f

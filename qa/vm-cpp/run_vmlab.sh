@@ -10,7 +10,8 @@ REPO="$(cd "$HERE/../.." && pwd)"
 BUSYBOX="$(nix build nixpkgs#pkgsStatic.busybox --no-link --print-out-paths 2>/dev/null)/bin/busybox"
 BZIMAGE="$(nix build nixpkgs#linuxPackages.kernel --no-link --print-out-paths 2>/dev/null)/bzImage"
 QEMU="$(nix build nixpkgs#qemu --no-link --print-out-paths 2>/dev/null)/bin/qemu-system-x86_64"
-XSPROF="${XSPROF_BIN:-/tmp/xsprof-build2/xsprof}"
+XSPROF="${XSPROF_BIN:-/tmp/xsprof-bpf-build/xsprof}"
+BPF_OBJECTS="${BPF_OBJECTS_DIR:-$(pwd)/bpf-objects}"
 
 echo "busybox: $BUSYBOX"
 echo "bzImage: $BZIMAGE"
@@ -41,6 +42,9 @@ for sp in "${STORE_PATHS[@]}"; do
   [ -d "$sp" ] && cp -aL "$sp" "$STAGE/nix/store/" 2>/dev/null
 done
 cp "$HERE/init.sh" "$STAGE/init"
+for obj in "$BPF_OBJECTS"/*.bpf.o; do
+  [ -f "$obj" ] && cp "$obj" "$STAGE/" && echo "bundled $(basename "$obj")"
+done
 chmod +x "$STAGE/init" "$STAGE/bin/busybox" "$STAGE/bin/xsprof"
 
 INITRD="$HERE/initrd"

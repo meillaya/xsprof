@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "xsprof/advisor.hpp"
+#include "xsprof/bpf_loader.hpp"
 #include "xsprof/chrome_trace.hpp"
 #include "xsprof/json.hpp"
 #include "xsprof/privacy.hpp"
@@ -208,31 +209,64 @@ int cmd_timeline(int argc, char** argv) {
 int cmd_record(int argc, char** argv) {
     int duration_ms = 1000;
     std::string output;
+    std::string bpf_object;
+    xsprof::AuditContext actx; // used for the BPF (VM-lab-only) path
     for (int i = 0; i < argc; ++i) {
-        if (std::string_view(argv[i]) == "--duration" && i + 1 < argc)
+        std::string_view arg = argv[i];
+        if (arg == "--duration" && i + 1 < argc)
             duration_ms = std::atoi(argv[++i]);
-        else if (std::string_view(argv[i]) == "--output" && i + 1 < argc)
+        else if (arg == "--output" && i + 1 < argc)
             output = argv[++i];
-    }
-
-    xsprof::capture::LiveCapture capture;
-    xsprof::capture::CaptureConfig cfg;
-    cfg.duration_ms = duration_ms;
-
-    auto cap = capture.probe();
-    if (cap.state != xsprof::CapState::Ready) {
-        // Fail-closed: cannot capture unprivileged. Report the capability and
-        // exit non-zero; no elevation is attempted.
-        Value v = cap.to_json();
-        v.set("schema", Value("xsprof/event/v1"));
-        v.set("event", Value("capability"));
-        std::cout << v.dump() << "\n";
-        return 1;
+        else if (arg == "--bpf" && i + 1 < argc)
+            bpf_object = argv[++i];
+        else if (arg == "--allow-mutate")
+            actx.allow_mutate = true;
+        else if (arg == "--vm-lab")
+            actx.vm_lab_marker = true;
+        else if (arg == "--audit-id" && i + 1 < argc)
+            actx.audit_id = argv[++i];
+        else if (arg == "--rollback-id" && i + 1 < argc)
+            actx.rollback_id = argv[++i];
     }
 
     std::vector<xsprof::RawEvent> events;
-    auto summary = capture.run(cfg, events);
+    std::string cap_state;
 
+    if (!bpf_object.empty()) {
+        // BPF CO-RE capture path: VM-lab-only, fail-closed without a full audit
+        // context (allow-mutate + vm-lab marker + audit-id + rollback-id).
+        xsprof::bpf::BpfLoader loader;
+        auto result = loader.capture(bpf_object, actx, duration_ms, events);
+        cap_state = std::string(xsprof::bpf::load_result_name(result));
+        if (result != xsprof::bpf::LoadResult::Loaded) {
+            Value v = Value::make_object();
+            v.set("schema", Value("xsprof/event/v1"));
+            v.set("event", Value("capability"));
+            v.set("name", Value("bpf_capture"));
+            v.set("state", Value(cap_state));
+            v.set("reason", Value(loader.last_reason()));
+            v.set("host_mutation", Value(false));
+            std::cout << v.dump() << "\n";
+            return 1;
+        }
+    } else {
+        // perf-tracepoint live capture path (capability-gated, fail-closed).
+        xsprof::capture::LiveCapture capture;
+        xsprof::capture::CaptureConfig cfg;
+        cfg.duration_ms = duration_ms;
+        auto cap = capture.probe();
+        if (cap.state != xsprof::CapState::Ready) {
+            Value v = cap.to_json();
+            v.set("schema", Value("xsprof/event/v1"));
+            v.set("event", Value("capability"));
+            std::cout << v.dump() << "\n";
+            return 1;
+        }
+        auto summary = capture.run(cfg, events);
+        cap_state = xsprof::cap_state_name(summary.capability.state);
+    }
+
+    // Write captured events to the journal (privacy-filtered).
     std::ofstream file;
     std::ostream* os = &std::cout;
     if (!output.empty()) {
@@ -248,15 +282,22 @@ int cmd_record(int argc, char** argv) {
     }
     if (file.is_open()) file.close();
 
+    unsigned long long sw = 0, wk = 0, mg = 0, pfc = 0;
+    for (const auto& e : events) {
+        if (e.kind == xsprof::EventKind::SchedSwitch) sw++;
+        else if (e.kind == xsprof::EventKind::SchedWakeup) wk++;
+        else if (e.kind == xsprof::EventKind::SchedMigrate) mg++;
+        else if (e.kind == xsprof::EventKind::PageFault) pfc++;
+    }
     Value sm = Value::make_object();
     sm.set("schema", Value("xsprof/capture-summary/v1"));
-    sm.set("capability", Value(xsprof::cap_state_name(summary.capability.state)));
-    sm.set("events_captured", Value(static_cast<unsigned long long>(summary.events_captured)));
-    sm.set("sched_switches", Value(static_cast<unsigned long long>(summary.sched_switches)));
-    sm.set("sched_wakeups", Value(static_cast<unsigned long long>(summary.sched_wakeups)));
-    sm.set("sched_migrations", Value(static_cast<unsigned long long>(summary.sched_migrations)));
-    sm.set("page_faults", Value(static_cast<unsigned long long>(summary.page_faults)));
-    sm.set("lost_samples", Value(static_cast<unsigned long long>(summary.lost_samples)));
+    sm.set("capability", Value(cap_state));
+    sm.set("source", Value(bpf_object.empty() ? "perf_tracepoint" : "bpf_core"));
+    sm.set("events_captured", Value(static_cast<unsigned long long>(events.size())));
+    sm.set("sched_switches", Value(sw));
+    sm.set("sched_wakeups", Value(wk));
+    sm.set("sched_migrations", Value(mg));
+    sm.set("page_faults", Value(pfc));
     sm.set("duration_ms", Value(duration_ms));
     sm.set("host_mutation", Value(false));
     std::cerr << sm.dump() << "\n";

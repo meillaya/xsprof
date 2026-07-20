@@ -76,7 +76,7 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 }
 
 SEC("tracepoint/sched/sched_wakeup")
-int handle_sched_wakeup(struct trace_event_raw_sched_wakeup *ctx)
+int handle_sched_wakeup(struct trace_event_raw_sched_wakeup_template *ctx)
 {
 	struct sched_event *e;
 

@@ -6,7 +6,9 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "xsprof/event.hpp"
 #include "xsprof/safety.hpp"
 
 namespace xsprof::bpf {
@@ -34,6 +36,13 @@ class BpfLoader {
     // Fail-closed: refuses unless the AuditContext has allow_mutate=true,
     // a valid audit_id, rollback_id, and vm_lab_marker=true.
     LoadResult load(std::string_view object_name, const AuditContext& ctx);
+
+    // VM-lab-only: load + attach the CO-RE object, capture events from its
+    // ring buffer for duration_ms into `out`, then detach and unload.
+    // Fail-closed: refuses without a full VM-lab audit context. Requires a
+    // build with libbpf linked (XSPROF_HAVE_LIBBPF); otherwise SkipNoLibbpf.
+    LoadResult capture(std::string_view object_path, const AuditContext& ctx, int duration_ms,
+                       std::vector<RawEvent>& out);
 
     // Check whether BTF is available on this system.
     static bool btf_available();
