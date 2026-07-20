@@ -75,6 +75,7 @@ if(XSPROF_BUILD_TESTS)
       tests/sched_collector_tests.cpp
       tests/memory_collector_tests.cpp
       tests/cli_tests.cpp
+      tests/live_capture_tests.cpp
       ${XSPROF_BPF_TEST_SOURCES}
       ${XSPROF_DAEMON_TEST_SOURCES}
     )

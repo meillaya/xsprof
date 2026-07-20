@@ -1,6 +1,7 @@
 // xsprof CLI — Linux Scheduler & Memory Profiler.
 // Fail-closed operator surface mirroring the archived Zig project's main.zig:
 // read-only by default, unsafe verbs refused with non-zero exit, host_mutation=false.
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -13,6 +14,7 @@
 #include "xsprof/json.hpp"
 #include "xsprof/privacy.hpp"
 #include "xsprof/proc.hpp"
+#include "xsprof/live_capture.hpp"
 #include "xsprof/safety.hpp"
 
 namespace {
@@ -31,6 +33,8 @@ void write_help(std::ostream& os, const char* prog) {
        << "  advise --json|--md      Run the Performance Advisor over a read-only snapshot\n"
        << "  timeline --input <journal.jsonl> [--window start:end] [--chunk-size N]\n"
        << "                          Emit a Chrome Trace timeline from a recorded JSONL journal\n"
+       << "  record --duration <ms> [--output <journal.jsonl>]\n"
+       << "                          Live perf capture (privileged; SKIPs fail-closed unprivileged)\n"
        << "  version                 Print version\n"
        << "  help                    Print this help\n\n"
        << "REFUSED (unsafe verbs; non-zero exit on host by design):\n"
@@ -198,6 +202,69 @@ int cmd_timeline(int argc, char** argv) {
     return 0;
 }
 
+
+// Run a live perf capture (privileged; fail-closed SKIP when unprivileged).
+// Writes captured events to a JSONL journal and prints a summary to stderr.
+// The capture is read-only observation: host_mutation=false on every record,
+// and no host elevation is ever attempted.
+int cmd_record(int argc, char** argv) {
+    int duration_ms = 1000;
+    std::string output;
+    for (int i = 0; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--duration" && i + 1 < argc)
+            duration_ms = std::atoi(argv[++i]);
+        else if (std::string_view(argv[i]) == "--output" && i + 1 < argc)
+            output = argv[++i];
+    }
+
+    xsprof::capture::LiveCapture capture;
+    xsprof::capture::CaptureConfig cfg;
+    cfg.duration_ms = duration_ms;
+
+    auto cap = capture.probe();
+    if (cap.state != xsprof::CapState::Ready) {
+        // Fail-closed: cannot capture unprivileged. Report the capability and
+        // exit non-zero; no elevation is attempted.
+        Value v = cap.to_json();
+        v.set("schema", Value("xsprof/event/v1"));
+        v.set("event", Value("capability"));
+        std::cout << v.dump() << "\n";
+        return 1;
+    }
+
+    std::vector<xsprof::RawEvent> events;
+    auto summary = capture.run(cfg, events);
+
+    std::ofstream file;
+    std::ostream* os = &std::cout;
+    if (!output.empty()) {
+        file.open(output);
+        if (file) os = &file;
+    }
+    xsprof::PrivacyFilter pf;
+    for (const auto& e : events) {
+        xsprof::RawEvent fe = e;
+        fe.comm = xsprof::PrivacyFilter::bound_comm(e.comm);
+        if (!fe.detail.empty()) fe.detail = pf.redact(fe.detail);
+        (*os) << xsprof::event_to_json(fe).dump() << "\n";
+    }
+    if (file.is_open()) file.close();
+
+    Value sm = Value::make_object();
+    sm.set("schema", Value("xsprof/capture-summary/v1"));
+    sm.set("capability", Value(xsprof::cap_state_name(summary.capability.state)));
+    sm.set("events_captured", Value(static_cast<unsigned long long>(summary.events_captured)));
+    sm.set("sched_switches", Value(static_cast<unsigned long long>(summary.sched_switches)));
+    sm.set("sched_wakeups", Value(static_cast<unsigned long long>(summary.sched_wakeups)));
+    sm.set("sched_migrations", Value(static_cast<unsigned long long>(summary.sched_migrations)));
+    sm.set("page_faults", Value(static_cast<unsigned long long>(summary.page_faults)));
+    sm.set("lost_samples", Value(static_cast<unsigned long long>(summary.lost_samples)));
+    sm.set("duration_ms", Value(duration_ms));
+    sm.set("host_mutation", Value(false));
+    std::cerr << sm.dump() << "\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -231,6 +298,8 @@ int main(int argc, char** argv) {
         return cmd_advise(argc - 2, argv + 2);
     if (cmd == "timeline")
         return cmd_timeline(argc - 2, argv + 2);
+    if (cmd == "record")
+        return cmd_record(argc - 2, argv + 2);
 
     // Unknown verb: refuse (fail-closed), like the Zig default branch.
     return write_refusal(cmd);

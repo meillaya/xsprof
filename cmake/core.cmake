@@ -7,6 +7,7 @@ set(XSPROF_CORE_SOURCES
   src/core/privacy.cpp
   src/safety/safety.cpp
   src/collectors/proc.cpp
+  src/collectors/live_capture.cpp
   src/viz/chrome_trace.cpp
   src/advisor/advisor.cpp
   src/pipeline/pipeline.cpp
