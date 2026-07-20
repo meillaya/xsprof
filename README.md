@@ -49,7 +49,7 @@ former Zig `zig-scheduler` operator project.
 nix develop                                  # clang/llvm, cmake, ninja, bear, libbpf, catch2, ...
 cmake -S . -B build -G Ninja
 bear -- cmake --build build -j               # bear generates compile_commands.json for clangd/LSP
-ctest --test-dir build --output-on-failure   # Catch2 suite (115 tests)
+ctest --test-dir build --output-on-failure   # Catch2 suite (118 tests)
 ```
 
 Non-flake fallback: `nix-shell ./shell.nix`. A Nix-independent smoke build also works:
@@ -113,12 +113,38 @@ The C++ test suite re-expresses the Zig-era QA gates:
 include/xsprof/   public headers (json, event, ring_buffer, privacy, safety, proc, chrome_trace, advisor, daemon, bpf_loader, pipeline, sched_collector, memory_collector)
 src/              core / safety / collectors / viz / advisor / bpf / daemon / pipeline / sched / memory / cli
 bpf/              CO-RE BPF objects (VM-lab-only load)
-tests/            Catch2 suite (115 tests) + Nix-independent selftest + fixtures
+tests/            Catch2 suite (118 tests) + Nix-independent selftest + fixtures
 nix/, flake.nix   reproducible dev environment
 .github/workflows/  cpp-ci.yml (build+test+format) + manual-vm-proof.yml (VM governance)
 docs/             ADRs, runbooks, rewrite research, CI docs, security
 schemas/, fixtures/, evidence/, qa/   contract + governance carried over from the Zig project
 simulator/        archived deterministic simulator (separate guidance)
+```
+
+## Validation evidence
+
+The profiling pipeline is validated end-to-end in a disposable microVM (QEMU + KVM,
+linux 6.18.38, `perf_event_paranoid` lowered inside the VM). The host stays fail-closed.
+
+- **Live capture (perf tracepoints):** `xsprof record` captured real scheduler/memory
+  events (e.g. 634 events: sched_switch, wakeup, migrate, page faults) via
+  `perf_event_open` ring buffers (`source: perf_tracepoint`).
+- **Live capture (BPF CO-RE):** the libbpf loader loaded `sched_monitor.bpf.o`,
+  attached to the sched tracepoints, and streamed real events through the BPF ring
+  buffer (e.g. 60 events; `source: bpf_core`). See [`evidence/bpf-live-validation.md`](evidence/bpf-live-validation.md).
+- **Streaming timeline stress test:** a 2M-event / 312 MB journal exports with bounded
+  memory — **12.4 GB → 107–502 MB** (tunable via `--chunk-size`). See
+  [`evidence/timeline-streaming-stress.md`](evidence/timeline-streaming-stress.md).
+- **Independent code review:** a separate reviewer agent returned APPROVE WITH COMMENTS
+  (all seven safety invariants verified to hold); the high-severity findings (perf
+  ring-buffer bounds checks) were fixed. See [`evidence/independent-code-review.md`](evidence/independent-code-review.md).
+
+Reproduce the VM validation:
+
+```bash
+nix develop --command bash qa/vm-cpp/build_bpf.sh bpf-objects   # compile CO-RE objects
+nix develop --command bash -c 'cmake -S . -B /tmp/xsprof-bpf-build -G Ninja -DXSPROF_ENABLE_LIBBPF=ON && cmake --build /tmp/xsprof-bpf-build -j'
+bash qa/vm-cpp/run_vmlab.sh                                     # boot VM + run perf + BPF captures
 ```
 
 ## Status
