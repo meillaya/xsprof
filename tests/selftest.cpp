@@ -3,12 +3,15 @@
 //   g++ -std=c++20 -Iinclude -Isrc <sources> tests/selftest.cpp -o selftest && ./selftest
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #include "xsprof/advisor.hpp"
 #include "xsprof/chrome_trace.hpp"
 #include "xsprof/event.hpp"
 #include "xsprof/json.hpp"
+#include "xsprof/pipeline.hpp"
 #include "xsprof/privacy.hpp"
 #include "xsprof/proc.hpp"
 #include "xsprof/ring_buffer.hpp"
@@ -29,6 +32,19 @@ static int g_checks = 0;
 using namespace xsprof;
 using namespace xsprof::advisor;
 using xsprof::viz::ChromeTraceBuilder;
+
+static std::string read_fixture(const std::string& name) {
+#ifdef XSPROF_TEST_FIXTURE_DIR
+    std::string path = std::string(XSPROF_TEST_FIXTURE_DIR) + "/" + name;
+#else
+    std::string path = "tests/fixtures/" + name;
+#endif
+    std::ifstream f(path);
+    if (!f) return {};
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
 
 static void test_json() {
     json::Value v = json::Value::make_object();
@@ -66,6 +82,22 @@ static void test_event() {
     CHECK(s.find("\"host_mutation\":false") != std::string::npos);
     CHECK(s.find("\"cpu\":3") != std::string::npos);
     CHECK(std::string(event_kind_name(EventKind::PageFault)) == "page_fault");
+
+    // All 18 event kinds have non-empty, non-unknown names.
+    const EventKind all[] = {
+        EventKind::SchedSwitch, EventKind::SchedWakeup, EventKind::SchedMigrate,
+        EventKind::RunqueueSample, EventKind::PriorityInversion, EventKind::LockContention,
+        EventKind::PageFault, EventKind::TlbMiss, EventKind::CacheMiss,
+        EventKind::HugePage, EventKind::NumaBalance, EventKind::AllocSample,
+        EventKind::MallocHotspot,
+        EventKind::Marker, EventKind::Capability, EventKind::Refusal,
+        EventKind::Incident, EventKind::RuntimeSample,
+    };
+    for (auto k : all) {
+        auto name = event_kind_name(k);
+        CHECK(!name.empty());
+        CHECK(name != "unknown");
+    }
 }
 
 static void test_privacy() {
@@ -226,6 +258,78 @@ static void test_viz() {
     CHECK(loss.find("\"unsafe\":true") != std::string::npos);
 }
 
+static void test_pipeline() {
+    // Aggregates defaults are fail-closed (zero / uncollected).
+    pipeline::Aggregates agg;
+    CHECK(agg.remote_fault_ratio == 0.0);
+    CHECK(agg.dominant_node == -1);
+    CHECK(agg.task_cpu_node == -1);
+    CHECK(agg.migrations == 0);
+    CHECK(!agg.pmu_collected);
+    CHECK(!agg.sched_collected);
+
+    // to_json carries the schema and host_mutation=false.
+    auto j = agg.to_json();
+    std::string s = j.dump();
+    CHECK(s.find("\"schema\":\"xsprof/aggregates/v1\"") != std::string::npos);
+    CHECK(s.find("\"host_mutation\":false") != std::string::npos);
+    CHECK(s.find("\"pmu_collected\":false") != std::string::npos);
+
+    // CountingSink basic contract.
+    pipeline::CountingSink sink;
+    RawEvent e;
+    e.kind = EventKind::SchedSwitch;
+    CHECK(sink.on_event(e));
+    CHECK(sink.events() == 1);
+    sink.on_aggregates(agg);
+    CHECK(sink.snapshots() == 1);
+    CHECK(!sink.complete());
+    sink.on_complete();
+    CHECK(sink.complete());
+}
+
+static void test_schema_golden() {
+    // event-v1 golden fixture byte-stability.
+    {
+        RawEvent e;
+        e.kind = EventKind::SchedSwitch;
+        e.ts_ns = 1000000;
+        e.cpu = 3;
+        e.pid = 100;
+        e.tid = 101;
+        e.comm = "worker";
+        std::string actual = event_to_json(e).dump();
+        std::string golden = read_fixture("event_v1_golden.json");
+        if (!golden.empty()) {
+            if (!golden.empty() && golden.back() == '\n') golden.pop_back();
+            CHECK(actual == golden);
+        } else {
+            std::printf("WARN: fixture event_v1_golden.json not found (skipping byte-stable check)\n");
+        }
+    }
+    // aggregates-v1 golden fixture byte-stability.
+    {
+        pipeline::Aggregates agg;
+        std::string actual = agg.to_json().dump();
+        std::string golden = read_fixture("aggregates_v1_golden.json");
+        if (!golden.empty()) {
+            if (!golden.empty() && golden.back() == '\n') golden.pop_back();
+            CHECK(actual == golden);
+        } else {
+            std::printf("WARN: fixture aggregates_v1_golden.json not found (skipping byte-stable check)\n");
+        }
+    }
+    // journal-v1 golden fixture invariants.
+    {
+        std::string golden = read_fixture("journal_v1_golden.json");
+        if (!golden.empty()) {
+            CHECK(golden.find("\"host_mutation\":false") != std::string::npos);
+            CHECK(golden.find("\"schema\":\"xsprof/journal/v1\"") != std::string::npos);
+            CHECK(golden.find("\"host_mutation\":true") == std::string::npos);
+        }
+    }
+}
+
 int main() {
     test_json();
     test_event();
@@ -235,6 +339,8 @@ int main() {
     test_proc();
     test_advisor();
     test_viz();
+    test_pipeline();
+    test_schema_golden();
     std::printf("\n[xsprof selftest] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

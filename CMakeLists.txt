@@ -17,15 +17,26 @@ option(XSPROF_BUILD_TESTS "Build xsprof tests" ON)
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
+# ---- per-module source lists (parallel lanes edit only their own file) ----
+include(cmake/core.cmake)
+include(cmake/sched.cmake)
+include(cmake/memory.cmake)
+include(cmake/pipeline.cmake)
+include(cmake/viz.cmake)
+include(cmake/advisor.cmake)
+include(cmake/bpf.cmake)
+include(cmake/daemon.cmake)
+
 # ---- core library --------------------------------------------------------
 add_library(xsprof_core STATIC
-  src/core/json.cpp
-  src/core/event.cpp
-  src/core/privacy.cpp
-  src/safety/safety.cpp
-  src/collectors/proc.cpp
-  src/viz/chrome_trace.cpp
-  src/advisor/advisor.cpp
+  ${XSPROF_CORE_SOURCES}
+  ${XSPROF_SCHED_SOURCES}
+  ${XSPROF_MEMORY_SOURCES}
+  ${XSPROF_PIPELINE_SOURCES}
+  ${XSPROF_VIZ_SOURCES}
+  ${XSPROF_ADVISOR_SOURCES}
+  ${XSPROF_BPF_SOURCES}
+  ${XSPROF_DAEMON_SOURCES}
 )
 target_include_directories(xsprof_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -50,27 +61,34 @@ endif()
 if(XSPROF_BUILD_TESTS)
   enable_testing()
   find_package(Catch2 3 QUIET)
-  add_executable(xsprof_tests
-    tests/test_main.cpp
-    tests/json_tests.cpp
-    tests/privacy_tests.cpp
-    tests/safety_tests.cpp
-    tests/proc_tests.cpp
-    tests/advisor_tests.cpp
-    tests/viz_tests.cpp
-  )
-  target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   if(Catch2_FOUND)
+    add_executable(xsprof_tests
+      tests/test_main.cpp
+      tests/json_tests.cpp
+      tests/privacy_tests.cpp
+      tests/safety_tests.cpp
+      tests/proc_tests.cpp
+      tests/advisor_tests.cpp
+      tests/viz_tests.cpp
+      tests/schema_tests.cpp
+      tests/pipeline_tests.cpp
+    )
+    target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_compile_definitions(xsprof_tests PRIVATE
+      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     target_link_libraries(xsprof_tests PRIVATE xsprof_core Catch2::Catch2WithMain)
     include(Catch)
     catch_discover_tests(xsprof_tests)
   else()
     # Fallback: no Catch2 available -> build the self-contained suite instead.
     message(STATUS "xsprof: Catch2 not found; building self-contained selftest")
-    target_sources(xsprof_tests PRIVATE tests/selftest.cpp)
+    add_executable(xsprof_tests
+      tests/selftest.cpp
+    )
+    target_include_directories(xsprof_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_compile_definitions(xsprof_tests PRIVATE
+      XSPROF_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     target_link_libraries(xsprof_tests PRIVATE xsprof_core)
-    # selftest.cpp defines main(); drop the Catch2 entry unit in that case.
-    set_source_files_properties(tests/test_main.cpp PROPERTIES HEADER_FILE_ONLY TRUE)
     add_test(NAME xsprof_tests COMMAND xsprof_tests)
   endif()
 endif()

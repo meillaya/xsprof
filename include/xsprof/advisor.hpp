@@ -9,9 +9,14 @@
 #include <vector>
 
 #include "xsprof/json.hpp"
+#include "xsprof/pipeline.hpp"
 #include "xsprof/proc.hpp"
 
 namespace xsprof::advisor {
+
+// Re-export the frozen pipeline Aggregates so existing advisor consumers
+// (tests, CLI) can keep using xsprof::advisor::Aggregates unchanged.
+using Aggregates = xsprof::pipeline::Aggregates;
 
 enum class Severity { Info, Warning, Critical };
 enum class Confidence { Measured, Heuristic };
@@ -33,38 +38,6 @@ struct Finding {
     std::vector<std::string> evidence;
     std::vector<Recommendation> recs;
     json::Value to_json() const;
-};
-
-// Aggregate inputs the rules reason over. These are derived from the pipeline
-// (or directly from a read-only snapshot for the fail-closed Phase-1 path).
-struct Aggregates {
-    // NUMA / placement
-    double remote_fault_ratio = 0.0;   // remote / (local+remote) hint faults
-    int dominant_node = -1;            // node holding most of a task's memory
-    int task_cpu_node = -1;            // node the task mostly runs on
-    // affinity / migration
-    long long migrations = 0;          // sched_migrate_task count for a task group
-    int llc_domains = 1;               // number of LLC domains observed
-    bool cross_llc_migration = false;
-    // locking
-    long long lock_contentions = 0;
-    double avg_lock_wait_ms = 0.0;
-    // wakeups
-    long long wakeups = 0;
-    long long unnecessary_wakeups = 0; // wakeup not followed by a switch in-window
-    // cache / memory
-    long long llc_misses = 0;
-    long long tlb_misses = 0;
-    long long page_faults = 0;
-    double remote_hitm = 0.0;          // cross-cache-line HITM (false sharing signal)
-    // allocator
-    double buddy_fragmentation = 0.0;  // 0..1 derived from /proc/buddyinfo
-    long long small_alloc_churn = 0;
-    // priority inversion
-    bool priority_inversion_observed = false;
-    // capability context (a finding is never emitted from an uncollected signal)
-    bool pmu_collected = false;
-    bool sched_collected = false;
 };
 
 class Advisor {
