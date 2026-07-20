@@ -1,0 +1,5 @@
+{"schema":"xsprof/daemon-event/v1","event":"boot","action_id":"","status":"PASS","host_mutation":false,"seq":1,"reason":"daemon_ready"}
+{"schema":"xsprof/daemon-event/v1","event":"marker","action_id":"act-001","status":"PASS","host_mutation":false,"seq":2,"reason":"preflight_complete"}
+{"schema":"xsprof/daemon-event/v1","event":"runtime_sample","action_id":"act-002","status":"PASS","host_mutation":false,"seq":3,"reason":"observing"}
+{"schema":"xsprof/daemon-event/v1","event":"refusal","action_id":"act-003","status":"REFUSE","host_mutation":false,"seq":4,"reason":"refused_host"}
+{"schema":"xsprof/daemon-event/v1","event":"cleanup","action_id":"act-004","status":"PASS","host_mutation":false,"seq":5,"reason":"stopped"}
