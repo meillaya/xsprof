@@ -197,7 +197,25 @@ static void test_advisor() {
     Aggregates healthy;
     CHECK(advisor.analyze(healthy).empty());
 
-    // Poor NUMA placement.
+    // Healthy collected baseline -> no findings within normal ranges.
+    Aggregates healthy_collected;
+    healthy_collected.pmu_collected = true;
+    healthy_collected.sched_collected = true;
+    healthy_collected.remote_fault_ratio = 0.05;
+    healthy_collected.dominant_node = 0;
+    healthy_collected.task_cpu_node = 0;
+    healthy_collected.migrations = 10;
+    healthy_collected.cross_llc_migration = false;
+    healthy_collected.wakeups = 1000;
+    healthy_collected.unnecessary_wakeups = 50;
+    healthy_collected.lock_contentions = 0;
+    healthy_collected.avg_lock_wait_ms = 0.1;
+    healthy_collected.remote_hitm = 0.01;
+    healthy_collected.buddy_fragmentation = 0.2;
+    healthy_collected.priority_inversion_observed = false;
+    CHECK(advisor.analyze(healthy_collected).empty());
+
+    // Rule 5: Poor NUMA placement.
     Aggregates numa;
     numa.remote_fault_ratio = 0.6;
     numa.dominant_node = 1;
@@ -212,7 +230,7 @@ static void test_advisor() {
         }
     CHECK(found_numa);
 
-    // False sharing needs PMU; without it, heuristic only if llc_misses>0.
+    // Rule 1: False sharing needs PMU; without it, heuristic only if llc_misses>0.
     Aggregates fs;
     fs.pmu_collected = true;
     fs.remote_hitm = 0.4;
@@ -222,9 +240,108 @@ static void test_advisor() {
         if (f.id == "false-sharing" && f.sev == Severity::Critical) found_fs = true;
     CHECK(found_fs);
 
+    // False sharing heuristic without PMU.
+    Aggregates fs_heur;
+    fs_heur.pmu_collected = false;
+    fs_heur.llc_misses = 5000;
+    auto fsf2 = advisor.analyze(fs_heur);
+    bool found_fs_heur = false;
+    for (const auto& f : fsf2)
+        if (f.id == "false-sharing" && f.confidence == Confidence::Heuristic) found_fs_heur = true;
+    CHECK(found_fs_heur);
+
+    // Rule 2: Excessive locking.
+    Aggregates lock;
+    lock.lock_contentions = 500;
+    lock.avg_lock_wait_ms = 5.0;
+    auto lf = advisor.analyze(lock);
+    bool found_lock = false;
+    for (const auto& f : lf)
+        if (f.id == "excessive-locking") { found_lock = true; CHECK(f.sev == Severity::Warning); }
+    CHECK(found_lock);
+
+    // Rule 3: Unnecessary wakeups.
+    Aggregates wk;
+    wk.sched_collected = true;
+    wk.wakeups = 1000;
+    wk.unnecessary_wakeups = 500;
+    auto wf = advisor.analyze(wk);
+    bool found_wk = false;
+    for (const auto& f : wf)
+        if (f.id == "unnecessary-wakeups") found_wk = true;
+    CHECK(found_wk);
+
+    // Rule 4: CPU affinity churn.
+    Aggregates churn;
+    churn.sched_collected = true;
+    churn.cross_llc_migration = true;
+    churn.migrations = 500;
+    churn.llc_domains = 4;
+    auto cf = advisor.analyze(churn);
+    bool found_churn = false;
+    for (const auto& f : cf)
+        if (f.id == "cpu-affinity-churn") {
+            found_churn = true;
+            CHECK(!f.recs.empty());
+            CHECK(f.recs[0].kind == "sched_setaffinity");
+        }
+    CHECK(found_churn);
+
+    // Rule 6: Allocator fragmentation.
+    Aggregates frag;
+    frag.buddy_fragmentation = 0.8;
+    auto ff = advisor.analyze(frag);
+    bool found_frag = false;
+    for (const auto& f : ff)
+        if (f.id == "allocator-fragmentation") found_frag = true;
+    CHECK(found_frag);
+
+    // Rule 7: Priority inversion.
+    Aggregates pi;
+    pi.priority_inversion_observed = true;
+    auto pf = advisor.analyze(pi);
+    bool found_pi = false;
+    for (const auto& f : pf)
+        if (f.id == "priority-inversion") { found_pi = true; CHECK(f.sev == Severity::Critical); }
+    CHECK(found_pi);
+
+    // Configurable thresholds: custom Advisor with raised thresholds stays silent.
+    Thresholds strict;
+    strict.false_sharing_hitm_min = 0.99;
+    strict.excessive_lock_wait_ms = 100.0;
+    strict.unnecessary_wakeup_ratio = 0.99;
+    strict.affinity_churn_migrations_min = 100000;
+    strict.numa_remote_fault_ratio = 0.99;
+    strict.allocator_fragmentation_min = 0.99;
+    strict.priority_inversion_enabled = false;
+    Advisor strict_advisor(strict);
+    Aggregates stressed;
+    stressed.pmu_collected = true;
+    stressed.sched_collected = true;
+    stressed.remote_hitm = 0.5;
+    stressed.lock_contentions = 1000;
+    stressed.avg_lock_wait_ms = 10.0;
+    stressed.wakeups = 10000;
+    stressed.unnecessary_wakeups = 5000;
+    stressed.cross_llc_migration = true;
+    stressed.migrations = 5000;
+    stressed.remote_fault_ratio = 0.7;
+    stressed.dominant_node = 1;
+    stressed.task_cpu_node = 0;
+    stressed.buddy_fragmentation = 0.9;
+    stressed.priority_inversion_observed = true;
+    CHECK(strict_advisor.analyze(stressed).empty());
+
+    // All seven rules fire on fully stressed aggregates with default thresholds.
+    auto all = advisor.analyze(stressed);
+    CHECK(all.size() == 7);
+
+    // Report output.
     auto rj = advisor.report_json(numa);
     CHECK(rj.dump().find("\"host_mutation\":false") != std::string::npos);
     CHECK(!advisor.report_markdown(numa).empty());
+    // Markdown includes "never auto-applied" disclaimer.
+    CHECK(advisor.report_markdown(numa).find("never auto-applied") != std::string::npos);
 }
 
 static void test_viz() {

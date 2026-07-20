@@ -40,12 +40,51 @@ struct Finding {
     json::Value to_json() const;
 };
 
+// Configurable named thresholds for all seven detection rules.
+// Defaults are sensible production-tuned values; override per-deployment.
+struct Thresholds {
+    // Rule 1: False sharing — minimum remote HITM rate to fire (PMU path).
+    double false_sharing_hitm_min = 0.05;
+
+    // Rule 2: Excessive locking — minimum average lock wait (ms).
+    double excessive_lock_wait_ms = 1.0;
+    // Minimum lock contentions count to consider.
+    long long excessive_lock_contentions_min = 1;
+
+    // Rule 3: Unnecessary wakeups — ratio threshold (unnecessary / total).
+    double unnecessary_wakeup_ratio = 0.30;
+
+    // Rule 4: CPU affinity churn — minimum migrations to fire.
+    long long affinity_churn_migrations_min = 100;
+
+    // Rule 5: Poor NUMA placement — minimum remote fault ratio.
+    double numa_remote_fault_ratio = 0.20;
+
+    // Rule 6: Allocator fragmentation — minimum buddy fragmentation index.
+    double allocator_fragmentation_min = 0.50;
+
+    // Rule 7: Priority inversion — boolean observation (no numeric threshold,
+    // but included here for structural completeness and future extension).
+    bool priority_inversion_enabled = true;
+};
+
 class Advisor {
 public:
+    // Construct with default thresholds.
+    Advisor() = default;
+    // Construct with custom thresholds.
+    explicit Advisor(Thresholds t) : thresholds_(t) {}
+
+    // Access the active thresholds (for introspection / testing).
+    const Thresholds& thresholds() const { return thresholds_; }
+
     // Run all rules; returns findings ranked by severity then evidence strength.
     std::vector<Finding> analyze(const Aggregates& agg) const;
     json::Value report_json(const Aggregates& agg) const;
     std::string report_markdown(const Aggregates& agg) const;
+
+private:
+    Thresholds thresholds_;
 };
 
 // Derive a read-only Aggregates from a SystemFacts snapshot (Phase-1 path that

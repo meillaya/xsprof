@@ -52,9 +52,10 @@ int severity_rank(Severity s) {
 
 std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
     std::vector<Finding> out;
+    const auto& T = thresholds_;
 
-    // Rule: poor NUMA placement.
-    if (agg.remote_fault_ratio > 0.20 && agg.dominant_node >= 0 &&
+    // Rule 5: poor NUMA placement.
+    if (agg.remote_fault_ratio > T.numa_remote_fault_ratio && agg.dominant_node >= 0 &&
         agg.task_cpu_node >= 0 && agg.dominant_node != agg.task_cpu_node) {
         Finding f;
         f.id = "poor-numa-placement";
@@ -75,8 +76,9 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: CPU affinity issues (excessive cross-LLC migration).
-    if (agg.sched_collected && agg.cross_llc_migration && agg.migrations > 100) {
+    // Rule 4: CPU affinity churn (excessive cross-LLC migration).
+    if (agg.sched_collected && agg.cross_llc_migration &&
+        agg.migrations > T.affinity_churn_migrations_min) {
         Finding f;
         f.id = "cpu-affinity-churn";
         f.sev = Severity::Warning;
@@ -92,9 +94,10 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: unnecessary wakeups.
+    // Rule 3: unnecessary wakeups.
     if (agg.sched_collected && agg.wakeups > 0 &&
-        static_cast<double>(agg.unnecessary_wakeups) / static_cast<double>(agg.wakeups) > 0.30) {
+        static_cast<double>(agg.unnecessary_wakeups) / static_cast<double>(agg.wakeups) >
+            T.unnecessary_wakeup_ratio) {
         Finding f;
         f.id = "unnecessary-wakeups";
         f.sev = Severity::Info;
@@ -110,8 +113,9 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: excessive locking.
-    if (agg.lock_contentions > 0 && agg.avg_lock_wait_ms > 1.0) {
+    // Rule 2: excessive locking.
+    if (agg.lock_contentions >= T.excessive_lock_contentions_min &&
+        agg.avg_lock_wait_ms > T.excessive_lock_wait_ms) {
         Finding f;
         f.id = "excessive-locking";
         f.sev = Severity::Warning;
@@ -127,8 +131,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: false sharing (needs PMU HITM/IBS data).
-    if (agg.pmu_collected && agg.remote_hitm > 0.0) {
+    // Rule 1: false sharing (needs PMU HITM/IBS data).
+    if (agg.pmu_collected && agg.remote_hitm > T.false_sharing_hitm_min) {
         Finding f;
         f.id = "false-sharing";
         f.sev = Severity::Critical;
@@ -152,8 +156,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: allocator fragmentation.
-    if (agg.buddy_fragmentation > 0.5) {
+    // Rule 6: allocator fragmentation.
+    if (agg.buddy_fragmentation > T.allocator_fragmentation_min) {
         Finding f;
         f.id = "allocator-fragmentation";
         f.sev = Severity::Info;
@@ -168,8 +172,8 @@ std::vector<Finding> Advisor::analyze(const Aggregates& agg) const {
         out.push_back(std::move(f));
     }
 
-    // Rule: priority inversion.
-    if (agg.priority_inversion_observed) {
+    // Rule 7: priority inversion.
+    if (T.priority_inversion_enabled && agg.priority_inversion_observed) {
         Finding f;
         f.id = "priority-inversion";
         f.sev = Severity::Critical;
