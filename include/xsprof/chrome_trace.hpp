@@ -90,4 +90,12 @@ json::Value replay_from_journal(std::istream& in, long long& rows_parsed);
 json::Value replay_from_journal_windowed(std::istream& in, const TimeWindow& w,
                                          long long& rows_parsed);
 
+// Stream a journal to an ostream as chunked Chrome Trace with BOUNDED memory:
+// holds at most chunk_size events at a time instead of the whole journal.
+// Output format: {"chunks":[{"traceEvents":[...],"displayTimeUnit":"ns"}, ...]}.
+// Lost/gapped streams still render as explicit unsafe markers (per chunk).
+void stream_timeline_chunked(std::istream& in, std::ostream& out, std::size_t chunk_size,
+                             long long& rows_parsed);
+
+
 } // namespace xsprof::viz

@@ -398,4 +398,69 @@ json::Value replay_from_journal_windowed(std::istream& in, const TimeWindow& w,
     return doc;
 }
 
+
+void stream_timeline_chunked(std::istream& in, std::ostream& out, std::size_t chunk_size,
+                             long long& rows_parsed) {
+    if (chunk_size == 0)
+        chunk_size = 100000;
+    out << "{\"chunks\":[";
+    std::vector<RawEvent> batch;
+    batch.reserve(chunk_size);
+    std::string line;
+    rows_parsed = 0;
+    bool gap_in_batch = false;
+    std::uint64_t prev_ts_ns = 0;
+    bool first_chunk = true;
+
+    auto flush_batch = [&]() {
+        if (batch.empty() && !gap_in_batch)
+            return;
+        auto doc = export_events(batch); // {"traceEvents":[...],"displayTimeUnit":"ns"}
+        if (gap_in_batch) {
+            auto* arr = const_cast<json::Array*>(&doc.find("traceEvents")->as_array());
+            json::Value marker = json::Value::make_object();
+            marker.set("name", json::Value("SAMPLE_LOSS"));
+            marker.set("ph", json::Value("i"));
+            marker.set("cat", json::Value("unsafe"));
+            marker.set("ts", json::Value(0ULL));
+            marker.set("pid", json::Value(-1LL));
+            marker.set("tid", json::Value(0LL));
+            json::Value args = json::Value::make_object();
+            args.set("scope", json::Value("thread"));
+            args.set("unsafe", json::Value(true));
+            args.set("reason", json::Value("journal gap or unparseable line detected"));
+            marker.set("args", args);
+            arr->push_back(std::move(marker));
+            gap_in_batch = false;
+        }
+        if (!first_chunk)
+            out << ",";
+        first_chunk = false;
+        out << doc.dump();
+        batch.clear();
+    };
+
+    while (std::getline(in, line)) {
+        if (line.empty())
+            continue;
+        auto v = json::parse(line);
+        if (v.is_null()) {
+            gap_in_batch = true;
+            continue;
+        }
+        RawEvent e;
+        if (event_from_json(v, e)) {
+            if (prev_ts_ns > 0 && e.ts_ns > prev_ts_ns + 100000000ULL)
+                gap_in_batch = true;
+            prev_ts_ns = e.ts_ns;
+            batch.push_back(std::move(e));
+            ++rows_parsed;
+            if (batch.size() >= chunk_size)
+                flush_batch();
+        }
+    }
+    flush_batch();
+    out << "]}";
+}
+
 } // namespace xsprof::viz

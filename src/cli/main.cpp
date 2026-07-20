@@ -123,6 +123,7 @@ int cmd_advise(int argc, char** argv) {
 // render as explicit unsafe markers (never interpolated).
 int cmd_timeline(int argc, char** argv) {
     std::string input;
+    std::string output;
     std::string window_str;
     long long chunk_size = 0;
 
@@ -139,6 +140,8 @@ int cmd_timeline(int argc, char** argv) {
                 chunk_size = 0;
             }
         }
+        else if (arg == "--output" && i + 1 < argc)
+            output = argv[++i];
     }
     if (input.empty()) {
         std::cerr << "timeline requires --input <journal.jsonl>\n";
@@ -161,42 +164,37 @@ int cmd_timeline(int argc, char** argv) {
     }
 
     long long rows_parsed = 0;
+    // Streaming chunked path: BOUNDED memory (holds at most chunk_size events
+    // at a time), so multi-gigabyte journals no longer exhaust memory.
+    if (chunk_size > 0) {
+        std::ofstream outfile;
+        std::ostream* os = &std::cout;
+        if (!output.empty()) {
+            outfile.open(output);
+            if (outfile)
+                os = &outfile;
+        }
+        if (window) {
+            // Windowed replay is not yet streamed; use the in-memory windowed path.
+            Value wdoc = xsprof::viz::replay_from_journal_windowed(in, *window, rows_parsed);
+            wdoc.set("journal_rows", Value(rows_parsed));
+            *os << wdoc.dump() << "\n";
+        } else {
+            xsprof::viz::stream_timeline_chunked(in, *os, static_cast<std::size_t>(chunk_size),
+                                                 rows_parsed);
+            *os << "\n";
+            std::cerr << "{\"journal_rows\":" << rows_parsed << "}\n";
+        }
+        return 0;
+    }
+
+    // Full-load path (small journals, no chunking requested).
     Value doc;
     if (window) {
         doc = xsprof::viz::replay_from_journal_windowed(in, *window, rows_parsed);
     } else {
         doc = xsprof::viz::replay_from_journal(in, rows_parsed);
     }
-
-    // Apply chunked output if requested.
-    if (chunk_size > 0) {
-        // Re-build from the trace events using the builder's chunked path.
-        // For simplicity, we wrap the existing doc into a chunked structure.
-        const auto* trace_events = doc.find("traceEvents");
-        if (trace_events && trace_events->is_array()) {
-            const auto& arr = trace_events->as_array();
-            Value chunked = Value::make_object();
-            Value chunks = Value::make_array();
-            std::size_t offset = 0;
-            while (offset < arr.size()) {
-                Value chunk = Value::make_object();
-                Value chunk_arr = Value::make_array();
-                std::size_t end = offset + static_cast<std::size_t>(chunk_size);
-                if (end > arr.size())
-                    end = arr.size();
-                for (std::size_t j = offset; j < end; ++j)
-                    chunk_arr.push_back(arr[j]);
-                chunk.set("traceEvents", chunk_arr);
-                chunk.set("displayTimeUnit", Value("ns"));
-                chunks.push_back(std::move(chunk));
-                offset = end;
-            }
-            chunked.set("chunks", chunks);
-            chunked.set("displayTimeUnit", Value("ns"));
-            doc = std::move(chunked);
-        }
-    }
-
     doc.set("journal_rows", Value(rows_parsed));
     std::cout << doc.dump() << "\n";
     return 0;
