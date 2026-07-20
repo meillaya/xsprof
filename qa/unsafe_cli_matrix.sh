@@ -1,338 +1,91 @@
 #!/usr/bin/env bash
-# SIZE_OK: Single unsafe CLI matrix preserves one stable command/trap surface for branch-wide refusal checks; splitting would obscure CI audit flow.
+# Unsafe CLI verb matrix for the C++ xsprof binary.
+# Every unsafe verb must refuse with non-zero exit and a structured refusal
+# JSON carrying host_mutation=false. Mirrors the archived Zig project's
+# qa/unsafe_cli_matrix.sh for the C++ rewrite.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
+  printf 'FAIL: %s
+' "$*" >&2
   exit 1
 }
 
-cleanup_unsafe_matrix_residue() {
-  [ -d evidence/lab/run-all ] || return 0
-  find evidence/lab/run-all -maxdepth 1 -type d -name 'unsafe-matrix-*' -exec rm -rf {} +
-}
+# Build if the binary is missing.
+if [ ! -x build/xsprof ]; then
+  cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
+  cmake --build build -j"$(nproc)" >/dev/null 2>&1
+fi
 
-cleanup_unsafe_matrix_artifact() {
-  local artifact="$1"
-  case "$artifact" in
-    evidence/lab/run-all/unsafe-matrix-*)
-      if [ -d "$artifact" ]; then
-        rm -rf "$artifact"
-      elif [ "$(basename -- "$artifact")" = summary.json ]; then
-        rm -rf "$(dirname -- "$artifact")"
-      fi
-      ;;
-  esac
-}
-
-cleanup_unsafe_matrix_zigout_bpf() {
-  # VM-lab live-run refusal can compile/cache the guest BPF bundle while
-  # remaining host-safe. Scrub only those known generated BPF cache artifacts
-  # around VM-lab scenarios; generic unsafe CLI checks still compare zig-out
-  # file lists without this allowlist.
-  rm -f \
-    zig-out/bpf/zigsched_minimal.bpf.o \
-    zig-out/bpf/zigsched_minimal.bpf.log \
-    zig-out/bpf/zigsched_minimal.bpf.meta.json \
-    zig-out/bpf/zigsched_minimal.bpf-*.o.tmp
-}
-
-cleanup_unsafe_matrix_residue
-trap cleanup_unsafe_matrix_residue EXIT
+BIN=build/xsprof
+[ -x "$BIN" ] || fail "xsprof binary not found at $BIN"
 
 check_refusal() {
   local label="$1"
   shift
-  local out rc before after
-  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
-  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
+  local out rc
+  out="$(mktemp "${TMPDIR:-/tmp}/xsprof-unsafe-${label}.XXXXXX")"
   set +e
   "$@" >"$out" 2>&1
   rc=$?
   set -e
-  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
   if [ "$rc" -eq 0 ]; then
     cat "$out" >&2 || true
     rm -f "$out"
-    fail "$label unexpectedly succeeded"
+    fail "$label unexpectedly succeeded (rc=0)"
   fi
-  grep -Eiq 'refus|unsupported|unsafe|read-only|no mutation|dry-run|mutation|preflight-first' "$out" || {
+  # Must emit a structured refusal with host_mutation=false.
+  grep -q '"host_mutation":false' "$out" || {
+    cat "$out" >&2 || true
+    rm -f "$out"
+    fail "$label missing host_mutation=false in refusal"
+  }
+  grep -Eiq 'refus|unsafe|disabled|fail-closed' "$out" || {
     cat "$out" >&2 || true
     rm -f "$out"
     fail "$label missing refusal explanation"
   }
-  if [ "$before" != "$after" ]; then
-    cat "$out" >&2 || true
-    rm -f "$out"
-    fail "$label changed zig-out file list"
-  fi
   rm -f "$out"
-  printf 'PASS: %s refused rc=%s\n' "$label" "$rc"
+  printf 'PASS: %s refused rc=%s
+' "$label" "$rc"
 }
 
-check_daemon_event_refusal() {
-  local label="$1"
-  local action_json="$2"
-  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-$label"
-  local out rc before after
-  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
-  rm -rf "$state_dir"
-  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  set +e
-  printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
-  rc=$?
-  set -e
-  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  if [ "$rc" -ne 0 ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon exited before structured refusal"
-  fi
-  grep -Eiq 'host_mutation_refused|refused_host' "$out" || {
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon action missing host-safe refusal"
-  }
-  if grep -q 'host_mutation":true' "$out"; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon action reported host mutation"
-  fi
-  if [ "$before" != "$after" ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label changed zig-out file list"
-  fi
-  rm -rf "$state_dir" "$out"
-  printf 'PASS: %s daemon refused host mutation\n' "$label"
-}
-
-live_microvm_action_json() {
-  local token="unsafe-matrix-$1-$$"
-  printf '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"%s","run_id":"%s","target_id":"target-%s","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-%s"}' "$token" "$token" "$token" "$token"
-}
-
-check_live_microvm_refusal() {
-  local label="$1"
-  local action_json="$2"
-  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-$label"
-  local out rc before after reason artifact
-  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
-  rm -rf "$state_dir"
-  cleanup_unsafe_matrix_zigout_bpf
-  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  set +e
-  printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
-  rc=$?
-  set -e
-  cleanup_unsafe_matrix_zigout_bpf
-  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  if [ "$rc" -ne 0 ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon exited before live-runner refusal"
-  fi
-  grep -q '"action":"run_lab_microvm_live"' "$out" || {
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label did not reach live microVM action"
-  }
-  if grep -q '"status":"REFUSE"' "$out"; then
-    grep -q '"state":"refused_host"' "$out" || {
-      cat "$out" >&2 || true
-      rm -rf "$state_dir" "$out"
-      fail "$label live-runner refusal was not host-safe"
-    }
-    if grep -q 'invalid_field' "$out"; then
-      cat "$out" >&2 || true
-      rm -rf "$state_dir" "$out"
-      fail "$label overfit to validation refusal instead of live runner"
-    fi
-    reason="$(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-    case "$reason" in
-      qemu_not_found|kvm_unavailable|kernel_unavailable|nix_busybox_unavailable|microvm_runner_refused) ;;
-      *)
-        cat "$out" >&2 || true
-        rm -rf "$state_dir" "$out"
-        fail "$label unexpected live-runner refusal reason: ${reason:-missing}"
-        ;;
-    esac
-    artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-    cleanup_unsafe_matrix_artifact "$artifact"
-    if [ "$before" != "$after" ]; then
-      cat "$out" >&2 || true
-      rm -rf "$state_dir" "$out"
-      fail "$label changed zig-out file list"
-    fi
-    rm -rf "$state_dir" "$out"
-    printf 'PASS: %s action=run_lab_microvm_live live microVM refused reason=%s host_mutation=false\n' "$label" "$reason"
-    return 0
-  fi
-  grep -q '"event":"incident".*"action":"run_lab_microvm_live".*"reason":"live_bundle_rejected".*"host_mutation":false' "$out" || {
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label did not record a safe live-bundle rejection incident"
-  }
-  if grep -q 'host_mutation":true' "$out"; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon action reported host mutation"
-  fi
-  reason="live_bundle_rejected"
-  artifact="$(sed -n 's/.*"artifact":"\([^"]*\)".*/\1/p' "$out" | tail -n 1)"
-  cleanup_unsafe_matrix_artifact "$artifact"
-  if [ "$before" != "$after" ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label changed zig-out file list"
-  fi
-  rm -rf "$state_dir" "$out"
-  printf 'PASS: %s action=run_lab_microvm_live live microVM safe incident reason=%s host_mutation=false\n' "$label" "$reason"
-}
-
-check_malformed_live_action_refusal() {
-  local label="$1"
-  local action_json="$2"
-  local expected_reason="$3"
-  local state_dir=".zig-cache/tmp/zig-scheduler-unsafe-$label"
-  local out rc before after
-  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
-  rm -rf "$state_dir"
-  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  set +e
-  printf '%s\n' "$action_json" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
-  rc=$?
-  set -e
-  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  if [ "$rc" -ne 0 ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label daemon exited before structured validation refusal"
-  fi
-  grep -q "$expected_reason" "$out" || {
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label missing expected validation reason $expected_reason"
-  }
-  if grep -q 'host_mutation":true' "$out"; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label reported host mutation"
-  fi
-  if [ "$before" != "$after" ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label changed zig-out file list"
-  fi
-  rm -rf "$state_dir" "$out"
-  printf 'PASS: %s live action validation refused reason=%s host_mutation=false\n' "$label" "$expected_reason"
-}
-
-check_state_dir_rejected() {
-  local label="$1"
-  local state_dir="$2"
-  local out rc before after
-  out="$(mktemp "${TMPDIR:-/tmp}/zig-scheduler-unsafe-${label}.XXXXXX")"
-  before="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  set +e
-  printf '%s\n' "$(live_microvm_action_json "$label")" | zig-out/bin/zig-scheduler-daemon --foreground --state-dir "$state_dir" >"$out" 2>&1
-  rc=$?
-  set -e
-  after="$(find zig-out -maxdepth 3 -type f 2>/dev/null | sort || true)"
-  if [ "$rc" -eq 0 ]; then
-    cat "$out" >&2 || true
-    rm -f "$out"
-    fail "$label accepted unsafe daemon state dir $state_dir"
-  fi
-  if [ -e "$state_dir" ]; then
-    cat "$out" >&2 || true
-    rm -rf "$state_dir" "$out"
-    fail "$label created unsafe daemon state dir $state_dir"
-  fi
-  grep -Eiq 'usage|state|invalid|foreground' "$out" || {
-    cat "$out" >&2 || true
-    rm -f "$out"
-    fail "$label missing state-dir refusal explanation"
-  }
-  if [ "$before" != "$after" ]; then
-    cat "$out" >&2 || true
-    rm -f "$out"
-    fail "$label changed zig-out file list"
-  fi
-  rm -f "$out"
-  printf 'PASS: %s rejected unsafe daemon state dir host_mutation=false\n' "$label"
-}
-
-zig build --summary all >/dev/null
-
-for verb in load attach enable mutate apply; do
-  check_refusal "raw-$verb" zig-out/bin/zig-scheduler "$verb"
+# --- All 9 unsafe verbs must refuse non-zero ---
+for verb in load attach enable mutate apply sched-ext-attach setaffinity setpriority bind; do
+  check_refusal "verb-$verb" "$BIN" "$verb"
 done
-check_refusal sched-ext-load zig-out/bin/zig-scheduler sched-ext load
-check_refusal sched-ext-attach zig-out/bin/zig-scheduler sched-ext attach
-check_refusal controller-apply zig-out/bin/zig-scheduler controller apply
-check_refusal controller-mutate zig-out/bin/zig-scheduler controller mutate
-check_refusal scheduler-enable zig-out/bin/zig-scheduler scheduler enable
-check_daemon_event_refusal daemon-partial-attach '{"action":"partial_attach","target_cgroup":"/sys/fs/cgroup/zig-scheduler-lab.slice/demo.scope","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-demo"}'
-check_daemon_event_refusal daemon-rollback '{"action":"rollback","rollback_id":"RB-demo"}'
-check_live_microvm_refusal daemon-live-microvm "$(live_microvm_action_json daemon-live-microvm)"
-check_malformed_live_action_refusal malformed-live-action-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad;id","run_id":"unsafe-matrix-bad-action","target_id":"target-bad-action","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-action"}' 'malformed_action'
-check_malformed_live_action_refusal malformed-live-run-id '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-run-id","run_id":"../escape","target_id":"target-bad-run","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB-bad-run"}' 'invalid_field'
-check_malformed_live_action_refusal malformed-live-audit '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-audit","run_id":"unsafe-matrix-bad-audit","target_id":"target-bad-audit","audit_id":"AUD;bad","rollback_id":"RB-bad-audit"}' 'malformed_action'
-check_malformed_live_action_refusal malformed-live-rollback '{"schema":"zig-scheduler/operator-action/v1","action":"run_lab_microvm_live","action_id":"bad-rollback","run_id":"unsafe-matrix-bad-rollback","target_id":"target-bad-rollback","audit_id":"AUD-20990101T000000Z-deadbee-abc123","rollback_id":"RB;bad"}' 'malformed_action'
-check_state_dir_rejected state-dir-absolute "/tmp/zig-scheduler-unsafe-absolute-$$"
-check_state_dir_rejected state-dir-traversal ".zig-cache/tmp/../zig-scheduler-unsafe-traversal"
 
-hostile_bin="$repo_root/.omo/evidence/task-T21-hostile-bin"
-hostile_qemu_sentinel="$repo_root/.omo/evidence/task-T21-hostile-qemu-sentinel.txt"
-rm -rf "$hostile_bin" "$hostile_qemu_sentinel"
-mkdir -p "$hostile_bin"
-cat >"$hostile_bin/qemu-system-x86_64" <<SH
-#!/usr/bin/env bash
-printf 'hostile qemu executed\n' >"$hostile_qemu_sentinel"
-exit 96
-SH
-chmod +x "$hostile_bin/qemu-system-x86_64"
-PATH="$hostile_bin:$PATH" check_live_microvm_refusal hostile-path-qemu-live-microvm "$(live_microvm_action_json hostile-path-qemu-live-microvm)"
-if [ -e "$hostile_qemu_sentinel" ]; then
-  cat "$hostile_qemu_sentinel" >&2 || true
-  rm -rf "$hostile_bin"
-  fail 'hostile PATH qemu-system-x86_64 was executed'
-fi
-printf 'PASS: hostile PATH qemu-system-x86_64 sentinel absent host_mutation=false\n'
-rm -rf "$hostile_bin"
+# --- Unknown verbs also refuse (fail-closed default) ---
+check_refusal "unknown-verb" "$BIN" "destroy-everything"
+check_refusal "unknown-sched-ext-load" "$BIN" "sched-ext" "load"
+check_refusal "unknown-controller-apply" "$BIN" "controller" "apply"
 
+# --- Safe verbs must NOT refuse (exit 0 or usage error, not refusal) ---
+check_safe() {
+  local label="$1"
+  shift
+  local out rc
+  out="$(mktemp "${TMPDIR:-/tmp}/xsprof-safe-${label}.XXXXXX")"
+  set +e
+  "$@" >"$out" 2>&1
+  rc=$?
+  set -e
+  # Safe verbs should not produce a refusal JSON.
+  if grep -q '"event":"refusal"' "$out"; then
+    cat "$out" >&2 || true
+    rm -f "$out"
+    fail "$label was refused but should be safe"
+  fi
+  rm -f "$out"
+  printf 'PASS: %s not refused (rc=%s)
+' "$label" "$rc"
+}
 
-home_hostile_bin="$HOME/zig-scheduler-T21-hostile-qemu-$$"
-home_hostile_qemu="$home_hostile_bin/qemu-system-x86_64"
-home_hostile_sentinel="$repo_root/.omo/evidence/task-T21-home-hostile-qemu-sentinel.txt"
-rm -rf "$home_hostile_bin" "$home_hostile_sentinel"
-mkdir -p "$home_hostile_bin"
-cat >"$home_hostile_qemu" <<SH
-#!/usr/bin/env bash
-printf 'home hostile qemu executed\n' >"$home_hostile_sentinel"
-exit 97
-SH
-chmod +x "$home_hostile_qemu"
-ZIG_SCHEDULER_QEMU_BIN="$home_hostile_qemu" check_live_microvm_refusal hostile-home-qemu-override "$(live_microvm_action_json hostile-home-qemu-override)"
-if [ -e "$home_hostile_sentinel" ]; then
-  cat "$home_hostile_sentinel" >&2 || true
-  rm -rf "$home_hostile_bin"
-  fail 'hostile /home ZIG_SCHEDULER_QEMU_BIN was executed'
-fi
-printf 'PASS: hostile /home ZIG_SCHEDULER_QEMU_BIN rejected sentinel absent host_mutation=false\n'
+check_safe "help" "$BIN" "help"
+check_safe "version" "$BIN" "version"
 
-traversal_qemu="/usr/../${home_hostile_qemu#/}"
-ZIG_SCHEDULER_QEMU_BIN="$traversal_qemu" check_live_microvm_refusal hostile-traversal-qemu-override "$(live_microvm_action_json hostile-traversal-qemu-override)"
-if [ -e "$home_hostile_sentinel" ]; then
-  cat "$home_hostile_sentinel" >&2 || true
-  rm -rf "$home_hostile_bin"
-  fail 'hostile traversal ZIG_SCHEDULER_QEMU_BIN was executed'
-fi
-printf 'PASS: hostile traversal ZIG_SCHEDULER_QEMU_BIN rejected sentinel absent host_mutation=false\n'
-rm -rf "$home_hostile_bin"
-
-printf 'PASS: unsafe CLI matrix\n'
+printf 'PASS: unsafe CLI matrix (%s)
+' "$BIN"

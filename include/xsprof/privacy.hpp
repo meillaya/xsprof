@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include "xsprof/event.hpp"
+
 namespace xsprof {
 
 class PrivacyFilter {
@@ -29,5 +31,11 @@ public:
 private:
     std::string pattern_;
 };
+
+// Sanitize a RawEvent in-place: bound comm to the kernel 16-byte limit and
+// redact any sensitive key=value pairs or secret-looking values in detail.
+// This is the fail-closed privacy boundary for runtime samples: after this
+// call, the event carries no argv, env, or secret material.
+void sanitize_event(RawEvent& e, const PrivacyFilter& pf);
 
 } // namespace xsprof

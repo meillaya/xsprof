@@ -30,7 +30,7 @@ constexpr std::array<std::string_view, 12> kSensitiveKeys = {
 
 // High-entropy-ish secret value markers.
 constexpr std::array<std::string_view, 6> kSecretValueMarkers = {
-    "-----begin", "bearer ", "sk-", "ghp_", "xox", "aws_secret",
+    "-----begin", "bearer", "sk-", "ghp_", "xox", "aws_secret",
 };
 
 } // namespace
@@ -98,6 +98,17 @@ std::string PrivacyFilter::bound_comm(std::string_view comm, bool pseudonymize) 
         return buf;
     }
     return c;
+}
+
+void sanitize_event(RawEvent& e, const PrivacyFilter& pf) {
+    // Bound comm to the kernel TASK_COMM_LEN (16 bytes incl. NUL -> 15 chars).
+    if (!e.comm.empty()) {
+        e.comm = PrivacyFilter::bound_comm(e.comm);
+    }
+    // Redact sensitive material from the detail string.
+    if (!e.detail.empty()) {
+        e.detail = pf.redact(e.detail);
+    }
 }
 
 } // namespace xsprof

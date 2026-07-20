@@ -107,14 +107,119 @@ static void test_privacy() {
     CHECK(pf.sensitive_key("api_key"));
     CHECK(pf.sensitive_key("DB_PASSWORD"));
     CHECK(pf.sensitive_key("auth_token"));
+    CHECK(pf.sensitive_key("AWS_SECRET_ACCESS"));
+    CHECK(pf.sensitive_key("private_key"));
+    CHECK(pf.sensitive_key("session_id"));
+    CHECK(pf.sensitive_key("credential"));
     CHECK(!pf.sensitive_key("cpu_usage"));
+    CHECK(!pf.sensitive_key("run_queue"));
+    CHECK(!pf.sensitive_key("nr_switches"));
+
     std::string red = pf.redact("user=alice password=hunter2 cpu=10 token=abc");
     CHECK(red.find("password=[REDACTED]") != std::string::npos);
     CHECK(red.find("token=[REDACTED]") != std::string::npos);
     CHECK(red.find("user=alice") != std::string::npos);
     CHECK(red.find("hunter2") == std::string::npos);
+
     CHECK(pf.sensitive_value("Bearer xyz"));
+    CHECK(pf.sensitive_value("-----BEGIN PRIVATE KEY-----"));
+    CHECK(pf.sensitive_value("sk-abc123"));
+    CHECK(pf.sensitive_value("ghp_abc123"));
+    CHECK(!pf.sensitive_value("normal_value"));
+
     CHECK(PrivacyFilter::bound_comm("a-very-long-command-name").size() <= 15);
+    CHECK(PrivacyFilter::bound_comm("short").size() == 5);
+}
+
+static void test_privacy_sanitize_event() {
+    PrivacyFilter pf;
+
+    // sanitize_event bounds comm to 15 chars.
+    {
+        RawEvent e;
+        e.kind = EventKind::RuntimeSample;
+        e.comm = "a-very-long-process-name-that-exceeds-limit";
+        e.detail = "cpu=42";
+        sanitize_event(e, pf);
+        CHECK(e.comm.size() <= 15);
+        CHECK(e.detail == "cpu=42"); // non-sensitive detail preserved
+    }
+
+    // sanitize_event redacts sensitive key=value in detail.
+    {
+        RawEvent e;
+        e.kind = EventKind::RuntimeSample;
+        e.comm = "worker";
+        e.detail = "api_key=sk-secret123 cpu=99 password=hunter2";
+        sanitize_event(e, pf);
+        CHECK(e.detail.find("sk-secret123") == std::string::npos);
+        CHECK(e.detail.find("hunter2") == std::string::npos);
+        CHECK(e.detail.find("api_key=[REDACTED]") != std::string::npos);
+        CHECK(e.detail.find("password=[REDACTED]") != std::string::npos);
+        CHECK(e.detail.find("cpu=99") != std::string::npos);
+    }
+
+    // sanitize_event redacts secret-looking values per-token.
+    // "Bearer" is caught by the "bearer" marker; the following JWT token
+    // is a separate token and passes through (known limitation: multi-word
+    // secret patterns require key=value format for full redaction).
+    {
+        RawEvent e;
+        e.kind = EventKind::RuntimeSample;
+        e.comm = "task";
+        e.detail = "auth=Bearer_eyJhbGciOiJIUzI1NiJ9 cpu=5";
+        sanitize_event(e, pf);
+        // "auth" is a sensitive key, so the whole value is redacted.
+        CHECK(e.detail.find("eyJhbGciOiJIUzI1NiJ9") == std::string::npos);
+        CHECK(e.detail.find("auth=[REDACTED]") != std::string::npos);
+        CHECK(e.detail.find("cpu=5") != std::string::npos);
+    }
+    // Direct sensitive_value check for Bearer pattern.
+    CHECK(pf.sensitive_value("Bearer xyz"));
+    CHECK(pf.sensitive_value("bearer token"));
+
+    // event_to_json applies sanitization at the serialization boundary.
+    {
+        RawEvent e;
+        e.kind = EventKind::RuntimeSample;
+        e.ts_ns = 1000;
+        e.cpu = 0;
+        e.pid = 1;
+        e.tid = 1;
+        e.comm = "a-very-long-process-name-that-exceeds-limit";
+        e.detail = "token=ghp_secret123 run_queue=5";
+        auto j = event_to_json(e);
+        std::string s = j.dump();
+        // comm must be bounded.
+        CHECK(s.find("a-very-long-process-name") == std::string::npos);
+        // secret must be redacted.
+        CHECK(s.find("ghp_secret123") == std::string::npos);
+        CHECK(s.find("token=[REDACTED]") != std::string::npos);
+        // non-sensitive data preserved.
+        CHECK(s.find("run_queue=5") != std::string::npos);
+        // host_mutation invariant.
+        CHECK(s.find("\"host_mutation\":false") != std::string::npos);
+    }
+
+    // RuntimeSample with argv-like material is redacted.
+    {
+        RawEvent e;
+        e.kind = EventKind::RuntimeSample;
+        e.comm = "bash";
+        e.detail = "cmdline=/usr/bin/python3 script.py --password=secret123";
+        sanitize_event(e, pf);
+        CHECK(e.detail.find("secret123") == std::string::npos);
+        CHECK(e.detail.find("password=[REDACTED]") != std::string::npos);
+    }
+
+    // Empty comm/detail are safe no-ops.
+    {
+        RawEvent e;
+        e.kind = EventKind::Marker;
+        sanitize_event(e, pf);
+        CHECK(e.comm.empty());
+        CHECK(e.detail.empty());
+    }
 }
 
 static void test_safety() {
@@ -138,13 +243,24 @@ static void test_safety() {
     CHECK(d2.allowed);
     CHECK(d2.reason.find("planned only") != std::string::npos);
 
+    // All 9 unsafe verbs must be refused (fail-closed).
     CHECK(is_unsafe_verb("load"));
     CHECK(is_unsafe_verb("attach"));
+    CHECK(is_unsafe_verb("enable"));
     CHECK(is_unsafe_verb("mutate"));
     CHECK(is_unsafe_verb("apply"));
-    CHECK(is_unsafe_verb("enable"));
+    CHECK(is_unsafe_verb("sched-ext-attach"));
+    CHECK(is_unsafe_verb("setaffinity"));
+    CHECK(is_unsafe_verb("setpriority"));
+    CHECK(is_unsafe_verb("bind"));
+    // Safe read-only verbs must NOT be refused.
     CHECK(!is_unsafe_verb("preflight"));
+    CHECK(!is_unsafe_verb("capabilities"));
     CHECK(!is_unsafe_verb("advise"));
+    CHECK(!is_unsafe_verb("timeline"));
+    CHECK(!is_unsafe_verb("help"));
+    CHECK(!is_unsafe_verb("version"));
+    CHECK(!is_unsafe_verb(""));
 
     auto ok = SafePath::under("/var/lib/xsprof", "runs/42/events.jsonl");
     CHECK(ok.ok);
@@ -723,6 +839,7 @@ int main() {
     test_json();
     test_event();
     test_privacy();
+    test_privacy_sanitize_event();
     test_safety();
     test_ring_buffer();
     test_proc();

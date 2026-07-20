@@ -35,13 +35,24 @@ TEST_CASE("safety gate authorizes only full audited VM-lab opt-in (planned only)
 }
 
 TEST_CASE("unsafe verbs are refused", "[safety]") {
+    // All 9 unsafe verbs must be refused (fail-closed).
     REQUIRE(is_unsafe_verb("load"));
     REQUIRE(is_unsafe_verb("attach"));
     REQUIRE(is_unsafe_verb("enable"));
     REQUIRE(is_unsafe_verb("mutate"));
     REQUIRE(is_unsafe_verb("apply"));
+    REQUIRE(is_unsafe_verb("sched-ext-attach"));
+    REQUIRE(is_unsafe_verb("setaffinity"));
+    REQUIRE(is_unsafe_verb("setpriority"));
+    REQUIRE(is_unsafe_verb("bind"));
+    // Safe read-only verbs must NOT be refused.
     REQUIRE_FALSE(is_unsafe_verb("preflight"));
+    REQUIRE_FALSE(is_unsafe_verb("capabilities"));
     REQUIRE_FALSE(is_unsafe_verb("advise"));
+    REQUIRE_FALSE(is_unsafe_verb("timeline"));
+    REQUIRE_FALSE(is_unsafe_verb("help"));
+    REQUIRE_FALSE(is_unsafe_verb("version"));
+    REQUIRE_FALSE(is_unsafe_verb(""));
 }
 
 TEST_CASE("safe path confines to the state dir", "[safety]") {
