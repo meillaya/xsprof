@@ -1,4 +1,5 @@
 #include "xsprof/event.hpp"
+#include "xsprof/privacy.hpp"
 
 namespace xsprof {
 
@@ -27,18 +28,24 @@ std::string_view event_kind_name(EventKind k) {
 }
 
 json::Value event_to_json(const RawEvent& e) {
+    // Fail-closed privacy boundary: sanitize a copy so the serialized event
+    // never carries argv, env, or secret material regardless of caller.
+    static const PrivacyFilter pf;
+    RawEvent sanitized = e;
+    sanitize_event(sanitized, pf);
+
     json::Value v = json::Value::make_object();
     v.set("schema", json::Value("xsprof/event/v1"));
-    v.set("event", json::Value(event_kind_name(e.kind)));
-    v.set("ts_ns", json::Value(static_cast<unsigned long long>(e.ts_ns)));
-    v.set("cpu", json::Value(e.cpu));
-    v.set("pid", json::Value(e.pid));
-    v.set("tid", json::Value(e.tid));
-    v.set("a", json::Value(static_cast<unsigned long long>(e.a)));
-    v.set("b", json::Value(static_cast<unsigned long long>(e.b)));
-    v.set("c", json::Value(static_cast<unsigned long long>(e.c)));
-    if (!e.comm.empty()) v.set("comm", json::Value(e.comm));
-    if (!e.detail.empty()) v.set("detail", json::Value(e.detail));
+    v.set("event", json::Value(event_kind_name(sanitized.kind)));
+    v.set("ts_ns", json::Value(static_cast<unsigned long long>(sanitized.ts_ns)));
+    v.set("cpu", json::Value(sanitized.cpu));
+    v.set("pid", json::Value(sanitized.pid));
+    v.set("tid", json::Value(sanitized.tid));
+    v.set("a", json::Value(static_cast<unsigned long long>(sanitized.a)));
+    v.set("b", json::Value(static_cast<unsigned long long>(sanitized.b)));
+    v.set("c", json::Value(static_cast<unsigned long long>(sanitized.c)));
+    if (!sanitized.comm.empty()) v.set("comm", json::Value(sanitized.comm));
+    if (!sanitized.detail.empty()) v.set("detail", json::Value(sanitized.detail));
     // Read-only observation invariant carried over from the Zig DaemonEvent.
     v.set("host_mutation", json::Value(false));
     return v;
