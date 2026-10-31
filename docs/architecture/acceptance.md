@@ -67,11 +67,11 @@ and web smoke.
   over the loaded journal and returns canonical run JSON; a custom scenario
   file picker and result download are wired in JS. `qa/web_lab_smoke.mjs`
   passes against the built wasm, including Chrome Trace generation.
-- Linux VM gate: `zig build check` passed with 105 tests, CLI parity, web
+- Linux VM gate: `zig build check` passed with 106 tests, CLI parity, web
   smoke, and lab smoke.
 
-Remaining M7 work: compare controls, web scenario/file actions, and the final
-acceptance sweep.
+Remaining M7 work: cgroup/pressure panes, web compare, report/snapshot
+exports from the rail, and the final acceptance sweep.
 
 Commands for the productization sweep:
 

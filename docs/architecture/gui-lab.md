@@ -9,7 +9,8 @@ and rail but hides native-only source and capture controls. The wasm client also
 healthy scenario through `web_run_scenario` and reports assertions. L3 A/B
 compare uses a second source store and reports regression counts in the rail.
 The web client now has a custom scenario file picker and downloads the
-canonical run JSON. Remaining: web compare and the final acceptance sweep.
+canonical run JSON. Remaining: cgroup/pressure panes, web compare, report/snapshot exports from
+the rail, and the final acceptance sweep.
 
 ## Goal
 
