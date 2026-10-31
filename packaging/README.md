@@ -22,3 +22,6 @@ the exact missing permission or tracefs state.
 The macOS `.app` runs `ui` through a small launcher. Ad-hoc signing works
 without an Apple account. Developer ID signing and notarization are release
 operations and require external credentials.
+
+`tools/package_deb.sh` builds a Debian package on a host with `dpkg-deb`.
+`packaging/homebrew/` holds formula and cask templates for publication.
