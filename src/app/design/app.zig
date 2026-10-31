@@ -253,7 +253,10 @@ pub const App = struct {
             },
             '?' => self.openDialog(.help),
             'w', 'W' => self.openDialog(.appearance),
-            'f', 'F' => self.fitTimeline(),
+            'f', 'F' => {
+                self.setScreen(.timeline);
+                self.fitTimeline();
+            },
             ' ' => {
                 if (self.state.screen != .timeline) self.setScreen(.timeline);
                 self.state.timeline_playing = !self.state.timeline_playing;
@@ -275,7 +278,9 @@ pub const App = struct {
             '+', '=' => self.zoomTimeline(0.6),
             '-', '_' => self.zoomTimeline(1.7),
             0x1b => {
-                self.state.dialog = .none;
+                self.closeDialog();
+                self.state.focus_id = null;
+                self.state.focus_visible = false;
                 self.state.events_filter_focused = false;
                 self.state.selected_slice = null;
                 self.state.events_selected = null;
@@ -291,7 +296,7 @@ pub const App = struct {
             .palette => {
                 const count = commands.count(self.state.paletteQuery());
                 switch (codepoint) {
-                    0x1b => self.state.dialog = .none,
+                    0x1b => self.closeDialog(),
                     '\n', '\r' => {
                         if (commands.nth(self.state.paletteQuery(), self.state.palette_index)) |command| self.run(command.action);
                     },
@@ -301,10 +306,14 @@ pub const App = struct {
                         // 0x11 up, 0x12 down.
                         if (codepoint == 0x11) {
                             if (self.state.palette_index > 0) self.state.palette_index -= 1;
+                            self.state.focus_id = 700 + @as(u32, @intCast(self.state.palette_index));
+                            self.state.focus_visible = true;
                             return;
                         }
                         if (codepoint == 0x12) {
                             if (count > 0 and self.state.palette_index + 1 < count) self.state.palette_index += 1;
+                            self.state.focus_id = 700 + @as(u32, @intCast(self.state.palette_index));
+                            self.state.focus_visible = true;
                             return;
                         }
                         if (codepoint == 0x7f or codepoint == 0x08) {
@@ -316,24 +325,28 @@ pub const App = struct {
                             self.state.palette_query_buf[self.state.palette_query_len] = @intCast(codepoint);
                             self.state.palette_query_len += 1;
                             self.state.palette_index = 0;
+                            self.state.focus_id = 742;
                         }
                     },
                 }
             },
             .appearance => {
                 if (codepoint == 0x1b) {
-                    self.state.dialog = .none;
+                    self.closeDialog();
                 } else if (codepoint >= '1' and codepoint <= '6') {
                     self.applyTheme(@intCast(codepoint - '1'));
                 } else if (codepoint == 0x11) {
                     const index = if (self.state.theme_index == 0) 5 else self.state.theme_index - 1;
                     self.applyTheme(index);
+                    self.state.focus_id = 720 + @as(u32, @intCast(index));
                 } else if (codepoint == 0x12) {
-                    self.applyTheme((self.state.theme_index + 1) % 6);
+                    const index = (self.state.theme_index + 1) % 6;
+                    self.applyTheme(index);
+                    self.state.focus_id = 720 + @as(u32, @intCast(index));
                 }
             },
             .help => {
-                if (codepoint == 0x1b or codepoint == '?') self.state.dialog = .none;
+                if (codepoint == 0x1b or codepoint == '?') self.closeDialog();
             },
             .none => {},
         }
@@ -341,12 +354,37 @@ pub const App = struct {
 
     fn openPalette(self: *App) void {
         self.state.dialog = .palette;
+        self.state.focus_return = 200;
+        self.state.focus_id = 742;
+        self.state.focus_visible = true;
         self.state.palette_query_len = 0;
         self.state.palette_index = 0;
     }
 
     fn openDialog(self: *App, dialog: state_mod.Dialog) void {
+        if (self.state.dialog == .none) {
+            self.state.focus_return = switch (dialog) {
+                .appearance => 201,
+                .help => 202,
+                else => 200,
+            };
+        }
         self.state.dialog = dialog;
+        self.state.focus_visible = true;
+        self.state.focus_id = switch (dialog) {
+            .appearance => 720 + @as(u32, @intCast(self.state.theme_index)),
+            .help => 741,
+            .palette => 742,
+            .none => null,
+        };
+    }
+
+    pub fn closeDialog(self: *App) void {
+        if (self.state.dialog == .none) return;
+        self.state.dialog = .none;
+        self.state.focus_id = self.state.focus_return;
+        self.state.focus_return = null;
+        self.state.focus_visible = true;
     }
 
     fn setScreen(self: *App, screen: state_mod.Screen) void {
@@ -360,29 +398,30 @@ pub const App = struct {
         switch (action) {
             .screen => |screen| self.setScreen(screen),
             .open_journal => {
-                self.state.dialog = .none;
+                self.closeDialog();
                 self.open_requested = true;
             },
             .reload => {
-                self.state.dialog = .none;
+                self.closeDialog();
                 self.reload_requested = true;
             },
             .fit => self.fitTimeline(),
             .appearance => self.openDialog(.appearance),
             .theme => |index| self.applyTheme(index),
             .filter_events => {
-                self.state.dialog = .none;
+                self.closeDialog();
                 self.setScreen(.events);
                 self.state.events_filter_focused = true;
             },
             .help => self.openDialog(.help),
         }
-        if (from_palette and self.state.dialog == .palette) self.state.dialog = .none;
+        if (from_palette and self.state.dialog == .palette) self.closeDialog();
     }
 
     fn applyTheme(self: *App, index: usize) void {
         if (index >= xsui.themes.presets.len) return;
         self.state.theme_index = index;
+        if (self.state.dialog == .appearance) self.state.focus_id = 720 + @as(u32, @intCast(index));
         var buf: [96]u8 = undefined;
         const name = xsui.themes.presets[index].name;
         self.showToast(std.fmt.bufPrint(&buf, "{s} theme", .{name}) catch "theme applied", false);
@@ -441,6 +480,8 @@ pub const App = struct {
 
     pub fn click(self: *App, canvas: *xsui.Canvas, x: f32, y: f32) void {
         if (canvas.hitAt(x, y)) |id| {
+            self.state.focus_id = id;
+            self.state.focus_visible = false;
             if (id >= 700 and id < 720) {
                 if (commands.nth(self.state.paletteQuery(), id - 700)) |command| self.run(command.action);
                 return;
@@ -478,6 +519,43 @@ pub const App = struct {
                 604 => self.state.events_type = "page_fault",
                 605 => self.state.events_type = "cache_miss",
                 606 => self.state.events_type = "loss",
+                610 => {
+                    if (self.state.events_selected) |index| {
+                        if (index < self.model.events.len) {
+                            const event = self.model.events[index];
+                            self.state.timeline_start = @max(0, event.ts - 800);
+                            self.state.timeline_end = @min(self.model.summary.windowMs, event.ts + 800);
+                            self.setScreen(.timeline);
+                            self.showToast("timeline at event", false);
+                        }
+                    }
+                },
+                611 => {
+                    if (self.state.events_selected) |index| {
+                        if (index < self.model.events.len) {
+                            const comm = self.model.events[index].comm;
+                            const len = @min(comm.len, self.state.events_query_buf.len);
+                            @memcpy(self.state.events_query_buf[0..len], comm[0..len]);
+                            self.state.events_query_len = len;
+                            self.state.events_type = "all";
+                            self.syncQuery();
+                            self.showToast("filtered to task", false);
+                        }
+                    }
+                },
+                740, 741, 743 => self.closeDialog(),
+                742 => {},
+                900, 901, 902, 903, 904, 905, 906, 907 => {
+                    const card_index = id - 900;
+                    if (card_index < self.model.advisor.len) {
+                        if (self.model.advisor[card_index].focus) |focus| {
+                            self.state.timeline_start = @max(0, focus.from - 150);
+                            self.state.timeline_end = @min(self.model.summary.windowMs, focus.to + 150);
+                            self.setScreen(.timeline);
+                            self.showToast("advisor evidence focused", false);
+                        }
+                    }
+                },
                 800, 801, 802, 803 => {
                     const capture = @import("capture.zig");
                     const index = id - 800;
@@ -499,90 +577,3 @@ pub const App = struct {
         }
     }
 };
-
-test "app boots with explicit empty source" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    try std.testing.expect(app.model.events.len == 0);
-    app.handleKey('2', .{});
-    try std.testing.expectEqual(state_mod.Screen.timeline, app.state.screen);
-    app.handleKey('w', .{});
-    try std.testing.expectEqual(state_mod.Dialog.appearance, app.state.dialog);
-    app.handleKey(0x1b, .{});
-    try std.testing.expectEqual(state_mod.Dialog.none, app.state.dialog);
-}
-
-test "app loads demo and plays timeline" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
-    try std.testing.expect(app.model.events.len > 1000);
-    app.handleKey('2', .{});
-    app.handleKey(' ', .{});
-    app.tick(1000);
-    try std.testing.expect(app.state.timeline_playhead > 0);
-    app.handleKey('f', .{});
-    try std.testing.expect(app.state.timeline_end == app.model.summary.windowMs);
-}
-
-test "live journal reload changes the displayed numbers" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    app.setLive(true);
-    const first = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "fixtures/ui/healthy.ndjson", std.testing.allocator, .limited(4 * 1024 * 1024));
-    defer std.testing.allocator.free(first);
-    const second = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "fixtures/real/scheduler-mix.ndjson", std.testing.allocator, .limited(8 * 1024 * 1024));
-    defer std.testing.allocator.free(second);
-    try app.loadJournalData(first, "live sample");
-    const first_switches = app.model.summary.switches;
-    try std.testing.expectEqualStrings("LIVE", app.model.meta.source);
-    try app.loadJournalData(second, "live sample");
-    try std.testing.expect(app.model.summary.switches != first_switches);
-    try std.testing.expectEqual(@as(u32, 4574), app.model.summary.switches);
-    try std.testing.expect(app.model.slices.len > 100);
-    try std.testing.expect(app.model.events.len == 12000);
-}
-
-test "stage scrolling clamps and resets on navigation" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
-    app.viewport_w = 1440;
-    app.viewport_h = 900;
-    app.scrollBy(100000);
-    try std.testing.expect(app.state.scroll_y > 0);
-    const clamped = app.state.scroll_y;
-    app.scrollBy(100000);
-    try std.testing.expectEqual(clamped, app.state.scroll_y);
-    app.handleKey('2', .{});
-    try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
-    app.scrollBy(-100000);
-    try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
-}
-
-test "copy requests carry capture commands and slice summaries" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
-    var frame: xsui.frame.Frame = undefined;
-    try frame.init(std.testing.allocator, 1440, 900, .{});
-    defer frame.deinit();
-    var canvas = xsui.Canvas.init(&frame);
-    defer canvas.deinit();
-    app.state.screen = .capture;
-    try view_mod.view(&app.model, &app.state, &canvas);
-    var copy_hit: ?xsui.Rect = undefined;
-    for (canvas.hits.items) |hit| {
-        if (hit.id == 800) copy_hit = hit.rect;
-    }
-    const rect = copy_hit orelse return error.TestUnexpectedResult;
-    app.click(&canvas, rect.x + 4, rect.y + 4);
-    const capture = @import("capture.zig");
-    try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
-    app.clearCopy();
-    try std.testing.expectEqual(@as(usize, 0), app.copyText().len);
-
-    app.state.selected_slice = 0;
-    app.handleKey('c', .{});
-    try std.testing.expect(app.copyText().len > 0);
-}

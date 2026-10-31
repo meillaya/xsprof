@@ -230,12 +230,25 @@
     "filter": "/",
     "playback": "space",
     "brush": "pointer drag on timeline plot (>4px, >20ms) zooms; minimum 300ms span",
-    "focus": "visible 2px ring; Tab/Shift+Tab traverse; dialogs trap and restore focus",
+    "focus": {
+      "model": "Canvas hit ids in layout order; visible 2px ring with 2px offset",
+      "tab": "Tab/Shift+Tab cycle valid targets; dialogs trap and restore trigger",
+      "activation": "Enter/Space activate the focused target; palette input keeps text keys",
+      "rail": "Arrow Up/Down move between screen tabs while rail is focused",
+      "skip": "web skip link is the first Tab stop and focuses the rail; native uses Tab traversal"
+    },
     "clipboard": {
       "request": "bounded UTF-8 request emitted by App; surfaces consume exactly once",
       "web": "navigator.clipboard with hidden-textarea fallback",
       "macos": "NSPasteboard public.utf8-plain-text",
-      "linux": "pending X11 selection owner"
+      "linux": "X11 CLIPBOARD owner + SelectionRequest/TARGETS handler (compile-verified)"
+    },
+    "responsive": {
+      "1320": "two-column grid-3",
+      "1140": "compact brand; stacked timeline/events",
+      "1024": "bottom rail; no keybar; single capture/advisor; full-width grid",
+      "780": "compact topbar; one-column overview; mobile thread/ledger rows",
+      "420": "hidden source chip; single-column theme grid; 22/28px stat values"
     }
   },
   "data": {

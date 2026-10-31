@@ -6,6 +6,8 @@ const std = @import("std");
 const xsui = @import("xsui");
 const app_mod = @import("app.zig");
 const App = app_mod.App;
+const view_mod = @import("view.zig");
+const state_mod = @import("state.zig");
 
 pub const PlotMetrics = struct {
     x0: f32,
@@ -43,9 +45,32 @@ pub fn pointerDown(app: *App, x: f32, y: f32) void {
 }
 
 pub fn pointerMove(app: *App, x: f32, y: f32) void {
-    _ = y;
-    if (!app.state.brush_dragging) return;
     const m = plotMetrics(app) orelse return;
+    if (!app.state.brush_dragging) {
+        if (app.state.screen != .timeline or x < m.x0 or x > m.x1 or y < m.y0 + 28 or y > m.y1) {
+            app.state.hover_slice = null;
+            return;
+        }
+        const ms = m.start + @as(f64, @floatCast((x - m.x0) / (m.x1 - m.x0))) * m.span;
+        const cpu_band = m.y0 + 29;
+        const cpu_index: ?u8 = if (y >= cpu_band and y < cpu_band + 4 * 40)
+            @intFromFloat(@floor((y - cpu_band) / 40))
+        else
+            null;
+        app.state.hover_slice = null;
+        for (app.model.slices, 0..) |slice, index| {
+            if (cpu_index) |cpu| {
+                if (slice.cpu != cpu) continue;
+            }
+            if (ms >= slice.start and ms <= slice.start + slice.dur) {
+                app.state.hover_slice = @intCast(index);
+                app.state.hover_x = x;
+                app.state.hover_y = y;
+                break;
+            }
+        }
+        return;
+    }
     if (@abs(x - app.state.brush_start_x) <= 4) return;
     const clamped = std.math.clamp(x, m.x0, m.x1);
     const ms = m.start + @as(f64, @floatCast((clamped - m.x0) / (m.x1 - m.x0))) * m.span;
@@ -88,7 +113,6 @@ test "timeline brush zooms to the dragged range" {
     app.viewport_w = 1440;
     app.viewport_h = 900;
     app.state.screen = .timeline;
-    const view_mod = @import("view.zig");
     var frame: xsui.frame.Frame = undefined;
     try frame.init(std.testing.allocator, 1440, 900, .{});
     defer frame.deinit();
@@ -101,4 +125,127 @@ test "timeline brush zooms to the dragged range" {
     pointerUp(&app, &canvas, 700, 200);
     try std.testing.expect(app.state.timeline_end > app.state.timeline_start);
     try std.testing.expect(app.state.timeline_end - app.state.timeline_start < app.model.summary.windowMs);
+}
+
+test "copy requests carry capture commands and slice summaries" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.frame.Frame = undefined;
+    try frame.init(std.testing.allocator, 1440, 900, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+    app.state.screen = .capture;
+    try view_mod.view(&app.model, &app.state, &canvas);
+    var copy_hit: ?xsui.Rect = undefined;
+    for (canvas.hits.items) |hit| {
+        if (hit.id == 800) copy_hit = hit.rect;
+    }
+    const rect = copy_hit orelse return error.TestUnexpectedResult;
+    app.click(&canvas, rect.x + 4, rect.y + 4);
+    const capture = @import("capture.zig");
+    try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
+    app.clearCopy();
+    try std.testing.expectEqual(@as(usize, 0), app.copyText().len);
+
+    app.state.selected_slice = 0;
+    app.handleKey('c', .{});
+    try std.testing.expect(app.copyText().len > 0);
+}
+
+test "stage scrolling clamps and resets on navigation" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    app.viewport_w = 1440;
+    app.viewport_h = 900;
+    app.scrollBy(100000);
+    try std.testing.expect(app.state.scroll_y > 0);
+    const clamped = app.state.scroll_y;
+    app.scrollBy(100000);
+    try std.testing.expectEqual(clamped, app.state.scroll_y);
+    app.handleKey('2', .{});
+    try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
+    app.scrollBy(-100000);
+    try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
+}
+
+test "app boots with explicit empty source" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try std.testing.expect(app.model.events.len == 0);
+    app.handleKey('2', .{});
+    try std.testing.expectEqual(state_mod.Screen.timeline, app.state.screen);
+    app.handleKey('w', .{});
+    try std.testing.expectEqual(state_mod.Dialog.appearance, app.state.dialog);
+    app.handleKey(0x1b, .{});
+    try std.testing.expectEqual(state_mod.Dialog.none, app.state.dialog);
+}
+
+test "app loads demo and plays timeline" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    try std.testing.expect(app.model.events.len > 1000);
+    app.handleKey('2', .{});
+    app.handleKey(' ', .{});
+    app.tick(1000);
+    try std.testing.expect(app.state.timeline_playhead > 0);
+    app.handleKey('f', .{});
+    try std.testing.expect(app.state.timeline_end == app.model.summary.windowMs);
+}
+
+test "live journal reload changes the displayed numbers" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    app.setLive(true);
+    const first = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "fixtures/ui/healthy.ndjson", std.testing.allocator, .limited(4 * 1024 * 1024));
+    defer std.testing.allocator.free(first);
+    const second = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "fixtures/real/scheduler-mix.ndjson", std.testing.allocator, .limited(8 * 1024 * 1024));
+    defer std.testing.allocator.free(second);
+    try app.loadJournalData(first, "live sample");
+    const first_switches = app.model.summary.switches;
+    try std.testing.expectEqualStrings("LIVE", app.model.meta.source);
+    try app.loadJournalData(second, "live sample");
+    try std.testing.expect(app.model.summary.switches != first_switches);
+    try std.testing.expectEqual(@as(u32, 4574), app.model.summary.switches);
+    try std.testing.expect(app.model.slices.len > 100);
+    try std.testing.expect(app.model.events.len == 12000);
+}
+
+test "advisor evidence and event detail actions switch to timeline" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.frame.Frame = undefined;
+    try frame.init(std.testing.allocator, 1440, 900, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+
+    app.state.screen = .advisor;
+    try view_mod.view(&app.model, &app.state, &canvas);
+    var evidence: ?xsui.Rect = null;
+    for (canvas.hits.items) |hit| {
+        if (hit.id >= 900 and hit.id < 908) evidence = hit.rect;
+    }
+    if (evidence) |rect| {
+        app.click(&canvas, rect.x + 4, rect.y + 4);
+        try std.testing.expectEqual(state_mod.Screen.timeline, app.state.screen);
+        try std.testing.expect(app.state.timeline_end > app.state.timeline_start);
+    }
+
+    app.state.screen = .events;
+    app.state.events_selected = 0;
+    app.state.events_filter_focused = false;
+    canvas.resetHits();
+    try view_mod.view(&app.model, &app.state, &canvas);
+    var timeline_action: ?xsui.Rect = null;
+    for (canvas.hits.items) |hit| {
+        if (hit.id == 610) timeline_action = hit.rect;
+    }
+    try std.testing.expect(timeline_action != null);
+    app.click(&canvas, timeline_action.?.x + 4, timeline_action.?.y + 4);
+    try std.testing.expectEqual(state_mod.Screen.timeline, app.state.screen);
 }

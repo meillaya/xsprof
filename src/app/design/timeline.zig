@@ -42,6 +42,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         try drawInspector(model, state, canvas, th, .{ .x = x, .y = plot_y + 350, .w = content_w, .h = 338 });
         try drawLegend(model, state, canvas, th, x, plot_y + 696, content_w);
         try drawFoot(model, state, canvas, th, x, plot_y + 696 + 15.75 + 12, content_w);
+        try drawHover(model, state, canvas, th);
         return;
     }
     const inspector_w: f32 = 286;
@@ -50,6 +51,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     try drawInspector(model, state, canvas, th, .{ .x = x + plot_w + 12, .y = plot_y, .w = inspector_w, .h = 338 });
     try drawLegend(model, state, canvas, th, x, plot_y + 338 + 8, content_w);
     try drawFoot(model, state, canvas, th, x, plot_y + 338 + 8 + 15.75 + 12, content_w);
+    try drawHover(model, state, canvas, th);
 }
 
 fn drawHead(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, x: f32, y: f32, w: f32) !void {
@@ -66,7 +68,7 @@ fn drawHead(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     }) catch "window";
     try label(canvas, x, y, window_text, eyebrow);
     var h1 = style(common.text_13, th.text, .bold);
-    h1.size = 20;
+    h1.size = if (w <= 780) 18 else 20;
     h1.line_height = 1.1;
     h1.tracking = -0.4;
     try label(canvas, x, y + 18.75, "Timeline", h1);
@@ -236,6 +238,23 @@ fn stepFor(visible: f64) f64 {
     return power * 10;
 }
 
+fn drawHover(model: *const Model, state: *const State, canvas: *Canvas, th: Theme) !void {
+    const index = state.hover_slice orelse return;
+    if (index >= model.slices.len) return;
+    const slice = model.slices[index];
+    var name_buf: [64]u8 = undefined;
+    const name = std.fmt.bufPrint(&name_buf, "{s}  pid {d}", .{ slice.comm, slice.pid }) catch slice.comm;
+    var detail_buf: [64]u8 = undefined;
+    const detail = std.fmt.bufPrint(&detail_buf, "cpu{d} · {d:.2} ms", .{ slice.cpu, slice.dur }) catch "";
+    const width: f32 = @max(measure(canvas, name, style(common.text_11, th.text, .bold)), measure(canvas, detail, style(common.text_10, th.dim, .regular))) + 20;
+    var tx = state.hover_x + 14;
+    if (tx + width > @as(f32, @floatFromInt(canvas.frame.width)) - 12) tx = state.hover_x - width - 14;
+    const ty = @max(8.0, state.hover_y - 44);
+    try canvas.rounded(.{ .x = tx, .y = ty, .w = width, .h = 38 }, 4, th.raised2, th.line_strong, 1);
+    try label(canvas, tx + 10, ty + 5, name, style(common.text_11, th.text, .bold));
+    try label(canvas, tx + 10, ty + 21, detail, style(common.text_10, th.dim, .regular));
+}
+
 fn drawInspector(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
     try borderLine(canvas, rect.x + 1, rect.y + 36, rect.w - 2, th.line);
@@ -252,8 +271,13 @@ fn drawInspector(model: *const Model, state: *const State, canvas: *Canvas, th: 
             try label(canvas, rect.x + 14, rect.y + 48, slice.comm, style(common.text_13, th.text, .bold));
             try label(canvas, rect.x + 14, rect.y + 68, std.fmt.bufPrint(&buf, "cpu{d} · pid {d}", .{ slice.cpu, slice.pid }) catch "", style(common.text_11, th.dim, .regular));
             var db: [32]u8 = undefined;
-            try label(canvas, rect.x + 14, rect.y + 96, "duration", style(common.text_11, th.dim, .regular));
-            try labelRight(canvas, rect.x + rect.w - 14, rect.y + 96, format.ms(&db, slice.dur, 2), style(common.text_11, th.text, .regular));
+            var sb: [32]u8 = undefined;
+            try label(canvas, rect.x + 14, rect.y + 96, "start", style(common.text_11, th.dim, .regular));
+            try labelRight(canvas, rect.x + rect.w - 14, rect.y + 96, format.secs(&sb, slice.start, 3), style(common.text_11, th.text, .regular));
+            try label(canvas, rect.x + 14, rect.y + 118, "duration", style(common.text_11, th.dim, .regular));
+            try labelRight(canvas, rect.x + rect.w - 14, rect.y + 118, format.ms(&db, slice.dur, 2), style(common.text_11, th.text, .regular));
+            try label(canvas, rect.x + 14, rect.y + 140, "previous", style(common.text_11, th.dim, .regular));
+            try labelRight(canvas, rect.x + rect.w - 14, rect.y + 140, if (slice.prev.len > 0) slice.prev else "—", style(common.text_11, th.muted, .regular));
             return;
         }
     }

@@ -160,11 +160,12 @@ pub fn build(b: *std.Build) void {
         "web_ui_load_journal",     "web_ui_load_demo",        "web_ui_load_recorder",
         "web_ui_frame",            "web_ui_instances_ptr",    "web_ui_instance_stride",
         "web_ui_atlas_ptr",        "web_ui_atlas_size",       "web_ui_atlas_version",
-        "web_ui_key",              "web_ui_click",            "web_ui_tick",
-        "web_ui_pointer_down",     "web_ui_pointer_move",     "web_ui_pointer_up",
-        "web_ui_copy_ptr",         "web_ui_copy_len",         "web_ui_copy_clear",
-        "web_ui_set_screen",       "web_ui_set_theme",        "web_ui_set_live",
-        "web_ui_take_open",        "web_ui_take_reload",      "web_ui_loaded",
+        "web_ui_key",              "web_ui_focus_rail",       "web_ui_click",
+        "web_ui_tick",             "web_ui_pointer_down",     "web_ui_pointer_move",
+        "web_ui_pointer_up",       "web_ui_copy_ptr",         "web_ui_copy_len",
+        "web_ui_copy_clear",       "web_ui_set_screen",       "web_ui_set_theme",
+        "web_ui_set_live",         "web_ui_take_open",        "web_ui_take_reload",
+        "web_ui_loaded",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;

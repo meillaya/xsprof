@@ -423,6 +423,10 @@ export fn web_ui_atlas_version() u32 {
     return console.atlasVersion();
 }
 
+export fn web_ui_focus_rail() void {
+    console.focusRail();
+}
+
 export fn web_ui_key(codepoint: u32, meta: u32, ctrl: u32, shift: u32) void {
     console.key(codepoint, meta, ctrl, shift);
 }
@@ -445,6 +449,10 @@ export fn web_ui_pointer_down(x: f32, y: f32) void {
 
 export fn web_ui_pointer_move(x: f32, y: f32) void {
     console.pointerMove(x, y);
+}
+
+export fn web_ui_pointer_leave() void {
+    console.pointerLeave();
 }
 
 export fn web_ui_pointer_up(x: f32, y: f32) void {

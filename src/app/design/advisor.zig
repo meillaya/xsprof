@@ -35,7 +35,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         std.fmt.bufPrint(&eyebrow_buf, "{d} RULES  ·  EVIDENCE-LINKED", .{model.advisor.len}) catch "RULES  ·  EVIDENCE-LINKED";
     try label(canvas, x, y + 9.75, eyebrow_text, eyebrow);
     var h1 = style(common.text_13, th.text, .bold);
-    h1.size = 20;
+    h1.size = if (width <= 780) 18 else 20;
     h1.line_height = 1.1;
     h1.tracking = -0.4;
     try label(canvas, x, y + 28.5, "Advisor", h1);
@@ -48,9 +48,9 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     if (width <= 1024) {
         var cy = grid_y;
         var single_shown: usize = 0;
-        for (model.advisor) |card| {
+        for (model.advisor, 0..) |card, card_index| {
             if (!matches(state.advisor_filter, card.severity)) continue;
-            try drawCard(canvas, th, card, .{ .x = x, .y = cy, .w = w, .h = 225.72 });
+            try drawCard(canvas, th, card, .{ .x = x, .y = cy, .w = w, .h = 225.72 }, card_index);
             cy += 225.72 + gap;
             single_shown += 1;
         }
@@ -70,7 +70,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         row_y += row_heights[i] + gap;
     }
     var shown: usize = 0;
-    for (model.advisor) |card| {
+    for (model.advisor, 0..) |card, card_index| {
         if (!matches(state.advisor_filter, card.severity)) continue;
         const col = shown % 2;
         const row = shown / 2;
@@ -80,7 +80,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
                 .y = row_offsets[row],
                 .w = card_w,
                 .h = row_heights[row],
-            });
+            }, card_index);
         }
         shown += 1;
     }
@@ -128,7 +128,7 @@ fn drawFilters(model: *const Model, state: *const State, canvas: *Canvas, th: Th
     }
 }
 
-fn drawCard(canvas: *Canvas, th: Theme, card: model_mod.AdvisorCard, rect: Rect) !void {
+fn drawCard(canvas: *Canvas, th: Theme, card: model_mod.AdvisorCard, rect: Rect, card_index: usize) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
     const left = rect.x + 13;
     const content_w = rect.w - 32;
@@ -192,7 +192,9 @@ fn drawCard(canvas: *Canvas, th: Theme, card: model_mod.AdvisorCard, rect: Rect)
     _ = try canvas.textIn(.{ .x = left, .y = rec_y + 9, .w = content_w, .h = rec_layout.height() + 2 }, rec_style, rec_text);
     if (card.focus != null) {
         const button_y = rec_y + 9 + rec_layout.height() + 9;
-        try canvas.rounded(.{ .x = left, .y = button_y, .w = 121, .h = 30 }, 4, th.raised, th.line_strong, 1);
+        const button = Rect{ .x = left, .y = button_y, .w = 121, .h = 30 };
+        try canvas.rounded(button, 4, th.raised, th.line_strong, 1);
         try label(canvas, left + 10, button_y + 6.5, "Show evidence →", style(common.text_11, th.text, .regular));
+        canvas.hit(900 + @as(u32, @intCast(card_index)), button);
     }
 }

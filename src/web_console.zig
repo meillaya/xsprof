@@ -7,6 +7,7 @@ const xsui = @import("xsui");
 const console_app = @import("app/design/app.zig");
 const state_mod = @import("app/design/state.zig");
 const pointer_mod = @import("app/design/pointer.zig");
+const focus_mod = @import("app/design/focus.zig");
 
 const gpa = std.heap.wasm_allocator;
 
@@ -130,8 +131,17 @@ pub fn atlasVersion() u32 {
     return frame_value.atlas.version;
 }
 
+pub fn focusRail() void {
+    if (!ready) return;
+    app.state.focus_id = 100 + @as(u32, @backingInt(app.state.screen));
+    app.state.focus_visible = true;
+}
+
 pub fn key(codepoint: u32, meta: u32, ctrl: u32, shift: u32) void {
     if (!ensure()) return;
+    if (canvas_ptr) |canvas| {
+        if (focus_mod.key(&app, canvas, @intCast(codepoint), shift != 0)) return;
+    }
     app.handleKey(@intCast(codepoint), .{
         .meta = meta != 0,
         .ctrl = ctrl != 0,
@@ -154,6 +164,10 @@ pub fn pointerDown(x: f32, y: f32) void {
 
 pub fn pointerMove(x: f32, y: f32) void {
     if (ready) pointer_mod.pointerMove(&app, x, y);
+}
+
+pub fn pointerLeave() void {
+    if (ready) app.state.hover_slice = null;
 }
 
 pub fn pointerUp(x: f32, y: f32) void {
