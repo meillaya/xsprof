@@ -125,8 +125,8 @@ Status is updated only when a phase gate actually passes.
   stable `EventStore`, incremental `Index` proven against a full Session build.
 - **M1 core landed:** foreground recorder daemon, rotating segments, atomic
   manifest, retention, `capture --last`, ANSI `watch`, `doctor`, opt-in systemd
-  unit, manifest and doctor schemas. Remaining: per-second metrics sidecar and
-  a service-level smoke test.
+  unit, manifest and doctor schemas, and restart recovery markers. Remaining:
+  per-second metrics sidecar and a service-level smoke test.
 - **M2 in progress:** metrics index, Overview p95 panel, web pointer input,
   timeline click selection and wheel zoom, selected-task detail, event
   scrolling, local file open, web pause/follow, and event click-to-timeline.
