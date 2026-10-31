@@ -35,11 +35,38 @@ sudo xsprof bpf-gate --json
 The BPF gate returns `READY` with `attached:true` and `host_mutation:false`.
 Every host without the VM marker refuses before any BPF syscall.
 
+## Productization acceptance
+
+| Milestone | Evidence |
+|---|---|
+| M0 | Long-lived capture, per-batch arenas, stable store, incremental index parity tests. |
+| M1 | `qa/service_smoke.sh` passed in a disposable Fedora 44 aarch64 VM: 8 segments, 315,929 extracted lines, single-writer lock refused a second daemon, SIGKILL recovery kept earlier segments and emitted `capture_interrupted`. CAP_PERFMON at `perf_event_paranoid=2` is recognized. |
+| M2 | Combined `comm`/`pid`/`kind`/`loss` filters, filter bar, timeline task/pid filtering, native/web key mapping, deterministic app tests. |
+| M3 | Metrics/compare/report/CI-budget tests and schemas. |
+| M4 | Recorder-spool `serve --live-dir`, incremental WASM index, line-aligned bounded store. |
+| M5 | Universal arm64+x86_64 app bundle and hidden smoke; release workflow and notarization/tap tooling; external Developer ID credentials absent, so public notarization/tap publication is not claimed. |
+| M6 | PSI and cgroup v2 probes exercised in the VM; daemon overhead result showed ~2.7 MB RSS after 305k events; deterministic fuzz step; real 12,000-event multi-process fixture. |
+
+Commands for the productization sweep:
+
+```sh
+./tools/zig build check
+./tools/zig build fuzz
+./tools/zig build service-smoke        # Linux root, disposable VM
+XSPROF_UNIVERSAL=1 sh tools/package_macos_app.sh
+XSPROF_TARGET=aarch64-linux-gnu XSPROF_OS=linux XSPROF_ARCH=aarch64 sh tools/package.sh
+XSPROF_TARGET=x86_64-linux-gnu XSPROF_OS=linux XSPROF_ARCH=x86_64 sh tools/package.sh
+```
+
 ## Known limits
 
-- Native windows are fixed-size and keyboard-only; no a11y tree or pointer
-  hit-testing yet.
+- Native windows are fixed-size; pointer and scroll input exist, but there is
+  no accessibility tree yet.
 - Native live streaming is web-only; native surfaces consume replay/gallery.
 - The BPF lane is a no-op load/attach gate; perf remains the event data path.
 - PNG output currently uses stored deflate blocks (large but valid).
 - Web screenshots use developer Playwright; it is not a shipped dependency.
+- Developer ID notarization and the public Homebrew tap require external Apple
+  and tap credentials; the unsigned local bundle is ad-hoc signed.
+- cgroup attribution is a bounded live `/proc` snapshot; it is not historical
+  event attribution for an old journal.

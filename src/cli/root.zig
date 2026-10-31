@@ -21,6 +21,8 @@ const recorder_cmd = @import("recorder_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
 const watch_cmd = @import("watch_cmd.zig");
 const analysis_cmd = @import("analysis_cmd.zig");
+const observe_cmd = @import("observe_cmd.zig");
+const help = @import("help.zig");
 
 const Writer = std.Io.Writer;
 
@@ -43,45 +45,13 @@ const known_commands = [_][]const u8{
     "watch",
     "metrics",
     "compare",
+    "pressure",
+    "cgroup",
 };
 
 const refusal_reason =
     "unsafe verb is disabled in the host operator (fail-closed); " ++
     "mutation is VM-lab-only with audit-id + rollback-id + lab marker";
-
-fn writeHelp(w: *Writer) Writer.Error!void {
-    try w.writeAll(
-        \\xsprof, read-only Linux scheduler & memory profiler
-        \\USAGE:
-        \\  xsprof <command> [options]
-        \\COMMANDS (read-only, fail-closed):
-        \\  preflight --json        Read-only host facts + capability probes
-        \\  capabilities --json     Probe perf/tracepoint/BPF/PMU/sched_ext
-        \\  advise --json|--md      Performance Advisor report
-        \\  timeline --input <f> [--window start:end] [--chunk-size N]
-        \\                          Chrome Trace timeline from a JSONL journal
-        \\  record --duration <ms> [--output <f>]
-        \\                          Live read-only perf capture (SKIP if unprivileged)
-        \\  serve [--journal <f>]   Read-only local web frontend
-        \\  snapshot [--replay <f>] Headless PNG snapshot of the profiler UI
-        \\  ui [--replay <f>]       Native profiler UI
-        \\  bpf-gate --json         VM-marker-gated no-op BPF gate
-        \\  daemon [--dir <d>]      Foreground Linux recorder
-        \\  capture --last <dur>    Extract a recorder window
-        \\  doctor --json           Read-only environment diagnostics
-        \\  demo                    Serve the bundled capture
-        \\  watch [--dir <d>]       ANSI live recorder view
-        \\  metrics --input <f>     Scheduler metrics as JSON
-        \\  compare --base --candidate  Regression report
-        \\  version                 Print version
-        \\  help                    Print this help
-        \\REFUSED (unsafe verbs; non-zero exit on host by design):
-        \\  load attach enable mutate apply sched-ext-attach setaffinity setpriority bind
-        \\SAFETY:
-        \\  Observation is read-only. Every record carries host_mutation=false.
-        \\  Runtime samples never expose argv, environment, secrets, or tokens.
-    );
-}
 
 fn writeRefusal(w: *Writer, verb: []const u8) Writer.Error!void {
     try json.write(w, .{ .object = &.{
@@ -387,7 +357,12 @@ pub fn runWith(
     err: *Writer,
 ) !u8 {
     if (args.len < 2) {
-        try writeHelp(out);
+        // The signed app bundle launches the binary directly and asks for the
+        // native UI through LSEnvironment instead of a shell wrapper.
+        if (std.c.getenv("XSPROF_APP_MODE") != null) {
+            return render_cmd.cmdUi(io, allocator, &.{}, out, err);
+        }
+        try help.writeHelp(out);
         return 0;
     }
 
@@ -395,7 +370,7 @@ pub fn runWith(
     if (std.mem.eql(u8, cmd, "help") or std.mem.eql(u8, cmd, "--help") or
         std.mem.eql(u8, cmd, "-h"))
     {
-        try writeHelp(out);
+        try help.writeHelp(out);
         return 0;
     }
     if (std.mem.eql(u8, cmd, "version") or std.mem.eql(u8, cmd, "--version")) {
@@ -453,6 +428,12 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "compare")) {
         return analysis_cmd.cmdCompare(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "pressure")) {
+        return observe_cmd.cmdPressure(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "cgroup")) {
+        return observe_cmd.cmdCgroup(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

@@ -59,6 +59,20 @@ missing, corrupt, or trimmed history. It never fills gaps with zeroes.
 shows CPU busy/idle, switches, loss, and tasks by p95 wakeup-to-run latency.
 `--once` prints one frame and exits.
 
+## Service-level smoke
+
+`qa/service_smoke.sh` runs as root on a disposable Linux VM with systemd. It
+starts a transient unit with the packaged service's user, capability set,
+read-only paths, and state directory; records a bounded window; checks the
+single-writer lock; extracts with `capture --last`; SIGKILLs a session; and
+verifies restart recovery keeps the earlier segments. It never lowers
+`perf_event_paranoid` or changes tracefs policy. It requires `doctor` to report
+`perf` READY through `CAP_PERFMON`.
+
+```sh
+./tools/zig build service-smoke    # Linux host, run as root
+```
+
 ## Diagnose
 
 ```sh

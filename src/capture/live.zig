@@ -59,7 +59,8 @@ pub fn tracefsRoot(io: std.Io) ?[]const u8 {
             "{s}/events/sched/sched_switch/format",
             .{base},
         ) catch continue;
-        std.Io.Dir.accessAbsolute(io, path, .{}) catch continue;
+        const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch continue;
+        file.close(io);
         return base;
     }
     return null;
@@ -71,12 +72,13 @@ fn probeLinux(io: std.Io, allocator: std.mem.Allocator) !Result {
         return .{ .state = .SKIP, .reason = "perf_event_paranoid unreadable" };
     }
     const paranoid = std.fmt.parseInt(i64, std.mem.trim(u8, paranoid_text.?, " \t\r\n"), 10) catch 99;
-    if (paranoid > 1) {
+    const perfmon = proc.effectiveCapability(io, allocator, proc.cap_perfmon);
+    if (paranoid > 1 and !perfmon) {
         return .{
             .state = .SKIP,
             .reason = try std.fmt.allocPrint(
                 allocator,
-                "perf_event_paranoid={d} (need CAP_PERFMON or paranoid<=1; fail-closed SKIP)",
+                "perf_event_paranoid={d}; no CAP_PERFMON (fail-closed SKIP)",
                 .{paranoid},
             ),
         };
@@ -84,7 +86,13 @@ fn probeLinux(io: std.Io, allocator: std.mem.Allocator) !Result {
     if (tracefsRoot(io) == null) {
         return .{ .state = .REFUSE, .reason = "tracefs sched events unreadable" };
     }
-    return .{ .state = .READY, .reason = "sched tracepoints + perf_event_paranoid<=1" };
+    return .{
+        .state = .READY,
+        .reason = if (paranoid <= 1)
+            "sched tracepoints + perf_event_paranoid<=1"
+        else
+            "sched tracepoints + CAP_PERFMON",
+    };
 }
 
 const RingKind = enum { switch_, wakeup, migrate, faults };

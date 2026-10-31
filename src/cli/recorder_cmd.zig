@@ -80,13 +80,20 @@ pub fn cmdDaemon(
     };
     try json.write(out, .{ .object = &.{
         .{ .key = "bytes", .value = .{ .unsigned = result.bytes } },
+        .{ .key = "bytes_per_sec", .value = .{ .unsigned = result.overhead.bytes_per_sec } },
+        .{ .key = "cpu_ms", .value = .{ .unsigned = result.overhead.cpu_ms } },
         .{ .key = "dir", .value = .{ .string = result.dir } },
         .{ .key = "events", .value = .{ .unsigned = result.events } },
+        .{ .key = "events_per_sec", .value = .{ .unsigned = result.overhead.events_per_sec } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
+        .{ .key = "overhead_available", .value = .{ .boolean = result.overhead.available } },
+        .{ .key = "overhead_bp", .value = .{ .unsigned = result.overhead.overhead_bp } },
         .{ .key = "reason", .value = .{ .string = result.reason } },
+        .{ .key = "rss_kb", .value = .{ .unsigned = result.overhead.rss_kb } },
         .{ .key = "schema", .value = .{ .string = "xsprof/recorder-result/v1" } },
         .{ .key = "session_id", .value = .{ .string = result.session_id } },
         .{ .key = "state", .value = .{ .string = @tagName(result.state) } },
+        .{ .key = "wall_ms", .value = .{ .unsigned = result.overhead.wall_ms } },
     } });
     try out.writeByte('\n');
     return if (result.state == .READY) 0 else 1;

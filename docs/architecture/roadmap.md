@@ -12,7 +12,12 @@ Status is updated only when a phase gate actually passes.
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | **complete** |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | **complete** |
-| M1 | Flight recorder: daemon, segments, retention, `capture --last`, `watch`, `doctor`, systemd unit | in progress |
+| M1 | Flight recorder: daemon, segments, retention, `capture --last`, `watch`, `doctor`, systemd unit | **complete** |
+| M2 | Interaction: metrics index, pointer/scroll, filters, selections, live controls | **complete** |
+| M3 | Analysis: metrics, compare, reports, CI budget | **complete (first slice)** |
+| M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
+| M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; external credentials pending** |
+| M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
 
 ## P7 gate (passed)
 
@@ -123,22 +128,35 @@ Status is updated only when a phase gate actually passes.
 
 - **M0 complete:** long-lived `Capture` with per-batch arenas, `recordStream`,
   stable `EventStore`, incremental `Index` proven against a full Session build.
-- **M1 core landed:** foreground recorder daemon, rotating segments, atomic
+- **M1 complete:** foreground recorder daemon, rotating segments, atomic
   manifest, retention, `capture --last`, ANSI `watch`, `doctor`, opt-in systemd
-  unit, manifest and doctor schemas, restart recovery markers, and
-  per-segment metrics sidecars. Remaining: a service-level smoke test.
-- **M2 in progress:** metrics index, Overview p95 panel, web pointer input,
+  unit, manifest/doctor schemas, restart recovery markers, per-segment metrics
+  sidecars, and `qa/service_smoke.sh`. The service smoke starts a transient
+  unit with the packaged capability set, verifies the single-writer lock,
+  extracts a window, SIGKILLs a session, and verifies restart recovery without
+  discarding history.
+- **M2 complete:** metrics index, Overview p95 panel, web pointer input,
   timeline click selection and wheel zoom, selected-task detail, event
-  scrolling, local file open, web pause/follow, event click-to-timeline, and
-  native macOS/X11 pointer and scroll input, timeline crosshair hover, and
-  event-row hover, and selected-task timeline filtering. Remaining: richer
-  filter combinations.
+  scrolling, local file open, web pause/follow, event click-to-timeline,
+  native macOS/X11 pointer and scroll input, timeline crosshair hover,
+  event-row hover, and combined filters (`c` comm, `P` pid, `k` kind, `l`
+  loss/refusal, `x` clear). The timeline applies task/pid constraints; the
+  ledger applies all four.
 - **M3 complete for the first slice:** `metrics`, `compare`, JSON/Markdown/
   self-contained HTML reports, `--fail-on wait.p95`, schemas, CI guide.
 - **M4 complete:** one long-lived capture, recorder-spool tailing with
   `--live-dir`, line-aligned bounded store, incremental WASM store/index,
   aggregated loss markers, and pause/follow controls.
-- **M5 pending:** release artifacts, macOS app bundle, Linux packages,
-  Homebrew templates, `demo`, first-run flow.
-- **M6 pending:** presets, cgroup attribution, PSI, overhead meter, fuzz,
-  real workload fixtures.
+- **M5 tooling complete:** release CI (`.github/workflows/release.yml`),
+  universal macOS bundle, Developer ID signing/notarization/stapling script,
+  Homebrew formula/cask renderer and tap update job. Actual Developer ID
+  notarization and public tap publication require an Apple Developer ID
+  certificate plus `APPLE_*`/`HOMEBREW_TAP_TOKEN` secrets that are not in the
+  repository. The workflow falls back to an ad-hoc-signed app and never
+  labels it notarized.
+- **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
+  PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
+  parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
+  (`fixtures/real/scheduler-mix.ndjson`). The overhead work also fixed an
+  unbounded CLI-arena leak in the long-lived daemon: RSS is now ~2.5 MB after
+  hundreds of thousands of events instead of growing to gigabytes.

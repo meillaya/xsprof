@@ -25,14 +25,33 @@ systemd unit. The unit is installed but not enabled.
 
 ## Homebrew
 
-`packaging/homebrew/xsprof.rb` and `xsprof-app.rb` are publication templates.
-Replace the version, URL, and SHA-256 values before adding them to a tap.
+The release workflow renders `Formula/xsprof.rb` and `Casks/xsprof-app.rb` from
+the templates in `packaging/homebrew/` and can push them to
+`meillaya/homebrew-xsprof` when `HOMEBREW_TAP_TOKEN` is configured. The formula
+is Linux-only; the cask is published only after a notarized app exists.
+
+```sh
+brew tap meillaya/xsprof
+brew install xsprof          # Linux arm64/x86_64 tarball
+```
+
+`tools/update_homebrew_tap.sh` can render into any tap checkout with
+`--dry-run` for review.
 
 ## macOS app
 
-Unzip `Xsprof-<version>-macos.zip` and open `Xsprof.app`. The bundle is
-ad-hoc-signed. Developer ID signing and notarization are separate release
-steps.
+Unzip `Xsprof-<version>-macos.zip` and open `Xsprof.app`. Release builds are
+universal (arm64 + x86_64). `tools/package_macos_app.sh` ad-hoc-signs locally;
+setting `XSPROF_SIGN_IDENTITY` and `XSPROF_NOTARIZE=1` performs Developer ID
+signing, notarization, and stapling through `tools/notarize_macos.sh`.
+
+## Release CI
+
+`.github/workflows/release.yml` builds Linux arm64/x86_64 tarballs and the
+macOS app when a `v*` tag is pushed (or from a manual dispatch). It creates the
+GitHub release and updates the tap when the optional signing and tap secrets
+are present. Missing Apple credentials produce an ad-hoc-signed, non-notarized
+artifact; the workflow never substitutes a fake signature.
 
 ## Verify
 

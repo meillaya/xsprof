@@ -56,18 +56,26 @@ xsprof capabilities --json
 xsprof advise --json|--md
 xsprof timeline --input journal.jsonl [--window start:end] [--chunk-size N]
 xsprof record --duration ms [--output journal.jsonl]
-xsprof serve [--journal journal.jsonl] [--live] [--live-stride N]
+xsprof serve [--journal journal.jsonl] [--live] [--live-dir DIR] [--live-stride N]
 xsprof snapshot [--replay journal.jsonl]
 xsprof daemon --foreground --dir /var/lib/xsprof
 xsprof capture --last 5m --dir /var/lib/xsprof
 xsprof watch --dir /var/lib/xsprof
 xsprof doctor --json
+xsprof pressure --json
+xsprof cgroup --json
 xsprof ui [--replay journal.jsonl] [--view overview|timeline|advisor|events|capture]
 xsprof bpf-gate --json
 ```
 
 Native Linux builds use `-Dtarget=<arch>-linux-gnu` for the window path; the
 static-musl CLI still works but cannot `dlopen` system X11/GL.
+
+In the UI, `c` filters by the selected task name, `P` by pid, `k` cycles
+event kinds, `l` toggles loss/refusal rows, and `x` clears the combined
+filter. The timeline applies task/pid constraints; the event ledger applies
+all four. The recorder result includes a CPU/RSS overhead meter when
+`/proc/self/schedstat` is readable.
 
 ## Package and demo
 
@@ -114,6 +122,7 @@ docs/vendor/     vendored Zig 0.17 reference text
 - `AGENTS.md` — rules for working in this repository.
 - `DESIGN.md` — profiler UI contract and safety copy.
 - `docs/architecture/` — overview, parity inventory, roadmap.
+- `docs/guides/` — flight recorder, host probes, install, compare CI.
 - `docs/safety/` — invariants and test gates.
 - `docs/zig-0.17-api-usage.md` — pinned Zig API notes.
 

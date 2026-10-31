@@ -130,16 +130,16 @@ test "event ledger wheel scrolls" {
     defer first.deinit();
     try view(&state, &first);
     try first.finish();
-    try std.testing.expect(state.events_visible > 0);
+    try std.testing.expect(state.events.visible > 0);
 
-    frame.input.pointer_x = state.events_rect.x + 10;
-    frame.input.pointer_y = state.events_rect.y + 10;
+    frame.input.pointer_x = state.events.rect.x + 10;
+    frame.input.pointer_y = state.events.rect.y + 10;
     frame.input.scroll_y = 1;
     var second = layout.Ui.init(&frame);
     defer second.deinit();
     try view(&state, &second);
     try second.finish();
-    try std.testing.expect(state.event_scroll > 0);
+    try std.testing.expect(state.events.scroll > 0);
 }
 
 // Checks that clicking an event row moves the timeline window to that event.
@@ -160,10 +160,10 @@ test "event click opens the timeline" {
     defer first.deinit();
     try view(&state, &first);
     try first.finish();
-    try std.testing.expect(state.events_start < session.events.len);
+    try std.testing.expect(state.events.start < session.events.len);
 
-    frame.input.pointer_x = state.events_rect.x + 10;
-    frame.input.pointer_y = state.events_rect.y + 5;
+    frame.input.pointer_x = state.events.rect.x + 10;
+    frame.input.pointer_y = state.events.rect.y + 5;
     frame.input.clicked = true;
     var second = layout.Ui.init(&frame);
     defer second.deinit();
@@ -195,11 +195,60 @@ test "timeline filter shortcut" {
     defer first.deinit();
     try view(&state, &first);
     try first.finish();
-    try std.testing.expect(state.filter != null);
+    try std.testing.expect(state.filter.comm != null);
     frame.input.key = input_mod.Key.clear;
     var second = layout.Ui.init(&frame);
     defer second.deinit();
     try view(&state, &second);
     try second.finish();
-    try std.testing.expect(state.filter == null);
+    try std.testing.expect(state.filter.comm == null);
+}
+
+// Checks that combined filters narrow the ledger without losing the event
+// index mapping used by click-to-timeline.
+test "combined filters narrow the event ledger" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const data =
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"sched_switch\",\"ts_ns\":1," ++
+        "\"cpu\":0,\"pid\":10,\"tid\":10,\"comm\":\"worker\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"page_fault\",\"ts_ns\":2," ++
+        "\"cpu\":0,\"pid\":11,\"tid\":11,\"comm\":\"worker\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":3," ++
+        "\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"sample_loss dropped=3\"," ++
+        "\"host_mutation\":false}\n";
+    const session = try session_mod.Session.fromData(arena.allocator(), "test", data);
+    var state = State{ .session = &session, .screen = .events };
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(arena.allocator(), 960, 540, .{});
+    defer frame.deinit();
+
+    state.filter.comm = "worker";
+    state.filter.kind = .page_fault;
+    var first = layout.Ui.init(&frame);
+    defer first.deinit();
+    try view(&state, &first);
+    try first.finish();
+    try std.testing.expectEqual(@as(usize, 1), state.events.match_total);
+    try std.testing.expectEqual(@as(usize, 1), state.events.visible_count);
+    try std.testing.expect(state.events.clickedIndex(0) != null);
+
+    state.filter.clear();
+    state.filter.loss_only = true;
+    var second = layout.Ui.init(&frame);
+    defer second.deinit();
+    try view(&state, &second);
+    try second.finish();
+    try std.testing.expectEqual(@as(usize, 1), state.events.match_total);
+    try std.testing.expectEqual(@as(usize, 1), state.events.visible_count);
+    try std.testing.expectEqual(@as(usize, 2), state.events.clickedIndex(0).?);
+
+    state.filter.clear();
+    state.filter.comm = "absent";
+    var third = layout.Ui.init(&frame);
+    defer third.deinit();
+    try view(&state, &third);
+    try third.finish();
+    try std.testing.expectEqual(@as(usize, 0), state.events.match_total);
+    try std.testing.expectEqual(@as(usize, 0), state.events.visible_count);
 }

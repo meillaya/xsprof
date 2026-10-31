@@ -4,6 +4,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const live = @import("../capture/live.zig");
+const proc = @import("../os/linux/proc.zig");
+const pressure = @import("../os/linux/pressure.zig");
+const cgroup = @import("../os/linux/cgroup.zig");
 const json = @import("../core/json.zig");
 
 pub const Check = struct {
@@ -68,12 +71,19 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator) !Result {
     }
 
     const paranoid = readFile(io, allocator, "/proc/sys/kernel/perf_event_paranoid", 64);
+    const perfmon = builtin.os.tag == .linux and
+        proc.effectiveCapability(io, allocator, proc.cap_perfmon);
     if (paranoid) |value| {
         const level = std.mem.trim(u8, value, " \t\r\n");
+        const permitted = std.mem.eql(u8, level, "0") or
+            std.mem.eql(u8, level, "1") or perfmon;
         try checks.append(allocator, .{
             .name = "perf_event_paranoid",
-            .state = if (std.mem.eql(u8, level, "2") or std.mem.eql(u8, level, "3")) "SKIP" else "READY",
-            .reason = level,
+            .state = if (permitted) "READY" else "SKIP",
+            .reason = if (perfmon)
+                try std.fmt.allocPrint(allocator, "{s}; CAP_PERFMON effective", .{level})
+            else
+                level,
         });
     } else {
         try checks.append(allocator, .{
@@ -95,6 +105,23 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator) !Result {
         .name = "perf",
         .state = stateName(probe.state),
         .reason = probe.reason,
+    });
+
+    const psi = pressure.collect(io, allocator);
+    try checks.append(allocator, .{
+        .name = "pressure",
+        .state = psi.state,
+        .reason = if (psi.available) "/proc/pressure cpu/memory/io readable" else psi.reason,
+    });
+
+    const groups = cgroup.collect(io, allocator);
+    try checks.append(allocator, .{
+        .name = "cgroup",
+        .state = groups.state,
+        .reason = if (std.mem.eql(u8, groups.state, "READY"))
+            try std.fmt.allocPrint(allocator, "cgroup v2; {d} groups attributed", .{groups.groups.len})
+        else
+            groups.reason,
     });
 
     try checks.append(allocator, .{

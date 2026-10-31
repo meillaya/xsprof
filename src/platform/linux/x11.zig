@@ -311,6 +311,12 @@ pub fn run(
                     app.light = !app.light;
                 } else if (sym == 'c') {
                     app.input.key = .filter;
+                } else if (sym == 'P') {
+                    app.input.key = .pid;
+                } else if (sym == 'k') {
+                    app.input.key = .kind;
+                } else if (sym == 'l') {
+                    app.input.key = .loss;
                 } else if (sym == 'x') {
                     app.input.key = .clear;
                 } else if (sym == 'q' or sym == 0xff1b) {

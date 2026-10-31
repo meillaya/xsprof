@@ -44,6 +44,12 @@ check_contains "$TMP/capabilities" '"host_mutation":false' "capabilities"
 check_contains "$TMP/advise" '"schema":"xsprof/advisor-report/v1"' "advise"
 "$BIN" advise --md >"$TMP/advise-md"
 check_contains "$TMP/advise-md" "Performance Advisor Report" "advise-md"
+"$BIN" pressure --json >"$TMP/pressure" 2>/dev/null || true
+check_contains "$TMP/pressure" '"schema":"xsprof/pressure/v1"' "pressure"
+check_contains "$TMP/pressure" '"host_mutation":false' "pressure"
+"$BIN" cgroup --json >"$TMP/cgroup" 2>/dev/null || true
+check_contains "$TMP/cgroup" '"schema":"xsprof/cgroup/v1"' "cgroup"
+check_contains "$TMP/cgroup" '"host_mutation":false' "cgroup"
 
 "$BIN" timeline --input "$ROOT/tests/golden/root/journal_v1_golden.json" >"$TMP/trace"
 check_contains "$TMP/trace" '"traceEvents"' "timeline"

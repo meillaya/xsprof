@@ -1,9 +1,20 @@
-# Template formula. Replace @VERSION@, @SHA256@, and the URL with the release.
+# Template formula. Replace @VERSION@, @SHA256_ARM64@, and @SHA256_X86_64@
+# with the release values.
 class Xsprof < Formula
   desc "Read-only Linux scheduler and memory profiler"
   homepage "https://github.com/meillaya/exa"
-  url "https://github.com/meillaya/exa/releases/download/v@VERSION@/xsprof-@VERSION@-linux-x86_64.tar.gz"
-  sha256 "@SHA256@"
+  version "@VERSION@"
+  depends_on :linux
+
+  on_arm do
+    url "https://github.com/meillaya/exa/releases/download/v#{version}/xsprof-#{version}-linux-aarch64.tar.gz"
+    sha256 "@SHA256_ARM64@"
+  end
+
+  on_intel do
+    url "https://github.com/meillaya/exa/releases/download/v#{version}/xsprof-#{version}-linux-x86_64.tar.gz"
+    sha256 "@SHA256_X86_64@"
+  end
 
   def install
     bin.install "bin/xsprof"

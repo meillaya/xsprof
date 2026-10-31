@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/pressure.v1.schema.json",
+  "title": "xsprof pressure-stall snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["available", "cpu", "host_mutation", "io", "memory", "reason", "schema", "source", "state"],
+  "properties": {
+    "available": { "type": "boolean" },
+    "cpu": { "anyOf": [{ "$ref": "#/$defs/resource" }, { "type": "null" }] },
+    "host_mutation": { "const": false },
+    "io": { "anyOf": [{ "$ref": "#/$defs/resource" }, { "type": "null" }] },
+    "memory": { "anyOf": [{ "$ref": "#/$defs/resource" }, { "type": "null" }] },
+    "reason": { "type": "string" },
+    "schema": { "const": "xsprof/pressure/v1" },
+    "source": { "const": "proc_pressure" },
+    "state": { "enum": ["READY", "SKIP", "REFUSE"] }
+  },
+  "$defs": {
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avg10_bp", "avg300_bp", "avg60_bp", "total_us"],
+      "properties": {
+        "avg10_bp": { "type": "integer", "minimum": 0 },
+        "avg300_bp": { "type": "integer", "minimum": 0 },
+        "avg60_bp": { "type": "integer", "minimum": 0 },
+        "total_us": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "full": { "$ref": "#/$defs/sample" },
+        "some": { "$ref": "#/$defs/sample" }
+      }
+    }
+  }
+}

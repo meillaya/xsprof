@@ -102,6 +102,7 @@ const Cpu = struct {
 pub const Index = struct {
     allocator: std.mem.Allocator,
     tasks: std.AutoHashMap(i32, Task),
+    names: std.heap.ArenaAllocator,
     cpu: [max_cpus]Cpu = @splat(.{}),
     first_us: u64 = std.math.maxInt(u64),
     last_us: u64 = 0,
@@ -113,11 +114,16 @@ pub const Index = struct {
     lost: u64 = 0,
 
     pub fn init(allocator: std.mem.Allocator) Index {
-        return .{ .allocator = allocator, .tasks = std.AutoHashMap(i32, Task).init(allocator) };
+        return .{
+            .allocator = allocator,
+            .tasks = std.AutoHashMap(i32, Task).init(allocator),
+            .names = std.heap.ArenaAllocator.init(allocator),
+        };
     }
 
     pub fn deinit(self: *Index) void {
         self.tasks.deinit();
+        self.names.deinit();
     }
 
     fn getTask(self: *Index, pid: i32) !*Task {
@@ -196,7 +202,11 @@ pub const Index = struct {
             const incoming = try self.getTask(@intCast(@min(entry.a, std.math.maxInt(i32))));
             incoming.switches += 1;
             incoming.last_cpu = entry.cpu;
-            if (entry.comm.len != 0) incoming.comm = entry.comm;
+            if (entry.comm.len != 0 and
+                (incoming.comm.len == 0 or !std.mem.eql(u8, incoming.comm, entry.comm)))
+            {
+                incoming.comm = try self.names.allocator().dupe(u8, entry.comm);
+            }
             if (incoming.runnable_since_ns) |started| {
                 incoming.wait.observe((now -| started) / 1000);
                 incoming.runnable_since_ns = null;
@@ -216,7 +226,7 @@ pub const Index = struct {
             const task = item.value_ptr;
             try task_list.append(allocator, .{
                 .pid = task.pid,
-                .comm = task.comm,
+                .comm = try allocator.dupe(u8, task.comm),
                 .switches = task.switches,
                 .wakeups = task.wakeups,
                 .migrations = task.migrations,
@@ -271,7 +281,6 @@ test "metrics measure waits and preemption" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     var index = Index.init(arena.allocator());
-    defer index.deinit();
     const events = [_]event.RawEvent{
         .{ .kind = .sched_switch, .ts_ns = 0, .cpu = 0, .a = 1, .b = 0, .c = 1, .comm = "a" },
         .{ .kind = .sched_wakeup, .ts_ns = 100_000, .cpu = 0, .a = 1, .comm = "a" },
@@ -297,6 +306,29 @@ test "metrics measure waits and preemption" {
     try std.testing.expect(found_b);
     try std.testing.expect(metrics.cpus.len == 1);
     try std.testing.expect(metrics.cpus[0].busy_us >= 50);
+}
+
+// Checks that the index owns task names instead of borrowing caller buffers.
+test "metrics own comm strings" {
+    var names_buf = [_]u8{ 'w', 'o', 'r', 'k', 'e', 'r' };
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var index = Index.init(arena.allocator());
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_switch, .ts_ns = 0, .cpu = 0, .a = 1, .b = 0, .c = 1, .comm = &names_buf },
+    };
+    try index.append(&events);
+    @memset(&names_buf, 'x');
+    const metrics = try index.snapshot(arena.allocator());
+    index.deinit();
+    var found = false;
+    for (metrics.tasks) |task| {
+        if (task.pid == 1) {
+            found = true;
+            try std.testing.expectEqualStrings("worker", task.comm);
+        }
+    }
+    try std.testing.expect(found);
 }
 
 pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {

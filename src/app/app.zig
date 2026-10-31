@@ -9,65 +9,25 @@ const widgets = @import("../ui/widgets.zig");
 const session_mod = @import("../stream/session.zig");
 const input_mod = @import("../ui/input.zig");
 const app_util = @import("app_util.zig");
+const app_state = @import("app_state.zig");
+const events_view = @import("events_view.zig");
 const advisor = @import("../analyze/advisor.zig");
 
-pub const Screen = enum { overview, timeline, advisor, events, capture };
-
-pub fn screenName(screen: Screen) []const u8 {
-    return switch (screen) {
-        .overview => "Overview",
-        .timeline => "Timeline",
-        .advisor => "Advisor",
-        .events => "Events",
-        .capture => "Capture",
-    };
-}
-
-pub fn parseScreen(name: []const u8) ?Screen {
-    inline for (@typeInfo(Screen).@"enum".field_names) |field| {
-        if (std.ascii.eqlIgnoreCase(name, field)) return @field(Screen, field);
-    }
-    return null;
-}
-
-pub const Window = struct {
-    start_us: u64,
-    end_us: u64,
-};
-
-pub const Selection = struct {
-    pid: i32,
-    comm: []const u8,
-};
-
-pub const TimelineGeometry = struct {
-    plot: layout.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
-    start_us: u64 = 0,
-    end_us: u64 = 0,
-    lane_h: f32 = 0,
-    cpu_count: u8 = 0,
-    valid: bool = false,
-};
-
-pub const State = struct {
-    session: *const session_mod.Session,
-    screen: Screen = .overview,
-    window: ?Window = null,
-    selection: ?Selection = null,
-    filter: ?[]const u8 = null,
-    timeline: TimelineGeometry = .{},
-    live_paused: bool = false,
-    live_follow: bool = true,
-    event_scroll: usize = 0,
-    events_rect: layout.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
-    events_visible: usize = 0,
-    events_start: usize = 0,
-};
+pub const Screen = app_state.Screen;
+pub const screenName = app_state.screenName;
+pub const parseScreen = app_state.parseScreen;
+pub const Window = app_state.Window;
+pub const Selection = app_state.Selection;
+pub const TimelineGeometry = app_state.TimelineGeometry;
+pub const State = app_state.State;
 
 pub fn view(state: *State, ui: *layout.Ui) !void {
+    state.events.session = state.session;
+    state.events.filter = &state.filter;
     handleTimelineInput(state, &ui.frame.input);
     var root = try ui.column(.{ .bg = ui.theme.bg });
     try header(state, ui);
+    if (state.filter.active()) try filterBar(state, ui);
     var body = try ui.row(.{
         .flex = 1,
         .padding = layout.Edges.all(12),
@@ -77,7 +37,7 @@ pub fn view(state: *State, ui: *layout.Ui) !void {
         .overview => try overview(state, ui),
         .timeline => try timeline(state, ui),
         .advisor => try advisorView(state, ui),
-        .events => try eventsView(state, ui),
+        .events => try events_view.view(&state.events, ui),
         .capture => try captureView(state, ui),
     }
     body.end();
@@ -86,25 +46,25 @@ pub fn view(state: *State, ui: *layout.Ui) !void {
 }
 
 fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
-    if (state.screen == .events and state.events_visible != 0 and
+    const events = &state.events;
+    if (state.screen == .events and events.visible != 0 and
         input.scroll_y != 0 and
-        input.inside(state.events_rect.x, state.events_rect.y, state.events_rect.w, state.events_rect.h))
+        input.inside(events.rect.x, events.rect.y, events.rect.w, events.rect.h))
     {
-        const max_scroll = state.session.events.len -| state.events_visible;
+        const max_scroll = events.match_total -| events.visible;
         const step: usize = if (input.scroll_y > 0) 3 else 0;
-        state.event_scroll = @min(max_scroll, state.event_scroll + step);
-        if (input.scroll_y < 0) state.event_scroll -|= 3;
+        events.scroll = @min(max_scroll, events.scroll + step);
+        if (input.scroll_y < 0) events.scroll -|= 3;
         input.scroll_y = 0;
     }
     if (state.screen == .events and input.clicked and
-        input.inside(state.events_rect.x, state.events_rect.y, state.events_rect.w, state.events_rect.h) and
-        state.events_visible != 0)
+        input.inside(events.rect.x, events.rect.y, events.rect.w, events.rect.h) and
+        events.visible != 0)
     {
-        const row_offset = input.pointer_y - state.events_rect.y;
+        const row_offset = input.pointer_y - events.rect.y;
         if (row_offset >= 0) {
             const row: usize = @intFromFloat(@floor(row_offset / 22.0));
-            const index = state.events_start + row;
-            if (index < state.session.events.len) {
+            if (events.clickedIndex(row)) |index| {
                 const entry = state.session.events[index];
                 const event_us = entry.ts_ns / 1000;
                 const full_start = state.session.first_us;
@@ -123,7 +83,12 @@ fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
             }
         }
     }
-    if (app_util.handleFilterInput(&state.filter, if (state.selection) |selection| selection.comm else null, input)) return;
+    const selection_comm = if (state.selection) |selection| selection.comm else null;
+    const selection_pid = if (state.selection) |selection| selection.pid else null;
+    if (state.filter.handleInput(state.session, selection_comm, selection_pid, input)) {
+        state.events.scroll = 0;
+        return;
+    }
     if (input.key == .zero) {
         state.window = null;
         state.selection = null;
@@ -230,6 +195,47 @@ fn header(state: *State, ui: *layout.Ui) !void {
     bar.end();
 }
 
+fn filterBar(state: *State, ui: *layout.Ui) !void {
+    const th = ui.theme;
+    const filter = state.filter;
+    var bar = try ui.row(.{
+        .height = 22,
+        .padding = .{ .left = 12, .right = 12 },
+        .gap = 10,
+        .align_items = .center,
+        .bg = th.panel,
+    });
+    try ui.text(.{ .text = "FILTER", .size = 9, .color = th.skip, .weight = .bold });
+    if (filter.comm) |comm| {
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(ui.allocator, "comm={s}", .{comm}),
+            .size = 10,
+            .color = th.text,
+        });
+    }
+    if (filter.pid) |pid| {
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(ui.allocator, "pid={d}", .{pid}),
+            .size = 10,
+            .color = th.text,
+        });
+    }
+    if (filter.kind) |kind| {
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(ui.allocator, "kind={s}", .{@tagName(kind)}),
+            .size = 10,
+            .color = th.text,
+        });
+    }
+    if (filter.loss_only) {
+        try ui.text(.{ .text = "loss/refusal only", .size = 10, .color = th.refuse });
+    }
+    var spacer = try ui.column(.{ .flex = 1 });
+    spacer.end();
+    try ui.text(.{ .text = "c comm  P pid  k kind  l loss  x clear", .size = 9, .color = th.muted });
+    bar.end();
+}
+
 fn footer(ui: *layout.Ui) !void {
     const th = ui.theme;
     var bar = try ui.row(.{
@@ -240,7 +246,7 @@ fn footer(ui: *layout.Ui) !void {
         .bg = th.raised,
     });
     try ui.text(.{
-        .text = "1-5 screens   / filter   space pause   f fit   ? help   q quit",
+        .text = "1-5 screens  c/P/k/l filter  x clear  space pause  f fit  q quit",
         .size = 9,
         .color = th.muted,
     });
@@ -387,9 +393,9 @@ fn timeline(state: *State, ui: *layout.Ui) !void {
         }
         row.end();
     } else {
-        if (state.filter) |filter| {
+        if (state.filter.active()) {
             try ui.text(.{
-                .text = try std.fmt.allocPrint(ui.allocator, "filter={s}  c filters selection  x clears", .{filter}),
+                .text = "filtered lanes; c/P set task filters, k/l extend the ledger filter, x clears",
                 .size = 10,
                 .color = ui.theme.skip,
             });
@@ -437,16 +443,6 @@ fn advisorView(state: *State, ui: *layout.Ui) !void {
         .text = "PMU HITM: uncollected in this replay. Recommendations are suggestions only.",
         .size = 9,
         .color = th.skip,
-    });
-    panel.end();
-}
-
-fn eventsView(state: *State, ui: *layout.Ui) !void {
-    var panel = try widgets.panel(ui, "EVENT LEDGER / APPEND-ONLY", .{ .flex = 1 });
-    try ui.custom(.{
-        .style = .{ .flex = 1 },
-        .user = state,
-        .paint = paintEvents,
     });
     panel.end();
 }
@@ -535,9 +531,7 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
     const span = @as(f32, @floatFromInt(end - start));
     for (session.slices) |slice| {
         if (slice.cpu >= lanes) continue;
-        if (state.filter) |filter| {
-            if (!std.mem.eql(u8, slice.comm, filter)) continue;
-        }
+        if (!state.filter.matchesSlice(slice)) continue;
         const slice_start = @max(slice.start_us, start);
         const slice_end = @min(slice.end_us, end);
         if (slice_end <= slice_start) continue;
@@ -557,44 +551,5 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         var buf: [32]u8 = undefined;
         const label = std.fmt.bufPrint(&buf, "LOSS x{d}", .{session.lost}) catch "LOSS";
         _ = try frame.list.text(1, &frame.bold, 10, rect.x + rect.w - 70, rect.y, label, th.refuse, clip);
-    }
-}
-
-fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
-    const state: *State = @ptrCast(@alignCast(user.?));
-    const session = state.session;
-    const th = frame.theme;
-    const row_h = 22.0;
-    const visible: usize = @intFromFloat(@max(0, rect.h) / row_h);
-    if (visible == 0) return;
-    state.events_rect = rect;
-    state.events_visible = visible;
-    const total = session.events.len;
-    const max_scroll = total -| visible;
-    state.event_scroll = @min(state.event_scroll, max_scroll);
-    const first = total -| (visible + state.event_scroll);
-    const start = first;
-    state.events_start = first;
-    var row: usize = 0;
-    var index = total - state.event_scroll;
-    while (index > start) {
-        index -= 1;
-        const e = session.events[index];
-        const y = rect.y + @as(f32, @floatFromInt(row)) * row_h;
-        if (frame.input.inside(rect.x, y, rect.w, row_h)) {
-            try frame.list.rect(rect.x, y, rect.w, row_h - 1, th.raised, clip);
-        }
-        row += 1;
-        const is_loss = e.kind == .marker and
-            (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
-                std.mem.indexOf(u8, e.detail, "lost") != null);
-        const color = if (is_loss) th.refuse else th.text;
-        _ = try frame.list.text(0, &frame.regular, 12, rect.x, y, try app_util.formatTime(frame.allocator, e.ts_ns / 1000), th.muted, clip);
-        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 76, y, @tagName(e.kind), color, clip);
-        var meta: [64]u8 = undefined;
-        const meta_text = std.fmt.bufPrint(&meta, "cpu={d} pid={d}", .{ e.cpu, e.pid }) catch "";
-        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 192, y, meta_text, th.muted, clip);
-        const detail = if (is_loss) "explicit sample loss - unsafe" else e.detail;
-        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 300, y, detail, if (is_loss) th.refuse else th.muted, clip);
     }
 }

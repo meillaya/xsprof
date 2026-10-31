@@ -21,3 +21,6 @@ boundary, and every record carries `host_mutation=false`.
 
 - `recorder-manifest.v1.schema.json` — recorder session and segment index.
 - `doctor.v1.schema.json` — read-only environment diagnostics.
+- `pressure.v1.schema.json` — PSI CPU/memory/IO stall counters.
+- `cgroup.v1.schema.json` — read-only cgroup task attribution.
+- `recorder-result.v1.schema.json` — daemon result and overhead meter.
