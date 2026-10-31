@@ -39,6 +39,7 @@ const known_commands = [_][]const u8{
     "daemon",
     "capture",
     "doctor",
+    "demo",
     "watch",
     "metrics",
     "compare",
@@ -50,11 +51,9 @@ const refusal_reason =
 
 fn writeHelp(w: *Writer) Writer.Error!void {
     try w.writeAll(
-        \\xsprof — read-only Linux scheduler & memory profiler
-        \\
+        \\xsprof, read-only Linux scheduler & memory profiler
         \\USAGE:
         \\  xsprof <command> [options]
-        \\
         \\COMMANDS (read-only, fail-closed):
         \\  preflight --json        Read-only host facts + capability probes
         \\  capabilities --json     Probe perf/tracepoint/BPF/PMU/sched_ext
@@ -70,19 +69,17 @@ fn writeHelp(w: *Writer) Writer.Error!void {
         \\  daemon [--dir <d>]      Foreground Linux recorder
         \\  capture --last <dur>    Extract a recorder window
         \\  doctor --json           Read-only environment diagnostics
+        \\  demo                    Serve the bundled capture
         \\  watch [--dir <d>]       ANSI live recorder view
         \\  metrics --input <f>     Scheduler metrics as JSON
         \\  compare --base --candidate  Regression report
         \\  version                 Print version
         \\  help                    Print this help
-        \\
         \\REFUSED (unsafe verbs; non-zero exit on host by design):
         \\  load attach enable mutate apply sched-ext-attach setaffinity setpriority bind
-        \\
         \\SAFETY:
         \\  Observation is read-only. Every record carries host_mutation=false.
         \\  Runtime samples never expose argv, environment, secrets, or tokens.
-        \\
     );
 }
 
@@ -444,6 +441,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "doctor")) {
         return doctor_cmd.cmdDoctor(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "demo")) {
+        return serve_cmd.cmdServe(io, allocator, &.{"--demo"}, out, err);
     }
     if (std.mem.eql(u8, cmd, "watch")) {
         return watch_cmd.cmdWatch(io, allocator, args[2..], out, err);

@@ -23,3 +23,6 @@ __pycache__/
 
 # Default local snapshot output
 /xsprof-snapshot.png
+
+# Local release artifacts
+/dist/
