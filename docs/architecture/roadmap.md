@@ -18,6 +18,7 @@ Status is updated only when a phase gate actually passes.
 | M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
 | M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
+| M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **planned** |
 
 ## P7 gate (passed)
 
@@ -30,7 +31,7 @@ Status is updated only when a phase gate actually passes.
 - `schemas/xsprof/bpf-gate.v1.schema.json` and CLI parity cover the wire form.
 - Final sweep: fmt, 600-line limit, vendor hashes, 58 tests, web smoke,
   hidden macOS smoke, CLI parity, aarch64/x86_64 glibc cross-builds, and
-  simulator/archive checks all green.
+  archive checks all green.
 
 ## P0 gate (passed)
 
@@ -39,7 +40,8 @@ Status is updated only when a phase gate actually passes.
 - Stdlib sources/reference/langref vendored as text with offline SHA-256 check.
 - `./tools/zig build check` green on macOS: fmt, 600-line limit, vendor hashes,
   9 unit tests.
-- No C++ build files on `main`; `simulator/` untouched.
+- No C++ build files on `main`; the archived simulator stayed untouched through
+  the rewrite and was later deleted from `main`.
 
 ## P6 gate (passed)
 
@@ -156,6 +158,9 @@ Status is updated only when a phase gate actually passes.
   labels it notarized. A tag-driven publication run also needs available
   GitHub Actions minutes; the packaging scripts and workflow lint pass
   locally without publishing.
+- **M7 planned:** [`gui-lab.md`](gui-lab.md) defines the action/reducer model,
+  source and capture controllers, workbench panels, scenario schema, headless
+  `lab` runner, and the L0–L6 delivery sequence.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture

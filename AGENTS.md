@@ -36,8 +36,6 @@ restore it to `main`.
 - **No hidden network.** The serve lane is loopback-only with a token. The UI
   makes no external requests and sends no telemetry. Web assets use relative
   URLs only.
-- **Do not modify `simulator/`.** It is archived historical material with its
-  own guidance and is excluded from the root build.
 
 ## Commands
 
