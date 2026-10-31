@@ -20,6 +20,7 @@ const scenarioButton = document.getElementById("scenario");
 const scenarioFileButton = document.getElementById("scenario-file-button");
 const scenarioFileInput = document.getElementById("scenario-file");
 const downloadButton = document.getElementById("download");
+const traceButton = document.getElementById("trace");
 let lastScenarioResult = "";
 
 function fail(message) {
@@ -88,6 +89,7 @@ async function boot() {
   frame();
   scenarioButton.disabled = false;
   scenarioFileButton.disabled = false;
+  traceButton.disabled = false;
 
   if (live) startLive();
 
@@ -157,6 +159,7 @@ async function boot() {
     } finally {
       scenarioButton.disabled = false;
       scenarioFileButton.disabled = false;
+  traceButton.disabled = false;
     }
   }
 
@@ -176,6 +179,23 @@ async function boot() {
     if (!file) return;
     await runScenarioText(await file.text(), `scenario ${file.name}`);
     scenarioFileInput.value = "";
+  });
+  traceButton.addEventListener("click", () => {
+    if (!exports.web_generate_trace()) {
+      fail("trace export failed");
+      return;
+    }
+    const ptr = exports.web_trace_result_ptr();
+    const len = exports.web_trace_result_len();
+    const blob = new Blob(
+      [new Uint8Array(exports.memory.buffer, ptr, len)],
+      { type: "application/json" },
+    );
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = "xsprof-trace.json";
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   });
   downloadButton.addEventListener("click", () => {
     if (!lastScenarioResult) return;
