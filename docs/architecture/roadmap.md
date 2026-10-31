@@ -9,8 +9,8 @@ Status is updated only when a phase gate actually passes.
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
 | P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | **complete** |
-| P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | next |
-| P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | planned |
+| P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
+| P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | next |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | planned |
 
 ## P0 gate (passed)
@@ -21,6 +21,17 @@ Status is updated only when a phase gate actually passes.
 - `./tools/zig build check` green on macOS: fmt, 600-line limit, vendor hashes,
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
+
+## P5 gate (passed)
+
+- AppKit `NSWindow` + `NSView` hosting a `CAMetalLayer`; direct Objective-C
+  runtime bindings with no C shim.
+- One instanced Metal pipeline over the shared `draw.Instance` list; 80-byte
+  MSL stride padding; offscreen readback.
+- Headless Metal/CPU parity: avg channel diff 0.50 on the gallery, no window.
+- Hidden-window smoke (`ui --smoke`) creates NSWindow/view/layer and exits
+  without ordering it front; `zig build check` runs it on macOS.
+- `xsprof ui`, `--replay`, `--view`, `--theme`; keyboard screens/theme/quit.
 
 ## P4 gate (passed)
 
