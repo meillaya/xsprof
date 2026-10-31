@@ -75,12 +75,12 @@ fn drawScreenHead(model: *const Model, state: *const State, canvas: *Canvas, th:
         std.fmt.bufPrint(&note_buf, "Capture window {s} → {s} · excerpt {s}", .{
             model.meta.captureStart,
             model.meta.captureEnd,
-            if (model.meta.excerpt.len > 0) model.meta.excerpt else "0.000 s",
+            if (model.meta.excerpt.len > 0) model.meta.excerpt else "not attached",
         }) catch ""
     else
         std.fmt.bufPrint(&note_buf, "Capture window {s} · excerpt {s}", .{
             if (model.meta.captureWindow.len > 0) model.meta.captureWindow else "not attached",
-            if (model.meta.excerpt.len > 0) model.meta.excerpt else "0.000 s",
+            if (model.meta.excerpt.len > 0) model.meta.excerpt else "not attached",
         }) catch "";
     if (note_text.len != 0) try labelRight(canvas, right, y, note_text, note);
     const action_y = y + 24.5;
@@ -228,7 +228,10 @@ fn drawCpuPanel(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
         y += 55;
     }
     const note_y = y + 3;
-    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = note_y, .w = rect.w - 28, .h = 50 }, style(text_11, th.dim, .regular), "48 buckets across the excerpt. Idle spans stay dark — never counted as load.");
+    var bucket_note: [128]u8 = undefined;
+    const bucket_count: usize = if (model.cpuStats.len > 0) model.cpuStats[0].buckets.len else 0;
+    const note = std.fmt.bufPrint(&bucket_note, "{d} buckets across the excerpt. Idle spans stay dark — never counted as load.", .{bucket_count}) catch "Buckets across the excerpt.";
+    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = note_y, .w = rect.w - 28, .h = 50 }, style(text_11, th.dim, .regular), note);
 }
 
 fn drawAdvisorMini(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {

@@ -146,12 +146,17 @@ fn drawPlot(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
             const sx1 = x_at(slice.start + slice.dur, start, span, x0, plot_w);
             if (sx1 < 0 or sx0 > plot_w or sx1 - sx0 < 0.4) continue;
             const color = if (slice.lane == 0) th.lane_idle else th.lane(slice.lane % 9);
-            try canvas.rounded(.{
+            const slice_rect = Rect{
                 .x = rect.x + 1 + @max(x0, sx0),
                 .y = y + 3,
                 .w = @max(0.6, @min(plot_w + x0, sx1) - @max(x0, sx0)),
                 .h = cpu_row_h - 6,
-            }, 1, .{ .r = color.r, .g = color.g, .b = color.b, .a = 224 }, null, 0);
+            };
+            try canvas.rounded(slice_rect, 1, .{ .r = color.r, .g = color.g, .b = color.b, .a = 224 }, null, 0);
+            if (state.selected_slice != null and state.selected_slice.? == slice.id) {
+                try canvas.stroke(slice_rect, 1, th.text, 1.5);
+            }
+            canvas.hit(1000 + slice.id, slice_rect);
         }
     }
 

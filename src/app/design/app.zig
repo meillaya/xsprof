@@ -455,6 +455,10 @@ pub const App = struct {
                 605 => self.state.events_type = "cache_miss",
                 606 => self.state.events_type = "loss",
                 else => {
+                    if (id >= 1000 and id < 3000) {
+                        self.state.selected_slice = id - 1000;
+                        return;
+                    }
                     if (id >= 500 and id < 520 and id - 500 < self.model.events.len) {
                         self.state.events_selected = id - 500;
                     }
