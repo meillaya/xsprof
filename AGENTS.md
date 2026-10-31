@@ -51,6 +51,7 @@ restore it to `main`.
 ./tools/zig build vendor-check
 ./tools/zig build fuzz            # deterministic parser fuzz tests
 ./tools/zig build service-smoke   # Linux root, disposable VM only
+devenv shell                      # git/curl/xz; Zig still comes from tools/zig
 ```
 
 Vendor refresh (developer-only, needs network):
