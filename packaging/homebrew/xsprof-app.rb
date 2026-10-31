@@ -3,10 +3,10 @@ cask "xsprof-app" do
   version "@VERSION@"
   sha256 "@SHA256@"
 
-  url "https://github.com/meillaya/exa/releases/download/v#{version}/Xsprof-#{version}-macos.zip"
+  url "https://github.com/meillaya/xsprof/releases/download/v#{version}/Xsprof-#{version}-macos.zip"
   name "Xsprof"
   desc "Read-only scheduler and memory profiler"
-  homepage "https://github.com/meillaya/exa"
+  homepage "https://github.com/meillaya/xsprof"
 
   app "Xsprof.app"
 end

@@ -1,7 +1,7 @@
 .{
-    .name = .exasphere,
+    .name = .xsprof,
     .version = "0.2.0",
-    .fingerprint = 0x46b2da15c6d15b3d,
+    .fingerprint = 0x923f1bb78cd792f4,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{},
     .paths = .{

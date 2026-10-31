@@ -47,6 +47,10 @@ Every host without the VM marker refuses before any BPF syscall.
 | M5 | Universal arm64+x86_64 app bundle and hidden smoke; release workflow linted; notarization/tap tooling exercised locally. External Developer ID credentials and available Actions minutes are absent, so public notarization/tap publication is not claimed. |
 | M6 | PSI and cgroup v2 probes exercised in the VM; daemon overhead result showed ~2.7 MB RSS after 305k events; deterministic fuzz step; real 12,000-event multi-process fixture. |
 
+The full gate also passed natively in the disposable Fedora 44 aarch64 VM:
+`zig build check` completed 23/23 steps with 90/90 unit tests, plus CLI parity
+and web smoke.
+
 Commands for the productization sweep:
 
 ```sh
