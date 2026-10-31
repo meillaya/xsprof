@@ -47,9 +47,11 @@ is the tested fail-closed behavior.
 
 ## Live SSE and the browser
 
-`xsprof serve --live` starts a capture worker that repeatedly opens the perf
-rings, downsamples (every 80th event) into a bounded 8 MiB store, and emits an
-explicit `sample_loss live_downsample dropped=N` marker per batch. Endpoints:
+`xsprof serve --live` opens one perf capture for the process lifetime. It
+downsamples UI events (`--live-stride`, default 80) into a bounded, line-aligned
+store and aggregates dropped events into one `sample_loss live_downsample`
+marker per second. The browser appends new lines through the incremental store.
+Endpoints:
 
 - `/api/journal` — current snapshot for initial load.
 - `/api/events` — one-shot SSE batches with `id:` offsets and `Last-Event-ID`

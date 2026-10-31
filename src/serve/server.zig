@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
-const recording = @import("../capture/recording.zig");
+const live = @import("../capture/live.zig");
 const Store = @import("live_store.zig").Store;
 
 const Writer = std.Io.Writer;
@@ -16,6 +16,7 @@ pub const Options = struct {
     assets_dir: []const u8 = "zig-out/web",
     token: []const u8,
     live: bool = false,
+    live_stride: u32 = 80,
 };
 
 fn isLoopback(addr: []const u8) bool {
@@ -111,49 +112,83 @@ fn appendCapability(io: std.Io, store: *Store, state: []const u8, reason: []cons
     store.append("\n");
 }
 
-fn worker(io: std.Io, store: *Store) void {
-    var sent_ready = false;
+fn worker(io: std.Io, store: *Store, stride: u32) void {
+    const allocator = std.heap.smp_allocator;
+    const every = @max(1, stride);
+    var capture: ?live.Capture = null;
+    var last_capability: u64 = 0;
+    var pending_dropped: u64 = 0;
+    var last_loss_marker: u64 = 0;
+
     while (true) {
-        var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
-        defer arena.deinit();
-        const result = recording.record(io, arena.allocator(), 350) catch |capture_error| {
-            appendCapability(io, store, "SKIP", @errorName(capture_error));
+        if (capture == null) {
+            capture = live.Capture.open(io, allocator, .{}) catch |capture_error| {
+                appendCapability(io, store, "SKIP", @errorName(capture_error));
+                std.Io.sleep(io, .fromMilliseconds(2000), .awake) catch {};
+                continue;
+            };
+        }
+        const current = &capture.?;
+        _ = current.poll(100) catch {
+            current.deinit();
+            capture = null;
+            appendCapability(io, store, "REFUSE", "live capture poll failed");
             std.Io.sleep(io, .fromMilliseconds(2000), .awake) catch {};
             continue;
         };
-        if (result.state != .READY) {
-            appendCapability(io, store, switch (result.state) {
-                .READY => "READY",
-                .DEGRADED => "DEGRADED",
-                .SKIP => "SKIP",
-                .REFUSE => "REFUSE",
-            }, result.reason);
+        var batch = current.take() catch {
+            current.deinit();
+            capture = null;
+            appendCapability(io, store, "REFUSE", "live capture batch failed");
             std.Io.sleep(io, .fromMilliseconds(2000), .awake) catch {};
             continue;
-        }
-        if (!sent_ready) {
+        };
+        defer batch.deinit();
+        const now_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.awake, io).nanoseconds)));
+        if (last_capability == 0 or now_ns -| last_capability > 10 * std.time.ns_per_s) {
             appendCapability(io, store, "READY", "perf sched tracepoints active");
-            sent_ready = true;
+            last_capability = now_ns;
         }
-        var allocating = Writer.Allocating.init(arena.allocator());
+
+        var allocating = Writer.Allocating.init(allocator);
         var dropped: usize = 0;
         var last_ts: u64 = 0;
-        for (result.events, 0..) |e, index| {
-            last_ts = e.ts_ns;
-            if (index % 80 != 0) {
+        for (batch.events, 0..) |entry, index| {
+            last_ts = entry.ts_ns;
+            if (index % every != 0) {
                 dropped += 1;
                 continue;
             }
-            event.writeJson(&allocating.writer, e) catch continue;
+            event.writeJson(&allocating.writer, entry) catch continue;
             allocating.writer.writeByte('\n') catch continue;
         }
-        if (dropped != 0) {
+        pending_dropped += dropped;
+        if (pending_dropped != 0 and
+            (last_loss_marker == 0 or now_ns -| last_loss_marker > std.time.ns_per_s))
+        {
             var detail_buf: [96]u8 = undefined;
             const detail = std.fmt.bufPrint(
                 &detail_buf,
                 "sample_loss live_downsample dropped={d}",
-                .{dropped},
+                .{pending_dropped},
             ) catch "sample_loss live_downsample";
+            event.writeJson(&allocating.writer, .{
+                .kind = .marker,
+                .ts_ns = last_ts,
+                .cpu = -1,
+                .detail = detail,
+            }) catch {};
+            allocating.writer.writeByte('\n') catch {};
+            pending_dropped = 0;
+            last_loss_marker = now_ns;
+        }
+        if (batch.lost != 0) {
+            var detail_buf: [96]u8 = undefined;
+            const detail = std.fmt.bufPrint(
+                &detail_buf,
+                "sample_loss perf_ring lost={d}",
+                .{batch.lost},
+            ) catch "sample_loss perf_ring";
             event.writeJson(&allocating.writer, .{
                 .kind = .marker,
                 .ts_ns = last_ts,
@@ -163,11 +198,14 @@ fn worker(io: std.Io, store: *Store) void {
             allocating.writer.writeByte('\n') catch {};
         }
         const data = allocating.toOwnedSlice() catch {
-            std.Io.sleep(io, .fromMilliseconds(500), .awake) catch {};
+            std.Io.sleep(io, .fromMilliseconds(100), .awake) catch {};
             continue;
         };
+        defer allocator.free(data);
         store.append(data);
-        std.Io.sleep(io, .fromMilliseconds(120), .awake) catch {};
+        if (batch.events.len == 0) {
+            std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
+        }
     }
 }
 
@@ -286,7 +324,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !void {
     var store: Store = .init();
     defer store.deinit();
     if (opts.live) {
-        _ = std.Thread.spawn(.{}, worker, .{ io, &store }) catch return error.CaptureThreadFailed;
+        _ = std.Thread.spawn(.{}, worker, .{ io, &store, opts.live_stride }) catch return error.CaptureThreadFailed;
     }
     const address = try std.Io.net.IpAddress.parse(opts.addr, opts.port);
     var listener = try address.listen(io, .{ .reuse_address = true });

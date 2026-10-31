@@ -8,6 +8,8 @@ const layout = @import("ui/layout.zig");
 const app = @import("app/app.zig");
 const gallery = @import("app/gallery.zig");
 const session_mod = @import("stream/session.zig");
+const stream_store = @import("stream/store.zig");
+const stream_index = @import("stream/index.zig");
 const ttf = @import("ui/ttf.zig");
 
 const gpa = std.heap.wasm_allocator;
@@ -16,7 +18,10 @@ var arena: std.heap.ArenaAllocator = undefined;
 var arena_ready = false;
 var session_arena: std.heap.ArenaAllocator = undefined;
 var session_ready = false;
-var journal_buf: std.ArrayList(u8) = .empty;
+var event_store: stream_store.Store = undefined;
+var event_index: stream_index.Index = undefined;
+var store_ready = false;
+var indexed_events: usize = 0;
 var live_mode = false;
 var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
@@ -38,12 +43,30 @@ fn reloadSession() void {
     if (session_ready) session_arena.deinit();
     session_arena = std.heap.ArenaAllocator.init(gpa);
     session_ready = true;
+    if (!store_ready) {
+        loaded = null;
+        return;
+    }
     const source = if (live_mode) "live capture" else "web replay";
-    loaded = session_mod.Session.fromData(
-        session_arena.allocator(),
-        source,
-        journal_buf.items,
-    ) catch null;
+    loaded = event_index.snapshot(session_arena.allocator(), source) catch null;
+}
+
+fn resetStore() void {
+    if (store_ready) {
+        event_store.deinit();
+        event_index.deinit();
+    }
+    event_store = stream_store.Store.init(gpa);
+    event_store.max_bytes = 64 * 1024 * 1024;
+    event_index = stream_index.Index.init(gpa);
+    store_ready = true;
+    indexed_events = 0;
+}
+
+fn indexNewEvents() !void {
+    const events = event_store.events.items[indexed_events..];
+    try event_index.append(events);
+    indexed_events = event_store.eventCount();
 }
 
 fn destroyFrame() void {
@@ -94,11 +117,12 @@ export fn web_free(addr: usize, len: usize) void {
 
 export fn web_load_journal(addr: usize, len: usize) u32 {
     ensureArena();
-    journal_buf.clearRetainingCapacity();
+    resetStore();
     if (addr != 0 and len != 0) {
         const input: [*]const u8 = @ptrFromInt(addr);
-        journal_buf.appendSlice(gpa, input[0..len]) catch return 0;
+        _ = event_store.append(input[0..len]) catch return 0;
     }
+    indexNewEvents() catch return 0;
     reloadSession();
     screen = .overview;
     view_ready = false;
@@ -108,17 +132,10 @@ export fn web_load_journal(addr: usize, len: usize) u32 {
 export fn web_append_journal(addr: usize, len: usize) u32 {
     if (addr == 0 or len == 0) return 1;
     ensureArena();
-    if (journal_buf.items.len + len > 32 * 1024 * 1024) {
-        const keep = @min(journal_buf.items.len, 16 * 1024 * 1024);
-        std.mem.copyForwards(
-            u8,
-            journal_buf.items[0..keep],
-            journal_buf.items[journal_buf.items.len - keep ..],
-        );
-        journal_buf.shrinkRetainingCapacity(keep);
-    }
+    if (!store_ready) return 0;
     const input: [*]const u8 = @ptrFromInt(addr);
-    journal_buf.appendSlice(gpa, input[0..len]) catch return 0;
+    _ = event_store.append(input[0..len]) catch return 0;
+    indexNewEvents() catch return 0;
     reloadSession();
     return if (loaded == null) 0 else 1;
 }

@@ -12,8 +12,12 @@ The P3 web surface is a **read-only replay client**:
 - `web/gl.js` uploads that buffer once per frame and draws one instanced
   `TRIANGLE_STRIP` call in WebGL2. There is no JS UI framework, no external
   font/CDN, and no telemetry.
-- `serve --live` starts the Linux perf worker and exposes one-shot SSE batches
-  with `Last-Event-ID` resume; the browser appends new rows in place.
+- `serve --live` keeps one perf capture open for the process lifetime. It
+  exposes one-shot SSE batches with `Last-Event-ID` resume; `--live-stride`
+  controls UI downsampling while loss markers report dropped events. Raw
+  recorder segments remain the full-fidelity path.
+- The browser appends only new NDJSON lines through a stable block store and
+  an incremental session index; it no longer reparses the full journal.
 - `?screen=0..4` selects Overview/Timeline/Advisor/Events/Capture;
   `?theme=light` selects the paper theme; `1..5` switches screens.
 - `/api/meta` is `xsprof/ui-session/v1` with `host_mutation=false` and an event

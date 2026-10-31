@@ -112,7 +112,7 @@ pub const Session = struct {
                     if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
                         std.mem.indexOf(u8, e.detail, "lost") != null)
                     {
-                        session.lost += 1;
+                        session.lost += event.lossMagnitude(e.detail);
                     }
                 },
                 .refusal, .incident => session.refusals += 1,
@@ -212,7 +212,7 @@ test "healthy fixture builds slices, capabilities, and loss" {
     try std.testing.expect(session.slices.len > 100);
     try std.testing.expect(session.capabilities.len == 3);
     try std.testing.expectEqualStrings("SKIP", session.capabilities[2].state);
-    try std.testing.expect(session.lost == 1);
+    try std.testing.expect(session.lost == 3);
     try std.testing.expect(session.refusals == 0);
     try std.testing.expect(session.cpu_count == 4);
     try std.testing.expect(session.top_comms.len > 0);
@@ -248,5 +248,5 @@ test "fromData matches file load counts" {
     const session = try Session.fromData(arena.allocator(), "web replay", data);
     try std.testing.expectEqual(@as(usize, 1444), session.events.len);
     try std.testing.expectEqual(@as(u32, 0), session.refusals);
-    try std.testing.expectEqual(@as(u32, 1), session.lost);
+    try std.testing.expectEqual(@as(u32, 3), session.lost);
 }

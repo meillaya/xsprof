@@ -41,7 +41,9 @@ pub const Store = struct {
             return;
         }
         while (self.bytes.items.len + data.len > self.max_bytes) {
-            const drop = @min(self.bytes.items.len, self.bytes.items.len + data.len - self.max_bytes);
+            const wanted = @min(self.bytes.items.len, self.bytes.items.len + data.len - self.max_bytes);
+            const newline = std.mem.indexOfScalarPos(u8, self.bytes.items, wanted, '\n');
+            const drop = if (newline) |at| at + 1 else self.bytes.items.len;
             const keep = self.bytes.items.len - drop;
             std.mem.copyForwards(u8, self.bytes.items[0..keep], self.bytes.items[drop..]);
             self.bytes.shrinkRetainingCapacity(keep);

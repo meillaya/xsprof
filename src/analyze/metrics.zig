@@ -163,7 +163,7 @@ pub const Index = struct {
                     if (std.mem.indexOf(u8, entry.detail, "sample_loss") != null or
                         std.mem.indexOf(u8, entry.detail, "lost") != null)
                     {
-                        self.lost += 1;
+                        self.lost += event.lossMagnitude(entry.detail);
                     }
                 },
                 else => {},
