@@ -3,6 +3,10 @@ const json = @import("../core/json.zig");
 const version = @import("../core/version.zig");
 const safety = @import("../core/safety.zig");
 const proc = @import("../os/linux/proc.zig");
+const aggregates = @import("../analyze/aggregates.zig");
+const advisor = @import("../analyze/advisor.zig");
+const journal = @import("../stream/journal.zig");
+const chrome_trace = @import("../viz/chrome_trace.zig");
 
 const Writer = std.Io.Writer;
 
@@ -129,6 +133,113 @@ fn cmdCapabilities(
     return 0;
 }
 
+fn cmdAdvise(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+) !u8 {
+    var markdown = false;
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--md")) markdown = true;
+    }
+    const facts = try proc.collectFacts(io, allocator);
+    const agg = aggregates.fromFacts(facts);
+    if (markdown) {
+        try advisor.writeReportMarkdown(out, allocator, agg, .{});
+    } else {
+        try advisor.writeReportJson(out, allocator, agg, .{});
+    }
+    return 0;
+}
+
+fn cmdTimeline(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+    err: *Writer,
+) !u8 {
+    var input: ?[]const u8 = null;
+    var output: ?[]const u8 = null;
+    var window_text: ?[]const u8 = null;
+    var chunk_size: ?usize = null;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--input")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("timeline: --input requires a path\n");
+                return 2;
+            }
+            i += 1;
+            input = args[i];
+        } else if (std.mem.eql(u8, arg, "--output")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("timeline: --output requires a path\n");
+                return 2;
+            }
+            i += 1;
+            output = args[i];
+        } else if (std.mem.eql(u8, arg, "--window")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("timeline: --window requires start:end\n");
+                return 2;
+            }
+            i += 1;
+            window_text = args[i];
+        } else if (std.mem.eql(u8, arg, "--chunk-size")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("timeline: --chunk-size requires a number\n");
+                return 2;
+            }
+            i += 1;
+            const parsed = std.fmt.parseInt(usize, args[i], 10) catch {
+                try err.writeAll("timeline: invalid --chunk-size\n");
+                return 2;
+            };
+            chunk_size = if (parsed == 0) null else parsed;
+        }
+    }
+    const input_path = input orelse {
+        try err.writeAll("timeline requires --input <journal.jsonl>\n");
+        return 2;
+    };
+    const window = if (window_text) |text| chrome_trace.parseWindow(text) orelse {
+        try err.writeAll("timeline: invalid --window (expected start:end in microseconds)\n");
+        return 2;
+    } else null;
+
+    const events = journal.read(io, allocator, input_path) catch |read_error| {
+        try err.print("timeline: cannot read {s}: {s}\n", .{ input_path, @errorName(read_error) });
+        return 1;
+    };
+
+    if (output) |path| {
+        const file = if (path.len != 0 and path[0] == '/')
+            std.Io.Dir.createFileAbsolute(io, path, .{}) catch {
+                try err.print("timeline: cannot open output {s}\n", .{path});
+                return 1;
+            }
+        else
+            std.Io.Dir.cwd().createFile(io, path, .{}) catch {
+                try err.print("timeline: cannot open output {s}\n", .{path});
+                return 1;
+            };
+        defer file.close(io);
+        var buffer: [64 * 1024]u8 = undefined;
+        var file_writer = file.writer(io, &buffer);
+        try chrome_trace.writeTimeline(&file_writer.interface, allocator, events, window, chunk_size);
+        try file_writer.interface.flush();
+    } else {
+        try chrome_trace.writeTimeline(out, allocator, events, window, chunk_size);
+    }
+    if (chunk_size != null) {
+        try err.print("{{\"journal_rows\":{d}}}\n", .{events.len});
+    }
+    return 0;
+}
+
 pub fn runWith(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -161,6 +272,12 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "capabilities")) {
         return cmdCapabilities(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "advise")) {
+        return cmdAdvise(io, allocator, args[2..], out);
+    }
+    if (std.mem.eql(u8, cmd, "timeline")) {
+        return cmdTimeline(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});
@@ -282,4 +399,26 @@ test "capabilities requires --json and is an array" {
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
     try std.testing.expect(std.mem.startsWith(u8, out.buffered(), "[{\"host_mutation\":false"));
+}
+
+test "advise json and markdown stay read-only" {
+    var out_buffer: [16384]u8 = undefined;
+    var err_buffer: [256]u8 = undefined;
+    var out: Writer = undefined;
+    var err: Writer = undefined;
+
+    const json_args = [_][]const u8{ "xsprof", "advise", "--json" };
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testRun(&json_args, &out_buffer, &err_buffer, &out, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"host_mutation\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"schema\":\"xsprof/advisor-report/v1\"") != null);
+
+    const md_args = [_][]const u8{ "xsprof", "advise", "--md" };
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testRun(&md_args, &out_buffer, &err_buffer, &out, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "Performance Advisor Report") != null);
 }

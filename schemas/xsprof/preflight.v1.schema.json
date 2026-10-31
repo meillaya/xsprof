@@ -1,0 +1,252 @@
+{
+  "$id": "schemas/xsprof/xsprof preflight v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "host_mutation": {
+            "const": false
+          },
+          "name": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "READY",
+              "DEGRADED",
+              "SKIP",
+              "REFUSE"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "reason",
+          "host_mutation"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "facts": {
+      "additionalProperties": false,
+      "properties": {
+        "btf_present": {
+          "type": "boolean"
+        },
+        "buddyinfo": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cpu": {
+          "additionalProperties": false,
+          "properties": {
+            "idle": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "iowait": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "irq": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "nice": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "per_cpu_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "softirq": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "steal": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "system": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "user": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "user",
+            "nice",
+            "system",
+            "idle",
+            "iowait",
+            "irq",
+            "softirq",
+            "steal",
+            "per_cpu_count"
+          ],
+          "type": "object"
+        },
+        "host_mutation": {
+          "const": false
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "kernel_release": {
+          "type": "string"
+        },
+        "kptr_restrict": {
+          "type": "integer"
+        },
+        "memory": {
+          "additionalProperties": false,
+          "properties": {
+            "huge_pages_free": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "huge_pages_total": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "hugepage_size_kb": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mem_available_kb": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mem_total_kb": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "mem_total_kb",
+            "mem_available_kb",
+            "huge_pages_total",
+            "huge_pages_free",
+            "hugepage_size_kb"
+          ],
+          "type": "object"
+        },
+        "numa_nodes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cpus": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "cpus"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "online_cpus": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "perf_event_paranoid": {
+          "type": "integer"
+        },
+        "process_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sched_ext": {
+          "additionalProperties": false,
+          "properties": {
+            "enable_seq": {
+              "type": "string"
+            },
+            "hotplug_seq": {
+              "type": "string"
+            },
+            "nr_rejected": {
+              "type": "string"
+            },
+            "present": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string"
+            },
+            "switch_all": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "present",
+            "state",
+            "switch_all",
+            "nr_rejected",
+            "enable_seq",
+            "hotplug_seq"
+          ],
+          "type": "object"
+        },
+        "tracefs_present": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hostname",
+        "kernel_release",
+        "online_cpus",
+        "perf_event_paranoid",
+        "kptr_restrict",
+        "btf_present",
+        "tracefs_present",
+        "cpu",
+        "memory",
+        "buddyinfo",
+        "numa_nodes",
+        "sched_ext",
+        "process_count",
+        "host_mutation"
+      ],
+      "type": "object"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "schema": {
+      "const": "xsprof/preflight/v1"
+    },
+    "tool": {
+      "const": "xsprof"
+    }
+  },
+  "required": [
+    "schema",
+    "tool",
+    "host_mutation",
+    "capabilities",
+    "facts"
+  ],
+  "title": "xsprof preflight v1",
+  "type": "object"
+}

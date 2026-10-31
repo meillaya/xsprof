@@ -9,6 +9,10 @@ pub const event = @import("core/event.zig");
 pub const privacy = @import("core/privacy.zig");
 pub const safety = @import("core/safety.zig");
 pub const proc = @import("os/linux/proc.zig");
+pub const aggregates = @import("analyze/aggregates.zig");
+pub const advisor = @import("analyze/advisor.zig");
+pub const journal = @import("stream/journal.zig");
+pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const cli = @import("cli/root.zig");
 
 test {
@@ -19,5 +23,9 @@ test {
     _ = privacy;
     _ = safety;
     _ = proc;
+    _ = aggregates;
+    _ = advisor;
+    _ = journal;
+    _ = chrome_trace;
     _ = cli;
 }

@@ -1,0 +1,102 @@
+{
+  "$id": "schemas/xsprof/xsprof advisor report v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "pmu_collected": {
+          "type": "boolean"
+        },
+        "sched_collected": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pmu_collected",
+        "sched_collected"
+      ],
+      "type": "object"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "enum": [
+              "measured",
+              "heuristic"
+            ]
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "detail": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "detail",
+                "rationale"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "confidence",
+          "summary",
+          "evidence",
+          "recommendations"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "schema": {
+      "const": "xsprof/advisor-report/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "capabilities",
+    "findings",
+    "host_mutation"
+  ],
+  "title": "xsprof advisor report v1",
+  "type": "object"
+}

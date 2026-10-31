@@ -1,0 +1,86 @@
+{
+  "$id": "schemas/xsprof/xsprof event v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "a": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "b": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "c": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "comm": {
+      "maxLength": 15,
+      "type": "string"
+    },
+    "cpu": {
+      "minimum": -1,
+      "type": "integer"
+    },
+    "detail": {
+      "maxLength": 1024,
+      "type": "string"
+    },
+    "event": {
+      "enum": [
+        "sched_switch",
+        "sched_wakeup",
+        "sched_migrate",
+        "runqueue_sample",
+        "priority_inversion",
+        "lock_contention",
+        "page_fault",
+        "tlb_miss",
+        "cache_miss",
+        "huge_page",
+        "numa_balance",
+        "alloc_sample",
+        "malloc_hotspot",
+        "marker",
+        "capability",
+        "refusal",
+        "incident",
+        "runtime_sample"
+      ],
+      "type": "string"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "pid": {
+      "minimum": -1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "xsprof/event/v1"
+    },
+    "tid": {
+      "minimum": -1,
+      "type": "integer"
+    },
+    "ts_ns": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "event",
+    "ts_ns",
+    "cpu",
+    "pid",
+    "tid",
+    "a",
+    "b",
+    "c",
+    "host_mutation"
+  ],
+  "title": "xsprof event v1",
+  "type": "object"
+}
