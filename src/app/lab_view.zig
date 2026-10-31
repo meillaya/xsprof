@@ -75,9 +75,11 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     try ui.text(.{ .text = "read-only bench", .size = 9, .color = th.muted });
     if (lab.palette.open) {
         try ui.text(.{ .text = "COMMANDS", .size = 9, .color = th.skip, .weight = .bold });
-        try controls.button(ui, @backingInt(Hit.palette_healthy), "open healthy", .{ .width = rail_width - 20 });
-        try controls.button(ui, @backingInt(Hit.palette_scheduler_mix), "open scheduler-mix", .{ .width = rail_width - 20 });
-        try controls.button(ui, @backingInt(Hit.palette_capture), "start 2s capture", .{ .width = rail_width - 20, .tone = .primary });
+        if (lab.host_controls) {
+            try controls.button(ui, @backingInt(Hit.palette_healthy), "open healthy", .{ .width = rail_width - 20 });
+            try controls.button(ui, @backingInt(Hit.palette_scheduler_mix), "open scheduler-mix", .{ .width = rail_width - 20 });
+            try controls.button(ui, @backingInt(Hit.palette_capture), "start 2s capture", .{ .width = rail_width - 20, .tone = .primary });
+        }
         try controls.button(ui, @backingInt(Hit.palette_fit), "fit transport", .{ .width = rail_width - 20 });
         try controls.button(ui, @backingInt(Hit.palette_close), "close", .{ .width = rail_width - 20, .tone = .quiet });
         column.end();
@@ -85,9 +87,13 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     }
 
     try ui.text(.{ .text = "SOURCE", .size = 9, .color = th.muted, .weight = .bold });
-    try controls.button(ui, @backingInt(Hit.healthy), "healthy", .{ .width = rail_width - 20 });
-    try controls.button(ui, @backingInt(Hit.scheduler_mix), "scheduler-mix", .{ .width = rail_width - 20 });
-    try controls.button(ui, @backingInt(Hit.empty), "empty", .{ .width = rail_width - 20 });
+    if (lab.host_controls) {
+        try controls.button(ui, @backingInt(Hit.healthy), "healthy", .{ .width = rail_width - 20 });
+        try controls.button(ui, @backingInt(Hit.scheduler_mix), "scheduler-mix", .{ .width = rail_width - 20 });
+        try controls.button(ui, @backingInt(Hit.empty), "empty", .{ .width = rail_width - 20 });
+    } else {
+        try ui.text(.{ .text = "replay only; open a journal", .size = 9, .color = th.skip });
+    }
     try ui.text(.{
         .text = if (lab.source.path_len == 0) "no source loaded" else lab.source.pathSlice(),
         .size = 9,
@@ -98,18 +104,22 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     }
 
     try ui.text(.{ .text = "CAPTURE", .size = 9, .color = th.muted, .weight = .bold });
-    var capture_row = try ui.row(.{ .height = 26, .gap = 6 });
-    try controls.button(ui, @backingInt(Hit.capture_start), "start 2s", .{
-        .width = 100,
-        .tone = .primary,
-        .enabled = lab.capture.phase != .running and lab.capture.phase != .starting,
-    });
-    try controls.button(ui, @backingInt(Hit.capture_stop), "stop", .{
-        .width = 88,
-        .tone = .danger,
-        .enabled = lab.capture.phase == .running or lab.capture.phase == .starting,
-    });
-    capture_row.end();
+    if (lab.host_controls) {
+        var capture_row = try ui.row(.{ .height = 26, .gap = 6 });
+        try controls.button(ui, @backingInt(Hit.capture_start), "start 2s", .{
+            .width = 100,
+            .tone = .primary,
+            .enabled = lab.capture.phase != .running and lab.capture.phase != .starting,
+        });
+        try controls.button(ui, @backingInt(Hit.capture_stop), "stop", .{
+            .width = 88,
+            .tone = .danger,
+            .enabled = lab.capture.phase == .running or lab.capture.phase == .starting,
+        });
+        capture_row.end();
+    } else {
+        try ui.text(.{ .text = "native only", .size = 9, .color = th.skip });
+    }
     try ui.text(.{
         .text = try std.fmt.allocPrint(ui.allocator, "state {s}  events {d}  lost {d}", .{
             @tagName(lab.capture.phase),

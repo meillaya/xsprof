@@ -3,8 +3,10 @@
 Status: in progress. L0 and L1 are implemented. L2 adds the native lab rail,
 source buttons, capture controls, transport buttons, and command palette. L3
 adds transport window advancement and the inspector. L4 adds the scenario
-schema, headless runner, built-in scenarios, and `lab-smoke`. Web parity and
-the remaining export/compare controls are open.
+schema, headless runner, built-in scenarios, and `lab-smoke`. The wasm replay
+client now shares the lab state and rail but hides native-only source and
+capture controls. Remaining: web scenario/file actions, export/compare
+controls, and the final acceptance sweep.
 
 ## Goal
 

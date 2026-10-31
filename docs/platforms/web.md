@@ -26,6 +26,9 @@ The P3 web surface is a **read-only replay client**:
 - drag/drop a capture anywhere on the page to load it locally; nothing is
   uploaded;
 - clicking an event row opens the timeline centered on that event;
+- the replay client now uses the same lab state and rail as native: `L`
+  toggles the rail, `K` opens the command palette, and the inspector follows
+  the selected task; live capture controls stay native-only;
 - `c` filters by the selected comm, `P` by pid, `k` cycles event kinds, `l`
   toggles loss/refusal rows, and `x` clears the combined filter;
   `?theme=light` selects the paper theme; `1..5` switches screens.

@@ -6,7 +6,8 @@ const draw = @import("ui/draw.zig");
 const frame_mod = @import("ui/frame.zig");
 const layout = @import("ui/layout.zig");
 const app = @import("app/app.zig");
-const gallery = @import("app/gallery.zig");
+const lab_state = @import("app/lab/state.zig");
+const lab_view = @import("app/lab_view.zig");
 const session_mod = @import("stream/session.zig");
 const stream_store = @import("stream/store.zig");
 const stream_index = @import("stream/index.zig");
@@ -27,8 +28,8 @@ var paused_flag = false;
 var follow_flag = true;
 var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
-var view_state: app.State = undefined;
-var view_ready = false;
+var lab: lab_state.LabState = undefined;
+var lab_ready = false;
 var screen: app.Screen = .overview;
 var theme: draw.Theme = .{};
 var width: u32 = 1280;
@@ -41,6 +42,29 @@ fn ensureArena() void {
     }
 }
 
+fn ensureLab() bool {
+    if (!lab_ready) {
+        lab = lab_state.LabState.init(gpa) catch return false;
+        lab.host_controls = false;
+        lab_ready = true;
+    }
+    return true;
+}
+
+fn syncLab() void {
+    if (!ensureLab()) return;
+    if (loaded) |*session| {
+        lab.view.session = session;
+        lab.source.phase = .ready;
+    } else {
+        lab.view.session = lab.empty_session;
+        lab.source.phase = .none;
+    }
+    lab.view.screen = screen;
+    lab.view.live_paused = paused_flag;
+    lab.view.live_follow = follow_flag;
+}
+
 fn reloadSession() void {
     if (session_ready) session_arena.deinit();
     session_arena = std.heap.ArenaAllocator.init(gpa);
@@ -51,6 +75,13 @@ fn reloadSession() void {
     }
     const source = if (live_mode) "live capture" else "web replay";
     loaded = event_index.snapshot(session_arena.allocator(), source) catch null;
+    if (lab_ready) {
+        // The old session arena is gone; pointers into its event strings must
+        // not survive the reload.
+        lab.view.selection = null;
+        lab.view.filter.comm = null;
+    }
+    syncLab();
 }
 
 fn resetStore() void {
@@ -93,6 +124,7 @@ export fn web_init(w: u32, h: u32) u32 {
     ensureArena();
     width = w;
     height = h;
+    if (!ensureLab()) return 0;
     createFrame();
     return if (frame_ptr == null) 0 else 1;
 }
@@ -127,7 +159,7 @@ export fn web_load_journal(addr: usize, len: usize) u32 {
     indexNewEvents() catch return 0;
     reloadSession();
     screen = .overview;
-    view_ready = false;
+    syncLab();
     return 1;
 }
 
@@ -148,10 +180,12 @@ export fn web_set_live(value: u32) void {
 
 export fn web_set_paused(value: u32) void {
     paused_flag = value != 0;
+    if (lab_ready) lab.view.live_paused = paused_flag;
 }
 
 export fn web_set_follow(value: u32) void {
     follow_flag = value != 0;
+    if (lab_ready) lab.view.live_follow = follow_flag;
 }
 
 export fn web_pointer(x: f32, y: f32, clicked: u32, down: u32, scroll: f32) void {
@@ -177,6 +211,7 @@ export fn web_set_screen(id: u32) void {
         4 => .capture,
         else => .overview,
     };
+    if (lab_ready) lab.view.screen = screen;
 }
 
 export fn web_set_theme(light: u32) void {
@@ -193,23 +228,18 @@ export fn web_set_theme(light: u32) void {
 
 export fn web_frame() u32 {
     const frame = frame_ptr orelse return 0;
+    if (!ensureLab()) return 0;
+    syncLab();
     frame.list.clear();
     var ui = layout.Ui.init(frame);
     defer ui.deinit();
-    if (loaded) |*session| {
-        if (!view_ready) {
-            view_state = .{ .session = session, .screen = screen };
-            view_ready = true;
-        }
-        view_state.session = session;
-        view_state.screen = screen;
-        view_state.live_paused = paused_flag;
-        view_state.live_follow = follow_flag;
-        app.view(&view_state, &ui) catch return 0;
-    } else {
-        gallery.build(&ui) catch return 0;
-    }
+    ui.frame.input = frame.input;
+    lab_view.build(&lab, &ui) catch return 0;
     ui.finish() catch return 0;
+    const messages = lab_view.collect(&lab, &ui, &ui.frame.input);
+    for (messages.slice()) |message| {
+        _ = lab.apply(message) catch {};
+    }
     frame.input.clearTransient();
     return @intCast(frame.list.items.items.len);
 }

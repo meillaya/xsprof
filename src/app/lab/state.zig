@@ -100,6 +100,7 @@ pub const LabState = struct {
     focus: action.Focus = .screen,
     active_panel: action.LabPanel = .source,
     rail_open: bool = true,
+    host_controls: bool = true,
     quit_requested: bool = false,
     toast: [max_toast]u8 = @splat(0),
     toast_len: usize = 0,

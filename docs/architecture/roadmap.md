@@ -166,7 +166,9 @@ Status is updated only when a phase gate actually passes.
   transport buttons, and a command palette. L3 adds transport window
   advancement and the inspector; L4 adds the scenario schema, headless
   runner, built-in scenarios, and `zig build lab-smoke`. Web parity and the
-  remaining export/compare controls are still open.
+  remaining export/compare controls are still open. L5 now uses the lab state
+  and rail in the wasm replay client with native-only capture controls
+  hidden.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
