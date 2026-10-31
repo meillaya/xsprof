@@ -4,7 +4,6 @@ class Xsprof < Formula
   homepage "https://github.com/meillaya/exa"
   url "https://github.com/meillaya/exa/releases/download/v@VERSION@/xsprof-@VERSION@-linux-x86_64.tar.gz"
   sha256 "@SHA256@"
-  license "MIT"
 
   def install
     bin.install "bin/xsprof"
