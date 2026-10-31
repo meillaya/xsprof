@@ -78,8 +78,8 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P2 is complete: draw list, TrueType text/atlas, CPU reference renderer, PNG
-writer, flex/slot layout, panels/chips/stats, Tester, golden framebuffer hash,
-and the headless gallery. P3 is the web profiler UI on replay fixtures:
-EventStore/index, real Overview/Timeline/Advisor/Events views, wasm/WebGL2,
-and the loopback `serve` bridge. Update the roadmap when a gate passes.
+P3 is complete: replay Session model, real profiler screens, wasm32-freestanding
+UI core, WebGL2 instanced frontend, token-gated loopback `serve`, and headless
+Chromium screenshots. P4 is live capture: perf/ring collectors, loss plumbing,
+aggregation, `record`, live streaming, and VM-lab validation. Update the
+roadmap when a gate passes.

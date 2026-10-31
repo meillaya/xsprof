@@ -7,8 +7,8 @@ Status is updated only when a phase gate actually passes.
 | P0 | Archive C++; pin Zig 0.17; vendor stdlib text; skeleton build/CI; guidance docs | **complete** |
 | P1 | Core event/JSON/privacy/safety; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | **complete** |
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
-| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | next |
-| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | planned |
+| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
+| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | next |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | planned |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | planned |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | planned |
@@ -21,6 +21,19 @@ Status is updated only when a phase gate actually passes.
 - `./tools/zig build check` green on macOS: fmt, 600-line limit, vendor hashes,
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
+
+## P3 gate (passed)
+
+- `Session` replay model: bounded events, per-CPU switch slices, capabilities,
+  top tasks, loss/refusal counters, aggregate derivation.
+- Real Overview/Timeline/Advisor/Events/Capture screens, selected by
+  `snapshot --view` or `?screen=`.
+- `xsprof serve` loopback bridge: token-gated `/api/meta` + `/api/journal`,
+  whitelisted static assets, no POST, no traversal.
+- `wasm32-freestanding` UI core + WebGL2 instanced renderer (one draw call),
+  R8 glyph atlas, per-instance clipping, keyboard screen switching.
+- Headless Chromium screenshots for Overview and Timeline; `web-smoke` gate.
+- Native `snapshot --replay` produces the same views through the CPU renderer.
 
 ## P2 gate (passed)
 

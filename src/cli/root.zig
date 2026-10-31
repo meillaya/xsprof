@@ -9,6 +9,9 @@ const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
 const ui_frame = @import("../ui/frame.zig");
 const gallery = @import("../app/gallery.zig");
+const app = @import("../app/app.zig");
+const session_mod = @import("../stream/session.zig");
+const server = @import("../serve/server.zig");
 const ui_layout = @import("../ui/layout.zig");
 
 const Writer = std.Io.Writer;
@@ -268,6 +271,8 @@ fn cmdSnapshot(
     var width: u32 = 1280;
     var height: u32 = 720;
     var theme_name: []const u8 = "warm-dark";
+    var replay: ?[]const u8 = null;
+    var screen_name: []const u8 = "overview";
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -289,6 +294,12 @@ fn cmdSnapshot(
         } else if (std.mem.eql(u8, arg, "--theme") and i + 1 < args.len) {
             i += 1;
             theme_name = args[i];
+        } else if (std.mem.eql(u8, arg, "--replay") and i + 1 < args.len) {
+            i += 1;
+            replay = args[i];
+        } else if (std.mem.eql(u8, arg, "--view") and i + 1 < args.len) {
+            i += 1;
+            screen_name = args[i];
         }
     }
     if (width < 64 or height < 64 or width > 4096 or height > 4096) {
@@ -303,12 +314,28 @@ fn cmdSnapshot(
     defer frame.deinit();
     var ui = ui_layout.Ui.init(&frame);
     defer ui.deinit();
-    gallery.build(&ui) catch {
-        try err.writeAll("snapshot: cannot build gallery frame\n");
-        return 1;
-    };
+    if (replay) |journal_path| {
+        const screen = app.parseScreen(screen_name) orelse {
+            try err.print("snapshot: unknown view {s}\n", .{screen_name});
+            return 2;
+        };
+        const session = session_mod.Session.load(io, allocator, journal_path) catch |load_error| {
+            try err.print("snapshot: cannot load {s}: {s}\n", .{ journal_path, @errorName(load_error) });
+            return 1;
+        };
+        var state = app.State{ .session = &session, .screen = screen };
+        app.view(&state, &ui) catch {
+            try err.writeAll("snapshot: cannot build profiler view\n");
+            return 1;
+        };
+    } else {
+        gallery.build(&ui) catch {
+            try err.writeAll("snapshot: cannot build gallery frame\n");
+            return 1;
+        };
+    }
     ui.finish() catch {
-        try err.writeAll("snapshot: cannot finish gallery layout\n");
+        try err.writeAll("snapshot: cannot finish layout\n");
         return 1;
     };
     frame.savePng(io, path) catch |save_error| {
@@ -316,6 +343,67 @@ fn cmdSnapshot(
         return 1;
     };
     try out.print("{s}\n", .{path});
+    return 0;
+}
+
+fn cmdServe(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+    err: *Writer,
+) !u8 {
+    var port: u16 = 8787;
+    var journal_path: []const u8 = "fixtures/ui/healthy.ndjson";
+    var assets_dir: []const u8 = "zig-out/web";
+    var addr: []const u8 = "127.0.0.1";
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--port") and i + 1 < args.len) {
+            i += 1;
+            port = std.fmt.parseInt(u16, args[i], 10) catch {
+                try err.writeAll("serve: invalid --port\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--journal") and i + 1 < args.len) {
+            i += 1;
+            journal_path = args[i];
+        } else if (std.mem.eql(u8, arg, "--assets-dir") and i + 1 < args.len) {
+            i += 1;
+            assets_dir = args[i];
+        } else if (std.mem.eql(u8, arg, "--addr") and i + 1 < args.len) {
+            i += 1;
+            addr = args[i];
+        }
+    }
+    if (!std.mem.eql(u8, addr, "127.0.0.1") and !std.mem.eql(u8, addr, "::1")) {
+        try err.writeAll("serve: refusing non-loopback address\n");
+        return 2;
+    }
+    var raw: [16]u8 = undefined;
+    std.Io.randomSecure(io, &raw) catch {
+        try err.writeAll("serve: entropy unavailable\n");
+        return 1;
+    };
+    var token: [32]u8 = undefined;
+    const hex = "0123456789abcdef";
+    for (raw, 0..) |byte, index| {
+        token[index * 2] = hex[byte >> 4];
+        token[index * 2 + 1] = hex[byte & 0x0f];
+    }
+    try out.print("http://{s}:{d}/?token={s}\n", .{ addr, port, token[0..] });
+    try out.flush();
+    server.run(io, allocator, .{
+        .addr = addr,
+        .port = port,
+        .journal_path = journal_path,
+        .assets_dir = assets_dir,
+        .token = token[0..],
+    }) catch |serve_error| {
+        try err.print("serve: {s}\n", .{@errorName(serve_error)});
+        return 1;
+    };
     return 0;
 }
 
@@ -360,6 +448,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "snapshot")) {
         return cmdSnapshot(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "serve")) {
+        return cmdServe(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});
