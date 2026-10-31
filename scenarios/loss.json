@@ -1,0 +1,13 @@
+{
+  "schema": "xsprof/lab-scenario/v1",
+  "id": "loss",
+  "source": {"kind": "fixture", "path": "fixtures/ui/healthy.ndjson"},
+  "steps": [
+    {"at_ms": 0, "action": "screen", "value": "events"},
+    {"at_ms": 10, "action": "snapshot", "value": "loss-ledger"}
+  ],
+  "assertions": [
+    {"metric": "lost", "op": "eq", "value": "3"},
+    {"metric": "indicator", "op": "eq", "value": "host_mutation=false"}
+  ]
+}

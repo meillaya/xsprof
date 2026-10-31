@@ -24,3 +24,5 @@ boundary, and every record carries `host_mutation=false`.
 - `pressure.v1.schema.json` — PSI CPU/memory/IO stall counters.
 - `cgroup.v1.schema.json` — read-only cgroup task attribution.
 - `recorder-result.v1.schema.json` — daemon result and overhead meter.
+- `lab-scenario.v1.schema.json` — bounded GUI lab scenario.
+- `lab-run.v1.schema.json` — headless lab run result.

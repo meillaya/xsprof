@@ -9,6 +9,7 @@ const action = @import("lab/action.zig");
 const controls = @import("../ui/controls.zig");
 const layout = @import("../ui/layout.zig");
 const input_mod = @import("../ui/input.zig");
+const app_util = @import("app_util.zig");
 
 pub const rail_width: f32 = 224;
 
@@ -136,6 +137,33 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     var fit_row = try ui.row(.{ .height = 26 });
     try controls.button(ui, @backingInt(Hit.fit), "fit window", .{ .width = 100 });
     fit_row.end();
+    try ui.text(.{
+        .text = try std.fmt.allocPrint(ui.allocator, "cursor {d}ms", .{lab.transport.cursor_us / 1000}),
+        .size = 9,
+        .color = th.muted,
+    });
+
+    try ui.text(.{ .text = "INSPECTOR", .size = 9, .color = th.muted, .weight = .bold });
+    if (lab.view.selection) |selection| {
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(ui.allocator, "{s} pid={d}", .{ selection.comm, selection.pid }),
+            .size = 10,
+            .color = th.text,
+        });
+        if (app_util.selectedMetric(lab.view.session, selection.pid, selection.comm)) |task| {
+            try ui.text(.{
+                .text = try std.fmt.allocPrint(
+                    ui.allocator,
+                    "p95 {d}ms  offcpu {d}ms  switches {d}",
+                    .{ task.wait_p95_us / 1000, task.offcpu_p95_us / 1000, task.switches },
+                ),
+                .size = 9,
+                .color = th.live,
+            });
+        }
+    } else {
+        try ui.text(.{ .text = "no selection", .size = 9, .color = th.muted });
+    }
 
     if (lab.toast_len != 0) {
         try controls.toast(ui, lab.toastSlice(), switch (lab.toast_kind) {

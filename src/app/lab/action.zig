@@ -38,6 +38,8 @@ pub const Intent = union(enum) {
     start_capture: struct { duration_ms: u32, preset: CapturePreset },
     stop_capture,
     transport: TransportIntent,
+    filter_comm: []const u8,
+    select_pid: i32,
     exports: struct { kind: ExportKind, path: []const u8 },
     quit,
     dismiss_error,

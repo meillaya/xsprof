@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/lab-run.v1.schema.json",
+  "title": "xsprof GUI lab run result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assertions", "events", "host_mutation", "lost", "scenario", "schema", "snapshots", "status", "steps"],
+  "properties": {
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actual", "expected", "metric", "op", "passed"],
+        "properties": {
+          "actual": { "type": "string" },
+          "expected": { "type": "string" },
+          "metric": { "type": "string" },
+          "op": { "type": "string" },
+          "passed": { "type": "boolean" }
+        }
+      }
+    },
+    "events": { "type": "integer", "minimum": 0 },
+    "host_mutation": { "const": false },
+    "lost": { "type": "integer", "minimum": 0 },
+    "scenario": { "type": "string", "minLength": 1 },
+    "schema": { "const": "xsprof/lab-run/v1" },
+    "snapshots": { "type": "array", "items": { "type": "string" } },
+    "status": { "enum": ["passed", "failed"] },
+    "steps": { "type": "integer", "minimum": 1 }
+  }
+}

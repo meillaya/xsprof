@@ -162,8 +162,11 @@ Status is updated only when a phase gate actually passes.
   source and capture controllers, workbench panels, scenario schema, headless
   `lab` runner, and the L0–L6 delivery sequence. L0+L1 landed with input,
   hit testing, controls, the reducer, source loading, live feed, and capture
-  worker. L2 adds the native lab rail, source buttons, capture controls,
-  transport buttons, and a command palette.
+  worker. L2 added the native lab rail, source buttons, capture controls,
+  transport buttons, and a command palette. L3 adds transport window
+  advancement and the inspector; L4 adds the scenario schema, headless
+  runner, built-in scenarios, and `zig build lab-smoke`. Web parity and the
+  remaining export/compare controls are still open.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
