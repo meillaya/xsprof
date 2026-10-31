@@ -61,7 +61,9 @@ and web smoke.
 - L4: `xsprof lab`, scenario schema, built-in scenarios, canonical run JSON,
   per-step snapshots, and `zig build lab-smoke`.
 - L5: the wasm replay client shares the lab state and rail; native-only source
-  and capture controls are hidden.
+  and capture controls are hidden. `web_run_scenario` runs the healthy scenario
+  over the loaded journal and returns canonical run JSON; `qa/web_lab_smoke.mjs`
+  passes against the built wasm.
 - Linux VM gate: `zig build check` passed with 105 tests, CLI parity, web
   smoke, and lab smoke.
 

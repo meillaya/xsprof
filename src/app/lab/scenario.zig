@@ -161,13 +161,7 @@ fn writeTrace(
     try writer.interface.flush();
 }
 
-fn applyStep(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    lab: *lab_state.LabState,
-    session: *const session_mod.Session,
-    step: Step,
-) !void {
+fn applyLocalStep(lab: *lab_state.LabState, step: Step) !void {
     switch (step.action) {
         .screen => {
             const screen = app.parseScreen(step.value) orelse return error.InvalidScenario;
@@ -185,9 +179,19 @@ fn applyStep(
                 return error.InvalidScenario;
             _ = try lab.apply(.{ .intent = .{ .transport = transport } });
         },
-        .snapshot => {},
-        .export_file => try writeTrace(io, allocator, session, step.value),
+        .snapshot, .export_file => {},
     }
+}
+
+fn applyStep(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    lab: *lab_state.LabState,
+    session: *const session_mod.Session,
+    step: Step,
+) !void {
+    try applyLocalStep(lab, step);
+    if (step.action == .export_file) try writeTrace(io, allocator, session, step.value);
 }
 
 fn snapshot(
@@ -271,6 +275,34 @@ fn evaluate(
         .expected = assertion.value,
         .actual = actual,
         .passed = passed,
+    };
+}
+
+/// Apply the scenario to an already-loaded Session. File snapshots and trace
+/// exports are skipped; assertions and step state are the same as the CLI.
+pub fn runLoaded(
+    allocator: std.mem.Allocator,
+    lab: *lab_state.LabState,
+    session: *const session_mod.Session,
+    scenario: Scenario,
+) !RunResult {
+    for (scenario.steps) |step| try applyLocalStep(lab, step);
+    var assertions: std.ArrayList(AssertionResult) = .empty;
+    errdefer assertions.deinit(allocator);
+    var passed = true;
+    for (scenario.assertions) |assertion| {
+        const result = try evaluate(allocator, session, lab, assertion);
+        if (!result.passed) passed = false;
+        try assertions.append(allocator, result);
+    }
+    return .{
+        .id = scenario.id,
+        .passed = passed,
+        .steps = scenario.steps.len,
+        .events = session.events.len,
+        .lost = session.lost,
+        .assertions = try assertions.toOwnedSlice(allocator),
+        .snapshots = &.{},
     };
 }
 

@@ -43,15 +43,18 @@ fn contentType(path: []const u8) []const u8 {
     if (std.mem.endsWith(u8, path, ".glsl")) return "text/plain; charset=utf-8";
     if (std.mem.endsWith(u8, path, ".wasm")) return "application/wasm";
     if (std.mem.endsWith(u8, path, ".ndjson")) return "application/x-ndjson";
+    if (std.mem.endsWith(u8, path, ".json")) return "application/json; charset=utf-8";
     return "application/octet-stream";
 }
 
 fn assetPath(path: []const u8) ?[]const u8 {
     if (std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/index.html")) return "index.html";
     inline for ([_][]const u8{
-        "/main.js",              "/gl.js",
-        "/style.css",            "/shaders/ui.vert.glsl",
-        "/shaders/ui.frag.glsl", "/assets/xsprof-web.wasm",
+        "/main.js",                "/gl.js",
+        "/style.css",              "/shaders/ui.vert.glsl",
+        "/shaders/ui.frag.glsl",   "/assets/xsprof-web.wasm",
+        "/scenarios/healthy.json", "/scenarios/loss.json",
+        "/scenarios/empty.json",   "/scenarios/scheduler-mix.json",
     }) |candidate| {
         if (std.mem.eql(u8, path, candidate)) return candidate[1..];
     }

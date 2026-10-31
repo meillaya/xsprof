@@ -16,6 +16,7 @@ let paused = false;
 let follow = true;
 let liveSource = null;
 const fileInput = document.getElementById("file");
+const scenarioButton = document.getElementById("scenario");
 
 function fail(message) {
   errorBox.hidden = false;
@@ -81,6 +82,7 @@ async function boot() {
   loadJournalText(await journal.text(), true);
   exports.web_set_screen(screen);
   frame();
+  scenarioButton.disabled = false;
 
   if (live) startLive();
 
@@ -121,6 +123,37 @@ async function boot() {
   }
 
   fileInput.addEventListener("change", () => openFile(fileInput.files[0]));
+
+  async function runScenario() {
+    scenarioButton.disabled = true;
+    try {
+      const response = await fetch("/scenarios/healthy.json");
+      if (!response.ok) throw new Error(`scenario: HTTP ${response.status}`);
+      const data = encoder.encode(await response.text());
+      const ptr = exports.web_alloc(data.length);
+      if (!ptr) throw new Error("scenario allocation failed");
+      new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
+      const ok = exports.web_run_scenario(ptr, data.length);
+      exports.web_free(ptr, data.length);
+      if (!ok) throw new Error("scenario run failed");
+      const resultPtr = exports.web_scenario_result_ptr();
+      const resultLen = exports.web_scenario_result_len();
+      const text = new TextDecoder().decode(
+        new Uint8Array(exports.memory.buffer, resultPtr, resultLen),
+      );
+      console.log(text);
+      frame();
+      status.textContent = text.includes('"status":"passed"')
+        ? "scenario healthy · PASS"
+        : "scenario healthy · FAIL";
+    } catch (error) {
+      fail(error);
+    } finally {
+      scenarioButton.disabled = false;
+    }
+  }
+
+  scenarioButton.addEventListener("click", runScenario);
   window.addEventListener("dragover", (event) => event.preventDefault());
   window.addEventListener("drop", (event) => {
     event.preventDefault();

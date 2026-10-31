@@ -5,8 +5,10 @@ source buttons, capture controls, transport buttons, and command palette. L3
 adds transport window advancement, the inspector, trace export, and native
 path editing. L4 adds the scenario schema, headless runner, built-in
 scenarios, and `lab-smoke`. The wasm replay client now shares the lab state
-and rail but hides native-only source and capture controls. Remaining: web
-scenario/file actions, compare controls, and the final acceptance sweep.
+and rail but hides native-only source and capture controls. The wasm client also runs the
+healthy scenario through `web_run_scenario` and reports assertions. Remaining:
+compare controls, web file pickers for custom scenarios, and the final
+acceptance sweep.
 
 ## Goal
 

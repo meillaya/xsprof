@@ -8,6 +8,7 @@ const layout = @import("ui/layout.zig");
 const app = @import("app/app.zig");
 const lab_state = @import("app/lab/state.zig");
 const lab_view = @import("app/lab_view.zig");
+const scenario = @import("app/lab/scenario.zig");
 const session_mod = @import("stream/session.zig");
 const stream_store = @import("stream/store.zig");
 const stream_index = @import("stream/index.zig");
@@ -30,6 +31,7 @@ var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
 var lab: lab_state.LabState = undefined;
 var lab_ready = false;
+var scenario_result: ?[]u8 = null;
 var screen: app.Screen = .overview;
 var theme: draw.Theme = .{};
 var width: u32 = 1280;
@@ -224,6 +226,34 @@ export fn web_set_theme(light: u32) void {
         .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
     } else .{};
     if (frame_ptr) |frame| frame.theme = theme;
+}
+
+export fn web_run_scenario(addr: usize, len: usize) u32 {
+    if (!ensureLab() or loaded == null) return 0;
+    if (addr == 0 or len == 0) return 0;
+    const input: [*]const u8 = @ptrFromInt(addr);
+    var run_arena = std.heap.ArenaAllocator.init(gpa);
+    defer run_arena.deinit();
+    const parsed = scenario.parse(run_arena.allocator(), input[0..len]) catch return 0;
+    const result = scenario.runLoaded(run_arena.allocator(), &lab, &loaded.?, parsed) catch return 0;
+    var allocating = std.Io.Writer.Allocating.init(gpa);
+    defer allocating.deinit();
+    scenario.writeJson(&allocating.writer, result) catch return 0;
+    allocating.writer.writeByte('\n') catch return 0;
+    const bytes = allocating.toOwnedSlice() catch return 0;
+    if (scenario_result) |old| gpa.free(old);
+    scenario_result = bytes;
+    return 1;
+}
+
+export fn web_scenario_result_ptr() usize {
+    const bytes = scenario_result orelse return 0;
+    return @intFromPtr(bytes.ptr);
+}
+
+export fn web_scenario_result_len() u32 {
+    const bytes = scenario_result orelse return 0;
+    return @intCast(bytes.len);
 }
 
 export fn web_frame() u32 {
