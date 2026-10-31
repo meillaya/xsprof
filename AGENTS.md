@@ -78,6 +78,8 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0 is complete: archive, pinned toolchain, vendored Zig 0.17 text, skeleton
-build, CLI refusal gate, CI, and docs. P1 is the read-only core + CLI parity
-lane. Update `docs/architecture/roadmap.md` when a phase gate passes.
+P1 is complete: read-only event/JSON/privacy/safety core, preflight and
+capabilities probes, seven-rule advisor, journal ingestion, corrected Chrome
+Trace export, schemas, and the CLI parity gate. P2 is the `xsui` kernel:
+draw list, CPU raster, TrueType text, layout, theme, widgets, Tester, and
+headless snapshots. Update `docs/architecture/roadmap.md` when a gate passes.

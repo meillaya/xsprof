@@ -1,0 +1,26 @@
+{
+  "$id": "schemas/xsprof/xsprof journal v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "schema": {
+      "const": "xsprof/journal/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "entries",
+    "host_mutation"
+  ],
+  "title": "xsprof journal v1",
+  "type": "object"
+}

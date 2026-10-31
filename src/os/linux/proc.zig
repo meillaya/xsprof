@@ -179,14 +179,14 @@ fn collectFactsLinux(io: std.Io, allocator: std.mem.Allocator) !Facts {
 
     facts.numa_nodes = collectNuma(io, allocator) catch &.{};
     facts.sched_ext = collectSchedExt(io, allocator);
-    facts.perf_event_paranoid = parseI64(
+    facts.perf_event_paranoid = std.math.cast(i32, parseI64(
         readTrimmed(io, allocator, "/proc/sys/kernel/perf_event_paranoid", 64),
         99,
-    );
-    facts.kptr_restrict = parseI64(
+    )) orelse 99;
+    facts.kptr_restrict = std.math.cast(i32, parseI64(
         readTrimmed(io, allocator, "/proc/sys/kernel/kptr_restrict", 64),
         99,
-    );
+    )) orelse 99;
     facts.btf_present = exists(io, "/sys/kernel/btf/vmlinux");
     facts.tracefs_present = exists(io, "/sys/kernel/tracing");
     facts.process_count = countProcesses(io);

@@ -129,15 +129,9 @@ pub const ParseError = error{
     OutOfMemory,
 } || std.fmt.ParseIntError;
 
-/// Parse one JSON object into an event. Strings may point into `line`; callers
-/// must keep the line alive (arena-based journal readers do).
-pub fn parseJson(allocator: std.mem.Allocator, line: []const u8) ParseError!RawEvent {
-    const value = std.json.parseFromSliceLeaky(
-        std.json.Value,
-        allocator,
-        line,
-        .{ .max_value_len = line.len },
-    ) catch return error.InvalidEvent;
+/// Parse an already-decoded JSON object into an event. Strings point into the
+/// decoded value; callers keep the owning arena/line alive.
+pub fn fromValue(value: std.json.Value) ParseError!RawEvent {
     const object = switch (value) {
         .object => |o| o,
         else => return error.InvalidEvent,
@@ -167,6 +161,18 @@ pub fn parseJson(allocator: std.mem.Allocator, line: []const u8) ParseError!RawE
         .comm = comm,
         .detail = detail,
     };
+}
+
+/// Parse one JSON object into an event. Strings may point into `line`; callers
+/// must keep the line alive (arena-based journal readers do).
+pub fn parseJson(allocator: std.mem.Allocator, line: []const u8) ParseError!RawEvent {
+    const value = std.json.parseFromSliceLeaky(
+        std.json.Value,
+        allocator,
+        line,
+        .{ .max_value_len = line.len },
+    ) catch return error.InvalidEvent;
+    return fromValue(value);
 }
 
 test "sched_switch matches the archived golden bytes" {

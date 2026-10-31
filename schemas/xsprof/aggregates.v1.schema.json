@@ -1,0 +1,95 @@
+{
+  "$id": "schemas/xsprof/xsprof aggregates v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "avg_lock_wait_ms": {
+      "type": "number"
+    },
+    "buddy_fragmentation": {
+      "type": "number"
+    },
+    "cross_llc_migration": {
+      "type": "boolean"
+    },
+    "dominant_node": {
+      "type": "integer"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "llc_domains": {
+      "type": "integer"
+    },
+    "llc_misses": {
+      "type": "integer"
+    },
+    "lock_contentions": {
+      "type": "integer"
+    },
+    "migrations": {
+      "type": "integer"
+    },
+    "page_faults": {
+      "type": "integer"
+    },
+    "pmu_collected": {
+      "type": "boolean"
+    },
+    "priority_inversion_observed": {
+      "type": "boolean"
+    },
+    "remote_fault_ratio": {
+      "type": "number"
+    },
+    "remote_hitm": {
+      "type": "number"
+    },
+    "sched_collected": {
+      "type": "boolean"
+    },
+    "schema": {
+      "const": "xsprof/aggregates/v1"
+    },
+    "small_alloc_churn": {
+      "type": "integer"
+    },
+    "task_cpu_node": {
+      "type": "integer"
+    },
+    "tlb_misses": {
+      "type": "integer"
+    },
+    "unnecessary_wakeups": {
+      "type": "integer"
+    },
+    "wakeups": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "remote_fault_ratio",
+    "dominant_node",
+    "task_cpu_node",
+    "migrations",
+    "cross_llc_migration",
+    "llc_domains",
+    "wakeups",
+    "unnecessary_wakeups",
+    "lock_contentions",
+    "avg_lock_wait_ms",
+    "llc_misses",
+    "tlb_misses",
+    "page_faults",
+    "remote_hitm",
+    "buddy_fragmentation",
+    "small_alloc_churn",
+    "priority_inversion_observed",
+    "pmu_collected",
+    "sched_collected",
+    "host_mutation"
+  ],
+  "title": "xsprof aggregates v1",
+  "type": "object"
+}

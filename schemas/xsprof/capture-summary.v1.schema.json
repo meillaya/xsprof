@@ -1,0 +1,60 @@
+{
+  "$id": "schemas/xsprof/xsprof capture summary v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "type": "string"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "events_captured": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "page_faults": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sched_migrations": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sched_switches": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sched_wakeups": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "xsprof/capture-summary/v1"
+    },
+    "source": {
+      "enum": [
+        "perf_tracepoint",
+        "bpf_core"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "capability",
+    "source",
+    "events_captured",
+    "sched_switches",
+    "sched_wakeups",
+    "sched_migrations",
+    "page_faults",
+    "duration_ms",
+    "host_mutation"
+  ],
+  "title": "xsprof capture summary v1",
+  "type": "object"
+}

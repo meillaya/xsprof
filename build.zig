@@ -60,10 +60,16 @@ pub fn build(b: *std.Build) void {
     const vendor_step = b.step("vendor-check", "Verify vendored Zig 0.17 hashes");
     vendor_step.dependOn(&vendor.step);
 
+    const cli_parity = b.addSystemCommand(&.{ "sh", "qa/cli_parity.sh" });
+    cli_parity.step.dependOn(b.getInstallStep());
+    const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
+    cli_parity_step.dependOn(&cli_parity.step);
+
     const check = b.step("check", "Full local gate: fmt, lines, vendor, tests");
     check.dependOn(&fmt.step);
     check.dependOn(&lines.step);
     check.dependOn(&vendor.step);
+    check.dependOn(&cli_parity.step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
 }
