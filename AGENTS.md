@@ -102,4 +102,7 @@ evidence is developer-only under `design/evidence/` (`qa/ui_evidence.sh`).
 `design/ui-spec.json` is the formal runtime contract; CPU is canonical and
 `qa/ui_cross_surface.py` gates Metal/WebGL2 against it. Reference diffs are
 advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
-covered by `qa/ui_interactions.cjs`.
+covered by `qa/ui_interactions.cjs`. The committed real capture
+`fixtures/real/macos-vm-sched.ndjson` comes from the podman Linux VM (macOS has
+no perf/tracepoint capture); live screenshots and video replay it, marked
+`REPLAY` and `host_mutation=false`.

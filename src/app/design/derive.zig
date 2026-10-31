@@ -41,6 +41,23 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
     const window_ms: f64 = @as(f64, @floatFromInt(duration_us)) / 1000.0;
     const first_us = session.first_us;
 
+    var meta_host = ctx.host;
+    var meta_kernel = ctx.kernel;
+    var meta_arch = ctx.arch;
+    var meta_session = ctx.session_label;
+    for (session.events) |e| {
+        if (e.kind != .marker) continue;
+        if (std.mem.startsWith(u8, e.detail, "ui_host=")) {
+            meta_host = e.detail["ui_host=".len..];
+        } else if (std.mem.startsWith(u8, e.detail, "ui_kernel=")) {
+            meta_kernel = e.detail["ui_kernel=".len..];
+        } else if (std.mem.startsWith(u8, e.detail, "ui_arch=")) {
+            meta_arch = e.detail["ui_arch=".len..];
+        } else if (std.mem.startsWith(u8, e.detail, "ui_session=")) {
+            meta_session = e.detail["ui_session=".len..];
+        }
+    }
+
     var lanes = std.StringHashMap(u8).init(allocator);
     var lane_next: u8 = 1;
     for (session.top_comms) |comm| {
@@ -197,15 +214,15 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
     return .{
         .schema = "xsprof/design-demo/v1",
         .meta = .{
-            .host = ctx.host,
-            .kernel = ctx.kernel,
-            .arch = ctx.arch,
+            .host = meta_host,
+            .kernel = meta_kernel,
+            .arch = meta_arch,
             .source = if (ctx.live) "LIVE" else ctx.source,
             .fixture = fixture_buf,
             .startedAt = ctx.started_at,
             .excerpt = capture_window,
             .captureWindow = capture_window,
-            .sessionLabel = if (ctx.session_label.len > 0) ctx.session_label else if (ctx.live) "LIVE JOURNAL  ·  SANITIZED" else "JOURNAL  ·  REPLAY  ·  SANITIZED",
+            .sessionLabel = if (meta_session.len > 0) meta_session else if (ctx.live) "LIVE JOURNAL  ·  SANITIZED" else "JOURNAL  ·  REPLAY  ·  SANITIZED",
             .captureStart = ctx.capture_start,
             .captureEnd = ctx.capture_end,
         },

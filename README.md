@@ -85,8 +85,8 @@ python3 design/validate.py   # source hash + token/palette/CSS consistency
 
 - Prototype reference: [`design/screenshots/prototype/`](design/screenshots/prototype/)
 - GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
-- Real replay + recorder: [`design/screenshots/live/`](design/screenshots/live/)
-- Short boot/use video: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
+- Real Linux-VM perf capture: [`fixtures/real/macos-vm-sched.ndjson`](fixtures/real/macos-vm-sched.ndjson) and [`design/screenshots/live/`](design/screenshots/live/)
+- Short boot/use video over the real capture: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
 - Formal UI contract: [`design/ui-spec.json`](design/ui-spec.json)
 - Cross-surface report: [`design/evidence/cross_surface.json`](design/evidence/cross_surface.json)
 - Evidence method: [`design/evidence/README.md`](design/evidence/README.md)

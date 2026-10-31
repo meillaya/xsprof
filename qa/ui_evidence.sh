@@ -23,8 +23,8 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 PORT=${XSPROF_EVIDENCE_PORT:-8795}
-"$BIN" serve --port "$PORT" --journal fixtures/ui/healthy.ndjson \
-  --recorder-dir fixtures/ui/design/recorder --assets-dir zig-out/web >"$TMP/serve.log" 2>"$TMP/serve.err" &
+"$BIN" serve --port "$PORT" --journal fixtures/real/macos-vm-sched.ndjson \
+  --assets-dir zig-out/web >"$TMP/serve.log" 2>"$TMP/serve.err" &
 PID=$!
 i=0
 while [ "$i" -lt 30 ]; do
@@ -39,6 +39,7 @@ export XSPROF_EVIDENCE_TOKEN="$TOKEN"
 export XSPROF_EVIDENCE_OUT="design/screenshots/xsprof"
 export XSPROF_EVIDENCE_VIDEO="$TMP/console.webm"
 XSPROF_EVIDENCE_DEMO=1 node qa/ui_capture.cjs
+XSPROF_EVIDENCE_DEMO=0 XSPROF_EVIDENCE_OUT=design/screenshots/live node qa/ui_capture.cjs
 XSPROF_EVIDENCE_DEMO=0 node qa/ui_record.cjs
 mkdir -p design/media
 ffmpeg -v error -y -i "$TMP/console.webm" -c:v libx264 -preset slow -crf 23 \
