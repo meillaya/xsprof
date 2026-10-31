@@ -32,6 +32,10 @@ If the process is killed, the next start marks the stale segment closed, adds
 `capture_interrupted previous_session=<id>`, and starts a new segment without
 discarding the earlier history.
 
+Each closed segment also gets a `metrics/<stem>.json` sidecar with CPU busy,
+switch, wakeup, migration, fault, and top-task p95 wait metrics. The sidecar is
+small enough to keep after raw retention drops the segment.
+
 ## Extract a window
 
 ```sh

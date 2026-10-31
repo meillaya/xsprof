@@ -6,6 +6,7 @@ const builtin = @import("builtin");
 const live = @import("../capture/live.zig");
 const manifest_mod = @import("manifest.zig");
 const segment_mod = @import("segment.zig");
+const sidecar = @import("sidecar.zig");
 
 const segment_bytes = 16 * 1024 * 1024;
 const segment_age_ms = 30 * 1000;
@@ -167,6 +168,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         const size = segment.sizeBytes();
         if (size >= segment_bytes or now - segment_started >= segment_age_ms * std.time.ns_per_ms) {
             try segment.close();
+            sidecar.writeForSegment(io, allocator, dir, segments.items[current].path) catch {};
             segment.deinit();
             segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
             segments.items[current].end_mono_ns = now;
@@ -230,6 +232,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .detail = "capture_stop",
     });
     try segment.close();
+    sidecar.writeForSegment(io, allocator, dir, segments.items[current].path) catch {};
     segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
     segments.items[current].end_mono_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds);
     segments.items[current].bytes = segment.stats.bytes;
@@ -300,6 +303,9 @@ fn ensureLayout(io: std.Io, dir: []const u8) !void {
     const segments = try std.fmt.allocPrint(std.heap.smp_allocator, "{s}/segments", .{dir});
     defer std.heap.smp_allocator.free(segments);
     try std.Io.Dir.cwd().createDirPath(io, segments);
+    const metrics = try std.fmt.allocPrint(std.heap.smp_allocator, "{s}/metrics", .{dir});
+    defer std.heap.smp_allocator.free(metrics);
+    try std.Io.Dir.cwd().createDirPath(io, metrics);
 }
 
 fn newSessionId(io: std.Io, allocator: std.mem.Allocator) ![]const u8 {

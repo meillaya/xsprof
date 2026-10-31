@@ -25,6 +25,7 @@ pub const recorder_manifest = @import("recorder/manifest.zig");
 pub const recorder_segment = @import("recorder/segment.zig");
 pub const recorder_daemon = @import("recorder/daemon.zig");
 pub const recorder_extract = @import("recorder/extract.zig");
+pub const recorder_sidecar = @import("recorder/sidecar.zig");
 pub const recorder_doctor = @import("recorder/doctor.zig");
 pub const bpf = @import("capture/bpf.zig");
 pub const ttf = @import("ui/ttf.zig");
@@ -63,6 +64,7 @@ test {
     _ = recorder_segment;
     _ = recorder_daemon;
     _ = recorder_extract;
+    _ = recorder_sidecar;
     _ = recorder_doctor;
     _ = ttf;
     _ = ui_frame;
