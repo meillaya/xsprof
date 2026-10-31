@@ -120,10 +120,46 @@ async function boot() {
     exports.web_resize(canvas.width, canvas.height);
     frame();
   });
+  function canvasPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / Math.max(1, rect.width)),
+      y: (event.clientY - rect.top) * (canvas.height / Math.max(1, rect.height)),
+    };
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!exports) return;
+    const point = canvasPoint(event);
+    exports.web_pointer(point.x, point.y, 1, 1, 0);
+    frame();
+  });
+  window.addEventListener("pointerup", (event) => {
+    if (!exports) return;
+    const point = canvasPoint(event);
+    exports.web_pointer(point.x, point.y, 0, 0, 0);
+  });
+  canvas.addEventListener("wheel", (event) => {
+    if (!exports) return;
+    event.preventDefault();
+    const point = canvasPoint(event);
+    exports.web_pointer(point.x, point.y, 0, 0, event.deltaY);
+    frame();
+  }, { passive: false });
   window.addEventListener("keydown", (event) => {
     if (event.key >= "1" && event.key <= "5") {
       screen = Number(event.key) - 1;
       exports.web_set_screen(screen);
+      frame();
+      return;
+    }
+    let key = 255;
+    if (event.key === "0") key = 0;
+    else if (event.key === "Escape") key = 1;
+    else if (event.key === "ArrowLeft") key = 2;
+    else if (event.key === "ArrowRight") key = 3;
+    if (key !== 255) {
+      exports.web_key(key);
       frame();
     }
   });

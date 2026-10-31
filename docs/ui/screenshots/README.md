@@ -24,3 +24,6 @@ markers, and browser-side incremental rendering.
 
 `p6-linux.png` is a native X11/OpenGL frame rendered under Xvfb from the
 healthy replay fixture (no browser, no window manager).
+
+`p3-web-timeline-selected.png` shows a clicked CPU slice with the selected task
+detail row: p95 wait, off-CPU p95, and switch count.

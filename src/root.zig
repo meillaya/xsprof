@@ -36,6 +36,7 @@ pub const ui_raster = @import("ui/raster.zig");
 pub const demo = @import("app/demo.zig");
 pub const gallery = @import("app/gallery.zig");
 pub const app = @import("app/app.zig");
+pub const app_test = @import("app/app_test.zig");
 pub const cli = @import("cli/root.zig");
 
 test {
@@ -70,5 +71,6 @@ test {
     _ = demo;
     _ = gallery;
     _ = app;
+    _ = app_test;
     _ = cli;
 }

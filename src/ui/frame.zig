@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const draw = @import("draw.zig");
+const input_mod = @import("input.zig");
 const raster = @import("raster.zig");
 const png = @import("png.zig");
 const ttf = @import("ttf.zig");
@@ -15,6 +16,7 @@ pub const Frame = struct {
     list: draw.DrawList,
     regular: ttf.Font,
     bold: ttf.Font,
+    input: input_mod.Input = .{},
 
     /// Initialize in place: the draw list points at this frame's atlas, so the
     /// frame address must be stable before this call.
