@@ -69,6 +69,19 @@ xsprof bpf-gate --json
 Native Linux builds use `-Dtarget=<arch>-linux-gnu` for the window path; the
 static-musl CLI still works but cannot `dlopen` system X11/GL.
 
+## Package and demo
+
+```sh
+./tools/package.sh              # dist/xsprof-<version>-<os>-<arch>.tar.gz
+./tools/package_macos_app.sh    # dist/Xsprof-<version>-macos.zip
+./zig-out/bin/xsprof demo       # serve the bundled fixture
+```
+
+The tarball lays out `bin/xsprof`, `share/xsprof/web`,
+`share/xsprof/fixtures`, and the opt-in systemd unit. `demo` finds those
+relative paths and prints the loopback token URL. The macOS app is ad-hoc
+signed; notarization still needs an Apple identity and credentials.
+
 The web replay client is served read-only over loopback:
 
 ```sh
