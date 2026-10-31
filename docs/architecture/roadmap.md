@@ -16,7 +16,7 @@ Status is updated only when a phase gate actually passes.
 | M2 | Interaction: metrics index, pointer/scroll, filters, selections, live controls | **complete** |
 | M3 | Analysis: metrics, compare, reports, CI budget | **complete (first slice)** |
 | M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
-| M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; external credentials pending** |
+| M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
 
 ## P7 gate (passed)
@@ -153,7 +153,9 @@ Status is updated only when a phase gate actually passes.
   notarization and public tap publication require an Apple Developer ID
   certificate plus `APPLE_*`/`HOMEBREW_TAP_TOKEN` secrets that are not in the
   repository. The workflow falls back to an ad-hoc-signed app and never
-  labels it notarized.
+  labels it notarized. A tag-driven publication run also needs available
+  GitHub Actions minutes; the packaging scripts and workflow lint pass
+  locally without publishing.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
