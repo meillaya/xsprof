@@ -16,6 +16,15 @@ pub fn record(
     allocator: std.mem.Allocator,
     duration_ms: u32,
 ) !Result {
+    return recordWithOptions(io, allocator, duration_ms, .{});
+}
+
+pub fn recordWithOptions(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    duration_ms: u32,
+    opts: live.Options,
+) !Result {
     if (!live.live_linux) {
         return .{ .state = .SKIP, .reason = "non-Linux host: perf_event_open unavailable" };
     }
@@ -26,7 +35,7 @@ pub fn record(
         .reason = "tracefs disappeared",
     };
 
-    var capture = live.openReady(io, allocator, .{}, root) catch |err| switch (err) {
+    var capture = live.openReady(io, allocator, opts, root) catch |err| switch (err) {
         error.TracepointUnavailable => return .{
             .state = .REFUSE,
             .reason = "sched tracepoints unavailable",
