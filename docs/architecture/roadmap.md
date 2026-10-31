@@ -166,8 +166,9 @@ Status is updated only when a phase gate actually passes.
   capture controls, transport windows, inspector, and trace export. L4 added
   scenarios, `xsprof lab`, per-step snapshots, and `lab-smoke`. L5 shares the
   lab state and rail in wasm, hides native-only controls, and runs the healthy
-  scenario through `web_run_scenario`. Remaining: A/B compare controls, custom
-  web scenario files, and the final M7 sweep.
+  scenario through `web_run_scenario`, and A/B compare reports regressions from
+  a second source store. Remaining: custom web scenario files and the final M7
+  sweep.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture

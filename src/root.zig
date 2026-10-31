@@ -49,6 +49,7 @@ pub const lab_state = @import("app/lab/state.zig");
 pub const lab_source = @import("app/lab/source.zig");
 pub const lab_controller = @import("app/lab/controller.zig");
 pub const lab_scenario = @import("app/lab/scenario.zig");
+pub const lab_state_test = @import("app/lab/state_test.zig");
 pub const lab_view = @import("app/lab_view.zig");
 pub const cli = @import("cli/root.zig");
 
@@ -96,6 +97,7 @@ test {
     _ = lab_source;
     _ = lab_controller;
     _ = lab_scenario;
+    _ = lab_state_test;
     _ = lab_view;
     _ = cli;
 }

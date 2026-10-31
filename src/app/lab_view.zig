@@ -10,6 +10,7 @@ const controls = @import("../ui/controls.zig");
 const layout = @import("../ui/layout.zig");
 const input_mod = @import("../ui/input.zig");
 const app_util = @import("app_util.zig");
+const compare_mod = @import("../analyze/compare.zig");
 
 pub const rail_width: f32 = 224;
 
@@ -28,6 +29,8 @@ pub const Hit = enum(u32) {
     source_load = 31,
     export_input = 32,
     export_write = 33,
+    compare_set = 40,
+    compare_clear = 41,
     palette_close = 20,
     palette_healthy = 21,
     palette_scheduler_mix = 22,
@@ -117,6 +120,35 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     });
     if (lab.source.phase == .failed and lab.source.reason_len != 0) {
         try ui.text(.{ .text = lab.source.reasonSlice(), .size = 9, .color = th.refuse });
+    }
+    if (lab.host_controls) {
+        var compare_row = try ui.row(.{ .height = 24, .gap = 4 });
+        try controls.button(ui, @backingInt(Hit.compare_set), "set A", .{ .width = 64 });
+        try controls.button(ui, @backingInt(Hit.compare_clear), "clear", .{ .width = 60 });
+        compare_row.end();
+        if (lab.compare.phase == .failed) {
+            try ui.text(.{ .text = "compare A failed", .size = 9, .color = th.refuse });
+        } else if (lab.compare.session) |base| {
+            const report = compare_mod.build(
+                ui.allocator,
+                lab.compare.pathSlice(),
+                base.metrics,
+                if (lab.source.path_len == 0) "active" else lab.source.pathSlice(),
+                lab.view.session.metrics,
+                10.0,
+            ) catch null;
+            if (report) |value| {
+                try ui.text(.{
+                    .text = try std.fmt.allocPrint(
+                        ui.allocator,
+                        "A/B regressions {d} of {d}",
+                        .{ value.regressions, value.tasks.len },
+                    ),
+                    .size = 9,
+                    .color = if (value.regressions == 0) th.pass else th.refuse,
+                });
+            }
+        }
     }
 
     try ui.text(.{ .text = "CAPTURE", .size = 9, .color = th.muted, .weight = .bold });
@@ -281,6 +313,8 @@ pub fn collect(lab: *lab_state.LabState, ui: *layout.Ui, input: *input_mod.Input
                 @backingInt(Hit.source_load) => messages.add(.{ .intent = .{ .submit_input = .source_path } }),
                 @backingInt(Hit.export_input) => messages.add(.{ .intent = .{ .focus_input = .export_path } }),
                 @backingInt(Hit.export_write) => messages.add(.{ .intent = .{ .submit_input = .export_path } }),
+                @backingInt(Hit.compare_set) => messages.add(.{ .intent = .set_compare }),
+                @backingInt(Hit.compare_clear) => messages.add(.{ .intent = .clear_compare }),
                 @backingInt(Hit.palette_close) => messages.add(.{ .intent = .palette_close }),
                 @backingInt(Hit.palette_healthy) => messages.add(.{ .intent = .{ .open_source = .{
                     .kind = .replay,
