@@ -109,9 +109,26 @@ pub const App = struct {
         const messages = lab_view.collect(&self.lab, &ui, &ui.frame.input);
         for (messages.slice()) |message| {
             const effects = self.lab.apply(message) catch continue;
+            for (effects.slice()) |effect| switch (effect) {
+                .save_snapshot => |path| {
+                    frame.savePng(self.io, path) catch {
+                        _ = self.lab.apply(.{ .completion = .{ .export_failed = .{
+                            .kind = .snapshot,
+                            .reason = "cannot write snapshot",
+                        } } }) catch {};
+                        continue;
+                    };
+                    _ = self.lab.apply(.{ .completion = .{ .export_done = .{
+                        .kind = .snapshot,
+                        .path = path,
+                    } } }) catch {};
+                },
+                else => {},
+            };
             self.controller.apply(self.io, &self.lab, effects.slice()) catch {};
         }
         self.controller.poll(&self.lab) catch {};
+        self.controller.refreshHost(self.io, &self.lab) catch {};
         if (messages.len != 0 or self.lab.capture.phase == .running or self.lab.transport.playing) {
             self.dirty = true;
         }

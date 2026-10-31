@@ -63,6 +63,16 @@ pub const PaletteState = struct {
     selected: usize = 0,
 };
 
+pub const HostState = struct {
+    pressure_available: bool = false,
+    cpu_bp: u32 = 0,
+    memory_bp: u32 = 0,
+    io_bp: u32 = 0,
+    cgroup_ready: bool = false,
+    cgroup_groups: u32 = 0,
+    seen: bool = false,
+};
+
 pub const CompareState = struct {
     phase: action.ComparePhase = .none,
     path: [max_path]u8 = @splat(0),
@@ -113,6 +123,7 @@ pub const LabState = struct {
     capture: CaptureState = .{},
     transport: TransportState = .{},
     compare: CompareState = .{},
+    host: HostState = .{},
     scenario: ScenarioState = .{},
     palette: PaletteState = .{},
     focus: action.Focus = .screen,
@@ -417,10 +428,14 @@ pub const LabState = struct {
                     self.setToast(.toast_error, "export path is empty or too long");
                     return batch;
                 }
-                batch.add(.{ .exports = .{
-                    .kind = request.kind,
-                    .path = request.path,
-                } });
+                if (request.kind == .snapshot) {
+                    batch.add(.{ .save_snapshot = request.path });
+                } else {
+                    batch.add(.{ .exports = .{
+                        .kind = request.kind,
+                        .path = request.path,
+                    } });
+                }
             },
             .quit => self.quit_requested = true,
             .dismiss_error => {
@@ -457,6 +472,17 @@ pub const LabState = struct {
                 self.compare.phase = .failed;
                 self.compare.reason_len = copyBounded(&self.compare.reason, failed.reason);
                 self.setToast(.toast_error, failed.reason);
+            },
+            .host_ready => |host| {
+                self.host = .{
+                    .pressure_available = host.pressure_available,
+                    .cpu_bp = host.cpu_bp,
+                    .memory_bp = host.memory_bp,
+                    .io_bp = host.io_bp,
+                    .cgroup_ready = host.cgroup_ready,
+                    .cgroup_groups = host.cgroup_groups,
+                    .seen = true,
+                };
             },
             .capture_started => {
                 self.capture.phase = .running;

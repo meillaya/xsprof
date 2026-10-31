@@ -22,6 +22,13 @@ function put(text) {
 }
 if (!e.web_frame()) throw new Error("journal frame failed");
 {
+  const [ptr, len] = put(fs.readFileSync("fixtures/ui/healthy.ndjson", "utf8"));
+  if (!e.web_load_compare(ptr, len)) throw new Error("compare load failed");
+  e.web_free(ptr, len);
+  if (!e.web_frame()) throw new Error("compare frame failed");
+  e.web_clear_compare();
+}
+{
   if (!e.web_generate_trace()) throw new Error("trace export failed");
   const ptr = e.web_trace_result_ptr();
   const len = e.web_trace_result_len();

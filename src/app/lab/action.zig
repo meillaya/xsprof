@@ -61,6 +61,14 @@ pub const Completion = union(enum) {
     source_failed: struct { reason: []const u8 },
     compare_ready: struct { session: *const session_mod.Session },
     compare_failed: struct { reason: []const u8 },
+    host_ready: struct {
+        pressure_available: bool,
+        cpu_bp: u32,
+        memory_bp: u32,
+        io_bp: u32,
+        cgroup_ready: bool,
+        cgroup_groups: u32,
+    },
     capture_started,
     capture_progress: struct {
         events: u64,
@@ -92,6 +100,7 @@ pub const Effect = union(enum) {
     start_capture: struct { duration_ms: u32, preset: CapturePreset },
     stop_capture,
     exports: struct { kind: ExportKind, path: []const u8 },
+    save_snapshot: []const u8,
     open_loopback,
 };
 

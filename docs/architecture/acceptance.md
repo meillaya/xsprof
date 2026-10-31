@@ -70,8 +70,10 @@ and web smoke.
 - Linux VM gate: `zig build check` passed with 106 tests, CLI parity, web
   smoke, and lab smoke.
 
-Remaining M7 work: cgroup/pressure panes, web compare, report/snapshot
-exports from the rail, and the final acceptance sweep.
+The native rail reports pressure/cgroup state, A/B regressions, and exports
+trace, report, and snapshot. The web lab runs scenarios, downloads run JSON
+and Chrome Trace, and loads a second journal for compare. Remaining: the
+final acceptance sweep.
 
 Commands for the productization sweep:
 

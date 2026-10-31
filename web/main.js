@@ -21,6 +21,9 @@ const scenarioFileButton = document.getElementById("scenario-file-button");
 const scenarioFileInput = document.getElementById("scenario-file");
 const downloadButton = document.getElementById("download");
 const traceButton = document.getElementById("trace");
+const compareFileButton = document.getElementById("compare-file-button");
+const compareFileInput = document.getElementById("compare-file");
+const compareClearButton = document.getElementById("compare-clear");
 let lastScenarioResult = "";
 
 function fail(message) {
@@ -90,6 +93,8 @@ async function boot() {
   scenarioButton.disabled = false;
   scenarioFileButton.disabled = false;
   traceButton.disabled = false;
+  compareFileButton.disabled = false;
+  compareClearButton.disabled = false;
 
   if (live) startLive();
 
@@ -160,6 +165,8 @@ async function boot() {
       scenarioButton.disabled = false;
       scenarioFileButton.disabled = false;
   traceButton.disabled = false;
+  compareFileButton.disabled = false;
+  compareClearButton.disabled = false;
     }
   }
 
@@ -179,6 +186,30 @@ async function boot() {
     if (!file) return;
     await runScenarioText(await file.text(), `scenario ${file.name}`);
     scenarioFileInput.value = "";
+  });
+  compareFileButton.addEventListener("click", () => compareFileInput.click());
+  compareFileInput.addEventListener("change", async () => {
+    const file = compareFileInput.files[0];
+    if (!file) return;
+    try {
+      const data = encoder.encode(await file.text());
+      const ptr = exports.web_alloc(data.length);
+      if (!ptr) throw new Error("compare allocation failed");
+      new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
+      const ok = exports.web_load_compare(ptr, data.length);
+      exports.web_free(ptr, data.length);
+      if (!ok) throw new Error("compare journal failed");
+      frame();
+      status.textContent = `compare ${file.name} · ready`;
+    } catch (error) {
+      fail(error);
+    } finally {
+      compareFileInput.value = "";
+    }
+  });
+  compareClearButton.addEventListener("click", () => {
+    exports.web_clear_compare();
+    frame();
   });
   traceButton.addEventListener("click", () => {
     if (!exports.web_generate_trace()) {

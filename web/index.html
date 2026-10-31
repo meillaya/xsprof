@@ -14,8 +14,11 @@
     <button id="scenario-file-button" type="button" disabled>scenario file</button>
     <button id="download" type="button" disabled>download result</button>
     <button id="trace" type="button" disabled>download trace</button>
+    <button id="compare-file-button" type="button" disabled>compare journal</button>
+    <button id="compare-clear" type="button" disabled>clear compare</button>
   </div>
   <input id="scenario-file" type="file" accept=".json" hidden />
+  <input id="compare-file" type="file" accept=".ndjson,.jsonl,.json" hidden />
   <div id="status">loading…</div>
   <div id="error" hidden></div>
   <script type="module" src="/main.js"></script>
