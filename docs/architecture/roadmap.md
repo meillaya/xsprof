@@ -8,7 +8,7 @@ Status is updated only when a phase gate actually passes.
 | P1 | Core event/JSON/privacy/safety; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | **complete** |
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
 | P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
-| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | next |
+| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | in progress |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | planned |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | planned |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | planned |
@@ -21,6 +21,18 @@ Status is updated only when a phase gate actually passes.
 - `./tools/zig build check` green on macOS: fmt, 600-line limit, vendor hashes,
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
+
+## P4 progress
+
+- `perf_event_open` sched_switch/wakeup/migrate + software page faults,
+  per-CPU mmap rings, tracepoint format offsets, bounded record parsing.
+- `record` writes NDJSON journals and a capture summary; every SKIP/REFUSE
+  exits non-zero with `host_mutation=false`.
+- Validated in a disposable Linux 7.2 aarch64 podman VM: 68,631 switch
+  records in 300 ms, matching a simultaneous tracefs count; lost records are
+  explicit markers.
+- Remaining for P4: live SSE/browser incremental updates and a real-time UI
+  feed. The browser currently consumes replay journals.
 
 ## P3 gate (passed)
 

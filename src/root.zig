@@ -15,6 +15,7 @@ pub const journal = @import("stream/journal.zig");
 pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const session = @import("stream/session.zig");
 pub const serve = @import("serve/server.zig");
+pub const live = @import("capture/live.zig");
 pub const ttf = @import("ui/ttf.zig");
 pub const ui_frame = @import("ui/frame.zig");
 pub const ui_layout = @import("ui/layout.zig");
@@ -38,6 +39,7 @@ test {
     _ = chrome_trace;
     _ = session;
     _ = serve;
+    _ = live;
     _ = ttf;
     _ = ui_frame;
     _ = ui_layout;

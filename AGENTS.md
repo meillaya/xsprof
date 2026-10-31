@@ -78,8 +78,7 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P3 is complete: replay Session model, real profiler screens, wasm32-freestanding
-UI core, WebGL2 instanced frontend, token-gated loopback `serve`, and headless
-Chromium screenshots. P4 is live capture: perf/ring collectors, loss plumbing,
-aggregation, `record`, live streaming, and VM-lab validation. Update the
+P4 is in progress. The Linux perf capture path and `record` CLI are validated
+in a disposable Linux VM; SKIP/REFUSE behavior is host-safe. Remaining P4 work
+is live SSE/browser incremental updates. P5 native macOS follows. Update the
 roadmap when a gate passes.

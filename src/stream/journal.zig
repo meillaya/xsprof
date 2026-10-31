@@ -75,7 +75,7 @@ pub fn read(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]event
         std.Io.Dir.cwd().openFile(io, path, .{}) catch return error.JournalUnreadable;
     defer file.close(io);
     var buffer: [64 * 1024]u8 = undefined;
-    var reader = file.reader(io, &buffer);
+    var reader = file.readerStreaming(io, &buffer);
     const data = reader.interface.allocRemaining(allocator, .limited(max_file_bytes)) catch |err| switch (err) {
         error.StreamTooLong => return error.JournalTooLarge,
         error.OutOfMemory => return error.OutOfMemory,

@@ -1,5 +1,6 @@
 const std = @import("std");
 const json = @import("../core/json.zig");
+const event = @import("../core/event.zig");
 const version = @import("../core/version.zig");
 const safety = @import("../core/safety.zig");
 const proc = @import("../os/linux/proc.zig");
@@ -12,6 +13,7 @@ const gallery = @import("../app/gallery.zig");
 const app = @import("../app/app.zig");
 const session_mod = @import("../stream/session.zig");
 const server = @import("../serve/server.zig");
+const live = @import("../capture/live.zig");
 const ui_layout = @import("../ui/layout.zig");
 
 const Writer = std.Io.Writer;
@@ -407,6 +409,120 @@ fn cmdServe(
     return 0;
 }
 
+fn stateName(state: live.State) []const u8 {
+    return switch (state) {
+        .READY => "READY",
+        .DEGRADED => "DEGRADED",
+        .SKIP => "SKIP",
+        .REFUSE => "REFUSE",
+    };
+}
+
+fn writeCapabilityEvent(
+    out: *Writer,
+    name: []const u8,
+    state: []const u8,
+    reason: []const u8,
+) !void {
+    try json.write(out, .{ .object = &.{
+        .{ .key = "event", .value = .{ .string = "capability" } },
+        .{ .key = "host_mutation", .value = .{ .boolean = false } },
+        .{ .key = "name", .value = .{ .string = name } },
+        .{ .key = "reason", .value = .{ .string = reason } },
+        .{ .key = "schema", .value = .{ .string = "xsprof/event/v1" } },
+        .{ .key = "state", .value = .{ .string = state } },
+    } });
+    try out.writeByte('\n');
+}
+
+fn cmdRecord(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+    err: *Writer,
+) !u8 {
+    var duration_ms: u32 = 1000;
+    var output: ?[]const u8 = null;
+    var bpf = false;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--duration") and i + 1 < args.len) {
+            i += 1;
+            duration_ms = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("record: invalid --duration\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--output") and i + 1 < args.len) {
+            i += 1;
+            output = args[i];
+        } else if (std.mem.eql(u8, arg, "--bpf")) {
+            bpf = true;
+        }
+    }
+    if (bpf) {
+        try writeCapabilityEvent(out, "bpf_capture", "SKIP", "BPF lane is VM-marker-gated and lands in P7");
+        return 1;
+    }
+    const result = live.record(io, allocator, duration_ms) catch |record_error| {
+        try writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(record_error));
+        return 1;
+    };
+    if (result.state != .READY) {
+        try writeCapabilityEvent(out, "live_capture", stateName(result.state), result.reason);
+        return 1;
+    }
+
+    var switches: u64 = 0;
+    var wakeups: u64 = 0;
+    var migrations: u64 = 0;
+    var faults: u64 = 0;
+    for (result.events) |e| {
+        switch (e.kind) {
+            .sched_switch => switches += 1,
+            .sched_wakeup => wakeups += 1,
+            .sched_migrate => migrations += 1,
+            .page_fault => faults += 1,
+            else => {},
+        }
+    }
+
+    if (output) |path| {
+        const file = if (path.len != 0 and path[0] == '/')
+            std.Io.Dir.createFileAbsolute(io, path, .{}) catch {
+                try err.print("record: cannot open output {s}\n", .{path});
+                return 1;
+            }
+        else
+            std.Io.Dir.cwd().createFile(io, path, .{}) catch {
+                try err.print("record: cannot open output {s}\n", .{path});
+                return 1;
+            };
+        defer file.close(io);
+        var buffer: [64 * 1024]u8 = undefined;
+        var writer = file.writer(io, &buffer);
+        for (result.events) |e| {
+            try event.writeJson(&writer.interface, e);
+            try writer.interface.writeByte('\n');
+        }
+        try writer.interface.flush();
+    } else {
+        for (result.events) |e| {
+            try event.writeJson(out, e);
+            try out.writeByte('\n');
+        }
+    }
+
+    try err.writeAll("{\"capability\":\"READY\",\"duration_ms\":");
+    try err.print("{d}", .{duration_ms});
+    try err.print(",\"events_captured\":{d},\"host_mutation\":false,", .{result.events.len});
+    try err.print("\"page_faults\":{d},\"sched_migrations\":{d},\"sched_switches\":{d},", .{ faults, migrations, switches });
+    try err.print("\"sched_wakeups\":{d},\"schema\":\"xsprof/capture-summary/v1\",", .{wakeups});
+    try err.writeAll("\"source\":\"perf_tracepoint\"}\n");
+    return 0;
+}
+
 pub fn runWith(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -451,6 +567,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "serve")) {
         return cmdServe(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "record")) {
+        return cmdRecord(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

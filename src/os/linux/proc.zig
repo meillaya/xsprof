@@ -93,7 +93,7 @@ fn readFile(
     const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null;
     defer file.close(io);
     var buffer: [4096]u8 = undefined;
-    var reader = file.reader(io, &buffer);
+    var reader = file.readerStreaming(io, &buffer);
     return reader.interface.allocRemaining(allocator, .limited(max)) catch null;
 }
 
