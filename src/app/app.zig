@@ -149,15 +149,44 @@ fn overview(state: *State, ui: *layout.Ui) !void {
     left.end();
 
     var right = try ui.column(.{ .flex = 1, .gap = 12 });
-    var comms = try widgets.panel(ui, "TOP TASKS BY SWITCH COUNT", .{ .flex = 1 });
-    for (state.session.top_comms[0..@min(state.session.top_comms.len, 8)]) |comm| {
-        var row = try ui.row(.{ .height = 22, .gap = 10, .align_items = .center });
-        try ui.text(.{ .text = comm.comm, .size = 11, .color = th.text });
-        var spacer = try ui.column(.{ .flex = 1 });
-        spacer.end();
-        const value = try std.fmt.allocPrint(ui.allocator, "{d}", .{comm.count});
-        try ui.text(.{ .text = value, .size = 11, .color = th.live });
-        row.end();
+    var comms = try widgets.panel(ui, "TOP TASKS BY P95 WAIT", .{ .flex = 1 });
+    if (state.session.metrics.tasks.len != 0) {
+        var shown: [8][]const u8 = undefined;
+        var shown_count: usize = 0;
+        for (state.session.metrics.tasks) |task| {
+            var duplicate = false;
+            for (shown[0..shown_count]) |name| {
+                if (std.mem.eql(u8, name, task.comm)) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+            if (shown_count == shown.len) break;
+            shown[shown_count] = task.comm;
+            shown_count += 1;
+            var row = try ui.row(.{ .height = 22, .gap = 10, .align_items = .center });
+            try ui.text(.{ .text = task.comm, .size = 11, .color = th.text });
+            var spacer = try ui.column(.{ .flex = 1 });
+            spacer.end();
+            const value = try std.fmt.allocPrint(
+                ui.allocator,
+                "{d}ms / {d}",
+                .{ task.wait_p95_us / 1000, task.switches },
+            );
+            try ui.text(.{ .text = value, .size = 11, .color = th.live });
+            row.end();
+        }
+    } else {
+        for (state.session.top_comms[0..@min(state.session.top_comms.len, 8)]) |comm| {
+            var row = try ui.row(.{ .height = 22, .gap = 10, .align_items = .center });
+            try ui.text(.{ .text = comm.comm, .size = 11, .color = th.text });
+            var spacer = try ui.column(.{ .flex = 1 });
+            spacer.end();
+            const value = try std.fmt.allocPrint(ui.allocator, "{d}", .{comm.count});
+            try ui.text(.{ .text = value, .size = 11, .color = th.live });
+            row.end();
+        }
     }
     comms.end();
 

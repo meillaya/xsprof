@@ -5,6 +5,7 @@ const std = @import("std");
 const event = @import("../core/event.zig");
 const journal = @import("journal.zig");
 const aggregates = @import("../analyze/aggregates.zig");
+const metrics_mod = @import("../analyze/metrics.zig");
 
 pub const Slice = struct {
     start_us: u64,
@@ -41,6 +42,7 @@ pub const Session = struct {
     lost: u32 = 0,
     refusals: u32 = 0,
     cpu_count: u8 = 1,
+    metrics: metrics_mod.Metrics = .{},
 
     pub fn load(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !Session {
         const events = try journal.read(io, allocator, path);
@@ -173,6 +175,11 @@ pub const Session = struct {
             }
         }.less);
         session.slices = try slices.toOwnedSlice(allocator);
+
+        var metrics_index = metrics_mod.Index.init(allocator);
+        defer metrics_index.deinit();
+        try metrics_index.append(events);
+        session.metrics = try metrics_index.snapshot(allocator);
         return session;
     }
 
