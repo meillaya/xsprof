@@ -33,26 +33,39 @@ const stateBadge = common.stateBadge;
 const severityColor = common.severityColor;
 
 pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, stage_x: f32, stage_top: f32, width: f32) !void {
-    const content_x = stage_x + 24;
-    const content_w = width - stage_x - 48;
+    const compact = width <= 780;
+    const pad: f32 = if (compact) 14 else 24;
+    const content_x = stage_x + pad;
+    const content_w = width - stage_x - pad * 2;
     const scroll = state.scroll_y;
-    const y0 = stage_top + 16 - scroll;
+    const y0 = stage_top + (if (compact) @as(f32, 14) else 16) - scroll;
     try drawScreenHead(model, state, canvas, th, content_x, y0, content_w);
     const brief_y = y0 + 67.5 + 12;
-    try drawBrief(model, canvas, th, content_x, brief_y, content_w);
-    const grid_y = brief_y + 108.97 + 12;
+    const brief_h: f32 = if (compact) 284.44 else 108.97;
+    if (compact) {
+        try drawBriefCompact(model, canvas, th, content_x, brief_y, content_w);
+    } else {
+        try drawBrief(model, canvas, th, content_x, brief_y, content_w);
+    }
+    const grid_y = brief_y + brief_h + 12;
     const wide = content_w >= 1200;
     const primary_base = @max(
         37.0 + @as(f32, @floatFromInt(model.capabilities.len)) * 53.25,
         @max(37.0 + @as(f32, @floatFromInt(model.cpuStats.len)) * 55.0 + 50.0, 283.5),
     );
-    const primary_h = primary_base + (if (wide) @as(f32, 0) else 12 + 287.05);
+    const primary_h: f32 = if (compact)
+        409.75 + 12 + 292.05 + 12 + 287.05
+    else
+        primary_base + (if (wide) @as(f32, 0) else 12 + 287.05);
     try drawPrimaryGrid(model, canvas, th, content_x, grid_y, content_w, primary_h);
     const grid2_y = grid_y + primary_h + 12;
-    const secondary_h = @max(264.25, @max(
-        36.0 + 23.25 + @as(f32, @floatFromInt(@min(model.threads.len, 7))) * 29.0,
-        @max(42.5 + @as(f32, @floatFromInt(@min(model.typeCounts.len, 7))) * 26.5, 36.0 + 2 * 69.44),
-    )) + (if (wide) @as(f32, 0) else 12 + 210.92);
+    const secondary_h: f32 = if (compact)
+        264.25 * 3 + 24
+    else
+        @max(264.25, @max(
+            36.0 + 23.25 + @as(f32, @floatFromInt(@min(model.threads.len, 7))) * 29.0,
+            @max(42.5 + @as(f32, @floatFromInt(@min(model.typeCounts.len, 7))) * 26.5, 36.0 + 2 * 69.44),
+        )) + (if (wide) @as(f32, 0) else 12 + 210.92);
     try drawSecondaryGrid(model, canvas, th, content_x, grid2_y, content_w, secondary_h);
     const loss_y = grid2_y + secondary_h + 12;
     try drawLossLedger(model, canvas, th, content_x, loss_y, content_w);
@@ -108,66 +121,98 @@ fn drawBrief(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w:
     const lead_w = inner_w * 1.35 / 5.35;
     const other_w = (inner_w - lead_w) / 4;
     const widths = [_]f32{ lead_w, other_w, other_w, other_w, other_w };
-    const labels = [_][]const u8{ "P95 WAKE→RUN", "SWITCHES", "EVENTS", "LOST", "CPU BUSY" };
     var sx = inner_x;
     for (0..5) |i| {
         if (i > 0) try borderLine(canvas, sx, y + 1, 1, th.line);
-        var value_buf: [64]u8 = undefined;
-        var sub_buf: [128]u8 = undefined;
-        const value_text = switch (i) {
-            0 => std.fmt.bufPrint(&value_buf, "{d:.3}ms", .{model.summary.p95 orelse 0}) catch "?",
-            1 => format.int(&value_buf, model.summary.switches),
-            2 => format.int(&value_buf, model.summary.events),
-            3 => format.int(&value_buf, model.summary.lost),
-            else => format.pct(&value_buf, model.summary.cpuBusy orelse 0),
-        };
-        const sub_text = switch (i) {
-            0 => std.fmt.bufPrint(&sub_buf, "p99 {d:.3} ms · {d} CPUs", .{ model.summary.p99 orelse 0, model.summary.cpus }) catch "",
-            1 => std.fmt.bufPrint(&sub_buf, "{d:.1} /s · {d} migrations", .{ model.summary.switchRate, model.summary.migrations }) catch "",
-            2 => std.fmt.bufPrint(&sub_buf, "{d:.3} s excerpt · {s} capture", .{ model.summary.windowMs / 1000, model.meta.captureWindow }) catch "",
-            3 => if (model.summary.lost > 0) "ring overflow · never zero-filled" else "no markers in this journal",
-            else => if (model.summary.runqueue) |rq| std.fmt.bufPrint(&sub_buf, "runqueue {d:.1} peak", .{rq}) catch "" else "runqueue not sampled",
-        };
-        var value_style = style(text_13, if (i == 3 and model.summary.lost > 0) th.refuse else th.text, .bold);
-        value_style.size = if (i == 0) 34 else 27;
-        value_style.line_height = 1.05;
-        value_style.tracking = -0.8;
-        var label_style = style(text_105, th.dim, .regular);
-        label_style.tracking = 1.15;
-        var sub_style = style(text_11, th.dim, .regular);
-        sub_style.line_height = 1.45;
-        sub_style.wrap = true;
-        var sub_layout: xsui.TextLayout = .{};
-        try canvas.layoutText(sub_style, sub_text, widths[i] - 32, &sub_layout);
-        const sub_h = sub_layout.height();
-        const value_h = value_style.size * value_style.line_height;
-        const content_h = 15.75 + 2 + value_h + 2 + sub_h;
-        const available_h: f32 = 106.97 - 27;
-        const top = y + 1 + 13 + (available_h - content_h) * 0.5;
-        canvas.pushClip(.{ .x = sx + 1, .y = y + 1, .w = widths[i] - 2, .h = 106.97 });
-        try label(canvas, sx + 16, top, labels[i], label_style);
-        const shown_value = switch (i) {
-            0 => std.fmt.bufPrint(&value_buf, "{d:.3}", .{model.summary.p95 orelse 0}) catch "?",
-            4 => std.fmt.bufPrint(&value_buf, "{d}", .{model.summary.cpuBusy orelse 0}) catch "?",
-            else => value_text,
-        };
-        const value_color = if (i == 0) th.live else if (i == 3 and model.summary.lost > 0) th.refuse else th.text;
-        try label(canvas, sx + 16, top + 17.75, shown_value, style(value_style, value_color, .bold));
-        if (i == 0 or i == 4) {
-            var unit = style(text_12, th.muted, .regular);
-            unit.line_height = 1.5;
-            const unit_text = if (i == 0) "ms" else "%";
-            try label(canvas, sx + 16 + measure(canvas, shown_value, value_style) + 3, top + 17.75 + value_style.size * 0.72, unit_text, unit);
-        }
-        _ = try canvas.textIn(.{ .x = sx + 16, .y = top + 17.75 + value_h + 2, .w = widths[i] - 32, .h = sub_h }, sub_style, sub_text);
-        canvas.popClip();
+        try drawStatCard(model, canvas, th, .{ .x = sx, .y = y + 1, .w = widths[i], .h = 106.97 }, i);
         sx += widths[i];
     }
+}
+
+fn drawBriefCompact(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w: f32) !void {
+    try canvas.rounded(.{ .x = x, .y = y, .w = w, .h = 284.44 }, 5, th.panel, th.line, 1);
+    const inner_x = x + 1;
+    const inner_w = w - 2;
+    const half = inner_w * 0.5;
+    try drawStatCard(model, canvas, th, .{ .x = inner_x, .y = y + 1, .w = inner_w, .h = 98.38 }, 0);
+    try borderLine(canvas, inner_x, y + 99.38, inner_w, th.line);
+    try borderLine(canvas, inner_x + half, y + 99.38, 1, th.line);
+    try borderLine(canvas, inner_x, y + 191.41, inner_w, th.line);
+    for (1..5) |i| {
+        const col: f32 = if (i % 2 == 1) 0 else 1;
+        const row: f32 = if (i <= 2) 0 else 1;
+        try drawStatCard(model, canvas, th, .{
+            .x = inner_x + col * half,
+            .y = y + 99.38 + row * 92.03,
+            .w = half,
+            .h = 92.03,
+        }, i);
+    }
+}
+
+fn drawStatCard(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect, i: usize) !void {
+    const labels = [_][]const u8{ "P95 WAKE→RUN", "SWITCHES", "EVENTS", "LOST", "CPU BUSY" };
+    var value_buf: [64]u8 = undefined;
+    var sub_buf: [128]u8 = undefined;
+    const value_text = switch (i) {
+        0 => std.fmt.bufPrint(&value_buf, "{d:.3}ms", .{model.summary.p95 orelse 0}) catch "?",
+        1 => format.int(&value_buf, model.summary.switches),
+        2 => format.int(&value_buf, model.summary.events),
+        3 => format.int(&value_buf, model.summary.lost),
+        else => format.pct(&value_buf, model.summary.cpuBusy orelse 0),
+    };
+    const sub_text = switch (i) {
+        0 => std.fmt.bufPrint(&sub_buf, "p99 {d:.3} ms · {d} CPUs", .{ model.summary.p99 orelse 0, model.summary.cpus }) catch "",
+        1 => std.fmt.bufPrint(&sub_buf, "{d:.1} /s · {d} migrations", .{ model.summary.switchRate, model.summary.migrations }) catch "",
+        2 => std.fmt.bufPrint(&sub_buf, "{d:.3} s excerpt · {s} capture", .{ model.summary.windowMs / 1000, model.meta.captureWindow }) catch "",
+        3 => if (model.summary.lost > 0) "ring overflow · never zero-filled" else "no markers in this journal",
+        else => if (model.summary.runqueue) |rq| std.fmt.bufPrint(&sub_buf, "runqueue {d:.1} peak", .{rq}) catch "" else "runqueue not sampled",
+    };
+    var value_style = style(text_13, if (i == 3 and model.summary.lost > 0) th.refuse else th.text, .bold);
+    value_style.size = if (i == 0) 34 else 27;
+    value_style.line_height = 1.05;
+    value_style.tracking = -0.8;
+    var label_style = style(text_105, th.dim, .regular);
+    label_style.tracking = 1.15;
+    var sub_style = style(text_11, th.dim, .regular);
+    sub_style.line_height = 1.45;
+    sub_style.wrap = true;
+    var sub_layout: xsui.TextLayout = .{};
+    try canvas.layoutText(sub_style, sub_text, rect.w - 32, &sub_layout);
+    const sub_h = sub_layout.height();
+    const value_h = value_style.size * value_style.line_height;
+    const content_h = 15.75 + 2 + value_h + 2 + sub_h;
+    const available_h: f32 = rect.h - 27;
+    const top = rect.y + 13 + (available_h - content_h) * 0.5;
+    canvas.pushClip(.{ .x = rect.x + 1, .y = rect.y, .w = rect.w - 2, .h = rect.h });
+    try label(canvas, rect.x + 16, top, labels[i], label_style);
+    const shown_value = switch (i) {
+        0 => std.fmt.bufPrint(&value_buf, "{d:.3}", .{model.summary.p95 orelse 0}) catch "?",
+        4 => std.fmt.bufPrint(&value_buf, "{d}", .{model.summary.cpuBusy orelse 0}) catch "?",
+        else => value_text,
+    };
+    const value_color = if (i == 0) th.live else if (i == 3 and model.summary.lost > 0) th.refuse else th.text;
+    try label(canvas, rect.x + 16, top + 17.75, shown_value, style(value_style, value_color, .bold));
+    if (i == 0 or i == 4) {
+        var unit = style(text_12, th.muted, .regular);
+        unit.line_height = 1.5;
+        const unit_text = if (i == 0) "ms" else "%";
+        try label(canvas, rect.x + 16 + measure(canvas, shown_value, value_style) + 3, top + 17.75 + value_style.size * 0.72, unit_text, unit);
+    }
+    _ = try canvas.textIn(.{ .x = rect.x + 16, .y = top + 17.75 + value_h + 2, .w = rect.w - 32, .h = sub_h }, sub_style, sub_text);
+    canvas.popClip();
 }
 
 fn drawPrimaryGrid(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w: f32, h: f32) !void {
     const gap = 12.0;
     const wide = w >= 1200;
+    if (w < 900) {
+        const cap_h = 37.0 + @as(f32, @floatFromInt(model.capabilities.len)) * 53.25;
+        try drawCapabilities(model, canvas, th, .{ .x = x, .y = y, .w = w, .h = cap_h });
+        try drawCpuPanel(model, canvas, th, .{ .x = x, .y = y + cap_h + gap, .w = w, .h = 292.05 });
+        try drawAdvisorMini(model, canvas, th, .{ .x = x, .y = y + cap_h + gap + 292.05 + gap, .w = w, .h = 287.05 });
+        return;
+    }
     if (wide) {
         const panel_w = (w - gap * 2) / 3;
         const panel_h = @max(283.5, @max(37.0 + @as(f32, @floatFromInt(model.capabilities.len)) * 53.25, 37.0 + @as(f32, @floatFromInt(model.cpuStats.len)) * 55.0 + 50.0));
@@ -264,6 +309,12 @@ fn drawAdvisorMini(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) 
 fn drawSecondaryGrid(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w: f32, h: f32) !void {
     const gap = 12.0;
     const wide = w >= 1200;
+    if (w < 900) {
+        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = w, .h = 264.25 });
+        try drawMix(model, canvas, th, .{ .x = x, .y = y + 264.25 + gap, .w = w, .h = 264.25 });
+        try drawMemory(model, canvas, th, .{ .x = x, .y = y + (264.25 + gap) * 2, .w = w, .h = 264.25 });
+        return;
+    }
     if (wide) {
         const panel_w = (w - gap * 2) / 3;
         try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = panel_w, .h = 264.25 });

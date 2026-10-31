@@ -49,7 +49,7 @@ xsprof serve --journal session.ndjson
 xsprof serve --journal session.ndjson --recorder-dir /var/lib/xsprof
 xsprof serve --live                     # Linux live capture
 xsprof ui --replay session.ndjson --recorder-dir /var/lib/xsprof
-xsprof snapshot --replay session.ndjson --view timeline --theme mocha
+xsprof snapshot --replay session.ndjson --view timeline --theme mocha --backend cpu
 xsprof demo
 xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 ```

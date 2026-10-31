@@ -24,6 +24,9 @@ fail=0
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 [ "$(code "http://127.0.0.1:$PORT/")" = 200 ] || { echo "web_smoke: index failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/assets/xsprof-web.wasm")" = 200 ] || { echo "web_smoke: wasm failed" >&2; fail=1; }
+for sym in web_ui_pointer_down web_ui_pointer_move web_ui_pointer_up web_ui_copy_ptr web_ui_copy_len web_ui_copy_clear; do
+    strings "$WASM" | grep -q "$sym" || { echo "web_smoke: missing $sym" >&2; fail=1; }
+done
 [ "$(code "http://127.0.0.1:$PORT/scenarios/healthy.json")" = 200 ] || { echo "web_smoke: scenario failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/api/meta?token=$TOKEN")" = 200 ] || { echo "web_smoke: meta failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/api/meta")" = 401 ] || { echo "web_smoke: missing token accepted" >&2; fail=1; }

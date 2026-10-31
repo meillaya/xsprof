@@ -30,11 +30,20 @@ const right_pad: f32 = 12;
 const bottom_pad: f32 = 8;
 
 pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, stage_x: f32, stage_top: f32, width: f32) !void {
-    const x = stage_x + 24;
-    const head_y = stage_top + 16 - state.scroll_y;
-    const content_w = width - stage_x - 48;
+    const compact = width <= 780;
+    const pad: f32 = if (compact) 14 else 24;
+    const x = stage_x + pad;
+    const head_y = stage_top + (if (compact) @as(f32, 14) else 16) - state.scroll_y;
+    const content_w = width - stage_x - pad * 2;
     try drawHead(model, state, canvas, th, x, head_y, content_w);
     const plot_y = head_y + 53.75 + 12;
+    if (width <= 1140) {
+        try drawPlot(model, state, canvas, th, .{ .x = x, .y = plot_y, .w = content_w, .h = 338 });
+        try drawInspector(model, state, canvas, th, .{ .x = x, .y = plot_y + 350, .w = content_w, .h = 338 });
+        try drawLegend(model, state, canvas, th, x, plot_y + 696, content_w);
+        try drawFoot(model, state, canvas, th, x, plot_y + 696 + 15.75 + 12, content_w);
+        return;
+    }
     const inspector_w: f32 = 286;
     const plot_w = content_w - inspector_w - 12;
     try drawPlot(model, state, canvas, th, .{ .x = x, .y = plot_y, .w = plot_w, .h = 338 });
@@ -196,6 +205,15 @@ fn drawPlot(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         try canvas.fill(.{ .x = rect.x + 1 + lx - 1, .y = rect.y + ruler_h - 8, .w = 3, .h = 8 }, th.refuse);
         try canvas.fill(.{ .x = rect.x + 1 + lx - 17, .y = rect.y + ruler_h + 3, .w = 34, .h = 13 }, th.bg);
         try label(canvas, rect.x + 1 + lx - 14, rect.y + ruler_h + 4, "LOSS", style(common.text_95, th.refuse, .regular));
+    }
+
+    if (state.brush_from != null and state.brush_to != null) {
+        const ba = x_at(state.brush_from.?, start, span, x0, plot_w);
+        const bb = x_at(state.brush_to.?, start, span, x0, plot_w);
+        const left = rect.x + 1 + @min(ba, bb);
+        const bw = @max(1.0, @abs(bb - ba));
+        try canvas.fill(.{ .x = left, .y = rect.y + 1 + ruler_h, .w = bw, .h = inner_h - ruler_h - bottom_pad }, .{ .r = th.live.r, .g = th.live.g, .b = th.live.b, .a = 26 });
+        try canvas.fill(.{ .x = left, .y = rect.y + 1 + ruler_h, .w = bw, .h = 1 }, th.live);
     }
 
     const ph = state.timeline_playhead;

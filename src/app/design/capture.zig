@@ -23,9 +23,11 @@ const borderLine = common.borderLine;
 const panelHead = common.panelHead;
 
 pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, stage_x: f32, stage_top: f32, width: f32) !void {
-    const x = stage_x + 24;
-    const y = stage_top + 16 - state.scroll_y;
-    const w = width - stage_x - 48;
+    const compact = width <= 780;
+    const pad: f32 = if (compact) 14 else 24;
+    const x = stage_x + pad;
+    const y = stage_top + (if (compact) @as(f32, 14) else 16) - state.scroll_y;
+    const w = width - stage_x - pad * 2;
     var eyebrow = style(common.text_105, th.dim, .regular);
     eyebrow.tracking = 1.47;
     try label(canvas, x, y, "READ-ONLY STATUS  ·  NO MUTATION CONTROLS", eyebrow);
@@ -38,6 +40,19 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     try borderLine(canvas, x, y + 53.75, w, th.line);
 
     const grid_y = y + 65.75;
+    if (width <= 1024) {
+        var cy = grid_y;
+        try drawRecorder(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 237.55 });
+        cy += 249.55;
+        try drawRetention(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 128 });
+        cy += 140.0;
+        try drawSegments(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 225 });
+        cy += 237.0;
+        try drawCommands(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 361 });
+        cy += 373.0;
+        try drawSafety(canvas, th, .{ .x = x, .y = cy, .w = w, .h = 242 });
+        return;
+    }
     const left_w = (w - 12) * 0.4717;
     const right_x = x + left_w + 12;
     const right_w = w - left_w - 12;
@@ -129,26 +144,28 @@ fn drawSegments(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
     }
 }
 
+pub const commands = [_][2][]const u8{
+    .{ "record a bounded window", "xsprof record --duration <ms> --out <dir>" },
+    .{ "render a deterministic snapshot", "xsprof snapshot --replay /tmp/xsprof/journal.ndjson --out /tmp/xsprof.png" },
+    .{ "serve the console on loopback", "xsprof serve --journal /tmp/xsprof/journal.ndjson" },
+    .{ "replay in the native window", "xsprof ui --replay /tmp/xsprof/journal.ndjson" },
+};
+
 fn drawCommands(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
     try panelHead(canvas, th, rect, "04", "RUN IT YOURSELF", "copy");
     var y = rect.y + 39;
-    const cmds = [_][2][]const u8{
-        .{ "record a bounded window", "xsprof record --duration <ms> --out <dir>" },
-        .{ "render a deterministic snapshot", "xsprof snapshot --replay /tmp/xsprof/journal.ndjson --out /tmp/xsprof.png" },
-        .{ "serve the console on loopback", "xsprof serve --journal /tmp/xsprof/journal.ndjson" },
-        .{ "replay in the native window", "xsprof ui --replay /tmp/xsprof/journal.ndjson" },
-    };
-    for (cmds, 0..) |cmd, i| {
+    for (commands, 0..) |cmd, i| {
         try label(canvas, rect.x + 14, y, cmd[0], style(common.text_105, th.dim, .regular));
         try canvas.rounded(.{ .x = rect.x + 14, .y = y + 17, .w = rect.w - 28, .h = 31 }, 3, th.field, th.line, 1);
         try label(canvas, rect.x + 21, y + 24.5, cmd[1], style(common.text_11, th.text, .regular));
         const copy_w: f32 = 54;
-        try canvas.rounded(.{ .x = rect.x + rect.w - 14 - copy_w, .y = y + 21, .w = copy_w, .h = 23 }, 3, th.raised, th.line_strong, 1);
-        try label(canvas, rect.x + rect.w - 14 - copy_w + 9, y + 24.5, "copy", style(common.text_10, th.muted, .regular));
+        const copy_rect = Rect{ .x = rect.x + rect.w - 14 - copy_w, .y = y + 21, .w = copy_w, .h = 23 };
+        try canvas.rounded(copy_rect, 3, th.raised, th.line_strong, 1);
+        try label(canvas, copy_rect.x + 9, y + 24.5, "copy", style(common.text_10, th.muted, .regular));
+        canvas.hit(800 + @as(u32, @intCast(i)), copy_rect);
         try borderLine(canvas, rect.x + 1, y + 58, rect.w - 2, th.line);
         y += 81.25;
-        _ = i;
     }
     _ = model;
 }

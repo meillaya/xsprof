@@ -327,7 +327,7 @@ fn handle(
         try respond(&request, .internal_server_error, "path too long\n", "text/plain");
         return;
     };
-    const body = readFile(io, allocator, full, 8 * 1024 * 1024) catch {
+    const body = readFile(io, allocator, full, 32 * 1024 * 1024) catch {
         try respond(
             &request,
             .service_unavailable,

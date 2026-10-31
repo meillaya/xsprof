@@ -58,6 +58,18 @@ function drawFrame() {
 
   if (exports.web_ui_take_open()) fileInput.click();
   if (exports.web_ui_take_reload()) reloadSource();
+  flushCopy();
+}
+
+function flushCopy() {
+  const len = exports?.web_ui_copy_len?.() || 0;
+  if (!len) return;
+  const ptr = exports.web_ui_copy_ptr();
+  const text = new TextDecoder().decode(new Uint8Array(exports.memory.buffer, ptr, len));
+  exports.web_ui_copy_clear();
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
 }
 
 function loadJournalText(text, label) {
@@ -214,21 +226,27 @@ function canvasPoint(event) {
 let down = null;
 canvas.addEventListener("pointerdown", (event) => {
   if (!exports) return;
-  down = { ...canvasPoint(event), id: event.pointerId };
+  const point = canvasPoint(event);
+  down = { ...point, id: event.pointerId };
+  exports.web_ui_pointer_down(point.x, point.y);
   canvas.setPointerCapture?.(event.pointerId);
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (!exports || !down) return;
+  const point = canvasPoint(event);
+  exports.web_ui_pointer_move(point.x, point.y);
+  drawFrame();
 });
 canvas.addEventListener("pointerup", (event) => {
   if (!exports || !down) return;
   const point = canvasPoint(event);
-  const dx = point.x - down.x;
-  const dy = point.y - down.y;
-  if (dx * dx + dy * dy <= 36) {
-    exports.web_ui_click(point.x, point.y);
-    drawFrame();
-  }
+  exports.web_ui_pointer_up(point.x, point.y);
+  down = null;
+  drawFrame();
+});
+canvas.addEventListener("pointercancel", () => {
   down = null;
 });
-canvas.addEventListener("pointercancel", () => { down = null; });
 
 function keyCode(event) {
   switch (event.key) {

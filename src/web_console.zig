@@ -6,6 +6,7 @@ const std = @import("std");
 const xsui = @import("xsui");
 const console_app = @import("app/design/app.zig");
 const state_mod = @import("app/design/state.zig");
+const pointer_mod = @import("app/design/pointer.zig");
 
 const gpa = std.heap.wasm_allocator;
 
@@ -136,6 +137,27 @@ pub fn key(codepoint: u32, meta: u32, ctrl: u32, shift: u32) void {
         .ctrl = ctrl != 0,
         .shift = shift != 0,
     });
+}
+
+pub fn copyText() []const u8 {
+    if (!ready) return "";
+    return app.copyText();
+}
+
+pub fn clearCopy() void {
+    if (ready) app.clearCopy();
+}
+
+pub fn pointerDown(x: f32, y: f32) void {
+    if (ready) pointer_mod.pointerDown(&app, x, y);
+}
+
+pub fn pointerMove(x: f32, y: f32) void {
+    if (ready) pointer_mod.pointerMove(&app, x, y);
+}
+
+pub fn pointerUp(x: f32, y: f32) void {
+    if (ready) if (canvas_ptr) |canvas| pointer_mod.pointerUp(&app, canvas, x, y);
 }
 
 pub fn click(x: f32, y: f32) void {

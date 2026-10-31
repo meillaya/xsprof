@@ -21,9 +21,11 @@ const labelRight = common.labelRight;
 const borderLine = common.borderLine;
 
 pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, stage_x: f32, stage_top: f32, width: f32) !void {
-    const x = stage_x + 24;
-    const y = stage_top + 16 - state.scroll_y;
-    const w = width - stage_x - 48;
+    const compact = width <= 780;
+    const pad: f32 = if (compact) 14 else 24;
+    const x = stage_x + pad;
+    const y = stage_top + (if (compact) @as(f32, 14) else 16) - state.scroll_y;
+    const w = width - stage_x - pad * 2;
     var eyebrow = style(common.text_105, th.dim, .regular);
     eyebrow.tracking = 1.47;
     var eyebrow_buf: [64]u8 = undefined;
@@ -43,6 +45,22 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
 
     const grid_y = y + 75.5;
     const gap: f32 = 12;
+    if (width <= 1024) {
+        var cy = grid_y;
+        var single_shown: usize = 0;
+        for (model.advisor) |card| {
+            if (!matches(state.advisor_filter, card.severity)) continue;
+            try drawCard(canvas, th, card, .{ .x = x, .y = cy, .w = w, .h = 225.72 });
+            cy += 225.72 + gap;
+            single_shown += 1;
+        }
+        if (single_shown == 0) {
+            var empty_buf: [96]u8 = undefined;
+            const empty_text = std.fmt.bufPrint(&empty_buf, "No rules match this filter. Choose “All {d}” to see the full set.", .{model.advisor.len}) catch "No rules match this filter.";
+            try common.labelWrapped(canvas, .{ .x = x, .y = grid_y + 16, .w = w, .h = 40 }, style(common.text_11, th.dim, .regular), empty_text);
+        }
+        return;
+    }
     const card_w = (w - gap) / 2;
     const row_heights = [_]f32{ 225.72, 225.72, 206.53, 158.67 };
     var row_offsets = [_]f32{ 0, 0, 0, 0 };
