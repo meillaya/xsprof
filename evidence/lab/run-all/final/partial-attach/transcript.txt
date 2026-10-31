@@ -1,2 +1,0 @@
-REFUSE: partial attach requires disposable VM marker; host attach refused
-refusal=evidence/lab/run-all/final/partial-attach/host-refusal.json

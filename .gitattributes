@@ -1,10 +1,11 @@
-# GitHub Linguist language policy for the C++ rewrite (xsprof).
-#
-# The language graph reflects the C++ implementation. The archived Zig simulator
-# is excluded from the breakdown so it does not appear in the language stats;
-# documentation and evidence prose are marked as documentation so they do not
-# skew the code-language percentages.
-simulator/** linguist-generated=true
-docs/** linguist-documentation=true
-evidence/** linguist-documentation=true
-*.md linguist-documentation=true
+# Generated, grep-friendly reference corpora. Do not render diffs for these.
+docs/vendor/zig-0.17.0/*.txt linguist-generated=true -diff
+docs/vendor/zig-0.17.0/*.txt text eol=lf
+
+# Keep source diffs readable.
+*.zig text eol=lf
+*.zon text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.glsl text eol=lf
+*.metal text eol=lf

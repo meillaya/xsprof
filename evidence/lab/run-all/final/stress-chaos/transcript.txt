@@ -1,3 +1,0 @@
-summary=evidence/lab/run-all/final/stress-chaos/summary.json
-transcript=evidence/lab/run-all/final/stress-chaos/stress-chaos-transcript.txt
-PASS: stress/chaos suite completed with rollback-safe final state
