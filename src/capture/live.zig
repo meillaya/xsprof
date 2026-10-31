@@ -125,6 +125,23 @@ pub const Batch = struct {
     }
 };
 
+pub const Preset = enum { scheduler, memory, deep };
+
+pub fn parsePreset(name: []const u8) ?Preset {
+    inline for (@typeInfo(Preset).@"enum".field_names) |field| {
+        if (std.mem.eql(u8, name, field)) return @field(Preset, field);
+    }
+    return null;
+}
+
+pub fn presetOptions(preset: Preset) Options {
+    return switch (preset) {
+        .scheduler => .{ .faults = false },
+        .memory => .{ .wakeups = false, .migrations = false, .ring_pages = 32 },
+        .deep => .{ .ring_pages = 256 },
+    };
+}
+
 pub const Capture = struct {
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -550,4 +567,16 @@ test "capture fails closed off Linux or without privilege" {
     } else {
         try std.testing.expect(p.state == .SKIP or p.state == .REFUSE or p.state == .READY);
     }
+}
+
+// Checks preset event masks and ring sizing.
+test "capture presets set explicit options" {
+    const scheduler = presetOptions(.scheduler);
+    try std.testing.expect(!scheduler.faults);
+    try std.testing.expect(scheduler.wakeups);
+    const memory = presetOptions(.memory);
+    try std.testing.expect(memory.faults);
+    try std.testing.expect(!memory.wakeups);
+    try std.testing.expectEqual(@as(u16, 256), presetOptions(.deep).ring_pages);
+    try std.testing.expect(parsePreset("deep") != null);
 }

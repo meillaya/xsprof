@@ -22,6 +22,7 @@ pub const Options = struct {
     max_bytes: u64 = default_max_bytes,
     max_age_ms: u64 = default_max_age_ms,
     duration_ms: ?u32 = null,
+    live_options: live.Options = .{},
 };
 
 pub const Result = struct {
@@ -96,7 +97,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     };
     try writeManifest(io, allocator, manifest_path, manifest);
 
-    var capture = live.Capture.open(io, allocator, .{}) catch |err| {
+    var capture = live.Capture.open(io, allocator, opts.live_options) catch |err| {
         try segment.close();
         manifest.state = .failed;
         manifest.updated_wall_ns = now_wall;

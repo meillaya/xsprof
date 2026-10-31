@@ -1,6 +1,8 @@
 const std = @import("std");
 const json = @import("../core/json.zig");
 const daemon = @import("../recorder/daemon.zig");
+const live = @import("../capture/live.zig");
+const recording = @import("../capture/recording.zig");
 const extract = @import("../recorder/extract.zig");
 
 const Writer = std.Io.Writer;
@@ -32,6 +34,7 @@ pub fn cmdDaemon(
     err: *Writer,
 ) !u8 {
     var options: daemon.Options = .{};
+    var live_options: live.Options = .{};
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -56,6 +59,13 @@ pub fn cmdDaemon(
                 try err.writeAll("daemon: invalid --duration\n");
                 return 2;
             };
+        } else if (std.mem.eql(u8, arg, "--preset") and i + 1 < args.len) {
+            i += 1;
+            const preset = live.parsePreset(args[i]) orelse {
+                try err.writeAll("daemon: unknown preset\n");
+                return 2;
+            };
+            live_options = live.presetOptions(preset);
         } else if (std.mem.eql(u8, arg, "--foreground")) {
             continue;
         } else {
@@ -63,6 +73,7 @@ pub fn cmdDaemon(
             return 2;
         }
     }
+    options.live_options = live_options;
     const result = daemon.run(io, allocator, options) catch |run_error| {
         try err.print("daemon: {s}\n", .{@errorName(run_error)});
         return 1;

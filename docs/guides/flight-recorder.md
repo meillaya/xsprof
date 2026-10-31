@@ -22,6 +22,7 @@ kernel policy through your normal provisioning.
   --retain 10m --max-bytes 2G
 ```
 
+`--preset scheduler|memory|deep` selects an event mask and ring budget.
 `--duration <ms>` stops after a bounded test run. The daemon writes
 `manifest.json`, `lock`, and `segments/*.ndjson` under the state directory.
 Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest closed
