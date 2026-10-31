@@ -156,7 +156,13 @@ pub fn build(b: *std.Build) void {
         "web_set_paused",          "web_set_follow",          "web_run_scenario",
         "web_scenario_result_ptr", "web_scenario_result_len", "web_generate_trace",
         "web_trace_result_ptr",    "web_trace_result_len",    "web_load_compare",
-        "web_clear_compare",
+        "web_clear_compare",       "web_ui_init",             "web_ui_resize",
+        "web_ui_load_journal",     "web_ui_load_demo",        "web_ui_load_recorder",
+        "web_ui_frame",            "web_ui_instances_ptr",    "web_ui_instance_stride",
+        "web_ui_atlas_ptr",        "web_ui_atlas_size",       "web_ui_atlas_version",
+        "web_ui_key",              "web_ui_click",            "web_ui_tick",
+        "web_ui_set_screen",       "web_ui_set_theme",        "web_ui_set_live",
+        "web_ui_take_open",        "web_ui_take_reload",      "web_ui_loaded",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;
@@ -176,6 +182,8 @@ pub fn build(b: *std.Build) void {
         );
         web_step.dependOn(&install.step);
     }
+    const demo_install = b.addInstallFile(b.path("fixtures/ui/design/demo.json"), "web/assets/design-demo.json");
+    web_step.dependOn(&demo_install.step);
     inline for ([_][]const u8{ "healthy.json", "loss.json", "empty.json", "scheduler-mix.json" }) |name| {
         const install = b.addInstallFile(b.path("scenarios/" ++ name), "web/scenarios/" ++ name);
         web_step.dependOn(&install.step);

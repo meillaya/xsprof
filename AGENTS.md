@@ -94,4 +94,8 @@ credentials. Keep the read-only safety invariants, P0–P7 gates, and the
 600-line limit green. Native windows are
 human-run; automated work uses snapshots, Metal offscreen parity, Xvfb, hidden
 window smoke, and the gated systemd service smoke in a disposable Linux VM.
-Re-run `zig build check` and `qa/cli_parity.sh` after any behavior change.
+The design console (`src/app/design/`, `lib/xsui/src/canvas.zig`, `web/`) is the
+product surface on web, macOS, Linux, and `snapshot`. The visible lab rail is
+retired; `xsprof lab` remains a headless scenario/QA tool. Re-run
+`zig build check` and `qa/cli_parity.sh` after any behavior change. Visual
+evidence is developer-only under `design/evidence/` (`qa/ui_evidence.sh`).

@@ -8,20 +8,21 @@
 
 const std = @import("std");
 const draw = @import("draw.zig");
+const palettes = @import("design_palettes.zig");
 
 pub const Theme = draw.Theme;
 pub const Color = draw.Color;
 
-pub const dark: Theme = .{};
-
-pub const light: Theme = .{
-    .bg = .{ .r = 0xf3, .g = 0xea, .b = 0xd7 },
-    .panel = .{ .r = 0xff, .g = 0xf8, .b = 0xeb },
-    .raised = .{ .r = 0xe9, .g = 0xdf, .b = 0xcb },
-    .text = .{ .r = 0x1a, .g = 0x17, .b = 0x12 },
-    .muted = .{ .r = 0x6b, .g = 0x5f, .b = 0x51 },
-    .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
-};
+pub const dark = palettes.graphite_palette;
+pub const graphite = palettes.graphite_palette;
+pub const light = palettes.paper_palette;
+pub const paper = palettes.paper_palette;
+pub const latte = palettes.latte_palette;
+pub const frappe = palettes.frappe_palette;
+pub const macchiato = palettes.macchiato_palette;
+pub const mocha = palettes.mocha_palette;
+pub const presets = palettes.presets;
+pub const default = palettes.default;
 
 pub const high_contrast: Theme = .{
     .bg = .{ .r = 0x00, .g = 0x00, .b = 0x00 },
@@ -41,10 +42,29 @@ pub const high_contrast: Theme = .{
 /// Resolves the CLI/surface theme names. Unknown names return `null` so the
 /// caller can keep its historical default instead of failing a snapshot.
 pub fn named(name: []const u8) ?Theme {
-    if (std.mem.eql(u8, name, "dark") or std.mem.eql(u8, name, "warm-dark")) return dark;
-    if (std.mem.eql(u8, name, "light") or std.mem.eql(u8, name, "paper")) return light;
+    if (std.mem.eql(u8, name, "dark") or std.mem.eql(u8, name, "warm-dark") or
+        std.mem.eql(u8, name, "Graphite"))
+    {
+        return graphite;
+    }
+    if (std.mem.eql(u8, name, "light") or std.mem.eql(u8, name, "paper") or
+        std.mem.eql(u8, name, "Paper"))
+    {
+        return paper;
+    }
+    if (std.mem.eql(u8, name, "latte")) return latte;
+    if (std.mem.eql(u8, name, "frappe")) return frappe;
+    if (std.mem.eql(u8, name, "macchiato")) return macchiato;
+    if (std.mem.eql(u8, name, "mocha")) return mocha;
     if (std.mem.eql(u8, name, "high-contrast") or std.mem.eql(u8, name, "contrast")) {
         return high_contrast;
+    }
+    return null;
+}
+
+pub fn indexOf(id: []const u8) ?usize {
+    for (presets, 0..) |preset, index| {
+        if (std.mem.eql(u8, preset.id, id)) return index;
     }
     return null;
 }

@@ -30,12 +30,22 @@ pub fn render(
     return pixels;
 }
 
+/// Clamp a float coordinate to [0, upper] before converting to an index. A
+/// malformed layout (tiny viewport, negative width, NaN) must not panic the
+/// snapshot/raster path.
+fn clampIndex(value: f32, upper: usize) usize {
+    if (std.math.isNan(value) or value <= 0) return 0;
+    const limit: f32 = @floatFromInt(upper);
+    if (value >= limit) return upper;
+    return @intFromFloat(value);
+}
+
 fn clipBounds(instance: draw.Instance, w: usize, h: usize) struct { x0: usize, y0: usize, x1: usize, y1: usize } {
     const clip = instance.clip;
-    const x0: usize = @intFromFloat(@max(0, @floor(clip[0])));
-    const y0: usize = @intFromFloat(@max(0, @floor(clip[1])));
-    const x1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(w)), @ceil(clip[2])));
-    const y1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(h)), @ceil(clip[3])));
+    const x0 = clampIndex(@floor(clip[0]), w);
+    const y0 = clampIndex(@floor(clip[1]), h);
+    const x1 = clampIndex(@ceil(clip[2]), w);
+    const y1 = clampIndex(@ceil(clip[3]), h);
     return .{ .x0 = @min(x0, w), .y0 = @min(y0, h), .x1 = @min(x1, w), .y1 = @min(y1, h) };
 }
 
@@ -54,10 +64,10 @@ fn blitRect(pixels: []u8, w: usize, h: usize, instance: draw.Instance) void {
     const rect = instance.rect;
     if (rect[2] <= 0 or rect[3] <= 0) return;
     const clip = clipBounds(instance, w, h);
-    const bx0: usize = @intFromFloat(@max(0, @floor(rect[0])));
-    const by0: usize = @intFromFloat(@max(0, @floor(rect[1])));
-    const bx1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(w)), @ceil(rect[0] + rect[2])));
-    const by1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(h)), @ceil(rect[1] + rect[3])));
+    const bx0 = clampIndex(@floor(rect[0]), w);
+    const by0 = clampIndex(@floor(rect[1]), h);
+    const bx1 = clampIndex(@ceil(rect[0] + rect[2]), w);
+    const by1 = clampIndex(@ceil(rect[1] + rect[3]), h);
     const fill = draw.Color.fromU32(instance.color);
     const border = draw.Color.fromU32(instance.border_color);
     const half_w = rect[2] * 0.5;
@@ -103,10 +113,10 @@ fn blitGlyph(pixels: []u8, w: usize, h: usize, atlas: *const draw.Atlas, instanc
     const clip = clipBounds(instance, w, h);
     const color = draw.Color.fromU32(instance.color);
     if (color.a == 0) return;
-    const bx0: usize = @intFromFloat(@max(0, @floor(rect[0])));
-    const by0: usize = @intFromFloat(@max(0, @floor(rect[1])));
-    const bx1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(w)), @ceil(rect[0] + rect[2])));
-    const by1: usize = @intFromFloat(@min(@as(f32, @floatFromInt(h)), @ceil(rect[1] + rect[3])));
+    const bx0 = clampIndex(@floor(rect[0]), w);
+    const by0 = clampIndex(@floor(rect[1]), h);
+    const bx1 = clampIndex(@ceil(rect[0] + rect[2]), w);
+    const by1 = clampIndex(@ceil(rect[1] + rect[3]), h);
     const tw = @as(f32, @floatFromInt(atlas.width));
     const th = @as(f32, @floatFromInt(atlas.height));
     var y = @max(by0, clip.y0);

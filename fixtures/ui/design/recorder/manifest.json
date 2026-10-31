@@ -1,0 +1,23 @@
+{
+  "host_mutation": false,
+  "max_age_ms": 600000,
+  "max_bytes": 2147483648,
+  "schema": "xsprof/recorder-manifest/v1",
+  "segments": [
+    {
+      "bytes": 225742,
+      "closed": true,
+      "end_mono_ns": 13970000000,
+      "end_wall_ns": 1793456037000000000,
+      "events": 1444,
+      "path": "fixtures/ui/healthy.ndjson",
+      "start_mono_ns": 0,
+      "start_wall_ns": 1793455627000000000
+    }
+  ],
+  "session_id": "fixture-healthy-04",
+  "started_mono_ns": 0,
+  "started_wall_ns": 1793455627000000000,
+  "state": "stopped",
+  "updated_wall_ns": 1793456037000000000
+}

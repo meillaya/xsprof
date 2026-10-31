@@ -7,13 +7,7 @@ const xsui = @import("xsui");
 const builtin = @import("builtin");
 const gl = @import("xsui-gl");
 const frame_mod = xsui.frame;
-const layout = xsui.layout;
-const app_mod = @import("../../app/app.zig");
-const lab_state = @import("../../app/lab/state.zig");
-const lab_controller = @import("../../app/lab/controller.zig");
-const lab_view = @import("../../app/lab_view.zig");
-const session_mod = @import("../../stream/session.zig");
-const input_mod = xsui.input;
+const console_app = @import("../../app/design/app.zig");
 
 const Display = opaque {};
 const Window = c_ulong;
@@ -116,6 +110,7 @@ const X11 = struct {
     store_name: *const fn (*Display, Window, [*:0]const u8) callconv(.c) c_int,
     select_input: *const fn (*Display, Window, c_long) callconv(.c) c_int,
     next_event: *const fn (*Display, *Event) callconv(.c) c_int,
+    pending: *const fn (*Display) callconv(.c) c_int,
     lookup_keysym: *const fn (*KeyEvent, c_int) callconv(.c) KeySym,
     intern_atom: *const fn (*Display, [*:0]const u8, c_int) callconv(.c) Atom,
     set_wm_protocols: *const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int,
@@ -147,6 +142,7 @@ const X11 = struct {
             .store_name = lib.lookup(*const fn (*Display, Window, [*:0]const u8) callconv(.c) c_int, "XStoreName") orelse return error.NoX11,
             .select_input = lib.lookup(*const fn (*Display, Window, c_long) callconv(.c) c_int, "XSelectInput") orelse return error.NoX11,
             .next_event = lib.lookup(*const fn (*Display, *Event) callconv(.c) c_int, "XNextEvent") orelse return error.NoX11,
+            .pending = lib.lookup(*const fn (*Display) callconv(.c) c_int, "XPending") orelse return error.NoX11,
             .lookup_keysym = lib.lookup(*const fn (*KeyEvent, c_int) callconv(.c) KeySym, "XLookupKeysym") orelse return error.NoX11,
             .intern_atom = lib.lookup(*const fn (*Display, [*:0]const u8, c_int) callconv(.c) Atom, "XInternAtom") orelse return error.NoX11,
             .set_wm_protocols = lib.lookup(*const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int, "XSetWMProtocols") orelse return error.NoX11,
@@ -176,72 +172,42 @@ pub const App = struct {
     window: Window,
     context: *GLXContext,
     renderer: gl.Renderer,
-    lab: lab_state.LabState,
-    controller: lab_controller.Controller,
-    session: ?session_mod.Session = null,
-    light: bool = false,
+    design: console_app.App,
+    frame: frame_mod.Frame,
+    canvas: xsui.Canvas,
     wm_delete: Atom,
-    input: input_mod.Input = .{},
-    dirty: bool = false,
 };
 
 const width: u32 = 1280;
 const height: u32 = 720;
 
 fn render(self: *App) !void {
-    const theme = if (self.light) xsui.themes.light else xsui.themes.dark;
-    var frame: frame_mod.Frame = undefined;
-    try frame.init(self.allocator, width, height, theme);
-    defer frame.deinit();
-    var ui = layout.Ui.init(&frame);
-    defer ui.deinit();
-    frame.input = self.input;
-    try lab_view.build(&self.lab, &ui);
-    try ui.finish();
-    const messages = lab_view.collect(&self.lab, &ui, &ui.frame.input);
-    for (messages.slice()) |message| {
-        const effects = self.lab.apply(message) catch continue;
-        for (effects.slice()) |effect| switch (effect) {
-            .save_snapshot => |path| {
-                frame.savePng(self.io, path) catch {
-                    _ = self.lab.apply(.{ .completion = .{ .export_failed = .{
-                        .kind = .snapshot,
-                        .reason = "cannot write snapshot",
-                    } } }) catch {};
-                    continue;
-                };
-                _ = self.lab.apply(.{ .completion = .{ .export_done = .{
-                    .kind = .snapshot,
-                    .path = path,
-                } } }) catch {};
-            },
-            else => {},
-        };
-        self.controller.apply(self.io, &self.lab, effects.slice()) catch {};
-    }
-    self.controller.poll(&self.lab) catch {};
-    self.controller.refreshHost(self.io, &self.lab) catch {};
-    self.dirty = messages.len != 0 or self.lab.capture.phase == .running or self.lab.transport.playing;
-    self.input.clearTransient();
-    self.renderer.paint(frame.list.items.items, &frame.atlas, width, height, theme.bg);
+    self.frame.theme = self.design.theme();
+    self.frame.list.clear();
+    self.canvas.resetHits();
+    try self.design.draw(&self.canvas);
+    self.renderer.paint(
+        self.frame.list.items.items,
+        &self.frame.atlas,
+        width,
+        height,
+        self.design.theme().bg,
+    );
 }
 
 fn present(self: *App) !void {
-    var passes: usize = 0;
-    while (passes < 3) : (passes += 1) {
-        self.dirty = false;
-        try render(self);
-        self.x.swap_buffers(self.display, self.window);
-        if (!self.dirty) break;
-    }
+    try render(self);
+    self.x.swap_buffers(self.display, self.window);
 }
 
 pub fn run(
     io: std.Io,
     allocator: std.mem.Allocator,
-    session: ?session_mod.Session,
-    screen: app_mod.Screen,
-    light: bool,
+    replay: ?[]const u8,
+    demo_model: ?[]const u8,
+    recorder_dir: ?[]const u8,
+    screen_index: u32,
+    theme_index: usize,
     smoke: bool,
 ) !void {
     if (builtin.os.tag != .linux) return error.UnsupportedPlatform;
@@ -282,7 +248,7 @@ pub fn run(
         &attrs,
     );
     defer _ = x.destroy_window(display, window);
-    _ = x.store_name(display, window, "xsprof");
+    _ = x.store_name(display, window, "xsprof — read-only console");
     const wm_delete = x.intern_atom(display, "WM_DELETE_WINDOW", 0);
     var protocols = [_]Atom{wm_delete};
     _ = x.set_wm_protocols(display, window, &protocols, 1);
@@ -293,11 +259,20 @@ pub fn run(
     var renderer = try gl.Renderer.init();
     defer renderer.deinit();
 
-    var lab = try lab_state.LabState.init(std.heap.smp_allocator);
-    lab.view.screen = screen;
-    if (session != null) {
-        lab.view.session = &session.?;
-        lab.source.phase = .ready;
+    var design = console_app.App.init(allocator);
+    design.state.screen = @fromBackingInt(@intCast(@min(screen_index, 4)));
+    if (recorder_dir) |dir| design.setRecorderDir(dir);
+    design.state.theme_index = @min(theme_index, xsui.themes.presets.len - 1);
+    if (demo_model) |path| {
+        design.loadDemo(io, path) catch |err| {
+            design.clearSource();
+            std.debug.print("linux ui: demo load failed: {s}\n", .{@errorName(err)});
+        };
+    } else if (replay) |path| {
+        design.loadReplay(io, path) catch |err| {
+            design.clearSource();
+            std.debug.print("linux ui: replay load failed: {s}\n", .{@errorName(err)});
+        };
     }
     var app = App{
         .allocator = allocator,
@@ -307,90 +282,79 @@ pub fn run(
         .window = window,
         .context = context,
         .renderer = renderer,
-        .lab = lab,
-        .controller = lab_controller.Controller.init(std.heap.smp_allocator),
-        .session = session,
-        .light = light,
+        .design = design,
+        .frame = undefined,
+        .canvas = undefined,
         .wm_delete = wm_delete,
     };
-    defer app.lab.deinit();
-    defer app.controller.deinit();
-    if (app.session != null) app.lab.view.screen = screen;
-    if (app.session != null) app.lab.view.session = &app.session.?;
+    try app.frame.init(allocator, width, height, app.design.theme());
+    defer app.frame.deinit();
+    app.canvas = xsui.Canvas.init(&app.frame);
+    defer app.canvas.deinit();
+    defer app.design.deinit();
     if (smoke) {
         try present(&app);
-        std.debug.print("linux smoke: X11/GLX context and one frame rendered offscreen\n", .{});
+        std.debug.print("linux smoke: X11/GLX context and one console frame rendered offscreen\n", .{});
         return;
     }
     _ = x.map_window(display, window);
     _ = x.flush(display);
     try present(&app);
     while (true) {
+        while (x.pending(display) == 0) {
+            app.design.tick(33);
+            if (app.design.reload_requested) {
+                app.design.reload_requested = false;
+                if (app.design.source_path) |path| {
+                    app.design.loadReplay(io, path) catch {};
+                }
+            }
+            if (app.design.open_requested) app.design.open_requested = false;
+            try present(&app);
+            std.Io.sleep(io, .fromMilliseconds(33), .awake) catch {};
+        }
         var event: Event = undefined;
         _ = x.next_event(display, &event);
         switch (event.type) {
             2 => {
                 const sym = x.lookup_keysym(&event.key, 0);
-                if (app.lab.input_focus != .none) {
-                    if (sym == 0xff08) {
-                        app.input.key = .backspace;
-                    } else if (sym == 0xff0d) {
-                        app.input.key = .enter;
-                    } else if (sym == 0xff1b) {
-                        app.input.key = .escape;
-                    } else if (sym >= 32 and sym < 127) {
-                        const byte = [_]u8{@intCast(sym)};
-                        _ = app.input.pushText(&byte);
-                    }
-                    try present(&app);
-                    continue;
+                const state = event.key.state;
+                var cp: u21 = 0;
+                switch (sym) {
+                    0xff1b => cp = 0x1b,
+                    0xff0d => cp = 0x0a,
+                    0xff08 => cp = 0x7f,
+                    0xff52 => cp = 0x11,
+                    0xff54 => cp = 0x12,
+                    0xff51 => cp = 0x13,
+                    0xff53 => cp = 0x14,
+                    else => {
+                        if (sym >= 32 and sym < 0x7f) cp = @intCast(sym);
+                    },
                 }
-                if (sym >= '1' and sym <= '5') {
-                    app.lab.view.screen = @fromBackingInt(@intCast(@as(u8, @intCast(sym)) - '1'));
-                } else if (sym == 't') {
-                    app.light = !app.light;
-                } else if (sym == 'c') {
-                    app.input.key = .filter;
-                } else if (sym == 'P') {
-                    app.input.key = .pid;
-                } else if (sym == 'k') {
-                    app.input.key = .kind;
-                } else if (sym == 'l') {
-                    app.input.key = .loss;
-                } else if (sym == 'L') {
-                    app.input.key = .lab;
-                } else if (sym == 'K') {
-                    app.input.key = .palette;
-                } else if (sym == 0xff08) {
-                    app.input.key = .backspace;
-                } else if (sym == 0xff0d) {
-                    app.input.key = .enter;
-                } else if (sym == 'x') {
-                    app.input.key = .clear;
-                } else if (sym == 'q' or sym == 0xff1b) {
-                    break;
-                }
+                if ((state & 64) != 0 and (cp == 'q' or cp == 'Q')) break;
+                if (cp != 0) app.design.handleKey(cp, .{
+                    .meta = (state & 64) != 0,
+                    .ctrl = (state & 4) != 0,
+                    .shift = (state & 1) != 0,
+                });
                 try present(&app);
             },
             4 => {
                 const button = event.button.button;
                 if (button == 4 or button == 5) {
-                    app.input.scroll_y = if (button == 4) -1 else 1;
+                    app.design.scrollBy(if (button == 4) -120 else 120);
+                    try present(&app);
                 } else {
-                    app.input.pointer_x = @floatFromInt(event.button.x);
-                    app.input.pointer_y = @floatFromInt(event.button.y);
-                    app.input.pointer_down = true;
-                    app.input.clicked = true;
+                    try present(&app);
+                    const px: f32 = @floatFromInt(event.button.x);
+                    const py: f32 = @floatFromInt(event.button.y);
+                    app.design.click(&app.canvas, px, py);
+                    try present(&app);
                 }
-                try present(&app);
             },
-            5 => {
-                app.input.pointer_down = false;
-            },
-            6 => {
-                app.input.pointer_x = @floatFromInt(event.button.x);
-                app.input.pointer_y = @floatFromInt(event.button.y);
-            },
+            5 => {},
+            6 => {},
             12, 22 => {
                 try present(&app);
             },

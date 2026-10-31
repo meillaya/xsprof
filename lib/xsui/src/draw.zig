@@ -26,19 +26,62 @@ pub const Color = struct {
     }
 };
 
+pub fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
+    return .{ .r = r, .g = g, .b = b, .a = a };
+}
+
+/// One design-system palette. The first block is the original xsui theme
+/// surface; the rest are the prototype's richer token roles. `hairline` is
+/// kept as an alias for `line` so older widgets continue to work.
 pub const Theme = struct {
     bg: Color = .{ .r = 0x05, .g = 0x05, .b = 0x05 },
     panel: Color = .{ .r = 0x10, .g = 0x10, .b = 0x0e },
     raised: Color = .{ .r = 0x17, .g = 0x15, .b = 0x12 },
     text: Color = .{ .r = 0xf5, .g = 0xef, .b = 0xe4 },
     muted: Color = .{ .r = 0xa7, .g = 0x9b, .b = 0x8c },
-    hairline: Color = .{ .r = 0x3a, .g = 0x33, .b = 0x2b },
+    hairline: Color = .{ .r = 0x26, .g = 0x23, .b = 0x20 },
     live: Color = .{ .r = 0x58, .g = 0xd7, .b = 0xe8 },
     pass: Color = .{ .r = 0x72, .g = 0xd4, .b = 0x87 },
     skip: Color = .{ .r = 0xe3, .g = 0xb4, .b = 0x5c },
     refuse: Color = .{ .r = 0xff, .g = 0x6b, .b = 0x9a },
     pending: Color = .{ .r = 0xde, .g = 0xd6, .b = 0xc9 },
     vm: Color = .{ .r = 0xb4, .g = 0x8c, .b = 0xff },
+
+    raised2: Color = .{ .r = 0x1e, .g = 0x1b, .b = 0x17 },
+    field: Color = .{ .r = 0x0b, .g = 0x0b, .b = 0x0a },
+    dim: Color = .{ .r = 0x9a, .g = 0x8d, .b = 0x7b },
+    faint: Color = .{ .r = 0x8a, .g = 0x7e, .b = 0x6f },
+    line: Color = .{ .r = 0x26, .g = 0x23, .b = 0x20 },
+    line_strong: Color = .{ .r = 0x3a, .g = 0x33, .b = 0x2b },
+    tint_live: Color = .{ .r = 0x58, .g = 0xd7, .b = 0xe8, .a = 26 },
+    tint_refuse: Color = .{ .r = 0xff, .g = 0x6b, .b = 0x9a, .a = 23 },
+    tint_skip: Color = .{ .r = 0xe3, .g = 0xb4, .b = 0x5c, .a = 23 },
+    tint_pass: Color = .{ .r = 0x72, .g = 0xd4, .b = 0x87, .a = 20 },
+    lanes: [9]Color = .{
+        .{ .r = 0x58, .g = 0xd7, .b = 0xe8 }, .{ .r = 0x72, .g = 0xd4, .b = 0x87 },
+        .{ .r = 0xe3, .g = 0xb4, .b = 0x5c }, .{ .r = 0xff, .g = 0x6b, .b = 0x9a },
+        .{ .r = 0xb4, .g = 0x8c, .b = 0xff }, .{ .r = 0x9d, .g = 0xb4, .b = 0xc0 },
+        .{ .r = 0xc8, .g = 0xb4, .b = 0x8a }, .{ .r = 0x4f, .g = 0xb3, .b = 0xa3 },
+        .{ .r = 0xd7, .g = 0x9c, .b = 0xc4 },
+    },
+    lane_idle: Color = .{ .r = 0x1c, .g = 0x1a, .b = 0x17 },
+    lane_grid: Color = .{ .r = 0x20, .g = 0x1d, .b = 0x19 },
+    focus: Color = .{ .r = 0x58, .g = 0xd7, .b = 0xe8 },
+    focus_offset: f32 = 2,
+
+    chip_source_border: Color = .{ .r = 0x3a, .g = 0x6b, .b = 0x70 },
+    chip_journal_border: Color = .{ .r = 0x46, .g = 0x6d, .b = 0x4b },
+    chip_loss_border: Color = .{ .r = 0x7d, .g = 0x40, .b = 0x51 },
+    control_pressed_border: Color = .{ .r = 0x3c, .g = 0x74, .b = 0x7a },
+    button_hover_border: Color = .{ .r = 0x72, .g = 0x6b, .b = 0x62 },
+    segment_loss_border: Color = .{ .r = 0x88, .g = 0x43, .b = 0x57 },
+    refuse_chip_border: Color = .{ .r = 0x78, .g = 0x3e, .b = 0x4e },
+    theme_option_active_border: Color = .{ .r = 0x42, .g = 0x86, .b = 0x8e },
+    ledger_loss_hover: Color = .{ .r = 0x31, .g = 0x1d, .b = 0x22 },
+
+    pub fn lane(self: Theme, index: usize) Color {
+        return self.lanes[index % self.lanes.len];
+    }
 };
 
 pub const Mode = enum(u32) { rect = 0, glyph = 1 };
@@ -55,8 +98,8 @@ pub const Instance = extern struct {
     pad: u32 = 0,
 };
 
-fn atlasKey(font: u8, size: u16, gid: u16) u64 {
-    return (@as(u64, font) << 32) | (@as(u64, size) << 16) | gid;
+fn atlasKey(font: u8, size_q: u32, gid: u16) u64 {
+    return (@as(u64, font) << 48) | (@as(u64, size_q) << 16) | gid;
 }
 
 pub const GlyphEntry = struct {
@@ -66,11 +109,12 @@ pub const GlyphEntry = struct {
     left: i32,
     top: i32,
     advance: u32,
+    advance_f: f32 = 0,
 };
 
 /// Fixed atlas dimensions shared by the CPU, Metal, GL, and WebGL2 backends.
-pub const atlas_width: usize = 1024;
-pub const atlas_height: usize = 1024;
+pub const atlas_width: usize = 2048;
+pub const atlas_height: usize = 2048;
 
 pub const Atlas = struct {
     allocator: std.mem.Allocator,
@@ -105,9 +149,22 @@ pub const Atlas = struct {
         gid: u16,
         size_px: u16,
     ) !GlyphEntry {
-        const key = atlasKey(font_index, size_px, gid);
+        return self.glyphF(font_index, font, gid, @floatFromInt(size_px));
+    }
+
+    /// Fractional glyph sizes are quantized to 1/16 px for atlas identity. The
+    /// bitmap itself is rasterized at the exact requested size.
+    pub fn glyphF(
+        self: *Atlas,
+        font_index: u8,
+        font: *const ttf.Font,
+        gid: u16,
+        size_px: f32,
+    ) !GlyphEntry {
+        const size_q: u32 = @intFromFloat(@round(@max(1, size_px) * 16));
+        const key = atlasKey(font_index, size_q, gid);
         if (self.entries.get(key)) |entry| return entry;
-        const bitmap = try font.rasterize(self.allocator, gid, @floatFromInt(size_px));
+        const bitmap = try font.rasterize(self.allocator, gid, size_px);
         defer if (bitmap.pixels.len != 0) self.allocator.free(bitmap.pixels);
         const w: usize = bitmap.width;
         const h: usize = bitmap.height;
@@ -119,6 +176,8 @@ pub const Atlas = struct {
                 .left = 0,
                 .top = 0,
                 .advance = bitmap.advance,
+                .advance_f = @as(f32, @floatFromInt(font.advance(gid))) * size_px /
+                    @as(f32, @floatFromInt(font.units_per_em)),
             };
             try self.entries.put(key, entry);
             self.version +%= 1;
@@ -129,6 +188,14 @@ pub const Atlas = struct {
             self.shelf_x = 0;
             self.shelf_h = 0;
         }
+        // Shelves must wrap before writing past the atlas width. Without this
+        // check later glyphs get UVs > 1 and sample clamped edge texels.
+        if (self.shelf_x + w + 1 > self.width and self.shelf_x != 0) {
+            self.shelf_x = 0;
+            self.shelf_y += self.shelf_h + 1;
+            self.shelf_h = 0;
+        }
+        if (self.shelf_x + w + 1 > self.width) return error.AtlasFull;
         if (self.shelf_y + h + 1 > self.height) return error.AtlasFull;
         const x = self.shelf_x;
         const y = self.shelf_y;
@@ -152,6 +219,8 @@ pub const Atlas = struct {
             .left = bitmap.left,
             .top = bitmap.top,
             .advance = bitmap.advance,
+            .advance_f = @as(f32, @floatFromInt(font.advance(gid))) * size_px /
+                @as(f32, @floatFromInt(font.units_per_em)),
         };
         try self.entries.put(key, entry);
         self.version +%= 1;
@@ -244,14 +313,13 @@ pub const DrawList = struct {
         color: Color,
         clip: [4]f32,
     ) !f32 {
-        const size_px: u16 = @intFromFloat(@round(size));
         const baseline = y + @as(f32, @floatFromInt(font.ascender)) * size /
             @as(f32, @floatFromInt(font.units_per_em));
         var pen = x;
         for (text_value) |byte| {
             if (byte < 32) continue;
             const gid = font.glyphIndex(byte);
-            const entry = try self.atlas.glyph(font_index, font, gid, size_px);
+            const entry = try self.atlas.glyphF(font_index, font, gid, size);
             if (entry.width != 0 and entry.height != 0) {
                 try self.items.append(self.allocator, .{
                     .rect = .{
@@ -266,7 +334,7 @@ pub const DrawList = struct {
                     .mode = @backingInt(Mode.glyph),
                 });
             }
-            pen += @as(f32, @floatFromInt(entry.advance));
+            pen += entry.advance_f;
         }
         return pen - x;
     }

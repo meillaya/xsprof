@@ -10,8 +10,10 @@ prototype rather than approximating it.
 - Source size: 221,754 bytes
 - Token set version: `1.0.0`
 - Reference viewports: web `1440x900 @1`, native `1280x720 @1`
-- Status: design contract; the current GPU renderer still has the gaps listed
-  in [`gpu-mapping.md`](gpu-mapping.md).
+- Status: implemented as the primary GPU console (`src/app/design/`,
+  `lib/xsui/src/canvas.zig`). Color, geometry, typography, all five screens,
+  six palettes, overlays, and key flows are wired; glyph antialiasing differs
+  from Chromium and is measured in [`evidence/parity.json`](evidence/parity.json).
 
 ## Files
 
@@ -156,7 +158,30 @@ desired UI; it is not a second source of truth for behavior.
 ## Relationship to `lib/xsui`
 
 The GPU UI package lives in [`lib/xsui`](../lib/xsui/README.md). This folder
-is design input for that package: palette maps become theme tokens, component
-metrics become layout/component tokens, and `gpu-mapping.md` lists the renderer
-features needed to reach pixel parity. The current package does not yet consume
-these files automatically; wiring them in is a separate implementation step.
+is design input for that package: palette maps are generated into
+`lib/xsui/src/design_palettes.zig` by `tools/gen_design_tokens.py`, component
+metrics are encoded in `src/app/design/`, and `gpu-mapping.md` tracks renderer
+parity. Run `python3 design/validate.py` after changing the prototype or
+tokens.
+
+## Implemented console and evidence
+
+The production surface is the WebGL2 canvas in `web/`, the native AppKit/X11
+surfaces under `src/platform/`, and `xsprof snapshot`. The old lab rail is not
+part of the console; `xsprof lab` remains a headless developer tool.
+
+Evidence lives in:
+
+- [`screenshots/prototype/`](screenshots/prototype/) — headless Chromium
+  captures of this prototype (reference).
+- [`screenshots/xsprof/`](screenshots/xsprof/) — the GPU console with the same
+  demo fixture for layout/color comparison.
+- [`screenshots/live/`](screenshots/live/) — the GPU console reading a real
+  replay journal and a recorder manifest (no demo fixture).
+- [`screenshots/diff/`](screenshots/diff/) — amplified difference images.
+- [`media/xsprof-ui-demo.mp4`](media/xsprof-ui-demo.mp4) — short headless
+  boot/use recording of the real console.
+- [`evidence/README.md`](evidence/README.md) — method, caveats, and commands.
+
+Run `sh qa/ui_evidence.sh` to regenerate after building the binary and web
+assets. It is developer-only and requires Playwright/Chromium and ffmpeg.

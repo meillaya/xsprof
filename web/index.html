@@ -3,24 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
   <title>xsprof — read-only scheduler &amp; memory profiler</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <canvas id="ui" aria-label="xsprof profiler UI"></canvas>
+  <a id="skip" href="#ui">skip to the console</a>
+  <main id="console">
+    <canvas id="ui" width="1440" height="900" aria-label="xsprof read-only scheduler and memory profiler console" tabindex="0"></canvas>
+    <div id="boot-error" hidden role="alert"></div>
+  </main>
   <input id="file" type="file" accept=".ndjson,.jsonl,.json" hidden />
-  <div id="lab-actions">
-    <button id="scenario" type="button" disabled>run healthy scenario</button>
-    <button id="scenario-file-button" type="button" disabled>scenario file</button>
-    <button id="download" type="button" disabled>download result</button>
-    <button id="trace" type="button" disabled>download trace</button>
-    <button id="compare-file-button" type="button" disabled>compare journal</button>
-    <button id="compare-clear" type="button" disabled>clear compare</button>
-  </div>
-  <input id="scenario-file" type="file" accept=".json" hidden />
-  <input id="compare-file" type="file" accept=".ndjson,.jsonl,.json" hidden />
-  <div id="status">loading…</div>
-  <div id="error" hidden></div>
+  <div id="status" class="sr-only" role="status" aria-live="polite">loading…</div>
   <script type="module" src="/main.js"></script>
 </body>
 </html>

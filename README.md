@@ -13,10 +13,12 @@
 `xsprof` correlates scheduler and memory events without changing the host. It
 records perf tracepoints into bounded rotating segments, extracts the last few
 minutes after an incident, exports Chrome Trace, and runs a seven-rule
-performance advisor. The GUI lab opens journals, runs scenarios, compares A/B
-sources, and exports trace, report, and snapshot. The UI is the standalone
-[`lib/xsui`](lib/xsui/README.md) package: one draw list rendered by CPU, Metal,
-OpenGL 3.3, or WebGL2.
+performance advisor. Its operator console is the prototype from
+[`design/index.html`](design/index.html): overview, timeline, advisor, events,
+and capture status, fed by real replay/live data with no fabricated metrics.
+The GPU surface is the standalone [`lib/xsui`](lib/xsui/README.md) package:
+one draw list rendered by CPU, Metal, OpenGL 3.3, or WebGL2. The historical
+lab bench remains available as a headless developer tool, not the main UI.
 
 ## Requirements
 
@@ -44,10 +46,20 @@ xsprof daemon --foreground --dir /var/lib/xsprof
 xsprof capture --last 5m --dir /var/lib/xsprof
 xsprof watch --dir /var/lib/xsprof
 xsprof serve --journal session.ndjson
-xsprof ui --replay session.ndjson
+xsprof serve --journal session.ndjson --recorder-dir /var/lib/xsprof
+xsprof serve --live                     # Linux live capture
+xsprof ui --replay session.ndjson --recorder-dir /var/lib/xsprof
+xsprof snapshot --replay session.ndjson --view timeline --theme mocha
 xsprof demo
 xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 ```
+
+The web, native, and snapshot surfaces share one console model. The web console
+is at `http://127.0.0.1:<port>/?token=…`; it reads `/api/journal`,
+`/api/meta`, `/api/recorder`, and the live SSE stream. `?demo=1` loads the
+extracted prototype fixture only for design comparison; production replay and
+live sessions use the journal and recorder APIs. `snapshot --demo-model` is
+the corresponding developer flag.
 
 `record` needs perf tracepoints and `CAP_PERFMON`; without them it reports
 `SKIP` and exits non-zero. `daemon` keeps one capture open, rotates segments,
@@ -64,6 +76,19 @@ screen/flow/keybinding inventory, palette source, and GPU mapping live in
 
 ```sh
 python3 design/validate.py   # source hash + token/palette/CSS consistency
+```
+
+## Console evidence
+
+- Prototype reference: [`design/screenshots/prototype/`](design/screenshots/prototype/)
+- GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
+- Real replay + recorder: [`design/screenshots/live/`](design/screenshots/live/)
+- Short boot/use video: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
+- Parity report and caveats: [`design/evidence/README.md`](design/evidence/README.md)
+
+```sh
+./tools/zig build web
+sh qa/ui_evidence.sh   # developer-only: headless Chromium + ffmpeg
 ```
 
 ## Safety

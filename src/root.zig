@@ -46,6 +46,9 @@ pub const lab_scenario = @import("app/lab/scenario.zig");
 pub const lab_state_test = @import("app/lab/state_test.zig");
 pub const lab_view = @import("app/lab_view.zig");
 pub const cli = @import("cli/root.zig");
+pub const design_model = @import("app/design/model.zig");
+pub const design_view = @import("app/design/view.zig");
+pub const design_derive = @import("app/design/derive.zig");
 
 test {
     // Pull the declarations into the test compilation unit so their tests run.
@@ -90,4 +93,7 @@ test {
     _ = lab_state_test;
     _ = lab_view;
     _ = cli;
+    _ = design_model;
+    _ = design_view;
+    _ = design_derive;
 }

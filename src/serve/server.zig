@@ -19,6 +19,7 @@ pub const Options = struct {
     live: bool = false,
     live_stride: u32 = 80,
     live_dir: ?[]const u8 = null,
+    recorder_dir: ?[]const u8 = null,
 };
 
 fn isLoopback(addr: []const u8) bool {
@@ -50,11 +51,12 @@ fn contentType(path: []const u8) []const u8 {
 fn assetPath(path: []const u8) ?[]const u8 {
     if (std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/index.html")) return "index.html";
     inline for ([_][]const u8{
-        "/main.js",                "/gl.js",
-        "/style.css",              "/shaders/ui.vert.glsl",
-        "/shaders/ui.frag.glsl",   "/assets/xsprof-web.wasm",
-        "/scenarios/healthy.json", "/scenarios/loss.json",
-        "/scenarios/empty.json",   "/scenarios/scheduler-mix.json",
+        "/main.js",                      "/gl.js",
+        "/style.css",                    "/shaders/ui.vert.glsl",
+        "/shaders/ui.frag.glsl",         "/assets/xsprof-web.wasm",
+        "/assets/design-demo.json",      "/scenarios/healthy.json",
+        "/scenarios/loss.json",          "/scenarios/empty.json",
+        "/scenarios/scheduler-mix.json",
     }) |candidate| {
         if (std.mem.eql(u8, path, candidate)) return candidate[1..];
     }
@@ -265,6 +267,19 @@ fn handle(
         };
         if (!std.mem.eql(u8, token, opts.token)) {
             try respond(&request, .unauthorized, "invalid token\n", "text/plain");
+            return;
+        }
+        if (std.mem.eql(u8, path, "/api/recorder")) {
+            if (opts.recorder_dir) |dir| {
+                const manifest_path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{dir});
+                const body = readFile(io, allocator, manifest_path, 4 * 1024 * 1024) catch {
+                    try respond(&request, .not_found, "recorder manifest unavailable\n", "text/plain");
+                    return;
+                };
+                try respond(&request, .ok, body, "application/json");
+                return;
+            }
+            try respond(&request, .not_found, "recorder not attached\n", "text/plain");
             return;
         }
         if (std.mem.eql(u8, path, "/api/journal")) {

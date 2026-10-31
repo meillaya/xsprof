@@ -191,5 +191,5 @@ test "gallery layout renders deterministically" {
     const first = fnv(pixels);
     const again = fnv(pixels);
     try std.testing.expectEqual(first, again);
-    try std.testing.expectEqual(@as(u64, 0x3b88f8a022063aa7), first);
+    try std.testing.expectEqual(@as(u64, 0x2546c17f173084b4), first);
 }

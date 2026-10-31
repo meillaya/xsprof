@@ -1,6 +1,9 @@
-# GUI lab plan
+# GUI lab plan (headless developer tool)
 
-Status: complete. L0 and L1 are implemented. L2 adds the native lab rail,
+Status: complete. The visible lab rail was retired from the product in the
+console implementation; `xsprof lab` remains a headless scenario/QA tool.
+The primary surface is the design console documented in
+[`design/README.md`](../../design/README.md). L0 and L1 are implemented. L2 adds the native lab rail,
 source buttons, capture controls, transport buttons, and command palette. L3
 adds transport window advancement, the inspector, trace export, and native
 path editing. L4 adds the scenario schema, headless runner, built-in
