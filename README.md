@@ -1,9 +1,10 @@
-# exasphere / xsprof
+# xsprof
 
-`xsprof` is a read-only Linux scheduler and memory profiler, rewritten from
-scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
-Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
-dense operator UI on the GPU.
+Read-only Linux scheduler and memory profiler.
+
+Rewritten from scratch in **Zig 0.17.0**, it correlates scheduler and memory
+events, exports Chrome Trace timelines, runs a seven-rule Performance Advisor,
+and renders a dense operator UI on the GPU.
 
 **Status: P0–P7 and productization M0–M4/M6 are complete. M5 release tooling is
 complete, but public release/notarization/tap publication is blocked by the
@@ -128,32 +129,6 @@ The web replay client is served read-only over loopback:
 
 Unknown commands fail closed with a refusal record. The unsafe `bpf` verb is
 always refused; `bpf-gate` is the VM-marker-gated read-only lane.
-
-## Layout
-
-```text
-src/core/        event, canonical JSON, privacy, safety, paths, time
-src/os/linux/    /proc, /sys, tracefs, perf_event_open, BPF (VM only)
-src/capture/     preflight, scheduler/memory collectors, live pipeline
-src/analyze/     seven-rule Performance Advisor
-src/viz/         Chrome Trace export
-src/stream/      bounded event store, derived slices/flows, journal
-src/serve/       read-only loopback HTTP/SSE bridge
-src/ui/          xsui: custom GPU UI library (CPU/Metal/WebGL2)
-src/app/         profiler screens
-src/platform/    macOS, Linux, web, headless surfaces
-web/             dependency-free browser shell and shaders
-docs/vendor/     vendored Zig 0.17 reference text
-```
-
-## Documentation
-
-- `AGENTS.md` — rules for working in this repository.
-- `DESIGN.md` — profiler UI contract and safety copy.
-- `docs/architecture/` — overview, parity inventory, roadmap.
-- `docs/guides/` — flight recorder, host probes, install, compare CI.
-- `docs/safety/` — invariants and test gates.
-- `docs/zig-0.17-api-usage.md` — pinned Zig API notes.
 
 This project makes no production, release, or performance-capacity claim.
 `PASS`/`READY` describes a gate result only.

@@ -2,16 +2,63 @@ name: zig-ci
 
 on:
   push:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run the full macOS check as well as the Linux gate"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, ubuntu-24.04]
-    runs-on: ${{ matrix.os }}
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Check
+        run: ./tools/zig build check --summary all
+
+  macos-smoke:
+    runs-on: macos-15
+    timeout-minutes: 15
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.full) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Hidden AppKit/Metal smoke
+        run: ./tools/zig build macos-smoke --summary all
+
+  macos-full:
+    runs-on: macos-15
     timeout-minutes: 30
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain
