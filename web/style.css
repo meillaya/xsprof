@@ -13,10 +13,14 @@ canvas { display: block; width: 100vw; height: 100vh; }
   font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap;
 }
 
-#scenario {
-  position: fixed; left: 12px; bottom: 10px; color: #f5efe4;
-  font: 10px/1.4 "JetBrains Mono", ui-monospace, monospace;
+#lab-actions {
+  position: fixed; left: 12px; bottom: 10px; display: flex; gap: 6px;
+}
+#lab-actions button {
+  color: #f5efe4; font: 10px/1.4 "JetBrains Mono", ui-monospace, monospace;
   background: #171512; border: 1px solid #58d7e8; border-radius: 4px;
   padding: 3px 7px; cursor: pointer;
 }
-#scenario:disabled { color: #6b5f51; border-color: #3a332b; cursor: default; }
+#lab-actions button:disabled {
+  color: #6b5f51; border-color: #3a332b; cursor: default;
+}

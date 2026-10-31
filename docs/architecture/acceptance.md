@@ -64,7 +64,8 @@ and web smoke.
   store, and reports compare regressions.
 - L5: the wasm replay client shares the lab state and rail; native-only source
   and capture controls are hidden. `web_run_scenario` runs the healthy scenario
-  over the loaded journal and returns canonical run JSON; `qa/web_lab_smoke.mjs`
+  over the loaded journal and returns canonical run JSON; a custom scenario
+  file picker and result download are wired in JS. `qa/web_lab_smoke.mjs`
   passes against the built wasm.
 - Linux VM gate: `zig build check` passed with 105 tests, CLI parity, web
   smoke, and lab smoke.

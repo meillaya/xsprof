@@ -9,7 +9,12 @@
 <body>
   <canvas id="ui" aria-label="xsprof profiler UI"></canvas>
   <input id="file" type="file" accept=".ndjson,.jsonl,.json" hidden />
-  <button id="scenario" type="button" disabled>run healthy scenario</button>
+  <div id="lab-actions">
+    <button id="scenario" type="button" disabled>run healthy scenario</button>
+    <button id="scenario-file-button" type="button" disabled>scenario file</button>
+    <button id="download" type="button" disabled>download result</button>
+  </div>
+  <input id="scenario-file" type="file" accept=".json" hidden />
   <div id="status">loading…</div>
   <div id="error" hidden></div>
   <script type="module" src="/main.js"></script>

@@ -30,8 +30,10 @@ The P3 web surface is a **read-only replay client**:
   toggles the rail, `K` opens the command palette, and the inspector follows
   the selected task; live capture controls stay native-only;
 - the `run healthy scenario` button loads `scenarios/healthy.json`, runs the
-  same assertions in wasm, and reports PASS or FAIL; no snapshots or host
-  paths are involved;
+  same assertions in wasm, and reports PASS or FAIL; `scenario file` runs a
+  user-selected JSON scenario against the loaded journal, and `download
+  result` saves the canonical run JSON; no snapshots or host paths are
+  involved;
 - `c` filters by the selected comm, `P` by pid, `k` cycles event kinds, `l`
   toggles loss/refusal rows, and `x` clears the combined filter;
   `?theme=light` selects the paper theme; `1..5` switches screens.
