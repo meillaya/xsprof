@@ -301,7 +301,9 @@ pub const Canvas = struct {
         const font = self.fontFor(style.weight);
         const ascender = @as(f32, @floatFromInt(font.ascender)) * style.size /
             @as(f32, @floatFromInt(font.units_per_em));
-        const half_leading = (text_layout.line_height - style.size) * 0.5;
+        const descender = @as(f32, @floatFromInt(-font.descender)) * style.size /
+            @as(f32, @floatFromInt(font.units_per_em));
+        const half_leading = (text_layout.line_height - (ascender + descender)) * 0.5;
         for (text_layout.lines[0..text_layout.count], 0..) |line_item, line_index| {
             const line_x = switch (style.text_align) {
                 .left => rect.x,
@@ -315,17 +317,30 @@ pub const Canvas = struct {
                 const cp = nextCodepoint(line_item.text, &index);
                 if (cp < 32) continue;
                 const gid = font.glyphIndex(cp);
-                const entry = try self.frame.list.atlas.glyphF(
-                    if (style.weight == .bold) 1 else 0,
-                    font,
-                    gid,
-                    style.size,
-                );
+                var entry: draw.GlyphEntry = undefined;
+                var glyph_x: f32 = 0;
+                var glyph_y: f32 = 0;
+                var baked_hit = false;
+                if (self.frame.baked.lookup(cp, style.size, style.weight == .bold, pen, baseline)) |placed| {
+                    entry = placed.entry;
+                    glyph_x = placed.x;
+                    glyph_y = placed.y;
+                    baked_hit = true;
+                } else {
+                    entry = try self.frame.list.atlas.glyphF(
+                        if (style.weight == .bold) 1 else 0,
+                        font,
+                        gid,
+                        style.size,
+                    );
+                    glyph_x = pen + @as(f32, @floatFromInt(entry.left));
+                    glyph_y = baseline - @as(f32, @floatFromInt(entry.top));
+                }
                 if (entry.width != 0 and entry.height != 0) {
                     try self.frame.list.items.append(self.frame.list.allocator, .{
                         .rect = .{
-                            pen + @as(f32, @floatFromInt(entry.left)),
-                            baseline - @as(f32, @floatFromInt(entry.top)),
+                            glyph_x,
+                            glyph_y,
                             @floatFromInt(entry.width),
                             @floatFromInt(entry.height),
                         },
@@ -335,7 +350,9 @@ pub const Canvas = struct {
                         .mode = @backingInt(draw.Mode.glyph),
                     });
                 }
-                pen += entry.advance_f + style.tracking;
+                const advance = @as(f32, @floatFromInt(font.advance(gid))) * style.size /
+                    @as(f32, @floatFromInt(font.units_per_em));
+                pen += advance + style.tracking;
             }
             if (line_item.ellipsis) {
                 const entry = try self.frame.list.atlas.glyphF(

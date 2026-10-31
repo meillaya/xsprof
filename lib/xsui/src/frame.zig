@@ -7,6 +7,7 @@ const input_mod = @import("input.zig");
 const raster = @import("raster.zig");
 const png = @import("png.zig");
 const ttf = @import("ttf.zig");
+const glyph_atlas = @import("glyph_atlas.zig");
 
 /// Host-supplied TrueType bytes. The slices must outlive the frame that parses
 /// them. `bundled` selects the embedded JetBrains Mono pair.
@@ -28,6 +29,7 @@ pub const Frame = struct {
     height: u32,
     theme: draw.Theme,
     atlas: draw.Atlas,
+    baked: glyph_atlas.Baked,
     list: draw.DrawList,
     regular: ttf.Font,
     bold: ttf.Font,
@@ -58,12 +60,21 @@ pub const Frame = struct {
         errdefer atlas.deinit();
         const regular = ttf.Font.init(options.fonts.regular) catch return error.BadFont;
         const bold = ttf.Font.init(options.fonts.bold) catch return error.BadFont;
+        const baked = glyph_atlas.Baked.init(allocator, &atlas) catch glyph_atlas.Baked{
+            .allocator = allocator,
+            .entries = std.AutoHashMap(u64, draw.GlyphEntry).init(allocator),
+        };
+        errdefer {
+            var b = baked;
+            b.deinit();
+        }
         self.* = .{
             .allocator = allocator,
             .width = width,
             .height = height,
             .theme = options.theme,
             .atlas = atlas,
+            .baked = baked,
             .list = undefined,
             .regular = regular,
             .bold = bold,
@@ -73,6 +84,7 @@ pub const Frame = struct {
 
     pub fn deinit(self: *Frame) void {
         self.list.deinit();
+        self.baked.deinit();
         self.atlas.deinit();
     }
 

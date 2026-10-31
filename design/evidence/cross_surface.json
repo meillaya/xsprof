@@ -1,0 +1,149 @@
+{
+  "schema": "xsprof/cross-surface/v1",
+  "canonical": "cpu",
+  "candidates": [
+    "webgl2",
+    "metal"
+  ],
+  "thresholds": {
+    "webgl2": {
+      "mae_max": 2.5,
+      "over24_max": 3.0
+    },
+    "metal": {
+      "mae_max": 4.0,
+      "over24_max": 3.0
+    }
+  },
+  "states": [
+    {
+      "state": "overview-graphite",
+      "candidate": "webgl2",
+      "mae": 1.27960262345679,
+      "over24": 0.9340277777777777,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "timeline-graphite",
+      "candidate": "webgl2",
+      "mae": 2.0646836419753085,
+      "over24": 2.6877314814814817,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "advisor-graphite",
+      "candidate": "webgl2",
+      "mae": 1.2255532407407408,
+      "over24": 0.9309413580246914,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "events-graphite",
+      "candidate": "webgl2",
+      "mae": 0.987912037037037,
+      "over24": 0.4199845679012345,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "capture-graphite",
+      "candidate": "webgl2",
+      "mae": 1.0784050925925925,
+      "over24": 0.42268518518518516,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-dark",
+      "candidate": "webgl2",
+      "mae": 1.3587152777777778,
+      "over24": 1.0008487654320988,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-paper",
+      "candidate": "webgl2",
+      "mae": 1.4320578703703704,
+      "over24": 1.2362654320987654,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-latte",
+      "candidate": "webgl2",
+      "mae": 1.356141975308642,
+      "over24": 1.3661265432098766,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-frappe",
+      "candidate": "webgl2",
+      "mae": 1.255494598765432,
+      "over24": 1.2901234567901234,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-macchiato",
+      "candidate": "webgl2",
+      "mae": 1.3866859567901235,
+      "over24": 1.3484567901234568,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-mocha",
+      "candidate": "webgl2",
+      "mae": 1.4077623456790123,
+      "over24": 1.3204475308641974,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "overview-graphite",
+      "candidate": "metal",
+      "mae": 0.4218287037037037,
+      "over24": 0.3325617283950617,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "timeline-graphite",
+      "candidate": "metal",
+      "mae": 1.012679012345679,
+      "over24": 1.5236111111111112,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "advisor-graphite",
+      "candidate": "metal",
+      "mae": 0.36901774691358025,
+      "over24": 0.3258487654320988,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "events-graphite",
+      "candidate": "metal",
+      "mae": 0.17633564814814814,
+      "over24": 0.04490740740740741,
+      "pixels": 1296000,
+      "pass": true
+    },
+    {
+      "state": "capture-graphite",
+      "candidate": "metal",
+      "mae": 0.2604976851851852,
+      "over24": 0.0787037037037037,
+      "pixels": 1296000,
+      "pass": true
+    }
+  ],
+  "pass": true
+}

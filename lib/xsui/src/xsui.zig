@@ -26,6 +26,10 @@
 /// Package semantic version; kept in lockstep with `build.zig.zon`.
 pub const version = "0.1.0";
 
+/// Browser-matched mask bytes used by the baked glyph atlas; the profiler
+/// hashes this against its formal UI spec.
+pub const text_atlas = @import("fonts").chromium_text_atlas;
+
 /// Draw list primitives, theme tokens, glyph atlas, and bundled fonts.
 pub const draw = @import("draw.zig");
 /// Layout tree, measurement, clipping, hit testing, and the `Ui` builder.

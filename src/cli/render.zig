@@ -28,6 +28,7 @@ pub fn cmdSnapshot(
     var recorder_dir: ?[]const u8 = null;
     var screen_name: []const u8 = "overview";
     var overlay_name: []const u8 = "none";
+    var backend_name: []const u8 = "cpu";
     var playhead_s: f64 = 0;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
@@ -68,6 +69,9 @@ pub fn cmdSnapshot(
         } else if (std.mem.eql(u8, arg, "--playhead") and i + 1 < args.len) {
             i += 1;
             playhead_s = std.fmt.parseFloat(f64, args[i]) catch 0;
+        } else if (std.mem.eql(u8, arg, "--backend") and i + 1 < args.len) {
+            i += 1;
+            backend_name = args[i];
         }
     }
     if (width < 64 or height < 64 or width > 4096 or height > 4096) {
@@ -98,7 +102,7 @@ pub fn cmdSnapshot(
             try err.writeAll("snapshot: cannot build console view\n");
             return 1;
         };
-        frame.savePng(io, path) catch |save_error| {
+        saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
             try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
             return 1;
         };
@@ -147,12 +151,48 @@ pub fn cmdSnapshot(
         try err.writeAll("snapshot: cannot build console view\n");
         return 1;
     };
-    frame.savePng(io, path) catch |save_error| {
+    saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
         try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
         return 1;
     };
     try out.print("{s}\n", .{path});
     return 0;
+}
+
+fn saveFrame(io: std.Io, allocator: std.mem.Allocator, frame: *frame_mod.Frame, path: []const u8, backend: []const u8) !void {
+    if (std.mem.eql(u8, backend, "cpu")) return frame.savePng(io, path);
+    if (!std.mem.eql(u8, backend, "metal")) return error.UnknownBackend;
+    if (comptime builtin.os.tag != .macos) return error.BackendUnavailable;
+    if (comptime builtin.os.tag == .macos) {
+        const metal = @import("xsui-metal");
+        var renderer = try metal.Renderer.init();
+        defer renderer.deinit();
+        const iface = renderer.interface();
+        const bgra = try iface.readPixels(allocator, &frame.list, .{ .width = frame.width, .height = frame.height }, frame.theme.bg);
+        defer allocator.free(bgra);
+        const rgba = try allocator.alloc(u8, bgra.len);
+        defer allocator.free(rgba);
+        var i: usize = 0;
+        while (i + 3 < bgra.len) : (i += 4) {
+            rgba[i] = bgra[i + 2];
+            rgba[i + 1] = bgra[i + 1];
+            rgba[i + 2] = bgra[i];
+            rgba[i + 3] = bgra[i + 3];
+        }
+        try saveRgba(io, path, frame.width, frame.height, rgba);
+    }
+}
+
+fn saveRgba(io: std.Io, path: []const u8, width: u32, height: u32, rgba: []const u8) !void {
+    const file = if (path.len != 0 and path[0] == '/')
+        try std.Io.Dir.createFileAbsolute(io, path, .{})
+    else
+        try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer file.close(io);
+    var buffer: [64 * 1024]u8 = undefined;
+    var writer = file.writer(io, &buffer);
+    try xsui.png.write(&writer.interface, width, height, rgba);
+    try writer.interface.flush();
 }
 
 pub fn cmdUi(

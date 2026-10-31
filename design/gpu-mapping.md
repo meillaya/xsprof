@@ -1,10 +1,11 @@
 # GPU rendering contract
 
-This document maps the design tokens to a flat-instance GPU UI so the
-prototype in `design/index.html` can be reproduced as closely as the staged
-font rasterizer allows. The console and augmented `xsui` primitives are
-implemented; the remaining gaps are listed at the end, and measured residuals
-live in [`evidence/parity.json`](evidence/parity.json).
+This document maps the design tokens to a flat-instance GPU UI. The canonical
+runtime contract is [`ui-spec.json`](ui-spec.json): CPU is the reference
+rasterizer and Metal/GL/WebGL2 consume the same draw list, fractional geometry,
+and browser-generated text atlas. The HTML prototype is the design source; its
+pixel diff is advisory. Formal cross-surface results live in
+[`evidence/cross_surface.json`](evidence/cross_surface.json).
 
 The token values live in [`tokens.json`](tokens.json),
 [`palettes.json`](palettes.json), and the generated [`tokens.css`](tokens.css).
@@ -262,10 +263,9 @@ Recommended capture set for every token change:
 9. Responsive 1024, 780, and 420 widths.
 
 For CPU rendering, compare framebuffer hashes exactly. For Metal/GL/WebGL2,
-compare against the CPU reference with the existing tolerance (average channel
-delta < 4, mismatched pixel ratio < 3%); anti-aliasing is the only expected
-difference. A pixel-perfect claim requires a diff report, not just a visual
-check.
+compare against the CPU reference using the thresholds in `ui-spec.json`
+(WebGL2: MAE ≤ 2.5, >24 ≤ 3%; Metal/GL: MAE ≤ 4.0, >24 ≤ 3%). The formal gate
+is `qa/ui_cross_surface.py`; reference diffs are advisory.
 
 ## 11. Implementation checklist
 
@@ -289,10 +289,14 @@ check.
       partial.
 - [x] Add explicit SKIP/REFUSE/loss fallbacks and live-vs-replay source labels.
 - [x] Add snapshot fixtures for all screens, all six palettes, and overlays.
-- [ ] Replace the staged TTF coverage rasterizer with a Chromium-compatible
-      shaper/hinter if literal DOM pixel parity is required. Current residual
-      error is dominated by glyph antialiasing and subpixel positioning.
+- [x] Replace platform text rasterization with a browser-generated glyph mask
+      atlas at the measured ¼ px x / ½ px y subpixel grid; TTF remains a
+      documented fallback for unknown glyphs/phases.
+- [x] Make CPU the canonical backend and gate Metal/WebGL2 against it through
+      `design/ui-spec.json` and `qa/ui_cross_surface.py`.
+- [ ] Wire the 1320/1140/1024/780/420 shell modes and the remaining focus,
+      clipboard, and brush interactions; these are behavior/spec work, not
+      cross-surface rendering differences.
 
-The parity report records actual pixel metrics, not a pass/fail claim. The
-token tests and unamplified screenshots cover colors/geometry; do not claim
-pixel-perfect text parity from the current rasterizer.
+The cross-surface report records actual pixel metrics and pass/fail against the
+formal thresholds. Reference-progress is reported separately and is advisory.

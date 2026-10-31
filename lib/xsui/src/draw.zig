@@ -113,8 +113,8 @@ pub const GlyphEntry = struct {
 };
 
 /// Fixed atlas dimensions shared by the CPU, Metal, GL, and WebGL2 backends.
-pub const atlas_width: usize = 2048;
-pub const atlas_height: usize = 2048;
+pub const atlas_width: usize = 4096;
+pub const atlas_height: usize = 4096;
 
 pub const Atlas = struct {
     allocator: std.mem.Allocator,
@@ -140,6 +140,46 @@ pub const Atlas = struct {
     pub fn deinit(self: *Atlas) void {
         self.entries.deinit();
         self.allocator.free(self.pixels);
+    }
+
+    /// Insert a pre-rasterized alpha mask (used by the browser-matched text
+    /// asset). The atlas is the single texture consumed by every backend.
+    pub fn addMask(self: *Atlas, pixels: []const u8, w: usize, h: usize, left: i32, top: i32) !GlyphEntry {
+        if (w == 0 or h == 0 or w > self.width or h > self.height) return error.AtlasFull;
+        if (pixels.len < w * h) return error.BadMask;
+        if (self.shelf_x + w + 1 > self.width and self.shelf_x != 0) {
+            self.shelf_x = 0;
+            self.shelf_y += self.shelf_h + 1;
+            self.shelf_h = 0;
+        }
+        if (self.shelf_x + w + 1 > self.width) return error.AtlasFull;
+        if (self.shelf_y + h + 1 > self.height) return error.AtlasFull;
+        const x = self.shelf_x;
+        const y = self.shelf_y;
+        var row: usize = 0;
+        while (row < h) : (row += 1) {
+            const src = pixels[row * w .. row * w + w];
+            const dst = (y + row) * self.width + x;
+            @memcpy(self.pixels[dst .. dst + w], src);
+        }
+        self.shelf_x += w + 1;
+        self.shelf_h = @max(self.shelf_h, h);
+        const entry = GlyphEntry{
+            .uv = .{
+                @as(f32, @floatFromInt(x)) / @as(f32, @floatFromInt(self.width)),
+                @as(f32, @floatFromInt(y)) / @as(f32, @floatFromInt(self.height)),
+                @as(f32, @floatFromInt(x + w)) / @as(f32, @floatFromInt(self.width)),
+                @as(f32, @floatFromInt(y + h)) / @as(f32, @floatFromInt(self.height)),
+            },
+            .width = @intCast(w),
+            .height = @intCast(h),
+            .left = left,
+            .top = top,
+            .advance = 0,
+            .advance_f = 0,
+        };
+        self.version +%= 1;
+        return entry;
     }
 
     pub fn glyph(

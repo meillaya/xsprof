@@ -136,8 +136,14 @@ fn drawBrief(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w:
         label_style.tracking = 1.15;
         var sub_style = style(text_11, th.dim, .regular);
         sub_style.line_height = 1.45;
-        const content_h = 15.75 + value_style.size * value_style.line_height + sub_style.size * sub_style.line_height + 4;
-        const top = y + 1 + (106.97 - content_h) * 0.5;
+        sub_style.wrap = true;
+        var sub_layout: xsui.TextLayout = .{};
+        try canvas.layoutText(sub_style, sub_text, widths[i] - 32, &sub_layout);
+        const sub_h = sub_layout.height();
+        const value_h = value_style.size * value_style.line_height;
+        const content_h = 15.75 + 2 + value_h + 2 + sub_h;
+        const available_h: f32 = 106.97 - 27;
+        const top = y + 1 + 13 + (available_h - content_h) * 0.5;
         canvas.pushClip(.{ .x = sx + 1, .y = y + 1, .w = widths[i] - 2, .h = 106.97 });
         try label(canvas, sx + 16, top, labels[i], label_style);
         const shown_value = switch (i) {
@@ -153,7 +159,7 @@ fn drawBrief(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y: f32, w:
             const unit_text = if (i == 0) "ms" else "%";
             try label(canvas, sx + 16 + measure(canvas, shown_value, value_style) + 3, top + 17.75 + value_style.size * 0.72, unit_text, unit);
         }
-        try label(canvas, sx + 16, top + 17.75 + value_style.size * value_style.line_height + 2, sub_text, sub_style);
+        _ = try canvas.textIn(.{ .x = sx + 16, .y = top + 17.75 + value_h + 2, .w = widths[i] - 32, .h = sub_h }, sub_style, sub_text);
         canvas.popClip();
         sx += widths[i];
     }
@@ -183,14 +189,14 @@ fn drawCapabilities(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect)
     var meta_buf: [32]u8 = undefined;
     const meta = std.fmt.bufPrint(&meta_buf, "{d} signals", .{model.capabilities.len}) catch "";
     try panelHead(canvas, th, rect, "01", "CAPABILITY MATRIX", meta);
-    var y = rect.y + 36;
+    var y = rect.y + 37;
     for (model.capabilities) |cap| {
         const row = Rect{ .x = rect.x + 1, .y = y, .w = rect.w - 2, .h = 53.25 };
         var cap_style = style(text_12, th.text, .regular);
         cap_style.size = 12.5;
-        try label(canvas, row.x + 14, row.y + 8, cap.name, cap_style);
-        try stateBadge(canvas, th, .{ .x = row.x + row.w - 14 - 76, .y = row.y + 8, .w = 76, .h = 18 }, cap.state, cap.state);
-        try label(canvas, row.x + 14, row.y + 28, cap.detail, style(text_11, th.dim, .regular));
+        try label(canvas, row.x + 14, row.y + 8.0, cap.name, cap_style);
+        try stateBadge(canvas, th, .{ .x = row.x + row.w - 14 - 76, .y = row.y + 8.0, .w = 76, .h = 18.25 }, cap.state, cap.glyph, cap.state);
+        try label(canvas, row.x + 14, row.y + 27.75, cap.detail, style(text_11, th.dim, .regular));
         try borderLine(canvas, row.x, row.y + row.h, row.w, th.line);
         y += 53.25;
     }
@@ -199,51 +205,57 @@ fn drawCapabilities(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect)
 fn drawCpuPanel(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try panelBase(canvas, th, rect);
     try panelHead(canvas, th, rect, "02", "PER-CPU LANES", "busy · rq · p95");
-    var y = rect.y + 36;
+    var y = rect.y + 37;
     var buf: [48]u8 = undefined;
-    for (model.cpuStats) |cpu| {
-        const row = Rect{ .x = rect.x + 1, .y = y, .w = rect.w - 2, .h = 55 };
+    for (model.cpuStats, 0..) |cpu, cpu_index| {
+        const row_h: f32 = if (cpu_index + 1 == model.cpuStats.len) 54 else 55;
+        const row = Rect{ .x = rect.x + 1, .y = y, .w = rect.w - 2, .h = row_h };
         var cpu_buf: [16]u8 = undefined;
-        try label(canvas, row.x + 14, row.y + 8, std.fmt.bufPrint(&cpu_buf, "cpu{d}", .{cpu.cpu}) catch "cpu", style(text_11, th.muted, .regular));
+        try label(canvas, row.x + 14, row.y + 9, std.fmt.bufPrint(&cpu_buf, "cpu{d}", .{cpu.cpu}) catch "cpu", style(text_11, th.muted, .regular));
         const busy_text = format.pct(&buf, cpu.busy);
-        try label(canvas, row.x + 14, row.y + 21, busy_text, style(text_13, th.text, .bold));
-        const strip = Rect{ .x = row.x + 66, .y = row.y + 8, .w = row.w - 80, .h = 18 };
+        try label(canvas, row.x + 14, row.y + 25.5, busy_text, style(text_13, th.text, .bold));
+        const strip = Rect{ .x = row.x + 74, .y = row.y + 8, .w = row.w - 88, .h = 18 };
         try canvas.fill(strip, th.lane_idle);
         const count = @max(@as(usize, 1), cpu.buckets.len);
         for (cpu.buckets, 0..) |bucket, i| {
-            const bw = @max(1.7, strip.w / @as(f32, @floatFromInt(count)) * 0.68);
-            const bh: f32 = @floatCast(@max(1.0, @ceil(bucket * 15)));
+            const bw = strip.w / 120.0 * 1.7;
+            const height: f32 = @floatFromInt(@max(2, @as(i32, @intFromFloat(@round(2 + bucket * 15)))));
             const bx = strip.x + @as(f32, @floatFromInt(i)) * strip.w / @as(f32, @floatFromInt(count));
-            try canvas.fill(.{ .x = bx, .y = strip.y + 18.0 - bh, .w = bw, .h = bh }, .{ .r = th.live.r, .g = th.live.g, .b = th.live.b, .a = @intFromFloat(@max(0.2, bucket) * 255) });
+            const opacity = if (bucket > 0) 0.2 + bucket * 0.8 else 0.06;
+            try canvas.fill(.{ .x = bx, .y = strip.y + 18.0 - height, .w = bw, .h = height }, .{ .r = th.live.r, .g = th.live.g, .b = th.live.b, .a = @intFromFloat(@min(1, opacity) * 255) });
         }
         var meta_buf: [96]u8 = undefined;
         const meta_text = if (cpu.runqueue) |rq| std.fmt.bufPrint(&meta_buf, "rq {d:.1}", .{rq}) catch "" else "rq —";
         try label(canvas, strip.x, row.y + 31, meta_text, style(text_10, th.dim, .regular));
         var p95_buf: [48]u8 = undefined;
         const p95_text = if (cpu.p95) |p| std.fmt.bufPrint(&p95_buf, "p95 {d:.2} ms", .{p}) catch "" else "p95 —";
-        try label(canvas, strip.x + strip.w * 0.42, row.y + 31, p95_text, style(text_10, if ((cpu.p95 orelse 0) > 2) th.skip else th.dim, .regular));
+        var p95_style = style(text_10, if ((cpu.p95 orelse 0) > 2) th.skip else th.dim, .regular);
+        p95_style.text_align = .center;
+        _ = try canvas.textIn(.{ .x = strip.x, .y = row.y + 31, .w = strip.w, .h = 15 }, p95_style, p95_text);
         var sw_buf: [32]u8 = undefined;
         try labelRight(canvas, row.x + row.w - 14, row.y + 31, std.fmt.bufPrint(&sw_buf, "{d} sw", .{cpu.switches}) catch "", style(text_10, th.dim, .regular));
         try borderLine(canvas, row.x, row.y + row.h, row.w, th.line);
-        y += 55;
+        y += row_h;
     }
-    const note_y = y + 3;
+    const note_y = y + 9;
     var bucket_note: [128]u8 = undefined;
     const bucket_count: usize = if (model.cpuStats.len > 0) model.cpuStats[0].buckets.len else 0;
     const note = std.fmt.bufPrint(&bucket_note, "{d} buckets across the excerpt. Idle spans stay dark — never counted as load.", .{bucket_count}) catch "Buckets across the excerpt.";
-    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = note_y, .w = rect.w - 28, .h = 50 }, style(text_11, th.dim, .regular), note);
+    var note_style = style(text_11, th.dim, .regular);
+    note_style.line_height = 1.55;
+    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = note_y, .w = rect.w - 28, .h = 50 }, note_style, note);
 }
 
 fn drawAdvisorMini(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try panelBase(canvas, th, rect);
     try panelHead(canvas, th, rect, "03", "ADVISOR", "");
     try label(canvas, rect.x + 14, rect.y + 45, "Suggestion only — never applied.", style(text_11, th.dim, .regular));
-    var y = rect.y + 72.5;
+    var y = rect.y + 72.05;
     for (model.advisor) |card| {
         const color = severityColor(th, card.severity);
-        try canvas.circle(rect.x + 20, y + 15, 3, color);
-        try label(canvas, rect.x + 34, y + 7, card.id, style(text_11, th.text, .regular));
-        try labelRight(canvas, rect.x + rect.w - 14, y + 7, card.severity, style(text_95, th.dim, .regular));
+        try canvas.circle(rect.x + 22, y + 15.05, 3, color);
+        try label(canvas, rect.x + 35, y + 6.25, card.id, style(text_11, th.text, .regular));
+        try labelRight(canvas, rect.x + rect.w - 14, y + 7.375, card.severity, style(text_95, th.dim, .regular));
         try borderLine(canvas, rect.x + 1, y + 30, rect.w - 2, th.line);
         y += 30;
     }
@@ -285,7 +297,7 @@ fn drawThreads(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !voi
         widths[i + 1] = v;
         cursor += v + gap;
     }
-    const y = rect.y + 36;
+    const y = rect.y + 37;
     var head = style(text_95, th.faint, .regular);
     head.tracking = 0.76;
     try label(canvas, xs[0], y + 4, "THREAD", head);
@@ -299,15 +311,15 @@ fn drawThreads(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !voi
     var buf: [32]u8 = undefined;
     for (model.threads[0..@min(model.threads.len, 7)]) |thread| {
         try canvas.fill(.{ .x = xs[0], .y = row_y + 8, .w = 2, .h = 13 }, th.lane(thread.lane));
-        try label(canvas, xs[0] + 8, row_y + 6, thread.comm, style(text_11, th.text, .regular));
-        try labelRight(canvas, xs[1] + widths[1], row_y + 6, std.fmt.bufPrint(&buf, "{d}", .{thread.pid}) catch "", style(text_11, th.muted, .regular));
-        try labelRight(canvas, xs[2] + widths[2], row_y + 6, format.int(&buf, thread.switches), style(text_11, th.muted, .regular));
-        try labelRight(canvas, xs[3] + widths[3], row_y + 6, format.int(&buf, thread.migrations), style(text_11, th.muted, .regular));
+        try label(canvas, xs[0] + 8, row_y + 5.75, thread.comm, style(text_11, th.text, .regular));
+        try labelRight(canvas, xs[1] + widths[1], row_y + 5.75, std.fmt.bufPrint(&buf, "{d}", .{thread.pid}) catch "", style(text_11, th.muted, .regular));
+        try labelRight(canvas, xs[2] + widths[2], row_y + 5.75, format.int(&buf, thread.switches), style(text_11, th.muted, .regular));
+        try labelRight(canvas, xs[3] + widths[3], row_y + 5.75, format.int(&buf, thread.migrations), style(text_11, th.muted, .regular));
         var p95_buf: [32]u8 = undefined;
         const p95_text = if (thread.p95) |p| std.fmt.bufPrint(&p95_buf, "{d:.2} ms", .{p}) catch "—" else "—";
-        try labelRight(canvas, xs[4] + widths[4], row_y + 6, p95_text, style(text_11, if ((thread.p95 orelse 0) > 2) th.skip else th.text, .regular));
-        try canvas.fill(.{ .x = xs[5], .y = row_y + 13, .w = widths[5], .h = 3 }, th.line);
-        try canvas.fill(.{ .x = xs[5], .y = row_y + 13, .w = widths[5] * @as(f32, @floatCast(@min(1.0, thread.share / 20.0))), .h = 3 }, th.live);
+        try labelRight(canvas, xs[4] + widths[4], row_y + 5.75, p95_text, style(text_11, if ((thread.p95 orelse 0) > 2) th.skip else th.text, .regular));
+        try canvas.fill(.{ .x = xs[5], .y = row_y + 12.5, .w = widths[5], .h = 3 }, th.line);
+        try canvas.fill(.{ .x = xs[5], .y = row_y + 12.5, .w = widths[5] * @as(f32, @floatCast(@min(1.0, thread.share / 20.0))), .h = 3 }, th.live);
         try borderLine(canvas, rect.x + 1, row_y + 29, rect.w - 2, th.line);
         row_y += 29;
     }
@@ -317,17 +329,17 @@ fn drawMix(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try panelBase(canvas, th, rect);
     var total_buf: [32]u8 = undefined;
     try panelHead(canvas, th, rect, "05", "EVENT MIX", std.fmt.bufPrint(&total_buf, "{d} total", .{model.summary.events}) catch "");
-    var y = rect.y + 42.5;
+    var y = rect.y + 42.75;
     var max_count: u32 = 1;
     for (model.typeCounts) |t| max_count = @max(max_count, t.count);
     for (model.typeCounts[0..@min(model.typeCounts.len, 7)]) |t| {
         const color = mixColor(th, t.kind);
         try label(canvas, rect.x + 14, y + 5, mixLabel(t.kind), style(text_11, th.muted, .regular));
-        const track_x = rect.x + 106;
-        const track_w = rect.w - 106 - 14 - 44 - 8;
-        try canvas.fill(.{ .x = track_x, .y = y + 11, .w = track_w, .h = 4 }, th.line);
-        try canvas.fill(.{ .x = track_x, .y = y + 11, .w = track_w * @as(f32, @floatFromInt(t.count)) / @as(f32, @floatFromInt(max_count)), .h = 4 }, color);
-        try labelRight(canvas, rect.x + rect.w - 14, y + 5, format.int(&total_buf, t.count), style(text_11, th.muted, .regular));
+        const track_x = rect.x + 114;
+        const track_w = rect.w - 114 - 44 - 8 - 14;
+        try canvas.fill(.{ .x = track_x, .y = y + 11.25, .w = track_w, .h = 4 }, th.line);
+        try canvas.fill(.{ .x = track_x, .y = y + 11.25, .w = track_w * @as(f32, @floatFromInt(t.count)) / @as(f32, @floatFromInt(max_count)), .h = 4 }, color);
+        try labelRight(canvas, rect.x + rect.w - 27, y + 5, format.int(&total_buf, t.count), style(text_11, th.muted, .regular));
         y += 26.5;
     }
 }
@@ -395,9 +407,9 @@ fn drawMemory(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void
         .{ "CROSS-CCX", cross, cross_sub },
     };
 
-    const inner = Rect{ .x = rect.x + 1, .y = rect.y + 36, .w = rect.w - 2, .h = rect.h - 37 };
+    const inner = Rect{ .x = rect.x + 1, .y = rect.y + 36.75, .w = rect.w - 2, .h = 69.4375 };
     const cw = inner.w / 2;
-    const ch = inner.h / 2;
+    const ch: f32 = 69.4375;
     for (0..4) |i| {
         const col = i % 2;
         const row = i / 2;
@@ -408,8 +420,8 @@ fn drawMemory(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void
         var value_style = style(text_13, th.text, .bold);
         value_style.size = 16;
         value_style.line_height = 1.2;
-        try label(canvas, cell.x + 14, cell.y + 27, cells[i][1], value_style);
-        try label(canvas, cell.x + 14, cell.y + 48, cells[i][2], style(text_10, th.faint, .regular));
+        try label(canvas, cell.x + 14, cell.y + 24.25, cells[i][1], value_style);
+        try label(canvas, cell.x + 14, cell.y + 44.5, cells[i][2], style(text_10, th.faint, .regular));
         if (col == 0) try borderLine(canvas, cell.x + cw - 1, cell.y, 1, th.line);
         if (row == 0) try borderLine(canvas, cell.x, cell.y + ch - 1, cw, th.line);
     }
