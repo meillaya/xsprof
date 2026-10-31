@@ -4,10 +4,19 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const fonts_mod = b.addModule("fonts", .{
+        .root_source_file = b.path("assets/fonts/fonts.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const core_mod = b.addModule("xsprof", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "fonts", .module = fonts_mod },
+        },
     });
 
     const exe_mod = b.createModule(.{

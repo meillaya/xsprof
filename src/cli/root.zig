@@ -7,6 +7,8 @@ const aggregates = @import("../analyze/aggregates.zig");
 const advisor = @import("../analyze/advisor.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
+const ui_frame = @import("../ui/frame.zig");
+const demo = @import("../app/demo.zig");
 
 const Writer = std.Io.Writer;
 
@@ -240,6 +242,76 @@ fn cmdTimeline(
     return 0;
 }
 
+fn themeFromName(name: []const u8) @import("../ui/draw.zig").Theme {
+    if (std.mem.eql(u8, name, "light")) {
+        return .{
+            .bg = .{ .r = 0xf3, .g = 0xea, .b = 0xd7 },
+            .panel = .{ .r = 0xff, .g = 0xf8, .b = 0xeb },
+            .raised = .{ .r = 0xe9, .g = 0xdf, .b = 0xcb },
+            .text = .{ .r = 0x1a, .g = 0x17, .b = 0x12 },
+            .muted = .{ .r = 0x6b, .g = 0x5f, .b = 0x51 },
+            .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
+        };
+    }
+    return .{};
+}
+
+fn cmdSnapshot(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+    err: *Writer,
+) !u8 {
+    var path: []const u8 = "xsprof-snapshot.png";
+    var width: u32 = 1280;
+    var height: u32 = 720;
+    var theme_name: []const u8 = "warm-dark";
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--out") and i + 1 < args.len) {
+            i += 1;
+            path = args[i];
+        } else if (std.mem.eql(u8, arg, "--width") and i + 1 < args.len) {
+            i += 1;
+            width = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("snapshot: invalid --width\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--height") and i + 1 < args.len) {
+            i += 1;
+            height = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("snapshot: invalid --height\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--theme") and i + 1 < args.len) {
+            i += 1;
+            theme_name = args[i];
+        }
+    }
+    if (width < 64 or height < 64 or width > 4096 or height > 4096) {
+        try err.writeAll("snapshot: width/height must be 64..4096\n");
+        return 2;
+    }
+    var frame: ui_frame.Frame = undefined;
+    frame.init(allocator, width, height, themeFromName(theme_name)) catch {
+        try err.writeAll("snapshot: cannot initialize UI frame\n");
+        return 1;
+    };
+    defer frame.deinit();
+    demo.build(&frame) catch {
+        try err.writeAll("snapshot: cannot build demo frame\n");
+        return 1;
+    };
+    frame.savePng(io, path) catch |save_error| {
+        try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
+        return 1;
+    };
+    try out.print("{s}\n", .{path});
+    return 0;
+}
+
 pub fn runWith(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -278,6 +350,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "timeline")) {
         return cmdTimeline(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "snapshot")) {
+        return cmdSnapshot(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});
