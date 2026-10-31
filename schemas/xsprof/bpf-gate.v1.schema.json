@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/bpf-gate.v1.schema.json",
+  "title": "xsprof BPF gate result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attached",
+    "capability",
+    "host_mutation",
+    "libbpf",
+    "program_loaded",
+    "reason",
+    "schema",
+    "vm_marker"
+  ],
+  "properties": {
+    "attached": { "type": "boolean" },
+    "capability": { "enum": ["READY", "DEGRADED", "SKIP", "REFUSE"] },
+    "host_mutation": { "const": false },
+    "libbpf": { "type": "boolean" },
+    "program_loaded": { "type": "boolean" },
+    "reason": { "type": "string" },
+    "schema": { "const": "xsprof/bpf-gate/v1" },
+    "vm_marker": { "type": "string" }
+  }
+}

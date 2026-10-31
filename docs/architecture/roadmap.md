@@ -11,7 +11,20 @@ Status is updated only when a phase gate actually passes.
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | **complete** |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | **complete** |
-| P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | next |
+| P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | **complete** |
+
+## P7 gate (passed)
+
+- `bpf-gate` refuses every host before a BPF syscall; only explicit hypervisor
+  markers (Apple Virtualization/QEMU/KVM/Virtual/VMware/Xen/Hyper-V) pass.
+- VM evidence: `BPF_PROG_LOAD` + `PERF_EVENT_IOC_SET_BPF` attached a no-op
+  `sched_switch` tracepoint program for 200 ms, `host_mutation:false`,
+  `libbpf:true` (`libbpf.so.1` dlopen probe).
+- The unsafe `bpf` verb remains refused; the safe read-only gate is separate.
+- `schemas/xsprof/bpf-gate.v1.schema.json` and CLI parity cover the wire form.
+- Final sweep: fmt, 600-line limit, vendor hashes, 58 tests, web smoke,
+  hidden macOS smoke, CLI parity, aarch64/x86_64 glibc cross-builds, and
+  simulator/archive checks all green.
 
 ## P0 gate (passed)
 

@@ -75,6 +75,12 @@ if "$BIN" record --duration 1 >"$TMP/record" 2>/dev/null; then
     fail=1
 fi
 check_contains "$TMP/record" '"host_mutation":false' "record-refusal"
+if "$BIN" bpf-gate --json >"$TMP/bpf" 2>/dev/null; then
+    echo "cli_parity: bpf-gate unexpectedly READY on this host" >&2
+    fail=1
+fi
+check_contains "$TMP/bpf" '"host_mutation":false' "bpf-gate"
+check_contains "$TMP/bpf" '"schema":"xsprof/bpf-gate/v1"' "bpf-gate"
 if "$BIN" timeline --input "$TMP/does-not-exist" >/dev/null 2>&1; then
     echo "cli_parity: missing journal exited zero" >&2
     fail=1
