@@ -17,6 +17,17 @@ The recorder needs `CAP_PERFMON` and tracefs read access. Use the provided
 unit or grant equivalent capabilities explicitly. `xsprof doctor --json` names
 the missing piece.
 
+## Debian package
+
+On Debian or Ubuntu, `./tools/package_deb.sh` builds
+`dist/xsprof_<version>_<arch>.deb` with the binary, web assets, fixture, and
+systemd unit. The unit is installed but not enabled.
+
+## Homebrew
+
+`packaging/homebrew/xsprof.rb` and `xsprof-app.rb` are publication templates.
+Replace the version, URL, and SHA-256 values before adding them to a tap.
+
 ## macOS app
 
 Unzip `Xsprof-<version>-macos.zip` and open `Xsprof.app`. The bundle is
