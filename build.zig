@@ -89,12 +89,13 @@ pub fn build(b: *std.Build) void {
         },
     });
     web_mod.export_symbol_names = &.{
-        "web_init",            "web_resize",       "web_alloc",
-        "web_free",            "web_load_journal", "web_set_screen",
-        "web_set_theme",       "web_frame",        "web_instances_ptr",
-        "web_instance_stride", "web_atlas_ptr",    "web_atlas_size",
-        "web_width",           "web_height",       "web_refusals",
-        "web_capabilities",
+        "web_init",            "web_resize",         "web_alloc",
+        "web_free",            "web_load_journal",   "web_set_screen",
+        "web_set_theme",       "web_frame",          "web_instances_ptr",
+        "web_instance_stride", "web_atlas_ptr",      "web_atlas_size",
+        "web_width",           "web_height",         "web_refusals",
+        "web_capabilities",    "web_append_journal", "web_set_live",
+        "web_atlas_version",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;

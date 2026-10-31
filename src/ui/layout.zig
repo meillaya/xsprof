@@ -192,6 +192,10 @@ pub const Ui = struct {
         return self.nodes.items[index].rect;
     }
 
+    pub fn nodeText(self: *const Ui, index: usize) ?[]const u8 {
+        return self.nodes.items[index].text;
+    }
+
     fn fontFor(self: *Ui, weight: FontWeight) *const ttf.Font {
         return if (weight == .bold) &self.frame.bold else &self.frame.regular;
     }

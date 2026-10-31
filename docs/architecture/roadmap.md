@@ -8,8 +8,8 @@ Status is updated only when a phase gate actually passes.
 | P1 | Core event/JSON/privacy/safety; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | **complete** |
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
 | P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
-| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | in progress |
-| P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | planned |
+| P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | **complete** |
+| P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | next |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | planned |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | planned |
 
@@ -22,7 +22,7 @@ Status is updated only when a phase gate actually passes.
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
 
-## P4 progress
+## P4 gate (passed)
 
 - `perf_event_open` sched_switch/wakeup/migrate + software page faults,
   per-CPU mmap rings, tracepoint format offsets, bounded record parsing.
@@ -31,8 +31,13 @@ Status is updated only when a phase gate actually passes.
 - Validated in a disposable Linux 7.2 aarch64 podman VM: 68,631 switch
   records in 300 ms, matching a simultaneous tracefs count; lost records are
   explicit markers.
-- Remaining for P4: live SSE/browser incremental updates and a real-time UI
-  feed. The browser currently consumes replay journals.
+- `serve --live` runs a detached-free capture worker, downsamples to a bounded
+  store, emits explicit downsample-loss markers, and exposes one-shot SSE
+  batches (`Last-Event-ID`/`id`) plus `/api/journal` snapshots.
+- The browser appends SSE lines through `web_append_journal`, re-renders while
+  preserving the active screen, and reloads on a buffer-reset event.
+- Fully validated in the disposable Linux 7.2 aarch64 VM: a headless Chromium
+  client showed LIVE READY capabilities, 51k+ events, 4 CPUs, and loss markers.
 
 ## P3 gate (passed)
 

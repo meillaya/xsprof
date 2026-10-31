@@ -78,7 +78,8 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P4 is in progress. The Linux perf capture path and `record` CLI are validated
-in a disposable Linux VM; SKIP/REFUSE behavior is host-safe. Remaining P4 work
-is live SSE/browser incremental updates. P5 native macOS follows. Update the
-roadmap when a gate passes.
+P4 is complete: perf capture, `record`, live SSE updates, bounded downsample
+loss markers, and browser incremental rendering are validated in a disposable
+Linux VM. P5 is the native macOS AppKit + Metal window, offscreen pixel tests,
+hidden-window smoke test, and `xsprof ui`. Update the roadmap when a gate
+passes.

@@ -14,6 +14,10 @@ const gpa = std.heap.wasm_allocator;
 
 var arena: std.heap.ArenaAllocator = undefined;
 var arena_ready = false;
+var session_arena: std.heap.ArenaAllocator = undefined;
+var session_ready = false;
+var journal_buf: std.ArrayList(u8) = .empty;
+var live_mode = false;
 var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
 var screen: app.Screen = .overview;
@@ -26,6 +30,18 @@ fn ensureArena() void {
         arena = std.heap.ArenaAllocator.init(gpa);
         arena_ready = true;
     }
+}
+
+fn reloadSession() void {
+    if (session_ready) session_arena.deinit();
+    session_arena = std.heap.ArenaAllocator.init(gpa);
+    session_ready = true;
+    const source = if (live_mode) "live capture" else "web replay";
+    loaded = session_mod.Session.fromData(
+        session_arena.allocator(),
+        source,
+        journal_buf.items,
+    ) catch null;
 }
 
 fn destroyFrame() void {
@@ -75,15 +91,37 @@ export fn web_free(addr: usize, len: usize) void {
 }
 
 export fn web_load_journal(addr: usize, len: usize) u32 {
-    if (addr == 0 or len == 0) return 0;
     ensureArena();
-    const input: [*]const u8 = @ptrFromInt(addr);
-    const allocator = arena.allocator();
-    const copied = allocator.dupe(u8, input[0..len]) catch return 0;
-    const session = session_mod.Session.fromData(allocator, "web replay", copied) catch return 0;
-    loaded = session;
+    journal_buf.clearRetainingCapacity();
+    if (addr != 0 and len != 0) {
+        const input: [*]const u8 = @ptrFromInt(addr);
+        journal_buf.appendSlice(gpa, input[0..len]) catch return 0;
+    }
+    reloadSession();
     screen = .overview;
     return 1;
+}
+
+export fn web_append_journal(addr: usize, len: usize) u32 {
+    if (addr == 0 or len == 0) return 1;
+    ensureArena();
+    if (journal_buf.items.len + len > 32 * 1024 * 1024) {
+        const keep = @min(journal_buf.items.len, 16 * 1024 * 1024);
+        std.mem.copyForwards(
+            u8,
+            journal_buf.items[0..keep],
+            journal_buf.items[journal_buf.items.len - keep ..],
+        );
+        journal_buf.shrinkRetainingCapacity(keep);
+    }
+    const input: [*]const u8 = @ptrFromInt(addr);
+    journal_buf.appendSlice(gpa, input[0..len]) catch return 0;
+    reloadSession();
+    return if (loaded == null) 0 else 1;
+}
+
+export fn web_set_live(value: u32) void {
+    live_mode = value != 0;
 }
 
 export fn web_set_screen(id: u32) void {
@@ -141,6 +179,11 @@ export fn web_atlas_ptr() usize {
 export fn web_atlas_size() u32 {
     const frame = frame_ptr orelse return 0;
     return @intCast(frame.atlas.width);
+}
+
+export fn web_atlas_version() u32 {
+    const frame = frame_ptr orelse return 0;
+    return frame.atlas.version;
 }
 
 export fn web_refusals() u32 {
