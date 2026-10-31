@@ -168,8 +168,8 @@ Status is updated only when a phase gate actually passes.
   lab state and rail in wasm, hides native-only controls, and runs the healthy
   scenario through `web_run_scenario`, and A/B compare reports regressions from
   a second source store. The web client runs healthy or user-selected scenario
-  files and downloads run JSON. Remaining: web compare and the final M7
-  sweep.
+  files and downloads run JSON. Remaining: cgroup/pressure panes, web compare,
+  report/snapshot exports from the rail, and the final M7 sweep.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
