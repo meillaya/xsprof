@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
-const live = @import("../capture/live.zig");
+const recording = @import("../capture/recording.zig");
 const Store = @import("live_store.zig").Store;
 
 const Writer = std.Io.Writer;
@@ -116,7 +116,7 @@ fn worker(io: std.Io, store: *Store) void {
     while (true) {
         var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
         defer arena.deinit();
-        const result = live.record(io, arena.allocator(), 350) catch |capture_error| {
+        const result = recording.record(io, arena.allocator(), 350) catch |capture_error| {
             appendCapability(io, store, "SKIP", @errorName(capture_error));
             std.Io.sleep(io, .fromMilliseconds(2000), .awake) catch {};
             continue;

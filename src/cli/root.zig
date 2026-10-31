@@ -13,6 +13,7 @@ const gallery = @import("../app/gallery.zig");
 const app = @import("../app/app.zig");
 const session_mod = @import("../stream/session.zig");
 const live = @import("../capture/live.zig");
+const recording = @import("../capture/recording.zig");
 const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
@@ -307,7 +308,7 @@ fn cmdRecord(
         try writeCapabilityEvent(out, "bpf_capture", "SKIP", "BPF lane is VM-marker-gated and lands in P7");
         return 1;
     }
-    const result = live.record(io, allocator, duration_ms) catch |record_error| {
+    const result = recording.record(io, allocator, duration_ms) catch |record_error| {
         try writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(record_error));
         return 1;
     };
