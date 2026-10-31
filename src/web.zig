@@ -23,6 +23,8 @@ var event_index: stream_index.Index = undefined;
 var store_ready = false;
 var indexed_events: usize = 0;
 var live_mode = false;
+var paused_flag = false;
+var follow_flag = true;
 var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
 var view_state: app.State = undefined;
@@ -144,6 +146,14 @@ export fn web_set_live(value: u32) void {
     live_mode = value != 0;
 }
 
+export fn web_set_paused(value: u32) void {
+    paused_flag = value != 0;
+}
+
+export fn web_set_follow(value: u32) void {
+    follow_flag = value != 0;
+}
+
 export fn web_pointer(x: f32, y: f32, clicked: u32, down: u32, scroll: f32) void {
     const frame = frame_ptr orelse return;
     frame.input.pointer_x = x;
@@ -199,6 +209,8 @@ export fn web_frame() u32 {
         }
         view_state.session = session;
         view_state.screen = screen;
+        view_state.live_paused = paused_flag;
+        view_state.live_follow = follow_flag;
         app.view(&view_state, &ui) catch return 0;
     } else {
         gallery.build(&ui) catch return 0;

@@ -128,8 +128,9 @@ Status is updated only when a phase gate actually passes.
   unit, manifest and doctor schemas. Remaining: per-second metrics sidecar and
   a service-level smoke test.
 - **M2 in progress:** metrics index, Overview p95 panel, web pointer input,
-  timeline click selection and wheel zoom, selected-task detail. Remaining:
-  event scrolling, file open, pause/follow, native pointer, task filters.
+  timeline click selection and wheel zoom, selected-task detail, event
+  scrolling, local file open, and web pause/follow. Remaining: native pointer
+  and task filters.
 - **M3 complete for the first slice:** `metrics`, `compare`, JSON/Markdown/
   self-contained HTML reports, `--fail-on wait.p95`, schemas, CI guide.
 - **M4 core landed:** one long-lived capture in `serve --live`, line-aligned
