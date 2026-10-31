@@ -94,6 +94,7 @@ const Fields = struct {
     prev_pid: u16 = 0,
     next_comm: u16 = 0,
     next_pid: u16 = 0,
+    prev_state: u16 = 0,
     comm: u16 = 0,
     pid: u16 = 0,
     target_cpu: u16 = 0,
@@ -213,6 +214,7 @@ fn parseFormat(text: []const u8) Fields {
         if (std.mem.eql(u8, name, "prev_pid")) fields.prev_pid = offset;
         if (std.mem.eql(u8, name, "next_comm")) fields.next_comm = offset;
         if (std.mem.eql(u8, name, "next_pid")) fields.next_pid = offset;
+        if (std.mem.eql(u8, name, "prev_state")) fields.prev_state = offset;
         if (std.mem.eql(u8, name, "comm")) fields.comm = offset;
         if (std.mem.eql(u8, name, "pid")) fields.pid = offset;
         if (std.mem.eql(u8, name, "target_cpu")) fields.target_cpu = offset;
@@ -380,6 +382,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .tid = sample.tid,
                     .a = next_pid,
                     .b = prev_pid,
+                    .c = readU32(raw, fields.prev_state),
                     .comm = try commAt(self.batch_arena.allocator(), raw, fields.next_comm),
                 }),
                 .wakeup => {

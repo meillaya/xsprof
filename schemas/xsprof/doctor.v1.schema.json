@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/doctor.v1.schema.json",
+  "title": "xsprof doctor result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["checks", "host_mutation", "schema", "status"],
+  "properties": {
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "reason", "state"],
+        "properties": {
+          "name": { "type": "string" },
+          "reason": { "type": "string" },
+          "state": { "enum": ["READY", "DEGRADED", "SKIP", "REFUSE"] }
+        }
+      }
+    },
+    "host_mutation": { "const": false },
+    "schema": { "const": "xsprof/doctor/v1" },
+    "status": { "enum": ["READY", "DEGRADED", "SKIP", "REFUSE"] }
+  }
+}

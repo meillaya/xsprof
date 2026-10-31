@@ -18,6 +18,8 @@ const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
 const recorder_cmd = @import("recorder_cmd.zig");
+const doctor_cmd = @import("doctor_cmd.zig");
+const watch_cmd = @import("watch_cmd.zig");
 
 const Writer = std.Io.Writer;
 
@@ -35,6 +37,8 @@ const known_commands = [_][]const u8{
     "bpf-gate",
     "daemon",
     "capture",
+    "doctor",
+    "watch",
 };
 
 const refusal_reason =
@@ -62,6 +66,8 @@ fn writeHelp(w: *Writer) Writer.Error!void {
         \\  bpf-gate --json         VM-marker-gated no-op BPF gate
         \\  daemon [--dir <d>]      Foreground Linux recorder
         \\  capture --last <dur>    Extract a recorder window
+        \\  doctor --json           Read-only environment diagnostics
+        \\  watch [--dir <d>]       ANSI live recorder view
         \\  version                 Print version
         \\  help                    Print this help
         \\
@@ -430,6 +436,12 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "capture")) {
         return recorder_cmd.cmdCapture(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "doctor")) {
+        return doctor_cmd.cmdDoctor(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "watch")) {
+        return watch_cmd.cmdWatch(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

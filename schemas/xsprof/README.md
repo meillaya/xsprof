@@ -18,3 +18,6 @@ Key ordering is lexical and compact; required fields are validated at the
 boundary, and every record carries `host_mutation=false`.
 
 - `bpf-gate.v1.schema.json` — VM-marker-gated no-op BPF load/attach result.
+
+- `recorder-manifest.v1.schema.json` — recorder session and segment index.
+- `doctor.v1.schema.json` — read-only environment diagnostics.
