@@ -78,8 +78,9 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 are complete. Maintenance work must keep the read-only safety invariants,
-the P0–P7 gates, and the 600-line limit green. Native macOS/Linux windows are
-explicitly human-run; automated work uses snapshots, Metal offscreen parity,
-Xvfb smoke, and hidden-window smoke. Re-run `zig build check` and
-`qa/cli_parity.sh` after any behavior change.
+P0–P7 are complete. The v1 productization plan is active: M0, M1 core, and the
+first M3 slice are landed; M2 interaction, the M4 live-pipeline rework, and M5
+packaging remain. Keep the read-only safety invariants, P0–P7 gates, and the
+600-line limit green. Native windows are human-run; automated work uses
+snapshots, Metal offscreen parity, Xvfb, and hidden-window smoke. Re-run
+`zig build check` and `qa/cli_parity.sh` after any behavior change.

@@ -117,3 +117,24 @@ Status is updated only when a phase gate actually passes.
   consistent ns→µs conversion, explicit loss markers, windowing, and chunks.
 - `qa/cli_parity.sh` and 36 unit tests pass; `zig build check` is green.
 - `record`, `serve`, `snapshot`, and `ui` still exit 2 until their phases.
+
+
+## Productization progress
+
+- **M0 complete:** long-lived `Capture` with per-batch arenas, `recordStream`,
+  stable `EventStore`, incremental `Index` proven against a full Session build.
+- **M1 core landed:** foreground recorder daemon, rotating segments, atomic
+  manifest, retention, `capture --last`, ANSI `watch`, `doctor`, opt-in systemd
+  unit, manifest and doctor schemas. Remaining: per-second metrics sidecar and
+  a service-level smoke test.
+- **M2 in progress:** metrics index, Overview p95 panel, web pointer input,
+  timeline click selection and wheel zoom, selected-task detail. Remaining:
+  event scrolling, file open, pause/follow, native pointer, task filters.
+- **M3 complete for the first slice:** `metrics`, `compare`, JSON/Markdown/
+  self-contained HTML reports, `--fail-on wait.p95`, schemas, CI guide.
+- **M4 pending:** replace the `serve --live` 350 ms reopen and 80x downsample
+  with recorder-tail SSE and incremental WASM stores.
+- **M5 pending:** release artifacts, macOS app bundle, Linux packages,
+  Homebrew templates, `demo`, first-run flow.
+- **M6 pending:** presets, cgroup attribution, PSI, overhead meter, fuzz,
+  real workload fixtures.
