@@ -1,0 +1,22 @@
+[Unit]
+Description=xsprof read-only scheduler recorder
+After=local-fs.target
+
+[Service]
+Type=simple
+User=xsprof
+Group=xsprof
+StateDirectory=xsprof
+ExecStart=/usr/bin/xsprof daemon --foreground --dir /var/lib/xsprof --retain 10m --max-bytes 2G
+AmbientCapabilities=CAP_PERFMON CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_PERFMON CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/sys/kernel/tracing /sys/kernel/debug/tracing
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

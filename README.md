@@ -58,6 +58,10 @@ xsprof timeline --input journal.jsonl [--window start:end] [--chunk-size N]
 xsprof record --duration ms [--output journal.jsonl]
 xsprof serve [--journal journal.jsonl] [--live]
 xsprof snapshot [--replay journal.jsonl]
+xsprof daemon --foreground --dir /var/lib/xsprof
+xsprof capture --last 5m --dir /var/lib/xsprof
+xsprof watch --dir /var/lib/xsprof
+xsprof doctor --json
 xsprof ui [--replay journal.jsonl] [--view overview|timeline|advisor|events|capture]
 xsprof bpf-gate --json
 ```

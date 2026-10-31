@@ -12,6 +12,7 @@ Status is updated only when a phase gate actually passes.
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | **complete** |
 | P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | **complete** |
+| M1 | Flight recorder: daemon, segments, retention, `capture --last`, `watch`, `doctor`, systemd unit | in progress |
 
 ## P7 gate (passed)
 
