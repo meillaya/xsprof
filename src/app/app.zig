@@ -8,6 +8,7 @@ const layout = @import("../ui/layout.zig");
 const widgets = @import("../ui/widgets.zig");
 const session_mod = @import("../stream/session.zig");
 const input_mod = @import("../ui/input.zig");
+const app_util = @import("app_util.zig");
 const advisor = @import("../analyze/advisor.zig");
 
 pub const Screen = enum { overview, timeline, advisor, events, capture };
@@ -59,6 +60,7 @@ pub const State = struct {
     event_scroll: usize = 0,
     events_rect: layout.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
     events_visible: usize = 0,
+    events_start: usize = 0,
 };
 
 pub fn view(state: *State, ui: *layout.Ui) !void {
@@ -92,6 +94,33 @@ fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
         state.event_scroll = @min(max_scroll, state.event_scroll + step);
         if (input.scroll_y < 0) state.event_scroll -|= 3;
         input.scroll_y = 0;
+    }
+    if (state.screen == .events and input.clicked and
+        input.inside(state.events_rect.x, state.events_rect.y, state.events_rect.w, state.events_rect.h) and
+        state.events_visible != 0)
+    {
+        const row_offset = input.pointer_y - state.events_rect.y;
+        if (row_offset >= 0) {
+            const row: usize = @intFromFloat(@floor(row_offset / 22.0));
+            const index = state.events_start + row;
+            if (index < state.session.events.len) {
+                const entry = state.session.events[index];
+                const event_us = entry.ts_ns / 1000;
+                const full_start = state.session.first_us;
+                const full_end = @max(state.session.last_us, full_start + 1);
+                var start = event_us -| 500_000;
+                var end = event_us +| 500_000;
+                if (start < full_start) start = full_start;
+                if (end > full_end) end = full_end;
+                if (end <= start) {
+                    start = full_start;
+                    end = full_end;
+                }
+                state.window = .{ .start_us = start, .end_us = end };
+                state.screen = .timeline;
+                input.clicked = false;
+            }
+        }
     }
     if (input.key == .zero) {
         state.window = null;
@@ -301,8 +330,8 @@ fn overview(state: *State, ui: *layout.Ui) !void {
     comms.end();
 
     var range = try widgets.panel(ui, "SESSION", .{ .height = 120 });
-    const first = try formatTime(ui.allocator, state.session.first_us);
-    const last = try formatTime(ui.allocator, state.session.last_us);
+    const first = try app_util.formatTime(ui.allocator, state.session.first_us);
+    const last = try app_util.formatTime(ui.allocator, state.session.last_us);
     try kv(ui, "source", state.session.source);
     try kv(ui, "window", try std.fmt.allocPrint(ui.allocator, "{s} -> {s}", .{ first, last }));
     try kv(
@@ -463,10 +492,6 @@ fn captureView(state: *State, ui: *layout.Ui) !void {
     panel.end();
 }
 
-fn formatTime(allocator: std.mem.Allocator, us: u64) ![]const u8 {
-    return std.fmt.allocPrint(allocator, "{d}.{d:0>3}s", .{ us / 1_000_000, (us / 1000) % 1000 });
-}
-
 fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
     const state: *State = @ptrCast(@alignCast(user.?));
     const session = state.session;
@@ -488,7 +513,7 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         const t = start + (end - start) * tick / 4;
         const x = plot_x + plot_w * @as(f32, @floatFromInt(tick)) / 4.0;
         try frame.list.rect(x, rect.y + 14, 1, rect.h - 14, th.hairline, clip);
-        const label = try formatTime(frame.allocator, t);
+        const label = try app_util.formatTime(frame.allocator, t);
         _ = try frame.list.text(0, &frame.regular, 12, x + 2, rect.y, label, th.muted, clip);
     }
     const lanes = @max(1, session.cpu_count);
@@ -512,10 +537,13 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
     const span = @as(f32, @floatFromInt(end - start));
     for (session.slices) |slice| {
         if (slice.cpu >= lanes) continue;
-        const x0 = plot_x + plot_w * @as(f32, @floatFromInt(slice.start_us - start)) / span;
-        const x1 = plot_x + plot_w * @as(f32, @floatFromInt(@min(slice.end_us, end) - start)) / span;
+        const slice_start = @max(slice.start_us, start);
+        const slice_end = @min(slice.end_us, end);
+        if (slice_end <= slice_start) continue;
+        const x0 = plot_x + plot_w * @as(f32, @floatFromInt(slice_start - start)) / span;
+        const x1 = plot_x + plot_w * @as(f32, @floatFromInt(slice_end - start)) / span;
         const y = rect.y + 20 + @as(f32, @floatFromInt(slice.cpu)) * lane_h;
-        const color = palette(th, slice.comm);
+        const color = app_util.palette(th, slice.comm);
         try frame.list.rect(x0, y + 2, @max(1, x1 - x0), @max(1, lane_h - 6), color, clip);
         if (state.selection) |selection| {
             if (slice.pid == selection.pid and std.mem.eql(u8, slice.comm, selection.comm)) {
@@ -528,21 +556,6 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         const label = std.fmt.bufPrint(&buf, "LOSS x{d}", .{session.lost}) catch "LOSS";
         _ = try frame.list.text(1, &frame.bold, 10, rect.x + rect.w - 70, rect.y, label, th.refuse, clip);
     }
-}
-
-fn palette(th: draw.Theme, comm: []const u8) draw.Color {
-    var h: u32 = 2166136261;
-    for (comm) |byte| {
-        h ^= byte;
-        h *%= 16777619;
-    }
-    return switch (h % 5) {
-        0 => th.live,
-        1 => th.pass,
-        2 => th.vm,
-        3 => th.skip,
-        else => th.pending,
-    };
 }
 
 fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
@@ -559,6 +572,7 @@ fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, cl
     state.event_scroll = @min(state.event_scroll, max_scroll);
     const first = total -| (visible + state.event_scroll);
     const start = first;
+    state.events_start = first;
     var row: usize = 0;
     var index = total - state.event_scroll;
     while (index > start) {
@@ -570,7 +584,7 @@ fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, cl
             (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
                 std.mem.indexOf(u8, e.detail, "lost") != null);
         const color = if (is_loss) th.refuse else th.text;
-        _ = try frame.list.text(0, &frame.regular, 12, rect.x, y, try formatTime(frame.allocator, e.ts_ns / 1000), th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 12, rect.x, y, try app_util.formatTime(frame.allocator, e.ts_ns / 1000), th.muted, clip);
         _ = try frame.list.text(0, &frame.regular, 10, rect.x + 76, y, @tagName(e.kind), color, clip);
         var meta: [64]u8 = undefined;
         const meta_text = std.fmt.bufPrint(&meta, "cpu={d} pid={d}", .{ e.cpu, e.pid }) catch "";

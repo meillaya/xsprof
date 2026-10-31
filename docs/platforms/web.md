@@ -23,6 +23,7 @@ The P3 web surface is a **read-only replay client**:
   `.ndjson`/`.jsonl`/`.json` capture, and `0` resets the timeline window;
 - drag/drop a capture anywhere on the page to load it locally; nothing is
   uploaded;
+- clicking an event row opens the timeline centered on that event;
   `?theme=light` selects the paper theme; `1..5` switches screens.
 - `/api/meta` is `xsprof/ui-session/v1` with `host_mutation=false` and an event
   count.
