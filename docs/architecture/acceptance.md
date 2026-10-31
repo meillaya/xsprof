@@ -60,6 +60,8 @@ and web smoke.
   transport window advancement, inspector, palette, and trace export.
 - L4: `xsprof lab`, scenario schema, built-in scenarios, canonical run JSON,
   per-step snapshots, and `zig build lab-smoke`.
+- L3 A/B: the rail sets a second source, loads it into a separate source
+  store, and reports compare regressions.
 - L5: the wasm replay client shares the lab state and rail; native-only source
   and capture controls are hidden. `web_run_scenario` runs the healthy scenario
   over the loaded journal and returns canonical run JSON; `qa/web_lab_smoke.mjs`

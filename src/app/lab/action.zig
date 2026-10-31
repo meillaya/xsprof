@@ -29,6 +29,8 @@ pub const TransportIntent = enum {
 
 pub const CaptureOutcome = enum { stopped, failed, refused, skipped };
 
+pub const ComparePhase = enum { none, loading, ready, failed };
+
 pub const Intent = union(enum) {
     screen: app_state.Screen,
     toggle_rail,
@@ -42,6 +44,8 @@ pub const Intent = union(enum) {
     transport: TransportIntent,
     filter_comm: []const u8,
     select_pid: i32,
+    set_compare,
+    clear_compare,
     focus_input: InputField,
     text_input: struct { field: InputField, text: []const u8 },
     backspace_input: InputField,
@@ -55,6 +59,8 @@ pub const Intent = union(enum) {
 pub const Completion = union(enum) {
     source_ready: struct { session: *const session_mod.Session },
     source_failed: struct { reason: []const u8 },
+    compare_ready: struct { session: *const session_mod.Session },
+    compare_failed: struct { reason: []const u8 },
     capture_started,
     capture_progress: struct {
         events: u64,
@@ -81,6 +87,8 @@ pub const Msg = union(enum) {
 pub const Effect = union(enum) {
     none,
     load_source: struct { kind: SourceKind, path: []const u8 },
+    load_compare: struct { kind: SourceKind, path: []const u8 },
+    clear_compare,
     start_capture: struct { duration_ms: u32, preset: CapturePreset },
     stop_capture,
     exports: struct { kind: ExportKind, path: []const u8 },

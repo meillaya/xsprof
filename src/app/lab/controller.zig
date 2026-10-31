@@ -14,11 +14,16 @@ const chrome_trace = @import("../../viz/chrome_trace.zig");
 pub const Controller = struct {
     allocator: std.mem.Allocator,
     store: source_mod.SourceStore,
+    compare_store: source_mod.SourceStore,
     feed: live_feed.Store = .{},
     worker: ?*lab_worker.Worker = null,
 
     pub fn init(allocator: std.mem.Allocator) Controller {
-        return .{ .allocator = allocator, .store = source_mod.SourceStore.init(allocator) };
+        return .{
+            .allocator = allocator,
+            .store = source_mod.SourceStore.init(allocator),
+            .compare_store = source_mod.SourceStore.init(allocator),
+        };
     }
 
     pub fn deinit(self: *Controller) void {
@@ -28,6 +33,7 @@ pub const Controller = struct {
         }
         self.feed.deinit();
         self.store.deinit();
+        self.compare_store.deinit();
     }
 
     pub fn apply(
@@ -40,6 +46,8 @@ pub const Controller = struct {
             switch (effect) {
                 .none => {},
                 .load_source => |request| self.load(io, lab, request.kind, request.path),
+                .load_compare => |request| self.loadCompare(io, lab, request.kind, request.path),
+                .clear_compare => self.compare_store.clear(),
                 .start_capture => |request| try self.start(io, lab, request.duration_ms, request.preset),
                 .stop_capture => self.stop(lab),
                 .exports => |request| try self.exportFile(io, lab, request.kind, request.path),
@@ -87,6 +95,27 @@ pub const Controller = struct {
             return;
         };
         _ = lab.apply(.{ .completion = .{ .source_ready = .{ .session = session } } }) catch {};
+    }
+
+    fn loadCompare(
+        self: *Controller,
+        io: std.Io,
+        lab: *state_mod.LabState,
+        kind: action.SourceKind,
+        path: []const u8,
+    ) void {
+        if (kind == .live) {
+            _ = lab.apply(.{ .completion = .{ .compare_failed = .{ .reason = "live compare is unsupported" } } }) catch {};
+            return;
+        }
+        const session = (switch (kind) {
+            .recorder => self.compare_store.loadRecorder(io, path, 10 * 60 * 1000),
+            else => self.compare_store.loadReplay(io, path),
+        }) catch |err| {
+            _ = lab.apply(.{ .completion = .{ .compare_failed = .{ .reason = @errorName(err) } } }) catch {};
+            return;
+        };
+        _ = lab.apply(.{ .completion = .{ .compare_ready = .{ .session = session } } }) catch {};
     }
 
     fn start(
@@ -203,6 +232,11 @@ test "controller loads a replay and reports capture SKIP off Linux" {
     try controller.apply(std.testing.io, &lab, open.slice());
     try std.testing.expectEqual(state_mod.SourcePhase.ready, lab.source.phase);
     try std.testing.expect(lab.view.session.events.len > 1000);
+
+    const compare = try lab.apply(.{ .intent = .set_compare });
+    try controller.apply(std.testing.io, &lab, compare.slice());
+    try std.testing.expectEqual(action.ComparePhase.ready, lab.compare.phase);
+    try std.testing.expect(lab.compare.session != null);
 
     const start = try lab.apply(.{ .intent = .{ .start_capture = .{
         .duration_ms = 10,
