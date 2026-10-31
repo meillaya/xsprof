@@ -31,6 +31,8 @@ pub const Hit = enum(u32) {
     export_write = 33,
     compare_set = 40,
     compare_clear = 41,
+    snapshot_write = 42,
+    report_write = 43,
     palette_close = 20,
     palette_healthy = 21,
     palette_scheduler_mix = 22,
@@ -128,27 +130,46 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
         compare_row.end();
         if (lab.compare.phase == .failed) {
             try ui.text(.{ .text = "compare A failed", .size = 9, .color = th.refuse });
-        } else if (lab.compare.session) |base| {
-            const report = compare_mod.build(
-                ui.allocator,
-                lab.compare.pathSlice(),
-                base.metrics,
-                if (lab.source.path_len == 0) "active" else lab.source.pathSlice(),
-                lab.view.session.metrics,
-                10.0,
-            ) catch null;
-            if (report) |value| {
-                try ui.text(.{
-                    .text = try std.fmt.allocPrint(
-                        ui.allocator,
-                        "A/B regressions {d} of {d}",
-                        .{ value.regressions, value.tasks.len },
-                    ),
-                    .size = 9,
-                    .color = if (value.regressions == 0) th.pass else th.refuse,
-                });
-            }
         }
+    }
+    if (lab.compare.session) |base| {
+        const report = compare_mod.build(
+            ui.allocator,
+            if (lab.compare.path_len == 0) "compare" else lab.compare.pathSlice(),
+            base.metrics,
+            if (lab.source.path_len == 0) "active" else lab.source.pathSlice(),
+            lab.view.session.metrics,
+            10.0,
+        ) catch null;
+        if (report) |value| {
+            try ui.text(.{
+                .text = try std.fmt.allocPrint(
+                    ui.allocator,
+                    "A/B regressions {d} of {d}",
+                    .{ value.regressions, value.tasks.len },
+                ),
+                .size = 9,
+                .color = if (value.regressions == 0) th.pass else th.refuse,
+            });
+        }
+    }
+
+    if (lab.host_controls and lab.host.seen) {
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(
+                ui.allocator,
+                "HOST pressure {s} {d}/{d}/{d} cg {d}",
+                .{
+                    if (lab.host.pressure_available) "ok" else "skip",
+                    lab.host.cpu_bp,
+                    lab.host.memory_bp,
+                    lab.host.io_bp,
+                    lab.host.cgroup_groups,
+                },
+            ),
+            .size = 9,
+            .color = if (lab.host.pressure_available) th.live else th.skip,
+        });
     }
 
     try ui.text(.{ .text = "CAPTURE", .size = 9, .color = th.muted, .weight = .bold });
@@ -202,7 +223,6 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
         .color = th.muted,
     });
 
-    try ui.text(.{ .text = "INSPECTOR", .size = 9, .color = th.muted, .weight = .bold });
     if (lab.host_controls) {
         try ui.text(.{ .text = "EXPORT", .size = 9, .color = th.muted, .weight = .bold });
         try controls.textField(
@@ -212,11 +232,14 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
             lab.input_focus == .export_path,
             "trace.json",
         );
-        var write_row = try ui.row(.{ .height = 26 });
-        try controls.button(ui, @backingInt(Hit.export_write), "write trace", .{ .width = 100 });
+        var write_row = try ui.row(.{ .height = 26, .gap = 4 });
+        try controls.button(ui, @backingInt(Hit.export_write), "trace", .{ .width = 60 });
+        try controls.button(ui, @backingInt(Hit.report_write), "report", .{ .width = 60 });
+        try controls.button(ui, @backingInt(Hit.snapshot_write), "PNG", .{ .width = 52 });
         write_row.end();
     }
     if (lab.view.selection) |selection| {
+        try ui.text(.{ .text = "INSPECTOR", .size = 9, .color = th.muted, .weight = .bold });
         try ui.text(.{
             .text = try std.fmt.allocPrint(ui.allocator, "{s} pid={d}", .{ selection.comm, selection.pid }),
             .size = 10,
@@ -315,6 +338,14 @@ pub fn collect(lab: *lab_state.LabState, ui: *layout.Ui, input: *input_mod.Input
                 @backingInt(Hit.export_write) => messages.add(.{ .intent = .{ .submit_input = .export_path } }),
                 @backingInt(Hit.compare_set) => messages.add(.{ .intent = .set_compare }),
                 @backingInt(Hit.compare_clear) => messages.add(.{ .intent = .clear_compare }),
+                @backingInt(Hit.snapshot_write) => messages.add(.{ .intent = .{ .exports = .{
+                    .kind = .snapshot,
+                    .path = "xsprof-lab.png",
+                } } }),
+                @backingInt(Hit.report_write) => messages.add(.{ .intent = .{ .exports = .{
+                    .kind = .report,
+                    .path = "xsprof-report.json",
+                } } }),
                 @backingInt(Hit.palette_close) => messages.add(.{ .intent = .palette_close }),
                 @backingInt(Hit.palette_healthy) => messages.add(.{ .intent = .{ .open_source = .{
                     .kind = .replay,

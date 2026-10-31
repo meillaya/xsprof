@@ -34,6 +34,12 @@ var lab: lab_state.LabState = undefined;
 var lab_ready = false;
 var scenario_result: ?[]u8 = null;
 var trace_result: ?[]u8 = null;
+var compare_store: stream_store.Store = undefined;
+var compare_index: stream_index.Index = undefined;
+var compare_store_ready = false;
+var compare_arena: std.heap.ArenaAllocator = undefined;
+var compare_arena_ready = false;
+var compare_session: ?session_mod.Session = null;
 var screen: app.Screen = .overview;
 var theme: draw.Theme = .{};
 var width: u32 = 1280;
@@ -246,6 +252,47 @@ export fn web_run_scenario(addr: usize, len: usize) u32 {
     if (scenario_result) |old| gpa.free(old);
     scenario_result = bytes;
     return 1;
+}
+
+fn clearCompare() void {
+    if (lab_ready) {
+        lab.compare.session = null;
+        lab.compare.phase = .none;
+        lab.compare.path_len = 0;
+    }
+    if (compare_session != null) compare_session = null;
+    if (compare_store_ready) {
+        compare_store.deinit();
+        compare_index.deinit();
+        compare_store_ready = false;
+    }
+    if (compare_arena_ready) {
+        compare_arena.deinit();
+        compare_arena_ready = false;
+    }
+}
+
+export fn web_load_compare(addr: usize, len: usize) u32 {
+    if (!ensureLab() or addr == 0 or len == 0) return 0;
+    clearCompare();
+    compare_arena = std.heap.ArenaAllocator.init(gpa);
+    compare_arena_ready = true;
+    compare_store = stream_store.Store.init(gpa);
+    compare_store.max_bytes = 64 * 1024 * 1024;
+    compare_store_ready = true;
+    compare_index = stream_index.Index.init(gpa);
+    const input: [*]const u8 = @ptrFromInt(addr);
+    _ = compare_store.append(input[0..len]) catch return 0;
+    compare_index.append(compare_store.events.items) catch return 0;
+    compare_session = compare_index.snapshot(compare_arena.allocator(), "web compare") catch null;
+    if (compare_session == null) return 0;
+    lab.compare.phase = .ready;
+    lab.compare.session = &compare_session.?;
+    return 1;
+}
+
+export fn web_clear_compare() void {
+    clearCompare();
 }
 
 export fn web_generate_trace() u32 {
