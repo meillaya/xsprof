@@ -6,6 +6,7 @@ const std = @import("std");
 const event = @import("../core/event.zig");
 const live = @import("../capture/live.zig");
 const Store = @import("live_store.zig").Store;
+const spool = @import("spool.zig");
 
 const Writer = std.Io.Writer;
 
@@ -17,6 +18,7 @@ pub const Options = struct {
     token: []const u8,
     live: bool = false,
     live_stride: u32 = 80,
+    live_dir: ?[]const u8 = null,
 };
 
 fn isLoopback(addr: []const u8) bool {
@@ -324,7 +326,11 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !void {
     var store: Store = .init();
     defer store.deinit();
     if (opts.live) {
-        _ = std.Thread.spawn(.{}, worker, .{ io, &store, opts.live_stride }) catch return error.CaptureThreadFailed;
+        if (opts.live_dir) |dir| {
+            _ = std.Thread.spawn(.{}, spool.run, .{ io, dir, &store }) catch return error.CaptureThreadFailed;
+        } else {
+            _ = std.Thread.spawn(.{}, worker, .{ io, &store, opts.live_stride }) catch return error.CaptureThreadFailed;
+        }
     }
     const address = try std.Io.net.IpAddress.parse(opts.addr, opts.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
