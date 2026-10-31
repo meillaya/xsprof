@@ -20,10 +20,11 @@ On a normal Linux host, `./tools/zig build` targets the host glibc and works.
 
 - `src/platform/linux/x11.zig` — Xlib display/window/events, GLX visual and
   context, key handling, `--smoke`.
-- `src/platform/linux/gl.zig` — runtime-loaded OpenGL 3.3 renderer, one
-  instanced `GL_TRIANGLE_STRIP` draw, R8 atlas upload, straight-alpha blend.
-- `src/platform/linux/ui.vert.glsl` / `ui.frag.glsl` — the same shader as the
-  WebGL frontend, adapted to desktop GLSL 330.
+- `lib/xsui/src/gpu/gl.zig` (module `xsui-gl`) — runtime-loaded OpenGL 3.3
+  renderer, one instanced `GL_TRIANGLE_STRIP` draw, R8 atlas upload,
+  straight-alpha blend, capability probing, and the `gpu.Renderer` adapter.
+- `lib/xsui/src/gpu/shaders/gl330/ui.vert.glsl` / `ui.frag.glsl` — the same
+  shader as the WebGL frontend, adapted to desktop GLSL 330.
 - Keys: `1`–`5` screens, `t` theme, `q`/Escape quit; the window manager close
   button uses `WM_DELETE_WINDOW`.
 

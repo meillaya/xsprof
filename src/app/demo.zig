@@ -1,8 +1,9 @@
 //! Temporary P2 demo frame. P3 replaces it with the profiler screens.
 
 const std = @import("std");
-const ui = @import("../ui/frame.zig");
-const draw = @import("../ui/draw.zig");
+const xsui = @import("xsui");
+const ui = xsui.frame;
+const draw = xsui.draw;
 
 pub fn build(frame: *ui.Frame) !void {
     const theme = frame.theme;

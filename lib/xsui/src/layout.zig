@@ -455,7 +455,7 @@ test "layout paint produces deterministic pixels" {
     var ui = Ui.init(&frame);
     defer ui.deinit();
     const root = try ui.column(.{ .padding = Edges.all(8), .gap = 4, .bg = frame.theme.panel });
-    try ui.text(.{ .text = "xsprof", .size = 16, .color = frame.theme.live, .weight = .bold });
+    try ui.text(.{ .text = "xsui", .size = 16, .color = frame.theme.live, .weight = .bold });
     const row = try ui.row(.{ .gap = 4, .height = 20 });
     const a = try ui.column(.{ .flex = 1, .bg = frame.theme.raised, .radius = 3 });
     a.end();

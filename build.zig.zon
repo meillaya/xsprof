@@ -3,11 +3,16 @@
     .version = "0.2.0",
     .fingerprint = 0x923f1bb78cd792f4,
     .minimum_zig_version = "0.17.0",
-    .dependencies = .{},
+    .dependencies = .{
+        .xsui = .{
+            .path = "lib/xsui",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
+        "lib",
         "tests",
         "tools",
         "qa",
@@ -16,6 +21,7 @@
         "web",
         "assets",
         "docs",
+        "design",
         "README.md",
         "AGENTS.md",
         "DESIGN.md",

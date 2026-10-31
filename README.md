@@ -14,8 +14,9 @@
 records perf tracepoints into bounded rotating segments, extracts the last few
 minutes after an incident, exports Chrome Trace, and runs a seven-rule
 performance advisor. The GUI lab opens journals, runs scenarios, compares A/B
-sources, and exports trace, report, and snapshot. The UI is one draw list
-rendered by CPU, Metal, or WebGL2.
+sources, and exports trace, report, and snapshot. The UI is the standalone
+[`lib/xsui`](lib/xsui/README.md) package: one draw list rendered by CPU, Metal,
+OpenGL 3.3, or WebGL2.
 
 ## Requirements
 
@@ -28,9 +29,10 @@ at runtime. The shipped binary has no third-party runtime dependencies.
 ## Build
 
 ```sh
-./tools/zig build          # zig-out/bin/xsprof
-./tools/zig build check    # formatting, line limit, vendor hashes, 106 tests
-./tools/zig build web      # wasm UI and browser assets
+./tools/zig build                # zig-out/bin/xsprof
+./tools/zig build check          # formatting, line limit, vendor hashes, tests
+./tools/zig build xsui-package   # standalone lib/xsui package gate
+./tools/zig build web            # wasm UI and browser assets
 ./tools/zig build run -- help
 ```
 
@@ -52,6 +54,17 @@ xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 and writes an atomic manifest. `watch` is the SSH view shown above. `serve`
 exposes a loopback replay or live view behind a random token. `ui` opens the
 native profiler. Unknown verbs fail closed.
+
+## Design contract
+
+The console prototype is [`design/index.html`](design/index.html). Its extracted token set,
+screen/flow/keybinding inventory, palette source, and GPU mapping live in
+[`design/`](design/README.md) (`tokens.json`, `palettes.json`, `tokens.css`,
+`screens.json`, `flows.json`, `keybindings.json`, `command-palette.json`).
+
+```sh
+python3 design/validate.py   # source hash + token/palette/CSS consistency
+```
 
 ## Safety
 
@@ -89,7 +102,8 @@ let the release workflow build, notarize, publish, and update the tap.
 ```sh
 ./tools/zig build test
 ./tools/zig build fuzz
-./tools/zig build service-smoke    # Linux root, disposable VM
+(cd lib/xsui && ../../tools/zig build test)   # package in isolation
+./tools/zig build service-smoke               # Linux root, disposable VM
 ```
 
 The demo GIF uses a real capture fixture. Regenerating it needs Go, ffmpeg,

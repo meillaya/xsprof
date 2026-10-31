@@ -3,10 +3,11 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const objc = @import("objc.zig");
-const draw = @import("../../ui/draw.zig");
+const xsui = @import("xsui");
+const objc = @import("xsui-objc");
+const draw = xsui.draw;
 
-const shader_source = @embedFile("ui.metal");
+const shader_source = @embedFile("shaders/metal/ui.metal");
 const pixel_format: objc.NSUInteger = 80; // BGRA8Unorm
 const atlas_format: objc.NSUInteger = 10; // R8Unorm
 const Region = extern struct {
@@ -66,6 +67,11 @@ pub const Renderer = struct {
         objc.release(self.pipeline);
         objc.release(self.queue);
         objc.release(self.device);
+    }
+
+    /// Adapts this renderer to the public `xsui.gpu.Renderer` contract.
+    pub fn interface(self: *Renderer) xsui.gpu.Renderer {
+        return interfaceFor(self);
     }
 
     pub fn setSize(self: *Renderer, width: u32, height: u32) void {
@@ -240,6 +246,71 @@ pub const Renderer = struct {
     }
 };
 
+/// Probes the system Metal device without creating a pipeline. A missing
+/// device is SKIP, never a fabricated READY.
+pub fn capability() xsui.gpu.Capability {
+    const pool = objc.Pool.push();
+    defer pool.pop();
+    const device = MTLCreateSystemDefaultDevice() orelse return .{
+        .backend = .metal,
+        .status = .skip,
+        .reason = "no Metal device",
+    };
+    objc.release(device);
+    return .{ .backend = .metal, .status = .ready, .reason = "Metal device available" };
+}
+
+fn interfaceDeinit(context: *anyopaque) void {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    self.deinit();
+}
+
+fn interfaceResize(context: *anyopaque, target: xsui.gpu.Target) void {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    self.setSize(target.width, target.height);
+}
+
+fn interfaceDraw(
+    context: *anyopaque,
+    list: *const draw.DrawList,
+    target: xsui.gpu.Target,
+    background: draw.Color,
+) !bool {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    return self.present(list.items.items, list.atlas, target.width, target.height, background);
+}
+
+fn interfaceReadback(
+    context: *anyopaque,
+    allocator: std.mem.Allocator,
+    list: *const draw.DrawList,
+    target: xsui.gpu.Target,
+    background: draw.Color,
+) ![]u8 {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    return self.renderOffscreen(
+        allocator,
+        list.items.items,
+        list.atlas,
+        target.width,
+        target.height,
+        background,
+    );
+}
+
+const interface_vtable: xsui.gpu.Renderer.VTable = .{
+    .backend = .metal,
+    .deinit = interfaceDeinit,
+    .resize = interfaceResize,
+    .draw = interfaceDraw,
+    .readback = interfaceReadback,
+};
+
+/// Adapts a concrete renderer to the public `xsui.gpu.Renderer` contract.
+pub fn interfaceFor(self: *Renderer) xsui.gpu.Renderer {
+    return .{ .context = self, .vtable = &interface_vtable };
+}
+
 fn makePipeline(device: objc.Object, library: objc.Object) !objc.Object {
     const vs = objc.msg(objc.Object, library, "newFunctionWithName:", .{objc.nsString("vs")});
     defer objc.release(vs);
@@ -264,30 +335,50 @@ fn makePipeline(device: objc.Object, library: objc.Object) !objc.Object {
     }) orelse error.PipelineCreate;
 }
 
+fn sampleView(_: ?*anyopaque, ui: *xsui.Ui) !void {
+    const theme = ui.theme;
+    var root = try ui.column(.{
+        .padding = xsui.Edges.all(10),
+        .gap = 8,
+        .bg = theme.panel,
+    });
+    try ui.text(.{ .text = "xsui metal parity", .size = 16, .color = theme.live, .weight = .bold });
+    var row = try ui.row(.{ .height = 40, .gap = 8 });
+    var a = try ui.column(.{
+        .flex = 1,
+        .bg = theme.raised,
+        .border = theme.hairline,
+        .border_width = 1,
+        .radius = 4,
+    });
+    a.end();
+    var b = try ui.column(.{ .flex = 2, .bg = theme.vm, .radius = 4 });
+    b.end();
+    row.end();
+    try ui.text(.{ .text = "flat instance list", .size = 12, .color = theme.muted });
+    root.end();
+}
+
 fn parity() !void {
-    const frame_mod = @import("../../ui/frame.zig");
-    const layout = @import("../../ui/layout.zig");
-    const gallery = @import("../../app/gallery.zig");
-    const raster = @import("../../ui/raster.zig");
     const width: u32 = 320;
     const height: u32 = 180;
-    var frame: frame_mod.Frame = undefined;
+    var frame: xsui.Frame = undefined;
     try frame.init(std.testing.allocator, width, height, .{});
     defer frame.deinit();
-    var ui = layout.Ui.init(&frame);
+    var ui = xsui.Ui.init(&frame);
     defer ui.deinit();
-    try gallery.build(&ui);
+    try sampleView(null, &ui);
     try ui.finish();
-    const cpu = try raster.render(std.testing.allocator, width, height, &frame.list, frame.theme.bg);
+    const cpu = try xsui.raster.render(std.testing.allocator, width, height, &frame.list, frame.theme.bg);
     defer std.testing.allocator.free(cpu);
     var renderer = try Renderer.init();
     defer renderer.deinit();
-    const bgra = try renderer.renderOffscreen(
+    const renderer_interface = renderer.interface();
+    try std.testing.expect(renderer_interface.supportsReadback());
+    const bgra = try renderer_interface.readPixels(
         std.testing.allocator,
-        frame.list.items.items,
-        &frame.atlas,
-        width,
-        height,
+        &frame.list,
+        .{ .width = width, .height = height },
         frame.theme.bg,
     );
     defer std.testing.allocator.free(bgra);
@@ -319,4 +410,11 @@ test "metal offscreen matches the CPU renderer" {
     } else {
         return error.SkipZigTest;
     }
+}
+
+test "metal capability reports an explicit state" {
+    const cap = capability();
+    try std.testing.expectEqual(xsui.gpu.Backend.metal, cap.backend);
+    try std.testing.expect(cap.status == .ready or cap.status == .skip);
+    try std.testing.expect(cap.reason.len != 0);
 }

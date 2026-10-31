@@ -2,9 +2,10 @@
 //! kind, and loss/refusal rows at the same time; every predicate is optional.
 
 const std = @import("std");
+const xsui = @import("xsui");
 const event = @import("../core/event.zig");
 const session_mod = @import("../stream/session.zig");
-const input_mod = @import("../ui/input.zig");
+const input_mod = xsui.input;
 
 pub const Filter = struct {
     comm: ?[]const u8 = null,

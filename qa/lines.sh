@@ -5,7 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 status=0
 list=$(mktemp)
 trap 'rm -f "$list"' EXIT HUP INT TERM
-find "$ROOT/src" "$ROOT/tests" "$ROOT/tools" "$ROOT/web" \
+find "$ROOT/src" "$ROOT/lib" "$ROOT/tests" "$ROOT/tools" "$ROOT/web" \
     -type f \( -name '*.zig' -o -name '*.js' -o -name '*.css' -o -name '*.html' \
                -o -name '*.glsl' -o -name '*.metal' \) \
     -not -path '*/zig-out/*' -not -path '*/.zig-cache/*' | LC_ALL=C sort > "$list"

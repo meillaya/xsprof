@@ -1,9 +1,10 @@
 const std = @import("std");
+const xsui = @import("xsui");
 const app = @import("app.zig");
 const session_mod = @import("../stream/session.zig");
-const frame_mod = @import("../ui/frame.zig");
-const layout = @import("../ui/layout.zig");
-const input_mod = @import("../ui/input.zig");
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
+const input_mod = xsui.input;
 
 const State = app.State;
 const Screen = app.Screen;

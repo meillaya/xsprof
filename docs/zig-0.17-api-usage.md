@@ -22,6 +22,12 @@ Pinned toolchain: **0.17.0**. Source references are line numbers in
   explicit in 0.17.
 - `b.addTest(.{ .root_module })`, `b.addRunArtifact`, `b.addFmt(.{ .paths,
   .exclude_paths, .check })`, and `b.addSystemCommand`.
+- First-party packages use `.dependencies = .{ .xsui = .{ .path = "lib/xsui" } }`
+  in `build.zig.zon` and `b.dependency("xsui", .{ .target, .optimize })` in
+  `build.zig`; exported modules come from `package build.zig`'s
+  `b.addModule("xsui", ...)` and are retrieved with `dep.module("xsui")`.
+  Native backends are separate exported modules so wasm only imports the
+  target-neutral core.
 - WebAssembly executables set `root_module` with the wasm target,
   `entry = .disabled`, and `export_symbol_names` on the root module; exported
   Zig functions use `export fn`.

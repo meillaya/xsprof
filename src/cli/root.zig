@@ -8,7 +8,6 @@ const aggregates = @import("../analyze/aggregates.zig");
 const advisor = @import("../analyze/advisor.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
-const ui_frame = @import("../ui/frame.zig");
 const gallery = @import("../app/gallery.zig");
 const app = @import("../app/app.zig");
 const session_mod = @import("../stream/session.zig");

@@ -3,17 +3,17 @@
 //! dependency. `--smoke` connects under Xvfb but never maps the window.
 
 const std = @import("std");
+const xsui = @import("xsui");
 const builtin = @import("builtin");
-const gl = @import("gl.zig");
-const draw = @import("../../ui/draw.zig");
-const frame_mod = @import("../../ui/frame.zig");
-const layout = @import("../../ui/layout.zig");
+const gl = @import("xsui-gl");
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
 const app_mod = @import("../../app/app.zig");
 const lab_state = @import("../../app/lab/state.zig");
 const lab_controller = @import("../../app/lab/controller.zig");
 const lab_view = @import("../../app/lab_view.zig");
 const session_mod = @import("../../stream/session.zig");
-const input_mod = @import("../../ui/input.zig");
+const input_mod = xsui.input;
 
 const Display = opaque {};
 const Window = c_ulong;
@@ -189,14 +189,7 @@ const width: u32 = 1280;
 const height: u32 = 720;
 
 fn render(self: *App) !void {
-    const theme: draw.Theme = if (self.light) .{
-        .bg = .{ .r = 0xf3, .g = 0xea, .b = 0xd7 },
-        .panel = .{ .r = 0xff, .g = 0xf8, .b = 0xeb },
-        .raised = .{ .r = 0xe9, .g = 0xdf, .b = 0xcb },
-        .text = .{ .r = 0x1a, .g = 0x17, .b = 0x12 },
-        .muted = .{ .r = 0x6b, .g = 0x5f, .b = 0x51 },
-        .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
-    } else .{};
+    const theme = if (self.light) xsui.themes.light else xsui.themes.dark;
     var frame: frame_mod.Frame = undefined;
     try frame.init(self.allocator, width, height, theme);
     defer frame.deinit();

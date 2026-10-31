@@ -2,12 +2,13 @@
 //! ledger only materializes the rows that fit on screen.
 
 const std = @import("std");
+const xsui = @import("xsui");
 const app_state = @import("app_state.zig");
 const filter_mod = @import("filter.zig");
 const app_util = @import("app_util.zig");
-const frame_mod = @import("../ui/frame.zig");
-const layout = @import("../ui/layout.zig");
-const widgets = @import("../ui/widgets.zig");
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
+const widgets = xsui.widgets;
 
 const row_height = 22.0;
 

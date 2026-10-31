@@ -2,10 +2,11 @@
 //! EventStore and adds interaction; the visual grammar stays.
 
 const std = @import("std");
-const draw = @import("../ui/draw.zig");
-const layout = @import("../ui/layout.zig");
-const widgets = @import("../ui/widgets.zig");
-const frame_mod = @import("../ui/frame.zig");
+const xsui = @import("xsui");
+const draw = xsui.draw;
+const layout = xsui.layout;
+const widgets = xsui.widgets;
+const frame_mod = xsui.frame;
 
 pub fn build(ui: *layout.Ui) !void {
     const th = ui.theme;

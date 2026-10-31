@@ -2,11 +2,12 @@
 //! render per-step snapshots, and evaluate assertions headlessly.
 
 const std = @import("std");
+const xsui = @import("xsui");
 const json = @import("../../core/json.zig");
 const session_mod = @import("../../stream/session.zig");
 const chrome_trace = @import("../../viz/chrome_trace.zig");
-const frame_mod = @import("../../ui/frame.zig");
-const layout = @import("../../ui/layout.zig");
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
 const lab_state = @import("state.zig");
 const action = @import("action.zig");
 const lab_view = @import("../lab_view.zig");

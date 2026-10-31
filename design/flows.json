@@ -1,0 +1,586 @@
+{
+  "$schema": "xsprof/design-flows/v1",
+  "source": {
+    "file": "design/index.html",
+    "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
+    "bytes": 221754
+  },
+  "conventions": {
+    "ids": "stable kebab-case",
+    "steps": "ordered observable behavior; implementation may coalesce equal visual results",
+    "outcomes": "terminal or state-changing results"
+  },
+  "flows": [
+    {
+      "id": "boot",
+      "kind": "lifecycle",
+      "title": "Boot and initial render",
+      "trigger": "page load",
+      "preconditions": [
+        "window.XSPROF_SESSION exists"
+      ],
+      "steps": [
+        "Read the deterministic healthy fixture.",
+        "setTheme('dark') and render the full app: chrome, brief, capability matrix, CPU lanes, advisor mini, threads, event mix, memory, losses, status, events, advisor, capture, type chips.",
+        "Initialize navigation, timeline pointer interactions, advisor/events/capture handlers, palette, help, theme, and global keyboard.",
+        "Read location.hash; if it names a known screen, activate it; otherwise activate overview.",
+        "Observe the timeline plot width with ResizeObserver; re-render on width changes greater than 2px.",
+        "Cancel the playback animation frame on beforeunload."
+      ],
+      "outcomes": [
+        "Overview at #overview or the hash-selected screen",
+        "dark theme",
+        "keyboard and pointer handlers active"
+      ],
+      "failures": [
+        "Missing fixture aborts the script; no fabricated data."
+      ],
+      "source": [
+        "boot()",
+        "renderAll()",
+        "setScreen()",
+        "initKeyboard()"
+      ]
+    },
+    {
+      "id": "screen-navigation",
+      "kind": "navigation",
+      "title": "Switch profiler screens",
+      "trigger": [
+        "rail item click",
+        "global 1–5",
+        "palette screen command",
+        "[data-goto] link",
+        "hash on boot",
+        "rail arrow keys"
+      ],
+      "preconditions": [
+        "screen name is one of overview, timeline, advisor, events, capture"
+      ],
+      "steps": [
+        "If leaving timeline while playing, stop playback.",
+        "Hide every screen section except the selected one; mark the matching rail tab aria-selected=true.",
+        "Update the topbar screen title and replace the URL hash without a history entry.",
+        "Scroll the stage to the top.",
+        "Lazily render timeline/events/advisor/capture when selected; timeline re-renders after layout if width changed."
+      ],
+      "outcomes": [
+        "One visible tabpanel",
+        "rail active state and title match",
+        "URL hash matches",
+        "timeline playback stopped when leaving"
+      ],
+      "keys": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "ArrowDown/ArrowRight next in rail",
+        "ArrowUp/ArrowLeft previous in rail"
+      ],
+      "source": [
+        "setScreen()",
+        "initNavigation()",
+        "initKeyboard()"
+      ]
+    },
+    {
+      "id": "command-palette",
+      "kind": "overlay",
+      "title": "Command palette",
+      "trigger": [
+        "Meta+K",
+        "Control+K",
+        "palette button"
+      ],
+      "preconditions": [
+        "no modal is already open when the shortcut fires"
+      ],
+      "steps": [
+        "Open the modal with an empty query and the first command active.",
+        "Filter commands by case-insensitive substring over label + group.",
+        "ArrowDown/ArrowUp move the active command within bounds; Enter runs it; click runs it.",
+        "Close the dialog, then run the command: immediate commands run directly, other commands run on the next task.",
+        "Close on Escape or backdrop; return focus to the palette button."
+      ],
+      "outcomes": [
+        "Command executed and dialog closed",
+        "or dialog closed with focus restored"
+      ],
+      "failures": [
+        "No matching command shows an empty state and Enter does nothing."
+      ],
+      "keys": [
+        "Meta/Ctrl+K",
+        "ArrowDown",
+        "ArrowUp",
+        "Enter",
+        "Escape"
+      ],
+      "source": [
+        "COMMANDS",
+        "renderPalette()",
+        "runCommand()",
+        "openPalette()",
+        "initPalette()"
+      ]
+    },
+    {
+      "id": "appearance-theme",
+      "kind": "overlay",
+      "title": "Switch appearance palette",
+      "trigger": [
+        "w",
+        "theme button",
+        "palette Open appearance menu",
+        "palette Theme: … command"
+      ],
+      "preconditions": [
+        "theme id is one of dark, paper, latte, frappe, macchiato, mocha"
+      ],
+      "steps": [
+        "Open the appearance dialog and focus the active theme option.",
+        "Render core options (Graphite, Paper) and Catppuccin flavours (Latte, Frappe, Macchiato, Mocha) with four swatches each.",
+        "On option click, set the document data-theme immediately, update the button aria-label, re-render options, and toast the theme name.",
+        "Escape/backdrop/close closes and returns focus to the theme button; aria-expanded mirrors open state."
+      ],
+      "outcomes": [
+        "Palette applied immediately across every token consumer",
+        "selected option aria-pressed=true"
+      ],
+      "failures": [
+        "Unknown theme id is ignored."
+      ],
+      "keys": [
+        "w",
+        "Escape"
+      ],
+      "source": [
+        "THEMES",
+        "setTheme()",
+        "openTheme()",
+        "initTheme()"
+      ]
+    },
+    {
+      "id": "keyboard-help",
+      "kind": "overlay",
+      "title": "Keyboard help sheet",
+      "trigger": [
+        "?",
+        "help button",
+        "palette Keyboard help"
+      ],
+      "preconditions": [],
+      "steps": [
+        "Open the modal and focus its close button.",
+        "Escape, close, or backdrop closes it.",
+        "Return focus to the help button."
+      ],
+      "outcomes": [
+        "Help sheet open/closed with focus restored"
+      ],
+      "keys": [
+        "?",
+        "Escape"
+      ],
+      "source": [
+        "openHelp()",
+        "initHelp()"
+      ]
+    },
+    {
+      "id": "open-journal",
+      "kind": "data",
+      "title": "Open a journal file",
+      "trigger": [
+        "Open journal button",
+        "palette Open journal…",
+        "file picker",
+        "drag-and-drop a file"
+      ],
+      "preconditions": [
+        "file is readable text; accepted extensions .ndjson/.jsonl/.json"
+      ],
+      "steps": [
+        "Read the file as text.",
+        "Parse one JSON object per non-empty line; count unreadable lines instead of failing the whole file.",
+        "Normalize event type/ts/cpu/comm/pid/duration/detail and fields; drop rows without a recognizable type.",
+        "If no events remain, show an error toast and keep the current session.",
+        "Sort events by timestamp; rebase timestamps to zero; assign stable row IDs.",
+        "Derive type counts, switch slices, threads, summary, and mode: intervals when switch durations exist, otherwise ticks.",
+        "Set the source chip to JOURNAL, reset timeline and event filters, render all screens, select Events, and toast the loaded counts plus skipped-line count."
+      ],
+      "outcomes": [
+        "Journal mode active",
+        "Events screen visible",
+        "timeline/ledger re-derived from the file",
+        "REPLAY/JOURNAL chip updated"
+      ],
+      "failures": [
+        "Read failure: Could not read that file",
+        "No recognizable events: No recognizable events in this journal",
+        "Some malformed lines: loaded toast includes N unreadable lines skipped"
+      ],
+      "source": [
+        "initCapture/init journal handlers",
+        "loadJournal()",
+        "normalizeEvent()"
+      ]
+    },
+    {
+      "id": "reload-fixture",
+      "kind": "data",
+      "title": "Reload the healthy fixture",
+      "trigger": [
+        "Reload fixture button",
+        "palette Reload healthy fixture"
+      ],
+      "preconditions": [],
+      "steps": [
+        "Restore the embedded reference session.",
+        "Reset journal name/mode, timeline view/selection/playhead, event filters, source chip REPLAY.",
+        "Stop playback, render all, render inspector, and toast the fixture event count."
+      ],
+      "outcomes": [
+        "Fixture restored",
+        "filters and selection cleared",
+        "playback stopped"
+      ],
+      "source": [
+        "reloadFixture()"
+      ]
+    },
+    {
+      "id": "timeline-playback",
+      "kind": "interaction",
+      "title": "Play and pause the playhead",
+      "trigger": [
+        "Space",
+        "play/pause button"
+      ],
+      "preconditions": [
+        "timeline screen becomes active if invoked elsewhere"
+      ],
+      "steps": [
+        "If playing, stop the animation and restore the Play label/icon.",
+        "If not playing, reset playhead to view start when it is at the end, set playing, swap label/icon to Pause.",
+        "Advance linearly across the visible span over 14000ms using requestAnimationFrame; loop at view end.",
+        "Update the clock every frame with three decimals.",
+        "Leaving the timeline stops playback; beforeunload cancels the loop."
+      ],
+      "outcomes": [
+        "Playing state and playhead animation",
+        "Paused state at current playhead"
+      ],
+      "failures": [
+        "Space is ignored when focus is on a button, link, or tab so native activation is not hijacked."
+      ],
+      "keys": [
+        "Space"
+      ],
+      "source": [
+        "startPlay()",
+        "stopPlay()",
+        "togglePlay()",
+        "setPlayhead()"
+      ]
+    },
+    {
+      "id": "timeline-zoom-fit",
+      "kind": "interaction",
+      "title": "Zoom and fit the timeline",
+      "trigger": [
+        "+ / =",
+        "− / _",
+        "Zoom in (+)",
+        "Zoom out (−)",
+        "Fit",
+        "f",
+        "double-click plot",
+        "minimap click"
+      ],
+      "preconditions": [
+        "window span >= 300ms"
+      ],
+      "steps": [
+        "Stop playback.",
+        "Zoom multiplies the span by 0.6 (in) or 1.7 (out), centered on the playhead unless a center is supplied; clamp span to 300ms..windowMs and keep the window inside 0..windowMs.",
+        "Fit resets the window to 0..windowMs and playhead to 0.",
+        "Double-click fits; minimap click centers the current span on the clicked ratio.",
+        "Clear the brush and re-render the timeline."
+      ],
+      "outcomes": [
+        "New visible window and ruler step",
+        "toast for brush/focus zooms"
+      ],
+      "keys": [
+        "+",
+        "=",
+        "−",
+        "_",
+        "f",
+        "dblclick"
+      ],
+      "source": [
+        "zoom()",
+        "fitTimeline()",
+        "initTimelineInteractions()"
+      ]
+    },
+    {
+      "id": "timeline-brush",
+      "kind": "interaction",
+      "title": "Brush a time range",
+      "trigger": [
+        "pointerdown + horizontal drag on plot"
+      ],
+      "preconditions": [
+        "pointer x is inside the plot area, not on a button"
+      ],
+      "steps": [
+        "Start a drag at the pointer time.",
+        "After 4px horizontal movement, draw a 10%-opacity live brush between start and current time.",
+        "On release, if the range is greater than 20ms, zoom/focus to it; otherwise treat as a click."
+      ],
+      "outcomes": [
+        "Window focused to brushed range with toast",
+        "Or slice/event selection"
+      ],
+      "failures": [
+        "Releases with tiny movement fall back to click semantics."
+      ],
+      "source": [
+        "initTimelineInteractions()",
+        "focusRange()"
+      ]
+    },
+    {
+      "id": "timeline-select",
+      "kind": "interaction",
+      "title": "Select and inspect a slice or event",
+      "trigger": [
+        "click slice/tick",
+        "click empty plot",
+        "Escape",
+        "inspector actions"
+      ],
+      "preconditions": [
+        "timeline geometry is available"
+      ],
+      "steps": [
+        "Hit-test the row (CPU or thread) and time; return the slice/tick under the pointer.",
+        "Click slice: set selected slice, clear selected event, draw 1.5px text stroke, render inspector slice view.",
+        "Click tick: set selected event, draw 8px marker plus dashed guide, render inspector event view.",
+        "Escape or Clear clears both and returns inspector to idle.",
+        "Focus ±150ms zooms around the selected slice; Events for task opens the ledger filtered by comm.",
+        "Hover shows a tooltip with task, pid, cpu, time/duration."
+      ],
+      "outcomes": [
+        "Selected state + inspector content",
+        "Tooltip only while hovering",
+        "Idle inspector after clear"
+      ],
+      "keys": [
+        "Escape"
+      ],
+      "source": [
+        "eventAt()",
+        "selectSlice()",
+        "clearSelection()",
+        "renderInspector()"
+      ]
+    },
+    {
+      "id": "advisor-filter-evidence",
+      "kind": "interaction",
+      "title": "Filter advisor rules and jump to evidence",
+      "trigger": [
+        "advisor filter chip",
+        "Show evidence →"
+      ],
+      "preconditions": [
+        "advisor rules are collected"
+      ],
+      "steps": [
+        "Set one severity filter: All, WARNING, INFO, CLEAR, SKIP.",
+        "Re-render cards whose severity matches; show empty inline when none.",
+        "Show evidence runs focusRange() to the rule's time window and switches to the timeline with a toast.",
+        "If no rules are collected, show a single SKIP card and disable severity filters."
+      ],
+      "outcomes": [
+        "Filtered rule grid",
+        "Timeline focused to evidence"
+      ],
+      "failures": [
+        "Offline journal: rules are not re-evaluated; no evidence buttons."
+      ],
+      "source": [
+        "renderAdvisor()",
+        "initAdvisor()",
+        "focusRange()"
+      ]
+    },
+    {
+      "id": "events-filter",
+      "kind": "interaction",
+      "title": "Filter the event ledger",
+      "trigger": [
+        "/",
+        "filter input typing",
+        "event type chip",
+        "Filter comm action"
+      ],
+      "preconditions": [
+        "events screen is active or becomes active"
+      ],
+      "steps": [
+        "Focus the search input; `/` switches to Events first.",
+        "Match query as lowercase substring over type + comm + pid + detail.",
+        "Apply the selected event-type chip (or All).",
+        "Show the first 80 rows, count line, and more-results note when the match set is larger.",
+        "Show an empty state when no rows match; Escape clears the query, blurs, and re-renders."
+      ],
+      "outcomes": [
+        "Filtered ledger and count",
+        "Empty state",
+        "Focus returned"
+      ],
+      "keys": [
+        "/",
+        "Escape",
+        "typing"
+      ],
+      "source": [
+        "initEvents()",
+        "filteredEvents()",
+        "renderEvents()"
+      ]
+    },
+    {
+      "id": "events-detail",
+      "kind": "interaction",
+      "title": "Inspect an event and move to the timeline",
+      "trigger": [
+        "ledger row click",
+        "Open in timeline",
+        "Filter comm"
+      ],
+      "preconditions": [
+        "a row is selected"
+      ],
+      "steps": [
+        "Mark the row aria-selected=true and render detail: absolute timestamp, type badge, field table, privacy note.",
+        "Open in timeline: if the event is outside the current window, focus ±800ms around it; otherwise switch to timeline.",
+        "Select the matching slice when the journal is interval-based; otherwise select the event and show its tick marker.",
+        "Filter comm sets the event query to the task and clears the type filter."
+      ],
+      "outcomes": [
+        "Detail pane populated",
+        "Timeline selection or ledger filter"
+      ],
+      "source": [
+        "renderEventDetail()",
+        "initEvents()",
+        "openEventsFor()"
+      ]
+    },
+    {
+      "id": "capture-copy",
+      "kind": "feedback",
+      "title": "Copy capture commands",
+      "trigger": [
+        "Copy on any command row"
+      ],
+      "preconditions": [],
+      "steps": [
+        "Copy the exact command text with the Clipboard API; fall back to a hidden textarea + execCommand.",
+        "Show a success toast with the copied label; show an error toast if unavailable."
+      ],
+      "outcomes": [
+        "Command on clipboard + toast",
+        "Clipboard unavailable error"
+      ],
+      "source": [
+        "initCapture()",
+        "copyText()",
+        "toast()"
+      ]
+    },
+    {
+      "id": "toast-feedback",
+      "kind": "feedback",
+      "title": "Transient status feedback",
+      "trigger": [
+        "theme change",
+        "journal load result",
+        "copy result",
+        "clipboard/file failure"
+      ],
+      "preconditions": [],
+      "steps": [
+        "Set message text and error class, unhide, clear the existing timer, auto-hide after 3400ms."
+      ],
+      "outcomes": [
+        "Toast visible for 3.4s",
+        "Error variant uses refuse left border"
+      ],
+      "source": [
+        "toast()"
+      ]
+    },
+    {
+      "id": "responsive-relayout",
+      "kind": "layout",
+      "title": "Responsive relayout",
+      "trigger": [
+        "viewport width crosses 1320/1140/1024/780/420",
+        "timeline plot width changes"
+      ],
+      "preconditions": [],
+      "steps": [
+        "Apply the breakpoint rules in tokens.json/layout.breakpoints.",
+        "At 1024px the rail becomes a bottom bar and the keybar hides.",
+        "ResizeObserver re-renders the timeline when plot width changes by more than 2px."
+      ],
+      "outcomes": [
+        "Layout matches the active breakpoint",
+        "Timeline geometry rebuilt"
+      ],
+      "source": [
+        "@media rules",
+        "ResizeObserver in boot()"
+      ]
+    },
+    {
+      "id": "skip-to-content",
+      "kind": "accessibility",
+      "title": "Skip to profiler content",
+      "trigger": [
+        "Tab from the browser chrome until the skip link is focused",
+        "Enter on the focused skip link"
+      ],
+      "preconditions": [],
+      "steps": [
+        "The skip link is visually hidden above the viewport at top -48px and becomes visible at top 10px when keyboard-focused.",
+        "Enter follows href=#main.",
+        "The main stage has tabindex=-1 and receives focus without opening or activating a window.",
+        "Normal screen-rail and screen controls remain keyboard reachable afterward."
+      ],
+      "outcomes": [
+        "Focus moves to the profiler stage",
+        "Skip link returns off-screen"
+      ],
+      "keys": [
+        "Tab",
+        "Enter"
+      ],
+      "source": [
+        "skip-link markup",
+        "#main tabindex=-1",
+        "focus styles"
+      ]
+    }
+  ]
+}

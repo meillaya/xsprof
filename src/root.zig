@@ -1,7 +1,7 @@
 //! xsprof — read-only Linux scheduler and memory profiler.
 //!
-//! The root module intentionally contains no UI code. Capture, platform, and
-//! UI layers are imported by consumers that need them.
+//! The profiler root. The standalone GPU UI package is exported as `xsui`;
+//! capture, analysis, platform, and UI consumers import the layers they need.
 
 pub const json = @import("core/json.zig");
 pub const version = @import("core/version.zig");
@@ -33,13 +33,7 @@ pub const recorder_extract = @import("recorder/extract.zig");
 pub const recorder_sidecar = @import("recorder/sidecar.zig");
 pub const recorder_doctor = @import("recorder/doctor.zig");
 pub const bpf = @import("capture/bpf.zig");
-pub const ttf = @import("ui/ttf.zig");
-pub const ui_frame = @import("ui/frame.zig");
-pub const ui_layout = @import("ui/layout.zig");
-pub const ui_tester = @import("ui/tester.zig");
-pub const ui_draw = @import("ui/draw.zig");
-pub const ui_controls = @import("ui/controls.zig");
-pub const ui_raster = @import("ui/raster.zig");
+pub const xsui = @import("xsui");
 pub const demo = @import("app/demo.zig");
 pub const gallery = @import("app/gallery.zig");
 pub const app = @import("app/app.zig");
@@ -84,10 +78,6 @@ test {
     _ = recorder_extract;
     _ = recorder_sidecar;
     _ = recorder_doctor;
-    _ = ttf;
-    _ = ui_frame;
-    _ = ui_layout;
-    _ = ui_tester;
     _ = demo;
     _ = gallery;
     _ = app;

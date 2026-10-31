@@ -1,0 +1,331 @@
+{
+  "$schema": "xsprof/design-commands/v1",
+  "source": {
+    "file": "design/index.html",
+    "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
+    "bytes": 221754
+  },
+  "palette": {
+    "title": "Command palette",
+    "opening": "Meta+K, Control+K, or the palette button",
+    "placeholder": "Jump to screen, switch theme, open journal…",
+    "search": "case-insensitive substring over label + group",
+    "groups": {
+      "go": "screen",
+      "act": "action",
+      "theme": "theme"
+    },
+    "activeStyle": "raised-2 background with 2px live inset at the leading edge",
+    "footer": [
+      {
+        "keys": "↑ ↓",
+        "label": "move"
+      },
+      {
+        "keys": "enter",
+        "label": "run"
+      }
+    ],
+    "closeKeys": [
+      "Escape"
+    ],
+    "focusReturn": "palette button"
+  },
+  "commands": [
+    {
+      "index": 0,
+      "group": "go",
+      "label": "Overview",
+      "keys": "1",
+      "action": {
+        "type": "screen",
+        "value": "overview"
+      }
+    },
+    {
+      "index": 1,
+      "group": "go",
+      "label": "Timeline",
+      "keys": "2",
+      "action": {
+        "type": "screen",
+        "value": "timeline"
+      }
+    },
+    {
+      "index": 2,
+      "group": "go",
+      "label": "Advisor",
+      "keys": "3",
+      "action": {
+        "type": "screen",
+        "value": "advisor"
+      }
+    },
+    {
+      "index": 3,
+      "group": "go",
+      "label": "Events",
+      "keys": "4",
+      "action": {
+        "type": "screen",
+        "value": "events"
+      }
+    },
+    {
+      "index": 4,
+      "group": "go",
+      "label": "Capture status",
+      "keys": "5",
+      "action": {
+        "type": "screen",
+        "value": "capture"
+      }
+    },
+    {
+      "index": 5,
+      "group": "act",
+      "label": "Open journal…",
+      "keys": "",
+      "immediate": true,
+      "action": {
+        "type": "file-picker",
+        "accept": [
+          ".ndjson",
+          ".jsonl",
+          ".json"
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "group": "act",
+      "label": "Reload healthy fixture",
+      "keys": "",
+      "action": {
+        "type": "reload-fixture"
+      }
+    },
+    {
+      "index": 7,
+      "group": "act",
+      "label": "Fit timeline to excerpt",
+      "keys": "f",
+      "action": {
+        "type": "fit-timeline"
+      }
+    },
+    {
+      "index": 8,
+      "group": "act",
+      "label": "Open appearance menu",
+      "keys": "w",
+      "action": {
+        "type": "appearance"
+      }
+    },
+    {
+      "index": 9,
+      "group": "theme",
+      "label": "Theme: Graphite (default)",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "dark"
+      }
+    },
+    {
+      "index": 10,
+      "group": "theme",
+      "label": "Theme: Paper",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "paper"
+      }
+    },
+    {
+      "index": 11,
+      "group": "theme",
+      "label": "Theme: Catppuccin Latte",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "latte"
+      }
+    },
+    {
+      "index": 12,
+      "group": "theme",
+      "label": "Theme: Catppuccin Frappe",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "frappe"
+      }
+    },
+    {
+      "index": 13,
+      "group": "theme",
+      "label": "Theme: Catppuccin Macchiato",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "macchiato"
+      }
+    },
+    {
+      "index": 14,
+      "group": "theme",
+      "label": "Theme: Catppuccin Mocha",
+      "keys": "",
+      "action": {
+        "type": "theme",
+        "value": "mocha"
+      }
+    },
+    {
+      "index": 15,
+      "group": "act",
+      "label": "Filter events by task",
+      "keys": "/",
+      "action": {
+        "type": "events-filter"
+      }
+    },
+    {
+      "index": 16,
+      "group": "act",
+      "label": "Keyboard help",
+      "keys": "?",
+      "action": {
+        "type": "help"
+      }
+    }
+  ],
+  "appearance": {
+    "title": "Appearance",
+    "intro": "Graphite and Paper are the console defaults. Catppuccin flavours remap the same semantic tokens — state is still carried by labels, not colour alone.",
+    "core": [
+      {
+        "id": "dark",
+        "label": "Graphite",
+        "kind": "dark",
+        "swatches": [
+          "#050505",
+          "#10100e",
+          "#58d7e8",
+          "#f5efe4"
+        ]
+      },
+      {
+        "id": "paper",
+        "label": "Paper",
+        "kind": "light",
+        "swatches": [
+          "#f3ead7",
+          "#f8f1e3",
+          "#0c6776",
+          "#1b1813"
+        ]
+      }
+    ],
+    "flavors": [
+      {
+        "id": "latte",
+        "label": "Latte",
+        "kind": "light",
+        "swatches": [
+          "#dce0e8",
+          "#eff1f5",
+          "#1753b9",
+          "#4c4f69"
+        ]
+      },
+      {
+        "id": "frappe",
+        "label": "Frappe",
+        "kind": "dark",
+        "swatches": [
+          "#232634",
+          "#303446",
+          "#91adef",
+          "#c6d0f5"
+        ]
+      },
+      {
+        "id": "macchiato",
+        "label": "Macchiato",
+        "kind": "dark",
+        "swatches": [
+          "#181926",
+          "#24273a",
+          "#8aadf4",
+          "#cad3f5"
+        ]
+      },
+      {
+        "id": "mocha",
+        "label": "Mocha",
+        "kind": "dark",
+        "swatches": [
+          "#11111b",
+          "#1e1e2e",
+          "#89b4fa",
+          "#cdd6f4"
+        ]
+      }
+    ],
+    "selection": "applies immediately; aria-pressed reflects the active theme; toast announces the theme name",
+    "closeKeys": [
+      "Escape"
+    ],
+    "focusReturn": "theme button"
+  },
+  "helpSheet": {
+    "title": "Keyboard",
+    "rows": [
+      {
+        "keys": "1 – 5",
+        "action": "Switch screen: Overview, Timeline, Advisor, Events, Capture"
+      },
+      {
+        "keys": "/",
+        "action": "Focus the events filter"
+      },
+      {
+        "keys": "space",
+        "action": "Play or pause the timeline playhead"
+      },
+      {
+        "keys": "f",
+        "action": "Fit the timeline to the full excerpt"
+      },
+      {
+        "keys": "+ −",
+        "action": "Zoom the timeline around the playhead"
+      },
+      {
+        "keys": "t",
+        "action": "Jump the playhead to the end"
+      },
+      {
+        "keys": "w",
+        "action": "Open the appearance menu"
+      },
+      {
+        "keys": "⌘K / Ctrl K",
+        "action": "Command palette"
+      },
+      {
+        "keys": "esc",
+        "action": "Close overlays or clear the slice selection"
+      },
+      {
+        "keys": "?",
+        "action": "This sheet"
+      }
+    ],
+    "footer": "Every pointer action has a key, and every key has a visible control."
+  }
+}

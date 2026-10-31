@@ -3,12 +3,13 @@
 //! rectangles are exact.
 
 const std = @import("std");
+const xsui = @import("xsui");
 const app = @import("app.zig");
 const lab_state = @import("lab/state.zig");
 const action = @import("lab/action.zig");
-const controls = @import("../ui/controls.zig");
-const layout = @import("../ui/layout.zig");
-const input_mod = @import("../ui/input.zig");
+const controls = xsui.controls;
+const layout = xsui.layout;
+const input_mod = xsui.input;
 const app_util = @import("app_util.zig");
 const compare_mod = @import("../analyze/compare.zig");
 
@@ -369,7 +370,7 @@ pub fn collect(lab: *lab_state.LabState, ui: *layout.Ui, input: *input_mod.Input
 }
 
 test "lab rail registers the source and capture hits" {
-    const frame_mod = @import("../ui/frame.zig");
+    const frame_mod = xsui.frame;
     var lab = try lab_state.LabState.init(std.testing.allocator);
     defer lab.deinit();
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -390,7 +391,7 @@ test "lab rail registers the source and capture hits" {
 }
 
 test "palette click emits the source intent" {
-    const frame_mod = @import("../ui/frame.zig");
+    const frame_mod = xsui.frame;
     var lab = try lab_state.LabState.init(std.testing.allocator);
     defer lab.deinit();
     lab.palette.open = true;

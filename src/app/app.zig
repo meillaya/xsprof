@@ -2,12 +2,13 @@
 //! the browser; later phases add live sources and interactions.
 
 const std = @import("std");
-const draw = @import("../ui/draw.zig");
-const frame_mod = @import("../ui/frame.zig");
-const layout = @import("../ui/layout.zig");
-const widgets = @import("../ui/widgets.zig");
+const xsui = @import("xsui");
+const draw = xsui.draw;
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
+const widgets = xsui.widgets;
 const session_mod = @import("../stream/session.zig");
-const input_mod = @import("../ui/input.zig");
+const input_mod = xsui.input;
 const app_util = @import("app_util.zig");
 const app_state = @import("app_state.zig");
 const events_view = @import("events_view.zig");

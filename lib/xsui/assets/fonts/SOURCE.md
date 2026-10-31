@@ -9,5 +9,5 @@ unmodified upstream TTFs; the license text is `OFL.txt`.
 - License SHA-256: `a76abf002c49097d146e86740a3105a5d00450b1592e820a1109a8c5680cd697`
 
 They are assets, not code dependencies. The UI rasterizes them with the
-in-repo TrueType reader (`src/ui/ttf.zig`); no system font or shaping library is
-required. Latin-1/ASCII is the supported set for v1.
+in-repo TrueType reader (`lib/xsui/src/ttf.zig`); no system font or shaping
+library is required. Latin-1/ASCII is the supported set for v1.

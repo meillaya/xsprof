@@ -3,7 +3,7 @@
 ## nanoui
 
 The Objective-C runtime `msg` prototype pattern in
-`src/platform/macos/objc.zig` is adapted from nanoui.
+`lib/xsui/src/native/objc.zig` is adapted from nanoui.
 
 MIT License
 
@@ -29,4 +29,4 @@ SOFTWARE.
 
 ## JetBrains Mono
 
-Bundled under the SIL Open Font License 1.1; see `assets/fonts/OFL.txt`.
+Bundled under the SIL Open Font License 1.1; see `lib/xsui/assets/fonts/OFL.txt`.

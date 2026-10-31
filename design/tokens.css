@@ -1,0 +1,265 @@
+/* xsprof design tokens — generated from design/index.html.
+ * source sha256: 0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62
+ * Runtime source of truth: design/index.html. This file contains token variables only.
+ */
+
+:root {
+  color-scheme: dark;
+  /* typography */
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* surfaces */
+  --bg: #050505;
+  --panel: #10100e;
+  --raised: #171512;
+  --raised-2: #1e1b17;
+  --field: #0b0b0a;
+
+  /* ink */
+  --text: #f5efe4;
+  --muted: #a79b8c;
+  --dim: #9a8d7b;
+  --faint: #8a7e6f;
+
+  /* strokes */
+  --line: #262320;
+  --line-strong: #3a332b;
+
+  /* semantic status */
+  --live: #58d7e8;
+  --pass: #72d487;
+  --skip: #e3b45c;
+  --refuse: #ff6b9a;
+  --pending: #ded6c9;
+  --vm: #b48cff;
+
+  /* tints */
+  --tint-live: rgba(88, 215, 232, 0.1);
+  --tint-refuse: rgba(255, 107, 154, 0.09);
+  --tint-skip: rgba(227, 180, 92, 0.09);
+  --tint-pass: rgba(114, 212, 135, 0.08);
+
+  /* timeline lanes */
+  --lane-1: #58d7e8;
+  --lane-2: #72d487;
+  --lane-3: #e3b45c;
+  --lane-4: #ff6b9a;
+  --lane-5: #b48cff;
+  --lane-6: #9db4c0;
+  --lane-7: #c8b48a;
+  --lane-8: #4fb3a3;
+  --lane-9: #d79cc4;
+  --lane-idle: #1c1a17;
+  --lane-grid: #201d19;
+
+  /* type scale */
+  --fs-micro: 10.5px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 20px;
+  --fs-2xl: 27px;
+
+  /* rhythm */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+
+  /* shell geometry */
+  --topbar-h: 52px;
+  --keybar-h: 30px;
+  --rail-w: 92px;
+
+  /* focus */
+  --focus: #58d7e8;
+  --focus-offset: 2px;
+
+}
+
+html[data-theme="paper"] {
+  --bg: #f3ead7;
+  --panel: #f8f1e3;
+  --raised: #ece1cc;
+  --raised-2: #e3d6bd;
+  --field: #fdf8ee;
+  --text: #1b1813;
+  --muted: #5f5445;
+  --dim: #6f6352;
+  --faint: #716555;
+  --line: #ded0b8;
+  --line-strong: #c3b299;
+  --live: #0c6776;
+  --pass: #256a3b;
+  --skip: #8a5a10;
+  --refuse: #a32754;
+  --pending: #4a4034;
+  --vm: #5a3f9e;
+  --tint-live: rgba(13, 108, 124, 0.1);
+  --tint-refuse: rgba(163, 39, 84, 0.09);
+  --tint-skip: rgba(138, 90, 16, 0.1);
+  --tint-pass: rgba(37, 106, 59, 0.08);
+  --lane-1: #0d6c7c;
+  --lane-2: #2f7d4a;
+  --lane-3: #9a6a12;
+  --lane-4: #a8305a;
+  --lane-5: #6b4bb0;
+  --lane-6: #4a6572;
+  --lane-7: #7d6a3f;
+  --lane-8: #2a7f74;
+  --lane-9: #9a4472;
+  --lane-idle: #e6dbc6;
+  --lane-grid: #ded0b8;
+  --focus: #0c6776;
+  color-scheme: light;
+}
+
+html[data-theme="latte"] {
+  --bg: #dce0e8;
+  --panel: #eff1f5;
+  --raised: #e6e9ef;
+  --raised-2: #ccd0da;
+  --field: #eff1f5;
+  --text: #4c4f69;
+  --muted: #53566d;
+  --dim: #585b72;
+  --faint: #5c5f77;
+  --line: #ccd0da;
+  --line-strong: #bcc0cc;
+  --live: #1753b9;
+  --pass: #276b2a;
+  --skip: #855700;
+  --refuse: #c10f36;
+  --pending: #5c5f77;
+  --vm: #8839ef;
+  --tint-live: rgba(30, 102, 245, 0.1);
+  --tint-refuse: rgba(210, 15, 57, 0.09);
+  --tint-skip: rgba(223, 142, 29, 0.12);
+  --tint-pass: rgba(64, 160, 43, 0.1);
+  --lane-1: #1e66f5;
+  --lane-2: #40a02b;
+  --lane-3: #df8e1d;
+  --lane-4: #d20f39;
+  --lane-5: #8839ef;
+  --lane-6: #179299;
+  --lane-7: #fe640b;
+  --lane-8: #04a5e5;
+  --lane-9: #ea76cb;
+  --lane-idle: #dce0e8;
+  --lane-grid: #ccd0da;
+  --focus: #1753b9;
+  color-scheme: light;
+}
+
+html[data-theme="frappe"] {
+  --bg: #232634;
+  --panel: #303446;
+  --raised: #414559;
+  --raised-2: #51576d;
+  --field: #292c3c;
+  --text: #c6d0f5;
+  --muted: #b5bfe2;
+  --dim: #a5adce;
+  --faint: #949cbb;
+  --line: #414559;
+  --line-strong: #51576d;
+  --live: #91adef;
+  --pass: #a6d189;
+  --skip: #e5c890;
+  --refuse: #ea9193;
+  --pending: #a5adce;
+  --vm: #ca9ee6;
+  --tint-live: rgba(140, 170, 238, 0.1);
+  --tint-refuse: rgba(231, 130, 132, 0.09);
+  --tint-skip: rgba(229, 200, 144, 0.09);
+  --tint-pass: rgba(166, 209, 137, 0.08);
+  --lane-1: #99d1db;
+  --lane-2: #a6d189;
+  --lane-3: #e5c890;
+  --lane-4: #e78284;
+  --lane-5: #ca9ee6;
+  --lane-6: #81c8be;
+  --lane-7: #ef9f76;
+  --lane-8: #babbf1;
+  --lane-9: #f4b8e4;
+  --lane-idle: #292c3c;
+  --lane-grid: #414559;
+  --focus: #91adef;
+  color-scheme: dark;
+}
+
+html[data-theme="macchiato"] {
+  --bg: #181926;
+  --panel: #24273a;
+  --raised: #363a4f;
+  --raised-2: #494d64;
+  --field: #1e2030;
+  --text: #cad3f5;
+  --muted: #b8c0e0;
+  --dim: #a5adcb;
+  --faint: #939ab7;
+  --line: #363a4f;
+  --line-strong: #494d64;
+  --live: #8aadf4;
+  --pass: #a6da95;
+  --skip: #eed49f;
+  --refuse: #ed8796;
+  --pending: #a5adcb;
+  --vm: #c6a0f6;
+  --tint-live: rgba(138, 173, 244, 0.1);
+  --tint-refuse: rgba(237, 135, 150, 0.09);
+  --tint-skip: rgba(238, 212, 159, 0.09);
+  --tint-pass: rgba(166, 218, 149, 0.08);
+  --lane-1: #91d7e3;
+  --lane-2: #a6da95;
+  --lane-3: #eed49f;
+  --lane-4: #ed8796;
+  --lane-5: #c6a0f6;
+  --lane-6: #8bd5ca;
+  --lane-7: #f5a97f;
+  --lane-8: #b7bdf8;
+  --lane-9: #f5bde6;
+  --lane-idle: #1e2030;
+  --lane-grid: #363a4f;
+  --focus: #8aadf4;
+  color-scheme: dark;
+}
+
+html[data-theme="mocha"] {
+  --bg: #11111b;
+  --panel: #1e1e2e;
+  --raised: #313244;
+  --raised-2: #45475a;
+  --field: #181825;
+  --text: #cdd6f4;
+  --muted: #bac2de;
+  --dim: #a6adc8;
+  --faint: #9399b2;
+  --line: #313244;
+  --line-strong: #45475a;
+  --live: #89b4fa;
+  --pass: #a6e3a1;
+  --skip: #f9e2af;
+  --refuse: #f38ba8;
+  --pending: #a6adc8;
+  --vm: #cba6f7;
+  --tint-live: rgba(137, 180, 250, 0.1);
+  --tint-refuse: rgba(243, 139, 168, 0.09);
+  --tint-skip: rgba(249, 226, 175, 0.09);
+  --tint-pass: rgba(166, 227, 161, 0.08);
+  --lane-1: #89dceb;
+  --lane-2: #a6e3a1;
+  --lane-3: #f9e2af;
+  --lane-4: #f38ba8;
+  --lane-5: #cba6f7;
+  --lane-6: #94e2d5;
+  --lane-7: #fab387;
+  --lane-8: #b4befe;
+  --lane-9: #f5c2e7;
+  --lane-idle: #181825;
+  --lane-grid: #313244;
+  --focus: #89b4fa;
+  color-scheme: dark;
+}
