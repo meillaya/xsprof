@@ -138,6 +138,21 @@ pub fn cmdUi(
             smoke = true;
         }
     }
+    if (comptime builtin.os.tag == .linux) {
+        const native = @import("../platform/linux/x11.zig");
+        var session: ?session_mod.Session = null;
+        if (replay) |path| {
+            session = session_mod.Session.load(io, allocator, path) catch |load_error| {
+                try err.print("ui: {s}\n", .{@errorName(load_error)});
+                return 1;
+            };
+        }
+        native.run(allocator, session, screen, light, smoke) catch |run_error| {
+            try err.print("ui: {s}\n", .{@errorName(run_error)});
+            return 1;
+        };
+        return 0;
+    }
     if (comptime builtin.os.tag == .macos) {
         const native = @import("../platform/macos/window.zig");
         var session: ?session_mod.Session = null;
@@ -153,6 +168,6 @@ pub fn cmdUi(
         };
         return 0;
     }
-    try err.writeAll("ui: this build has no native macOS surface\n");
+    try err.writeAll("ui: this build has no native window surface\n");
     return 2;
 }

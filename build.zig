@@ -37,6 +37,10 @@ pub fn build(b: *std.Build) void {
             core_mod.linkFramework(framework, .{});
         }
     }
+    if (target.result.os.tag == .linux) {
+        exe_mod.link_libc = true;
+        core_mod.link_libc = true;
+    }
     b.installArtifact(exe);
 
     const run_step = b.step("run", "Run xsprof");

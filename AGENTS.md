@@ -78,7 +78,7 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P5 is complete: native macOS AppKit window, CAMetalLayer, instanced Metal
-renderer, headless Metal/CPU parity, hidden-window smoke, and `xsprof ui`.
-P6 is the native Linux X11/GL surface, Xvfb smoke, packaging, and a11y/
-performance polish. Update the roadmap when a gate passes.
+P6 is complete: native Linux X11/GLX surface, Xvfb smoke, mapped-window
+screenshot, and dynamic-glibc packaging notes. P7 is the VM-marker-gated BPF
+`dlopen` lane, the final safety/privacy/golden sweep, and release docs. Update
+the roadmap when a gate passes.
