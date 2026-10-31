@@ -5,7 +5,11 @@ scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
 Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
 dense operator UI on the GPU.
 
-**Status: P0–P7 complete. The full rewrite builds on Zig 0.17.0 with web, native macOS, and native Linux surfaces; the Linux live path and VM-only BPF gate are validated in a disposable VM.** The historical C++ implementation is
+**Status: P0–P7 and productization M0–M4/M6 are complete. M5 release tooling is
+complete, but public release/notarization/tap publication is blocked by the
+external items below.** The full rewrite builds on Zig 0.17.0 with web, native
+macOS, and native Linux surfaces; the Linux live path and VM-only BPF gate are
+validated in a disposable VM. The historical C++ implementation is
 preserved on the local branch `archive/cpp-0.1.0` and tag `cpp-0.1.0`. The
 archived deterministic simulator under `simulator/` is excluded from this
 build and is not modified by the rewrite.
@@ -89,6 +93,31 @@ The tarball lays out `bin/xsprof`, `share/xsprof/web`,
 `share/xsprof/fixtures`, and the opt-in systemd unit. `demo` finds those
 relative paths and prints the loopback token URL. The macOS app is ad-hoc
 signed; notarization still needs an Apple identity and credentials.
+
+## Release status and blockers
+
+No `v0.2.0` tag, public GitHub release, or Homebrew tap has been created yet.
+The packaging scripts, universal app, release workflow, notarization script,
+and tap renderer are in the tree and have been exercised locally, but
+publication is blocked on:
+
+1. **Developer ID and notarization.** No Apple Developer ID certificate or
+   notary credentials are available on this machine. The local `.app` is
+   ad-hoc signed, and `tools/notarize_macos.sh` fails closed without
+   `MACOS_SIGN_IDENTITY` plus either `NOTARY_PROFILE` or
+   `APPLE_ID`/`APPLE_TEAM_ID`/`APPLE_APP_PASSWORD`.
+2. **GitHub Actions minutes.** The account's Actions minutes are exhausted, so
+   `.github/workflows/release.yml` has not run end-to-end. The latest pushed
+   commits are marked `[skip ci]`; the local `zig build check`, fuzz, web
+   smoke, hidden macOS smoke, cross-builds, and Linux VM tests are green.
+3. **Homebrew tap publication.** `meillaya/homebrew-xsprof` does not exist yet
+   and `HOMEBREW_TAP_TOKEN` is not configured. The Linux formula can be
+   rendered with `tools/update_homebrew_tap.sh`; the cask is intentionally
+   withheld until a notarized app exists.
+
+To publish after those are available, configure the signing/tap secrets in
+the repository, push a `v*` tag, and let the release workflow build the Linux
+tarballs and universal macOS zip, create the release, and update the tap.
 
 The web replay client is served read-only over loopback:
 
