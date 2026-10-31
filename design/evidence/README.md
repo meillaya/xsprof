@@ -30,14 +30,14 @@ the reference diff so design drift stays visible.
 |---|---|
 | `screenshots/prototype/` | Headless Chromium captures of `design/index.html`; design reference |
 | `screenshots/xsprof/` | WebGL2 console at 1440×900 with the prototype demo fixture |
-| `screenshots/live/` | WebGL2 console reading the real replay journal and recorder manifest |
+| `screenshots/live/` | WebGL2 console reading the real Linux-VM perf capture |
 | `screenshots/native/` | 1280×720 CPU offscreen snapshots of the native layout |
 | `screenshots/breakpoints/` | 1024/780/420 console and prototype captures |
 | `screenshots/diff/` | Amplified advisory reference/program difference images |
 | `parity.json` | Advisory reference metrics (MAE, >16, >24) |
 | `cross_surface.json` | Formal CPU vs WebGL2 vs Metal gate report |
 | `interactions.json` | Clipboard, brush, focus-trap, and skip-link gate |
-| `../media/xsprof-ui-demo.mp4` | Short headless boot/use recording (H.264) |
+| `../media/xsprof-ui-demo.mp4` | Headless boot/use recording over the real VM capture (H.264) |
 
 ## Method
 
@@ -49,9 +49,15 @@ the reference diff so design drift stays visible.
 - **CPU:** `xsprof snapshot` renders the canonical frame.
 - **Metal:** `xsprof snapshot --backend metal` uses `MTKView`-independent
   offscreen Metal readback.
+- **Real capture:** `fixtures/real/macos-vm-sched.ndjson` is a full
+  110,284-event `perf_event_open` capture from the podman Linux VM on this Mac
+  (4 vCPUs, 1.204 s, 94,152 switches, 16,063 page faults). The VM had
+  `perf_event_paranoid=1`; the journal reports `host_mutation:false`.
 - **WebGL2:** `xsprof serve` on loopback with token-authenticated `/api/...`;
   headless Chromium screenshots the canvas. `?demo=1` is used only for the
-  comparison fixture; live evidence uses the journal and `/api/recorder`.
+  reference/parity set; the live screenshots and MP4 use the real VM journal.
+  The real run has no recorder directory attached, so Capture honestly shows
+  `not attached` rather than borrowing demo recorder metadata.
 - **Interactions:** `qa/ui_interactions.cjs` grants clipboard permission in
   headless Chromium, clicks a real command Copy button, verifies the exact
   clipboard text, then drags the timeline brush and verifies the visual
@@ -67,10 +73,11 @@ python3 design/validate.py
 NODE_PATH="$HOME/.npm/_npx/e41f203b7505f1fb/node_modules" sh qa/ui_evidence.sh
 ```
 
-`ui_evidence.sh` starts the loopback server, captures WebGL2 screenshots,
-records the real-data video to MP4, writes the advisory reference report, then
-renders CPU and Metal snapshots and runs the formal
-`qa/ui_cross_surface.py` gate. Node, Playwright-core, ffmpeg, and Python 3 are
+`ui_evidence.sh` starts the loopback server on the real VM capture, captures
+the demo reference/parity set, captures the live screenshots from the real
+journal, records the real-data MP4, writes the advisory reference report, then
+renders CPU and Metal snapshots and runs the formal `qa/ui_cross_surface.py`
+gate. Node, Playwright-core, ffmpeg, and Python 3 are
 developer/evidence dependencies only.
 
 Native layout evidence:

@@ -10,6 +10,8 @@ prototype rather than approximating it.
 - Source size: 221,754 bytes
 - Token set version: `1.0.0`
 - Reference viewports: web `1440x900 @1`, native `1280x720 @1`
+- Real capture evidence: [`fixtures/real/macos-vm-sched.ndjson`](../fixtures/real/macos-vm-sched.ndjson)
+  (Linux VM perf, 110,284 events) drives the live screenshots and video.
 - Status: implemented as the primary GPU console (`src/app/design/`,
   `lib/xsui/src/canvas.zig`). The formal contract is
   [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/WebGL2 are
