@@ -5,7 +5,7 @@ Status is updated only when a phase gate actually passes.
 | Phase | Scope | Status |
 |---|---|---|
 | P0 | Archive C++; pin Zig 0.17; vendor stdlib text; skeleton build/CI; guidance docs | **complete** |
-| P1 | Core event/JSON/privacy/safety/path/time; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | next |
+| P1 | Core event/JSON/privacy/safety/path/time; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | in progress |
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | planned |
 | P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | planned |
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | planned |
