@@ -32,9 +32,11 @@ the reference diff so design drift stays visible.
 | `screenshots/xsprof/` | WebGL2 console at 1440×900 with the prototype demo fixture |
 | `screenshots/live/` | WebGL2 console reading the real replay journal and recorder manifest |
 | `screenshots/native/` | 1280×720 CPU offscreen snapshots of the native layout |
+| `screenshots/breakpoints/` | 1024/780/420 console and prototype captures |
 | `screenshots/diff/` | Amplified advisory reference/program difference images |
 | `parity.json` | Advisory reference metrics (MAE, >16, >24) |
 | `cross_surface.json` | Formal CPU vs WebGL2 vs Metal gate report |
+| `interactions.json` | Clipboard and brush interaction gate |
 | `../media/xsprof-ui-demo.mp4` | Short headless boot/use recording (H.264) |
 
 ## Method
@@ -50,6 +52,10 @@ the reference diff so design drift stays visible.
 - **WebGL2:** `xsprof serve` on loopback with token-authenticated `/api/...`;
   headless Chromium screenshots the canvas. `?demo=1` is used only for the
   comparison fixture; live evidence uses the journal and `/api/recorder`.
+- **Interactions:** `qa/ui_interactions.cjs` grants clipboard permission in
+  headless Chromium, clicks a real command Copy button, verifies the exact
+  clipboard text, then drags the timeline brush and verifies the visual
+  band/zoom changed.
 - No real window is opened, activated, or captured.
 
 ## Commands
@@ -82,6 +88,8 @@ use OS screen recording. That path is deliberately outside automated work.
 
 ## Remaining work
 
-The formal contract and cross-surface gate are green. Responsive shell modes
-and the remaining focus/clipboard/brush interactions are tracked separately;
-the reference diff remains advisory regardless of those changes.
+The formal contract and cross-surface gate are green. The 1024/780/420 shell,
+compact topbar, one-column Overview/Capture/Advisor modes, stacked
+Events/Timeline, clipboard requests, and brush zoom are wired. Remaining
+polish: mobile ledger/thread rows, the complete focus-return model, and native
+Linux clipboard selection. The reference diff remains advisory.

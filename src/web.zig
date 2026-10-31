@@ -427,6 +427,30 @@ export fn web_ui_key(codepoint: u32, meta: u32, ctrl: u32, shift: u32) void {
     console.key(codepoint, meta, ctrl, shift);
 }
 
+export fn web_ui_copy_ptr() usize {
+    return @intFromPtr(console.copyText().ptr);
+}
+
+export fn web_ui_copy_len() u32 {
+    return @intCast(console.copyText().len);
+}
+
+export fn web_ui_copy_clear() void {
+    console.clearCopy();
+}
+
+export fn web_ui_pointer_down(x: f32, y: f32) void {
+    console.pointerDown(x, y);
+}
+
+export fn web_ui_pointer_move(x: f32, y: f32) void {
+    console.pointerMove(x, y);
+}
+
+export fn web_ui_pointer_up(x: f32, y: f32) void {
+    console.pointerUp(x, y);
+}
+
 export fn web_ui_click(x: f32, y: f32) void {
     console.click(x, y);
 }

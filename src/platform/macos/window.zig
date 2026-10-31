@@ -97,6 +97,20 @@ pub const App = struct {
         }
     }
 
+    fn syncClipboard(self: *App) void {
+        const text_value = self.design.copyText();
+        if (text_value.len == 0) return;
+        const pool = objc.Pool.push();
+        defer pool.pop();
+        const pasteboard = objc.msg(objc.Object, objc.class("NSPasteboard"), "generalPasteboard", .{});
+        objc.msg(void, pasteboard, "clearContents", .{});
+        _ = objc.msg(objc.NSInteger, pasteboard, "setString:forType:", .{
+            objc.nsString(text_value),
+            objc.nsString("public.utf8-plain-text"),
+        });
+        self.design.clearCopy();
+    }
+
     fn openJournal(self: *App) void {
         const pool = objc.Pool.push();
         defer pool.pop();
@@ -169,6 +183,7 @@ fn mouseDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) 
     const point = localPoint(target, event);
     _ = self.render();
     self.design.click(&self.canvas, @floatCast(point.x), @floatCast(point.y));
+    self.syncClipboard();
     _ = self.render();
 }
 
@@ -208,6 +223,7 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     }
     if (cp == 0) return;
     self.design.handleKey(cp, mods);
+    self.syncClipboard();
     _ = self.render();
 }
 

@@ -43,6 +43,8 @@ XSPROF_EVIDENCE_DEMO=0 node qa/ui_record.cjs
 mkdir -p design/media
 ffmpeg -v error -y -i "$TMP/console.webm" -c:v libx264 -preset slow -crf 23 \
   -pix_fmt yuv420p -movflags +faststart design/media/xsprof-ui-demo.mp4
+XSPROF_EVIDENCE_DEMO=1 node qa/ui_breakpoints.cjs
+node qa/ui_interactions.cjs
 python3 qa/ui_parity.py
 # Formal gate: CPU is canonical; WebGL2 must consume the same draw list and
 # atlas within the ui-spec tolerance. Reference diffs above remain advisory.

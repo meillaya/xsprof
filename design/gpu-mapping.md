@@ -294,9 +294,12 @@ is `qa/ui_cross_surface.py`; reference diffs are advisory.
       documented fallback for unknown glyphs/phases.
 - [x] Make CPU the canonical backend and gate Metal/WebGL2 against it through
       `design/ui-spec.json` and `qa/ui_cross_surface.py`.
-- [ ] Wire the 1320/1140/1024/780/420 shell modes and the remaining focus,
-      clipboard, and brush interactions; these are behavior/spec work, not
-      cross-surface rendering differences.
+- [x] Wire the 1320/1140/1024/780/420 shell, compact topbar, bottom rail,
+      one-column Overview/Capture/Advisor, and stacked Events/Timeline.
+- [x] Emit bounded clipboard requests; web uses the Clipboard API, macOS uses
+      NSPasteboard. Brush drag/zoom is wired on web.
+- [ ] Mobile ledger/thread rows, complete focus traversal/return, and native
+      Linux clipboard selection remain.
 
 The cross-surface report records actual pixel metrics and pass/fail against the
 formal thresholds. Reference-progress is reported separately and is advisory.

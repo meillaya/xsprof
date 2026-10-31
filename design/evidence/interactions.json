@@ -1,0 +1,13 @@
+{
+  "schema": "xsprof/interactions/v1",
+  "copy": {
+    "pass": true,
+    "text": "xsprof record --duration <ms> --out <dir>"
+  },
+  "brush": {
+    "pass": true,
+    "band_visible": true,
+    "zoom_changed": true
+  },
+  "pass": true
+}

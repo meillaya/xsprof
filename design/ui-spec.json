@@ -231,7 +231,12 @@
     "playback": "space",
     "brush": "pointer drag on timeline plot (>4px, >20ms) zooms; minimum 300ms span",
     "focus": "visible 2px ring; Tab/Shift+Tab traverse; dialogs trap and restore focus",
-    "clipboard": "copy requests are emitted by the app and consumed by the platform surface"
+    "clipboard": {
+      "request": "bounded UTF-8 request emitted by App; surfaces consume exactly once",
+      "web": "navigator.clipboard with hidden-textarea fallback",
+      "macos": "NSPasteboard public.utf8-plain-text",
+      "linux": "pending X11 selection owner"
+    }
   },
   "data": {
     "source": "journal, live SSE, recorder manifest",

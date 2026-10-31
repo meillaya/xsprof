@@ -43,19 +43,26 @@ pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
     const th = canvas.frame.theme;
     const width: f32 = @floatFromInt(canvas.frame.width);
     const height: f32 = @floatFromInt(canvas.frame.height);
+    const bottom_rail = width <= 1024;
+    const active_rail: f32 = if (bottom_rail) 0 else rail_width;
+    const active_keybar: f32 = if (bottom_rail) 0 else shell_bottom;
     try canvas.fill(.{ .x = 0, .y = 0, .w = width, .h = height }, th.bg);
     try drawTopbar(model, state, canvas, th, width);
-    try drawRail(model, state, canvas, th, height);
-    canvas.pushClip(.{ .x = rail_width, .y = shell_top, .w = width - rail_width, .h = height - shell_top - shell_bottom });
+    if (!bottom_rail) try drawRail(model, state, canvas, th, height);
+    canvas.pushClip(.{ .x = active_rail, .y = shell_top, .w = width - active_rail, .h = height - shell_top - active_keybar });
     switch (state.screen) {
-        .overview => try overview.draw(model, state, canvas, th, rail_width, shell_top, width),
-        .timeline => try timeline.draw(model, state, canvas, th, rail_width, shell_top, width),
-        .advisor => try advisor.draw(model, state, canvas, th, rail_width, shell_top, width),
-        .events => try events.draw(model, state, canvas, th, rail_width, shell_top, width),
-        .capture => try capture.draw(model, state, canvas, th, rail_width, shell_top, width),
+        .overview => try overview.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .timeline => try timeline.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .advisor => try advisor.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .events => try events.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .capture => try capture.draw(model, state, canvas, th, active_rail, shell_top, width),
     }
     canvas.popClip();
-    try drawKeybar(model, canvas, th, width, height);
+    if (bottom_rail) {
+        try drawBottomRail(model, state, canvas, th, width, height);
+    } else {
+        try drawKeybar(model, canvas, th, width, height);
+    }
     try overlays.draw(state, canvas, th, width, height);
     try overlays.drawToast(state, canvas, th, width, height);
 }
@@ -74,12 +81,15 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     var sub = style(text_105, th.dim, .regular);
     sub.tracking = 0.21;
     const sub_text = "read-only scheduler & memory profiler";
-    try label(canvas, 103.56, 17.63, sub_text, sub);
-    const brand_end = 103.56 + measure(canvas, sub_text, sub);
+    const show_sub = width > 1140;
+    if (show_sub) try label(canvas, 103.56, 17.63, sub_text, sub);
+    const brand_end: f32 = if (show_sub) 103.56 + measure(canvas, sub_text, sub) else 94.56;
 
     var bar = style(text_12, th.text, .regular);
     bar.tracking = 0.0;
-    const bar_x = brand_end + 16;
+    const compact_top = width <= 780;
+    const phone = width <= 420;
+    const bar_x = brand_end + (if (width <= 1140) @as(f32, 10) else 16);
     try canvas.fill(.{ .x = bar_x, .y = 14.5, .w = 1, .h = 22 }, th.line);
     try label(canvas, bar_x + 16, 14.5, "/", style(text_12, th.faint, .regular));
     try label(canvas, bar_x + 16 + 7 + measure(canvas, "/", style(text_12, th.faint, .regular)), 14.5, state_mod.screenName(state.screen), bar);
@@ -93,17 +103,19 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
         .{ .text = model.meta.arch, .color = th.muted },
     };
     var first = true;
-    for (parts) |part| {
-        if (part.text.len == 0) continue;
-        if (!first) {
-            mx += 7;
-            try label(canvas, mx, 17.25, "·", style(text_11, th.faint, .regular));
-            mx += measure(canvas, "·", style(text_11, th.faint, .regular)) + 7;
+    if (width > 780) {
+        for (parts) |part| {
+            if (part.text.len == 0) continue;
+            if (!first) {
+                mx += 7;
+                try label(canvas, mx, 17.25, "·", style(text_11, th.faint, .regular));
+                mx += measure(canvas, "·", style(text_11, th.faint, .regular)) + 7;
+            }
+            meta.color = part.color;
+            try label(canvas, mx, 17.25, part.text, meta);
+            mx += measure(canvas, part.text, meta);
+            first = false;
         }
-        meta.color = part.color;
-        try label(canvas, mx, 17.25, part.text, meta);
-        mx += measure(canvas, part.text, meta);
-        first = false;
     }
 
     // Right-aligned actions, mirroring the prototype's flex-end group.
@@ -118,14 +130,16 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
 
     const palette_key_style = style(text_95, th.muted, .regular);
     const palette_key_w = measure(canvas, "⌘K", palette_key_style) + 8 + 2;
-    const palette_w = 16 + 14 + 6 + palette_key_w;
+    const palette_w: f32 = if (compact_top) 30 else 16 + 14 + 6 + palette_key_w;
     const palette_rect = Rect{ .x = theme_rect.x - 8 - palette_w, .y = 11.5, .w = palette_w, .h = 28 };
     try iconButton(canvas, palette_rect, th);
     try icons.draw(canvas, .menu, .{ .x = palette_rect.x + 8, .y = palette_rect.y + 7, .w = 14, .h = 14 }, th.muted);
-    const pcap = Rect{ .x = palette_rect.x + 8 + 14 + 6, .y = palette_rect.y + 5.875, .w = palette_key_w, .h = 16.25 };
-    try canvas.rounded(pcap, 3, th.raised, th.line, 1);
-    try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
-    _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
+    if (!compact_top) {
+        const pcap = Rect{ .x = palette_rect.x + 8 + 14 + 6, .y = palette_rect.y + 5.875, .w = palette_key_w, .h = 16.25 };
+        try canvas.rounded(pcap, 3, th.raised, th.line, 1);
+        try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
+        _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
+    }
     canvas.hit(200, palette_rect);
     canvas.hit(201, theme_rect);
     canvas.hit(202, help_rect);
@@ -135,15 +149,18 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     var chip_font = style(text_105, th.muted, .regular);
     chip_font.tracking = 0.84;
     chip_font.line_height = 1.2;
-    const safety_w = 8 + 11 + 5 + measure(canvas, safety, chip_font) + 8;
+    const safety_w: f32 = if (compact_top) 25 else 8 + 11 + 5 + measure(canvas, safety, chip_font) + 8;
     const safety_rect = Rect{ .x = x_right - safety_w, .y = 15.2, .w = safety_w, .h = 20.59 };
     try canvas.rounded(safety_rect, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
-    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + 8, .y = 19, .w = 11, .h = 11 }, th.pass);
-    try label(canvas, safety_rect.x + 8 + 11 + 5, 18.2, safety, chip_font);
+    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + (if (compact_top) @as(f32, 6) else 8), .y = 19, .w = 11, .h = 11 }, th.pass);
+    if (!compact_top) try label(canvas, safety_rect.x + 8 + 11 + 5, 18.2, safety, chip_font);
     x_right = safety_rect.x - 8;
 
     var loss_buf: [32]u8 = undefined;
-    const loss_text = std.fmt.bufPrint(&loss_buf, "■ LOSS {d}", .{model.summary.lost}) catch "■ LOSS";
+    const loss_text = if (phone)
+        std.fmt.bufPrint(&loss_buf, "■ {d}", .{model.summary.lost}) catch "■"
+    else
+        std.fmt.bufPrint(&loss_buf, "■ LOSS {d}", .{model.summary.lost}) catch "■ LOSS";
     var loss_font = style(text_105, th.refuse, .regular);
     loss_font.tracking = 0.84;
     loss_font.line_height = 1.2;
@@ -153,14 +170,16 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     try label(canvas, loss_rect.x + 8, 18.2, loss_text, loss_font);
     x_right = loss_rect.x - 8;
 
-    const source_text = model.meta.source;
-    var source_font = style(text_105, th.live, .regular);
-    source_font.tracking = 0.84;
-    source_font.line_height = 1.2;
-    const source_w = 8 + measure(canvas, source_text, source_font) + 8;
-    const source_rect = Rect{ .x = x_right - source_w, .y = 15.2, .w = source_w, .h = 20.59 };
-    try canvas.rounded(source_rect, 3, th.tint_live, th.chip_source_border, 1);
-    try label(canvas, source_rect.x + 8, 18.2, source_text, source_font);
+    if (!phone) {
+        const source_text = model.meta.source;
+        var source_font = style(text_105, th.live, .regular);
+        source_font.tracking = 0.84;
+        source_font.line_height = 1.2;
+        const source_w = 8 + measure(canvas, source_text, source_font) + 8;
+        const source_rect = Rect{ .x = x_right - source_w, .y = 15.2, .w = source_w, .h = 20.59 };
+        try canvas.rounded(source_rect, 3, th.tint_live, th.chip_source_border, 1);
+        try label(canvas, source_rect.x + 8, 18.2, source_text, source_font);
+    }
 }
 
 fn iconButton(canvas: *Canvas, rect: Rect, th: Theme) !void {
@@ -197,6 +216,34 @@ fn drawRail(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     var source_buf: [32]u8 = undefined;
     const source_text = std.fmt.bufPrint(&source_buf, "{s}", .{model.meta.source}) catch "REPLAY";
     try label(canvas, 25, height - shell_bottom - 30, source_text, foot);
+}
+
+fn drawBottomRail(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, width: f32, height: f32) !void {
+    const bar_h: f32 = 57;
+    const y = height - bar_h;
+    try canvas.fill(.{ .x = 0, .y = y, .w = width, .h = bar_h }, th.panel);
+    try borderLine(canvas, 0, y, width, th.line_strong);
+    const screens = [_]struct { screen: state_mod.Screen, icon: icons.Kind, label: []const u8 }{
+        .{ .screen = .overview, .icon = .overview, .label = "Overview" },
+        .{ .screen = .timeline, .icon = .timeline, .label = "Timeline" },
+        .{ .screen = .advisor, .icon = .advisor, .label = "Advisor" },
+        .{ .screen = .events, .icon = .events, .label = "Events" },
+        .{ .screen = .capture, .icon = .capture, .label = "Capture" },
+    };
+    const item_w = width / 5;
+    for (screens, 0..) |item, index| {
+        const active = state.screen == item.screen;
+        const x = @as(f32, @floatFromInt(index)) * item_w;
+        if (active) try canvas.fill(.{ .x = x, .y = y + 1, .w = 2, .h = 0 }, th.live);
+        if (active) try canvas.fill(.{ .x = x, .y = y + 1, .w = item_w, .h = 2 }, th.live);
+        const ix = x + item_w * 0.5 - 8.5;
+        try icons.draw(canvas, item.icon, .{ .x = ix, .y = y + 11.5, .w = 17, .h = 17 }, if (active) th.live else th.dim);
+        var lbl = style(text_105, if (active) th.text else th.muted, .regular);
+        lbl.text_align = .center;
+        _ = try canvas.textIn(.{ .x = x, .y = y + 31.5, .w = item_w, .h = 16 }, lbl, item.label);
+        canvas.hit(@as(u32, @backingInt(item.screen)) + 100, .{ .x = x, .y = y, .w = item_w, .h = bar_h });
+    }
+    _ = model;
 }
 
 fn drawKeybar(model: *const Model, canvas: *Canvas, th: Theme, width: f32, height: f32) !void {

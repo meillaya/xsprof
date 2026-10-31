@@ -35,6 +35,8 @@ pub const App = struct {
     viewport_w: u32 = 1440,
     viewport_h: u32 = 900,
     toast_buf: [96]u8 = undefined,
+    copy_buf: [512]u8 = undefined,
+    copy_len: usize = 0,
 
     pub fn init(backing: std.mem.Allocator) App {
         return .{
@@ -51,6 +53,20 @@ pub const App = struct {
 
     pub fn setLive(self: *App, value: bool) void {
         self.live = value;
+    }
+
+    pub fn copyText(self: *const App) []const u8 {
+        return self.copy_buf[0..self.copy_len];
+    }
+
+    pub fn clearCopy(self: *App) void {
+        self.copy_len = 0;
+    }
+
+    fn requestCopy(self: *App, text_value: []const u8) void {
+        const len = @min(text_value.len, self.copy_buf.len);
+        @memcpy(self.copy_buf[0..len], text_value[0..len]);
+        self.copy_len = len;
     }
 
     pub fn setRecorderDir(self: *App, dir: []const u8) void {
@@ -179,12 +195,13 @@ pub const App = struct {
 
     pub fn scrollBy(self: *App, delta: f32) void {
         const stage_h: f32 = @as(f32, @floatFromInt(self.viewport_h)) - 82.0;
+        const compact = self.viewport_w <= 780;
         const content_h: f32 = switch (self.state.screen) {
-            .overview => if (self.viewport_w >= 1320) 1104.0 else 1600.0,
-            .timeline => 640.0,
-            .advisor => 1010.0,
-            .events => 780.0,
-            .capture => 900.0,
+            .overview => if (compact) 2460.0 else if (self.viewport_w >= 1320) 1104.0 else 1600.0,
+            .timeline => if (self.viewport_w <= 1140) 1120.0 else 640.0,
+            .advisor => if (self.viewport_w <= 1024) 1710.0 else 1010.0,
+            .events => if (self.viewport_w <= 1140) 1510.0 else 780.0,
+            .capture => if (self.viewport_w <= 1024) 1420.0 else 900.0,
         };
         const max_scroll = @max(0.0, content_h - stage_h);
         self.state.scroll_y = std.math.clamp(self.state.scroll_y + delta, 0, max_scroll);
@@ -246,7 +263,14 @@ pub const App = struct {
                 self.state.timeline_playhead = self.state.viewEnd(self.model.summary.windowMs);
             },
             'c', 'C' => {
-                if (self.state.selected_slice != null) self.showToast("slice summary copied", false);
+                if (self.state.selected_slice) |id| {
+                    if (id < self.model.slices.len) {
+                        const slice = self.model.slices[id];
+                        const text_value = std.fmt.bufPrint(&self.copy_buf, "{s} pid {d} cpu{d} {d:.2} ms", .{ slice.comm, slice.pid, slice.cpu, slice.dur }) catch return;
+                        self.copy_len = text_value.len;
+                        self.showToast("slice summary copied", false);
+                    }
+                }
             },
             '+', '=' => self.zoomTimeline(0.6),
             '-', '_' => self.zoomTimeline(1.7),
@@ -390,7 +414,7 @@ pub const App = struct {
         self.state.timeline_end = start + span;
     }
 
-    fn showToast(self: *App, text_value: []const u8, is_error: bool) void {
+    pub fn showToast(self: *App, text_value: []const u8, is_error: bool) void {
         _ = is_error;
         const n = @min(text_value.len, self.toast_buf.len);
         @memcpy(self.toast_buf[0..n], text_value[0..n]);
@@ -454,6 +478,14 @@ pub const App = struct {
                 604 => self.state.events_type = "page_fault",
                 605 => self.state.events_type = "cache_miss",
                 606 => self.state.events_type = "loss",
+                800, 801, 802, 803 => {
+                    const capture = @import("capture.zig");
+                    const index = id - 800;
+                    if (index < capture.commands.len) {
+                        self.requestCopy(capture.commands[index][1]);
+                        self.showToast("command copied", false);
+                    }
+                },
                 else => {
                     if (id >= 1000 and id < 3000) {
                         self.state.selected_slice = id - 1000;
@@ -526,4 +558,31 @@ test "stage scrolling clamps and resets on navigation" {
     try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
     app.scrollBy(-100000);
     try std.testing.expectEqual(@as(f32, 0), app.state.scroll_y);
+}
+
+test "copy requests carry capture commands and slice summaries" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.frame.Frame = undefined;
+    try frame.init(std.testing.allocator, 1440, 900, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+    app.state.screen = .capture;
+    try view_mod.view(&app.model, &app.state, &canvas);
+    var copy_hit: ?xsui.Rect = undefined;
+    for (canvas.hits.items) |hit| {
+        if (hit.id == 800) copy_hit = hit.rect;
+    }
+    const rect = copy_hit orelse return error.TestUnexpectedResult;
+    app.click(&canvas, rect.x + 4, rect.y + 4);
+    const capture = @import("capture.zig");
+    try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
+    app.clearCopy();
+    try std.testing.expectEqual(@as(usize, 0), app.copyText().len);
+
+    app.state.selected_slice = 0;
+    app.handleKey('c', .{});
+    try std.testing.expect(app.copyText().len > 0);
 }

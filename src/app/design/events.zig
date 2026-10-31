@@ -21,9 +21,11 @@ const labelRight = common.labelRight;
 const borderLine = common.borderLine;
 
 pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, stage_x: f32, stage_top: f32, width: f32) !void {
-    const x = stage_x + 24;
-    const y = stage_top + 16 - state.scroll_y;
-    const w = width - stage_x - 48;
+    const compact = width <= 780;
+    const pad: f32 = if (compact) 14 else 24;
+    const x = stage_x + pad;
+    const y = stage_top + (if (compact) @as(f32, 14) else 16) - state.scroll_y;
+    const w = width - stage_x - pad * 2;
     var eyebrow = style(common.text_105, th.dim, .regular);
     eyebrow.tracking = 1.47;
     try label(canvas, x, y, "APPEND-ONLY LEDGER  ·  SANITIZED", eyebrow);
@@ -37,6 +39,11 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     try drawTypes(model, state, canvas, th, x, y + 65.75);
 
     const body_y = y + 99.75;
+    if (width <= 1140) {
+        try drawLedger(model, state, canvas, th, .{ .x = x, .y = body_y, .w = w, .h = 573.5 });
+        try drawDetail(model, state, canvas, th, .{ .x = x, .y = body_y + 585.5, .w = w, .h = 260 });
+        return;
+    }
     const ledger_w = w - 316;
     try drawLedger(model, state, canvas, th, .{ .x = x, .y = body_y, .w = ledger_w, .h = 573.5 });
     try drawDetail(model, state, canvas, th, .{ .x = x + ledger_w + 12, .y = body_y, .w = 304, .h = 260 });
