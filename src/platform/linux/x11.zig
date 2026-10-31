@@ -11,6 +11,7 @@ const layout = @import("../../ui/layout.zig");
 const app_mod = @import("../../app/app.zig");
 const gallery = @import("../../app/gallery.zig");
 const session_mod = @import("../../stream/session.zig");
+const input_mod = @import("../../ui/input.zig");
 
 const Display = opaque {};
 const Window = c_ulong;
@@ -65,6 +66,23 @@ const KeyEvent = extern struct {
     keycode: c_uint,
     same_screen: c_int,
 };
+const ButtonEvent = extern struct {
+    type: c_int,
+    serial: c_ulong,
+    send_event: c_int,
+    display: ?*Display,
+    window: Window,
+    root: Window,
+    subwindow: Window,
+    time: c_ulong,
+    x: c_int,
+    y: c_int,
+    x_root: c_int,
+    y_root: c_int,
+    state: c_uint,
+    button: c_uint,
+    same_screen: c_int,
+};
 const ClientMessage = extern struct {
     type: c_int,
     serial: c_ulong,
@@ -78,6 +96,7 @@ const ClientMessage = extern struct {
 const Event = extern union {
     type: c_int,
     key: KeyEvent,
+    button: ButtonEvent,
     client: ClientMessage,
     pad: [24]c_long,
 };
@@ -158,6 +177,10 @@ pub const App = struct {
     screen: app_mod.Screen = .overview,
     light: bool = false,
     wm_delete: Atom,
+    input: input_mod.Input = .{},
+    selection: ?app_mod.Selection = null,
+    view_window: ?app_mod.Window = null,
+    timeline: app_mod.TimelineGeometry = .{},
 };
 
 const width: u32 = 1280;
@@ -178,8 +201,19 @@ fn render(self: *App) !void {
     var ui = layout.Ui.init(&frame);
     defer ui.deinit();
     if (self.session) |*session| {
-        var state = app_mod.State{ .session = session, .screen = self.screen };
+        var state = app_mod.State{
+            .session = session,
+            .screen = self.screen,
+            .window = self.view_window,
+            .selection = self.selection,
+            .timeline = self.timeline,
+        };
+        frame.input = self.input;
         try app_mod.view(&state, &ui);
+        self.selection = state.selection;
+        self.view_window = state.window;
+        self.timeline = state.timeline;
+        self.input.clearTransient();
     } else {
         try gallery.build(&ui);
     }
@@ -214,7 +248,7 @@ pub fn run(
     const colormap = x.create_colormap(display, root, visual_info.visual, 0);
     var attrs = SetWindowAttributes{
         .background_pixel = 0,
-        .event_mask = 1 | 4 | 0x8000 | 0x20000,
+        .event_mask = 1 | 4 | 8 | 64 | 0x8000 | 0x20000,
         .colormap = colormap,
     };
     const window = x.create_window(
@@ -280,6 +314,26 @@ pub fn run(
                 }
                 try render(&app);
                 x.swap_buffers(display, window);
+            },
+            4 => {
+                const button = event.button.button;
+                if (button == 4 or button == 5) {
+                    app.input.scroll_y = if (button == 4) -1 else 1;
+                } else {
+                    app.input.pointer_x = @floatFromInt(event.button.x);
+                    app.input.pointer_y = @floatFromInt(event.button.y);
+                    app.input.pointer_down = true;
+                    app.input.clicked = true;
+                }
+                try render(&app);
+                x.swap_buffers(display, window);
+            },
+            5 => {
+                app.input.pointer_down = false;
+            },
+            6 => {
+                app.input.pointer_x = @floatFromInt(event.button.x);
+                app.input.pointer_y = @floatFromInt(event.button.y);
             },
             12, 22 => {
                 try render(&app);

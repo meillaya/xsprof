@@ -58,6 +58,6 @@ activate the visible window; that final visual check is human-only.
 
 - The window is fixed at 1280×720 and drawn at 1× for now; Retina 2× text and
   resize handling are a polish item.
-- No menu bar, accessibility tree, or pointer hit-testing yet; keyboard
-  navigation is wired.
+- Pointer clicks and wheel scrolling are wired to the shared timeline and
+  event-list input. No menu bar or accessibility tree yet.
 - Native live streaming is web-only; `ui --replay` and the gallery are native.
