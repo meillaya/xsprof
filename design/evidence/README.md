@@ -37,7 +37,9 @@ the reference diff so design drift stays visible.
 | `parity.json` | Advisory reference metrics (MAE, >16, >24) |
 | `cross_surface.json` | Formal CPU vs WebGL2 vs Metal gate report |
 | `interactions.json` | Clipboard, brush, focus-trap, and skip-link gate |
+| `../media/xsprof-ui-demo.gif` | Compact README preview of the replay video |
 | `../media/xsprof-ui-demo.mp4` | Headless boot/use replay over the real VM capture (H.264) |
+| `../media/xsprof-ui-live.gif` | Compact README preview of the live stream |
 | `../media/xsprof-ui-live.mp4` | Live VM stream recorded through the SSH loopback tunnel |
 | `screenshots/live-stream/` | LIVE console screenshots while the VM stream advances |
 | `live_stream.json` | Representative live counters, source, and loss disclosure |

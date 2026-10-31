@@ -7,18 +7,18 @@
 <p align="center">Read-only Linux scheduler and memory profiler.</p>
 
 <p align="center">
-  <video src="design/media/xsprof-ui-demo.mp4" poster="design/media/xsprof-ui-demo-poster.png" width="900" controls muted loop></video>
+  <img src="design/media/xsprof-ui-demo.gif" alt="Replay of a real 110,284-event Linux-VM perf capture" width="900">
 </p>
 
 <p align="center"><strong>Replay</strong> of a real 110,284-event Linux-VM perf capture ·
-<a href="design/media/xsprof-ui-demo.mp4">MP4</a></p>
+<a href="design/media/xsprof-ui-demo.mp4">full MP4</a></p>
 
 <p align="center">
-  <video src="design/media/xsprof-ui-live.mp4" poster="design/media/xsprof-ui-live-poster.png" width="900" controls muted loop></video>
+  <img src="design/media/xsprof-ui-live.gif" alt="Live VM stream captured through the loopback tunnel" width="900">
 </p>
 
 <p align="center"><strong>Live</strong> VM stream over the loopback tunnel ·
-<a href="design/media/xsprof-ui-live.mp4">MP4</a></p>
+<a href="design/media/xsprof-ui-live.mp4">full MP4</a></p>
 
 `xsprof` correlates scheduler and memory events without changing the host. It
 records perf tracepoints into bounded rotating segments, extracts the last few
@@ -96,8 +96,8 @@ python3 design/validate.py   # source hash + token/palette/CSS consistency
 - Prototype reference: [`design/screenshots/prototype/`](design/screenshots/prototype/)
 - GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
 - Real Linux-VM perf capture: [`fixtures/real/macos-vm-sched.ndjson`](fixtures/real/macos-vm-sched.ndjson) and [`design/screenshots/live/`](design/screenshots/live/)
-- Replay video over the real capture: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
-- Live-stream video: [`design/media/xsprof-ui-live.mp4`](design/media/xsprof-ui-live.mp4)
+- Replay preview GIF / full video: [`design/media/xsprof-ui-demo.gif`](design/media/xsprof-ui-demo.gif) · [`MP4`](design/media/xsprof-ui-demo.mp4)
+- Live preview GIF / full video: [`design/media/xsprof-ui-live.gif`](design/media/xsprof-ui-live.gif) · [`MP4`](design/media/xsprof-ui-live.mp4)
 - Live-stream screenshots: [`design/screenshots/live-stream/`](design/screenshots/live-stream/)
 - Formal UI contract: [`design/ui-spec.json`](design/ui-spec.json)
 - Cross-surface report: [`design/evidence/cross_surface.json`](design/evidence/cross_surface.json)
