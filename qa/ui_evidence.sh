@@ -44,4 +44,27 @@ mkdir -p design/media
 ffmpeg -v error -y -i "$TMP/console.webm" -c:v libx264 -preset slow -crf 23 \
   -pix_fmt yuv420p -movflags +faststart design/media/xsprof-ui-demo.mp4
 python3 qa/ui_parity.py
-echo "ui_evidence: PASS (headless screenshots + video + parity report; pixel parity is advisory)"
+# Formal gate: CPU is canonical; WebGL2 must consume the same draw list and
+# atlas within the ui-spec tolerance. Reference diffs above remain advisory.
+mkdir -p "$TMP/cpu"
+for view in overview timeline advisor events capture; do
+  "$BIN" snapshot --demo-model fixtures/ui/design/demo.json --view "$view" \
+    --theme dark --width 1440 --height 900 --out "$TMP/cpu/$view-graphite.png" >/dev/null
+done
+for theme in dark paper latte frappe macchiato mocha; do
+  "$BIN" snapshot --demo-model fixtures/ui/design/demo.json --view overview \
+    --theme "$theme" --width 1440 --height 900 --out "$TMP/cpu/overview-$theme.png" >/dev/null
+done
+mkdir -p "$TMP/metal"
+METAL_ARG=
+if "$BIN" snapshot --demo-model fixtures/ui/design/demo.json --view overview \
+    --theme dark --width 1440 --height 900 --backend metal --out "$TMP/metal/overview-graphite.png" >/dev/null 2>&1; then
+  for view in timeline advisor events capture; do
+    "$BIN" snapshot --demo-model fixtures/ui/design/demo.json --view "$view" \
+      --theme dark --width 1440 --height 900 --backend metal --out "$TMP/metal/$view-graphite.png" >/dev/null
+  done
+  METAL_ARG="--metal $TMP/metal"
+fi
+python3 qa/ui_cross_surface.py --cpu "$TMP/cpu" --web design/screenshots/xsprof $METAL_ARG \
+  --out design/evidence/cross_surface.json
+echo "ui_evidence: PASS (cross-surface gate + screenshots + video + advisory reference report)"

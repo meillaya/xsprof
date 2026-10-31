@@ -59,11 +59,11 @@ pub fn panelBase(canvas: *Canvas, th: Theme, rect: Rect) !void {
 
 pub fn panelHead(canvas: *Canvas, th: Theme, rect: Rect, index: []const u8, title: []const u8, meta: []const u8) !void {
     try borderLine(canvas, rect.x + 1, rect.y + 36, rect.w - 2, th.line);
-    try label(canvas, rect.x + 15, rect.y + 9, index, style(text_95, th.faint, .regular));
+    try label(canvas, rect.x + 15, rect.y + 10.6, index, style(text_95, th.faint, .regular));
     var title_style = style(text_105, th.muted, .bold);
     title_style.tracking = 1.05;
-    try label(canvas, rect.x + 35, rect.y + 9, title, title_style);
-    if (meta.len != 0) try labelRight(canvas, rect.x + rect.w - 14, rect.y + 9, meta, style(text_105, th.dim, .regular));
+    try label(canvas, rect.x + 35, rect.y + 10.6, title, title_style);
+    if (meta.len != 0) try labelRight(canvas, rect.x + rect.w - 14, rect.y + 10.6, meta, style(text_105, th.dim, .regular));
 }
 
 pub fn severityColor(th: Theme, severity: []const u8) Color {
@@ -73,7 +73,7 @@ pub fn severityColor(th: Theme, severity: []const u8) Color {
     return th.faint;
 }
 
-pub fn stateBadge(canvas: *Canvas, th: Theme, rect: Rect, state: []const u8, label_text: []const u8) !void {
+pub fn stateBadge(canvas: *Canvas, th: Theme, rect: Rect, state: []const u8, glyph: []const u8, label_text: []const u8) !void {
     const color = if (std.mem.eql(u8, state, "READY") or std.mem.eql(u8, state, "CLEAR"))
         th.pass
     else if (std.mem.eql(u8, state, "DEGRADED") or std.mem.eql(u8, state, "SKIP") or std.mem.eql(u8, state, "WARNING"))
@@ -81,20 +81,19 @@ pub fn stateBadge(canvas: *Canvas, th: Theme, rect: Rect, state: []const u8, lab
     else
         th.refuse;
     var st = style(text_95, color, .regular);
-    st.tracking = 0.85;
-    const w = 2 * 5 + 8 + measure(canvas, label_text, st) + 2;
-    const box = Rect{ .x = rect.x + rect.w - w, .y = rect.y, .w = w, .h = 18 };
+    st.tracking = 0.855;
+    const default_glyph: []const u8 = if (std.mem.eql(u8, state, "READY") or std.mem.eql(u8, state, "CLEAR"))
+        "●"
+    else if (std.mem.eql(u8, state, "REFUSE"))
+        "■"
+    else
+        "◐";
+    const mark = if (glyph.len > 0) glyph else default_glyph;
+    const mark_w = measure(canvas, mark, st);
+    const label_w = measure(canvas, label_text, st);
+    const box_w = 2 + 10 + mark_w + 4 + label_w;
+    const box = Rect{ .x = rect.x + rect.w - box_w, .y = rect.y, .w = box_w, .h = 18.25 };
     try canvas.rounded(box, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, color, 1);
-    const cy = box.y + 9;
-    if (std.mem.eql(u8, state, "READY") or std.mem.eql(u8, state, "CLEAR")) {
-        try canvas.circle(box.x + 7, cy, 2.4, color);
-    } else if (std.mem.eql(u8, state, "REFUSE")) {
-        try canvas.fill(.{ .x = box.x + 5, .y = cy - 2.5, .w = 5, .h = 5 }, color);
-    } else if (std.mem.eql(u8, state, "SKIP")) {
-        try canvas.stroke(.{ .x = box.x + 4.5, .y = cy - 3, .w = 6, .h = 6 }, 3, color, 0.8);
-    } else {
-        try canvas.circle(box.x + 7, cy, 2.8, color);
-        try canvas.fill(.{ .x = box.x + 7, .y = cy - 3, .w = 3, .h = 6 }, th.panel);
-    }
-    try label(canvas, box.x + 13, box.y + 2.2, label_text, st);
+    _ = try canvas.textIn(.{ .x = box.x + 6, .y = box.y + 2.0, .w = box.w - 10, .h = 15 }, st, mark);
+    _ = try canvas.textIn(.{ .x = box.x + 6 + mark_w + 4, .y = box.y + 2.0, .w = box.w - 12 - mark_w, .h = 15 }, st, label_text);
 }

@@ -11,14 +11,16 @@ prototype rather than approximating it.
 - Token set version: `1.0.0`
 - Reference viewports: web `1440x900 @1`, native `1280x720 @1`
 - Status: implemented as the primary GPU console (`src/app/design/`,
-  `lib/xsui/src/canvas.zig`). Color, geometry, typography, all five screens,
-  six palettes, overlays, and key flows are wired; glyph antialiasing differs
-  from Chromium and is measured in [`evidence/parity.json`](evidence/parity.json).
+  `lib/xsui/src/canvas.zig`). The formal contract is
+  [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/WebGL2 are
+  gated by [`qa/ui_cross_surface.py`](../qa/ui_cross_surface.py). The prototype
+  remains the design source, and its pixel diff is advisory.
 
 ## Files
 
 | File | Contents |
 |---|---|
+| [`ui-spec.json`](ui-spec.json) | canonical runtime contract: draw list, text atlas/hash, palettes, breakpoints, shell, components, interactions, cross-surface gates |
 | [`tokens.json`](tokens.json) | canonical shared tokens: meta, typography, spacing, radii, borders, focus, layout, components, motion, GPU ABI |
 | [`palettes.json`](palettes.json) | canonical color source: six palettes, semantic roles, state contract, color-mix recipes, per-theme derived colors |
 | [`tokens.css`](tokens.css) | generated CSS custom properties for Graphite, Paper, and four Catppuccin flavours |
@@ -28,7 +30,7 @@ prototype rather than approximating it.
 | [`command-palette.json`](command-palette.json) | 17 exact palette commands, appearance options, help sheet, grouping and search rules |
 | [`gpu-mapping.md`](gpu-mapping.md) | token-to-instance mapping, color/text/layout requirements, parity harness, known gaps |
 | [`index.html`](index.html) | the console prototype itself; self-contained, source of truth for all tokens |
-| [`validate.py`](validate.py) | checks source hash, JSON validity, palette coverage, CSS parity, screens/flows presence |
+| [`validate.py`](validate.py) | checks source hash, JSON validity, palette coverage, CSS parity, screens/flows presence, atlas hash, and the formal spec |
 
 `palettes.json` is the single source for colors. `tokens.json` references it
 through `meta.paletteSource` and owns everything else. `tokens.css` is a

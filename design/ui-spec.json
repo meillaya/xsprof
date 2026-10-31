@@ -1,0 +1,266 @@
+{
+  "$schema": "xsprof/ui-spec/v1",
+  "version": 1,
+  "status": "canonical",
+  "meaning": "The single deterministic rendering and interaction contract for every xsprof surface. The HTML prototype is the design source; reference pixel diffs are advisory. CPU is the canonical raster; Metal, OpenGL, WebGL2, and CPU must consume the same draw list and text atlas.",
+  "design_source": {
+    "prototype": "design/index.html",
+    "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
+    "tokens": [
+      "design/tokens.json",
+      "design/palettes.json"
+    ],
+    "screens": "design/screens.json",
+    "flows": "design/flows.json",
+    "keybindings": "design/keybindings.json"
+  },
+  "render": {
+    "coordinate_space": "physical-pixels",
+    "device_scale": 1,
+    "draw_list": "xsui/instance-v1",
+    "backends": [
+      "cpu",
+      "metal",
+      "gl",
+      "webgl2"
+    ],
+    "canonical_backend": "cpu",
+    "blend": "sRGB source-over, 8-bit",
+    "geometry": "the same fractional draw list is consumed by every backend",
+    "platform_fonts": false,
+    "text_atlas": {
+      "file": "lib/xsui/assets/fonts/chromium_text_atlas.bin",
+      "schema": "xsprof/chromium-text-atlas/v1",
+      "sha256": "84008da0e63e67b1516de44af3d4bd498df57149a2e2e1c537a1fb7d3f4a02a5",
+      "bytes": 4386352,
+      "atlas_size": 4096,
+      "phase_grid": {
+        "x": [
+          0,
+          0.25,
+          0.5,
+          0.75
+        ],
+        "y": [
+          0,
+          0.5
+        ]
+      },
+      "fallback": "staged TTF for unavailable glyphs/phases"
+    }
+  },
+  "canvas": {
+    "reference": {
+      "width": 1440,
+      "height": 900
+    },
+    "native": {
+      "width": 1280,
+      "height": 720
+    },
+    "background": "bg"
+  },
+  "breakpoints": [
+    {
+      "id": "wide",
+      "min_width": 1321,
+      "grid_3_columns": 3,
+      "rail": "side",
+      "keybar": true
+    },
+    {
+      "id": "compact",
+      "max_width": 1320,
+      "grid_3_columns": 2,
+      "rail": "side",
+      "keybar": true
+    },
+    {
+      "id": "stacked",
+      "max_width": 1140,
+      "rail": "side",
+      "keybar": true,
+      "timeline": "stacked",
+      "events": "stacked"
+    },
+    {
+      "id": "bottom-rail",
+      "max_width": 1024,
+      "rail": "bottom",
+      "keybar": false,
+      "grid_capture": 1,
+      "advisor": 1
+    },
+    {
+      "id": "compact-topbar",
+      "max_width": 780,
+      "rail": "bottom",
+      "keybar": false,
+      "grid_3": 1,
+      "grid_capture": 1,
+      "brief_columns": 2
+    },
+    {
+      "id": "phone",
+      "max_width": 420,
+      "rail": "bottom",
+      "keybar": false,
+      "theme_grid": 1
+    }
+  ],
+  "shell": {
+    "topbar_h": 52,
+    "rail_w": 92,
+    "keybar_h": 30,
+    "stage_pad_top": 20,
+    "stage_pad_x": 24,
+    "stage_pad_bottom": 22,
+    "rail_item_h": 63.75,
+    "radius": 5
+  },
+  "screens": [
+    "overview",
+    "timeline",
+    "advisor",
+    "events",
+    "capture"
+  ],
+  "overlays": [
+    "palette",
+    "appearance",
+    "help",
+    "toast"
+  ],
+  "text_roles": [
+    {
+      "id": "wordmark",
+      "size": 14,
+      "weight": "bold",
+      "tracking": -0.14
+    },
+    {
+      "id": "screen-title",
+      "size": 20,
+      "weight": "bold",
+      "tracking": -0.4
+    },
+    {
+      "id": "panel-title",
+      "size": 10.5,
+      "weight": "bold",
+      "tracking": 1.05
+    },
+    {
+      "id": "eyebrow",
+      "size": 10.5,
+      "weight": "regular",
+      "tracking": 1.47
+    },
+    {
+      "id": "body",
+      "size": 11,
+      "weight": "regular"
+    },
+    {
+      "id": "meta",
+      "size": 10.5,
+      "weight": "regular"
+    },
+    {
+      "id": "micro",
+      "size": 9.5,
+      "weight": "regular"
+    },
+    {
+      "id": "stat-value",
+      "size": 27,
+      "weight": "bold",
+      "tracking": -0.8
+    },
+    {
+      "id": "stat-lead",
+      "size": 34,
+      "weight": "bold",
+      "tracking": -0.8
+    }
+  ],
+  "components": {
+    "panel": {
+      "border": 1,
+      "radius": 5,
+      "head_h": 36,
+      "head_pad_top": 9,
+      "head_pad_x": 14,
+      "body_pad_x": 14
+    },
+    "chip": {
+      "border": 1,
+      "radius": 3,
+      "pad_x": 7,
+      "pad_y": 3,
+      "gap": 5
+    },
+    "keycap": {
+      "border": 1,
+      "radius": 3,
+      "pad_x": 4,
+      "line_height": 1.5,
+      "font_size": 9.5
+    },
+    "badge": {
+      "border": 1,
+      "radius": 3,
+      "pad_x": 5,
+      "pad_y": 1,
+      "gap": 4,
+      "font_size": 9.5
+    },
+    "button": {
+      "border": 1,
+      "radius": 4,
+      "h": 28
+    }
+  },
+  "interaction": {
+    "state_machine": "src/app/design/state.zig",
+    "screens_switch": "1..5",
+    "palette": "meta/ctrl+k",
+    "appearance": "w",
+    "help": "?",
+    "filter": "/",
+    "playback": "space",
+    "brush": "pointer drag on timeline plot (>4px, >20ms) zooms; minimum 300ms span",
+    "focus": "visible 2px ring; Tab/Shift+Tab traverse; dialogs trap and restore focus",
+    "clipboard": "copy requests are emitted by the app and consumed by the platform surface"
+  },
+  "data": {
+    "source": "journal, live SSE, recorder manifest",
+    "read_only": true,
+    "host_mutation": false,
+    "uncollected": "explicit SKIP/uncollected; never fabricated zero"
+  },
+  "acceptance": {
+    "cross_surface": {
+      "cpu_vs_webgl2": {
+        "mae_max": 2.5,
+        "over24_max": 3.0
+      },
+      "cpu_vs_metal": {
+        "mae_max": 4.0,
+        "over24_max": 3.0
+      },
+      "cpu_vs_gl": {
+        "mae_max": 4.0,
+        "over24_max": 3.0
+      }
+    },
+    "reference": {
+      "role": "advisory design comparison",
+      "pixel_gate": false
+    },
+    "layout": {
+      "text_origin_tolerance_px": 0.01,
+      "box_edge_tolerance_px": 1.0
+    }
+  }
+}

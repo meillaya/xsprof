@@ -183,6 +183,45 @@ gpu = tokens.get("gpu", {}).get("instanceAbi", {})
 check(gpu.get("bytes") == 72 and gpu.get("lanesF32") == 18, "tokens.json: instance ABI")
 check(tokens.get("gpu", {}).get("parity", {}).get("primaryViewport") == "1440x900 @ DPR 1", "tokens.json: primary viewport")
 
+
+# Formal runtime contract: the canonical spec must match the embedded assets,
+# screens, breakpoints, and generated Zig constants.
+spec_path = DESIGN / "ui-spec.json"
+check(spec_path.exists(), "ui-spec.json: missing")
+spec = json.loads(spec_path.read_text()) if spec_path.exists() else {}
+check(spec.get("$schema") == "xsprof/ui-spec/v1", "ui-spec.json: schema")
+check(spec.get("version") == 1, "ui-spec.json: version")
+check(spec.get("render", {}).get("platform_fonts") is False, "ui-spec.json: platform_fonts must be false")
+check(spec.get("canvas", {}).get("reference", {}).get("width") == 1440, "ui-spec.json: reference width")
+check(spec.get("canvas", {}).get("reference", {}).get("height") == 900, "ui-spec.json: reference height")
+check([s.get("max_width") for s in spec.get("breakpoints", []) if "max_width" in s] == [1320, 1140, 1024, 780, 420],
+      "ui-spec.json: breakpoints")
+check(spec.get("screens") == SCREEN_IDS, "ui-spec.json: screens")
+atlas_meta = spec.get("render", {}).get("text_atlas", {})
+atlas_path = ROOT / atlas_meta.get("file", "")
+check(atlas_path.exists(), "ui-spec.json: text atlas missing")
+if atlas_path.exists():
+    atlas_bytes = atlas_path.read_bytes()
+    check(hashlib.sha256(atlas_bytes).hexdigest() == atlas_meta.get("sha256"),
+          "ui-spec.json: text atlas hash is stale")
+    check(len(atlas_bytes) == atlas_meta.get("bytes"), "ui-spec.json: text atlas size")
+gen_path = ROOT / "src/app/design/ui_spec.zig"
+check(gen_path.exists(), "ui_spec.zig: generated file missing")
+if gen_path.exists() and atlas_meta.get("sha256"):
+    generated = gen_path.read_text()
+    digest = bytes.fromhex(atlas_meta["sha256"])
+    byte_lines = ",\n".join(
+        "    " + ", ".join(f"0x{b:02x}" for b in digest[i:i + 8])
+        for i in range(0, 32, 8)
+    )
+    check(byte_lines in generated, "ui_spec.zig: atlas hash does not match ui-spec.json")
+    check('pub const shell_top: f32 = 52.0;' in generated, "ui_spec.zig: shell_top")
+    check('pub const rail_width: f32 = 92.0;' in generated, "ui_spec.zig: rail_width")
+cross = spec.get("acceptance", {}).get("cross_surface", {}).get("cpu_vs_webgl2", {})
+check(cross.get("mae_max", 0) > 0 and cross.get("over24_max", 0) > 0, "ui-spec.json: cross-surface gate")
+check(spec.get("acceptance", {}).get("reference", {}).get("pixel_gate") is False,
+      "ui-spec.json: reference must be advisory")
+
 if errors:
     print("design: FAIL", file=sys.stderr)
     for error in errors:

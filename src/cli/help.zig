@@ -19,7 +19,7 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
         \\                          Read-only loopback console; live is Linux-only
         \\  snapshot [--replay <f>] [--recorder-dir <d>] [--theme <t>]
         \\           [--view <s>] [--overlay <o>] [--demo-model <f>]
-        \\                          Headless PNG snapshot of the console
+        \\           [--backend cpu|metal] Headless PNG snapshot of the console
         \\  ui [--replay <f>] [--recorder-dir <d>] [--theme <t>] [--view <s>]
         \\                          Native console (human-run window)
         \\  bpf-gate --json         VM-marker-gated no-op BPF gate

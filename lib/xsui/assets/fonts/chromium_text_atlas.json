@@ -1,0 +1,44 @@
+{
+  "schema": "xsprof/chromium-text-atlas/v1",
+  "source": "design/index.html",
+  "renderer": "dom-screenshot",
+  "chromium": "156.0.8078.4",
+  "atlas": 4096,
+  "masks": 33984,
+  "phasesX": [
+    0,
+    0.25,
+    0.5,
+    0.75
+  ],
+  "phasesY": [
+    0,
+    0.5
+  ],
+  "sizes": [
+    8.5,
+    9,
+    9.5,
+    10,
+    10.5,
+    11,
+    12,
+    12.5,
+    13,
+    14,
+    15,
+    16,
+    18,
+    20,
+    22,
+    27,
+    28,
+    34
+  ],
+  "weights": [
+    400,
+    700
+  ],
+  "symbols": "→←↑↓·—–…“”‘’−×✓●○◐■□↔⌘⏎⌫",
+  "bytes": 4386352
+}

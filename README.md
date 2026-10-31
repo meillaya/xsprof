@@ -54,6 +54,9 @@ xsprof demo
 xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 ```
 
+CPU is the canonical renderer; Metal, OpenGL, and WebGL2 consume the same draw
+list and browser-generated text atlas, and the formal cross-surface gate checks
+them against CPU. The HTML prototype is the design source, not a pixel oracle.
 The web, native, and snapshot surfaces share one console model. The web console
 is at `http://127.0.0.1:<port>/?token=…`; it reads `/api/journal`,
 `/api/meta`, `/api/recorder`, and the live SSE stream. `?demo=1` loads the
@@ -84,11 +87,13 @@ python3 design/validate.py   # source hash + token/palette/CSS consistency
 - GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
 - Real replay + recorder: [`design/screenshots/live/`](design/screenshots/live/)
 - Short boot/use video: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
-- Parity report and caveats: [`design/evidence/README.md`](design/evidence/README.md)
+- Formal UI contract: [`design/ui-spec.json`](design/ui-spec.json)
+- Cross-surface report: [`design/evidence/cross_surface.json`](design/evidence/cross_surface.json)
+- Evidence method: [`design/evidence/README.md`](design/evidence/README.md)
 
 ```sh
 ./tools/zig build web
-sh qa/ui_evidence.sh   # developer-only: headless Chromium + ffmpeg
+sh qa/ui_evidence.sh   # developer-only: screenshots, video, CPU/Metal/WebGL2 gate
 ```
 
 ## Safety

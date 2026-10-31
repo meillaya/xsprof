@@ -13,6 +13,7 @@ const advisor = @import("advisor.zig");
 const events = @import("events.zig");
 const capture = @import("capture.zig");
 const overlays = @import("overlays.zig");
+const ui_spec = @import("ui_spec.zig");
 
 const Canvas = xsui.Canvas;
 const Rect = xsui.Rect;
@@ -34,9 +35,9 @@ const label = common.label;
 const labelRight = common.labelRight;
 const borderLine = common.borderLine;
 
-pub const shell_top: f32 = 52.0;
-pub const shell_bottom: f32 = 30.0;
-pub const rail_width: f32 = 92.0;
+pub const shell_top: f32 = ui_spec.shell_top;
+pub const shell_bottom: f32 = ui_spec.shell_bottom;
+pub const rail_width: f32 = ui_spec.rail_width;
 
 pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
     const th = canvas.frame.theme;
@@ -95,6 +96,7 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     for (parts) |part| {
         if (part.text.len == 0) continue;
         if (!first) {
+            mx += 7;
             try label(canvas, mx, 17.25, "·", style(text_11, th.faint, .regular));
             mx += measure(canvas, "·", style(text_11, th.faint, .regular)) + 7;
         }
@@ -114,11 +116,16 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     try iconButton(canvas, theme_rect, th);
     try icons.draw(canvas, .sun, .{ .x = theme_rect.x + 8, .y = theme_rect.y + 6.5, .w = 15, .h = 15 }, th.muted);
 
-    const palette_w = 7 + 14 + 6 + measure(canvas, "⌘K", style(text_95, th.muted, .regular)) + 7;
+    const palette_key_style = style(text_95, th.muted, .regular);
+    const palette_key_w = measure(canvas, "⌘K", palette_key_style) + 8 + 2;
+    const palette_w = 16 + 14 + 6 + palette_key_w;
     const palette_rect = Rect{ .x = theme_rect.x - 8 - palette_w, .y = 11.5, .w = palette_w, .h = 28 };
     try iconButton(canvas, palette_rect, th);
-    try icons.draw(canvas, .menu, .{ .x = palette_rect.x + 7, .y = palette_rect.y + 7, .w = 14, .h = 14 }, th.muted);
-    try label(canvas, palette_rect.x + 7 + 14 + 6, palette_rect.y + 8.5, "⌘K", style(text_95, th.muted, .regular));
+    try icons.draw(canvas, .menu, .{ .x = palette_rect.x + 8, .y = palette_rect.y + 7, .w = 14, .h = 14 }, th.muted);
+    const pcap = Rect{ .x = palette_rect.x + 8 + 14 + 6, .y = palette_rect.y + 5.875, .w = palette_key_w, .h = 16.25 };
+    try canvas.rounded(pcap, 3, th.raised, th.line, 1);
+    try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
+    _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
     canvas.hit(200, palette_rect);
     canvas.hit(201, theme_rect);
     canvas.hit(202, help_rect);
@@ -127,30 +134,33 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     const safety = "READ-ONLY · HOST_MUTATION=FALSE";
     var chip_font = style(text_105, th.muted, .regular);
     chip_font.tracking = 0.84;
-    const safety_w = 7 + 11 + 5 + measure(canvas, safety, chip_font) + 7;
+    chip_font.line_height = 1.2;
+    const safety_w = 8 + 11 + 5 + measure(canvas, safety, chip_font) + 8;
     const safety_rect = Rect{ .x = x_right - safety_w, .y = 15.2, .w = safety_w, .h = 20.59 };
     try canvas.rounded(safety_rect, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
-    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + 7, .y = 19, .w = 11, .h = 11 }, th.pass);
-    try label(canvas, safety_rect.x + 7 + 11 + 5, 18.2, safety, chip_font);
+    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + 8, .y = 19, .w = 11, .h = 11 }, th.pass);
+    try label(canvas, safety_rect.x + 8 + 11 + 5, 18.2, safety, chip_font);
     x_right = safety_rect.x - 8;
 
     var loss_buf: [32]u8 = undefined;
     const loss_text = std.fmt.bufPrint(&loss_buf, "■ LOSS {d}", .{model.summary.lost}) catch "■ LOSS";
     var loss_font = style(text_105, th.refuse, .regular);
     loss_font.tracking = 0.84;
-    const loss_w = 7 + measure(canvas, loss_text, loss_font) + 7;
+    loss_font.line_height = 1.2;
+    const loss_w = 8 + measure(canvas, loss_text, loss_font) + 8;
     const loss_rect = Rect{ .x = x_right - loss_w, .y = 15.2, .w = loss_w, .h = 20.59 };
     try canvas.rounded(loss_rect, 3, th.tint_refuse, th.chip_loss_border, 1);
-    try label(canvas, loss_rect.x + 7, 18.2, loss_text, loss_font);
+    try label(canvas, loss_rect.x + 8, 18.2, loss_text, loss_font);
     x_right = loss_rect.x - 8;
 
     const source_text = model.meta.source;
     var source_font = style(text_105, th.live, .regular);
     source_font.tracking = 0.84;
-    const source_w = 7 + measure(canvas, source_text, source_font) + 7;
+    source_font.line_height = 1.2;
+    const source_w = 8 + measure(canvas, source_text, source_font) + 8;
     const source_rect = Rect{ .x = x_right - source_w, .y = 15.2, .w = source_w, .h = 20.59 };
     try canvas.rounded(source_rect, 3, th.tint_live, th.chip_source_border, 1);
-    try label(canvas, source_rect.x + 7, 18.2, source_text, source_font);
+    try label(canvas, source_rect.x + 8, 18.2, source_text, source_font);
 }
 
 fn iconButton(canvas: *Canvas, rect: Rect, th: Theme) !void {
@@ -204,13 +214,17 @@ fn drawKeybar(model: *const Model, canvas: *Canvas, th: Theme, width: f32, heigh
         .{ "?", "help" },
     };
     var x: f32 = 16;
-    const key_style = style(text_10, th.dim, .regular);
+    const key_style = style(text_95, th.muted, .regular);
+    const label_style = style(text_10, th.muted, .regular);
     for (keys) |item| {
-        const kw = measure(canvas, item[0], style(text_10, th.muted, .regular));
-        const ww = measure(canvas, item[1], key_style);
-        try label(canvas, x, y + 7.5, item[0], style(text_10, th.muted, .regular));
-        try label(canvas, x + kw + 4, y + 7.5, item[1], key_style);
-        x += kw + 4 + ww + 13;
+        const kw = measure(canvas, item[0], key_style);
+        const cap_w = kw + 8 + 2;
+        const cap = Rect{ .x = x, .y = y + 7.375, .w = cap_w, .h = 16.25 };
+        try canvas.rounded(cap, 3, th.raised, th.line, 1);
+        try canvas.fill(.{ .x = cap.x + 1, .y = cap.y + cap.h - 2, .w = cap.w - 2, .h = 1 }, th.line_strong);
+        _ = try canvas.textIn(.{ .x = cap.x + 5, .y = cap.y + 0.75, .w = cap.w - 8, .h = cap.h - 1.5 }, key_style, item[0]);
+        try label(canvas, x + cap_w + 4, y + 7.5, item[1], label_style);
+        x += cap_w + 4 + measure(canvas, item[1], label_style) + 13;
     }
     var status = style(text_10, th.dim, .regular);
     status.tracking = 0.0;

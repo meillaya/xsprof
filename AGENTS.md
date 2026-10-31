@@ -99,3 +99,6 @@ product surface on web, macOS, Linux, and `snapshot`. The visible lab rail is
 retired; `xsprof lab` remains a headless scenario/QA tool. Re-run
 `zig build check` and `qa/cli_parity.sh` after any behavior change. Visual
 evidence is developer-only under `design/evidence/` (`qa/ui_evidence.sh`).
+`design/ui-spec.json` is the formal runtime contract; CPU is canonical and
+`qa/ui_cross_surface.py` gates Metal/WebGL2 against it. Reference diffs are
+advisory, not acceptance criteria.
