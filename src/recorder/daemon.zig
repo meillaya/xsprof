@@ -7,6 +7,7 @@ const live = @import("../capture/live.zig");
 const manifest_mod = @import("manifest.zig");
 const segment_mod = @import("segment.zig");
 const sidecar = @import("sidecar.zig");
+const overhead = @import("../os/linux/overhead.zig");
 
 const segment_bytes = 16 * 1024 * 1024;
 const segment_age_ms = 30 * 1000;
@@ -32,12 +33,17 @@ pub const Result = struct {
     session_id: []const u8 = "",
     events: u64 = 0,
     bytes: u64 = 0,
+    overhead: overhead.Report = .{},
 };
 
 pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     if (builtin.os.tag != .linux) {
         return .{ .state = .SKIP, .reason = "recorder daemon is Linux-only" };
     }
+    const meter = overhead.Meter.start(io, allocator);
+    // The daemon is long-lived: capture batches and sidecars must return
+    // memory to a freeing allocator, not the CLI's per-process arena.
+    const runtime_allocator = std.heap.smp_allocator;
     const probe = try live.probe(io, allocator);
     if (probe.state != .READY) return .{ .state = probe.state, .reason = probe.reason };
 
@@ -77,7 +83,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     }
 
     var sequence: u32 = 0;
-    var segment = try segment_mod.Writer.create(io, allocator, dir, sequence, now_wall, now_mono);
+    var segment = try segment_mod.Writer.create(io, runtime_allocator, dir, sequence, now_wall, now_mono);
     defer segment.deinit();
     const segment_path = try allocator.dupe(u8, segment.path);
     try segments.append(allocator, .{
@@ -97,13 +103,19 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     };
     try writeManifest(io, allocator, manifest_path, manifest);
 
-    var capture = live.Capture.open(io, allocator, opts.live_options) catch |err| {
+    var capture = live.Capture.open(io, runtime_allocator, opts.live_options) catch |err| {
         try segment.close();
         manifest.state = .failed;
         manifest.updated_wall_ns = now_wall;
         manifest.segments = segments.items;
         try writeManifest(io, allocator, manifest_path, manifest);
-        return .{ .state = .REFUSE, .reason = @errorName(err), .dir = dir, .session_id = manifest.session_id };
+        return .{
+            .state = .REFUSE,
+            .reason = @errorName(err),
+            .dir = dir,
+            .session_id = manifest.session_id,
+            .overhead = meter.finish(io, allocator, 0, 0),
+        };
     };
     defer capture.deinit();
 
@@ -169,7 +181,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         const size = segment.sizeBytes();
         if (size >= segment_bytes or now - segment_started >= segment_age_ms * std.time.ns_per_ms) {
             try segment.close();
-            sidecar.writeForSegment(io, allocator, dir, segments.items[current].path) catch {};
+            sidecar.writeForSegment(io, runtime_allocator, dir, segments.items[current].path) catch {};
             segment.deinit();
             segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
             segments.items[current].end_mono_ns = now;
@@ -233,7 +245,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .detail = "capture_stop",
     });
     try segment.close();
-    sidecar.writeForSegment(io, allocator, dir, segments.items[current].path) catch {};
+    sidecar.writeForSegment(io, runtime_allocator, dir, segments.items[current].path) catch {};
     segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
     segments.items[current].end_mono_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds);
     segments.items[current].bytes = segment.stats.bytes;
@@ -244,13 +256,15 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     manifest.segments = segments.items;
     try writeManifest(io, allocator, manifest_path, manifest);
 
+    const bytes = totalBytes(segments.items);
     return .{
         .state = .READY,
         .reason = "recording stopped",
         .dir = dir,
         .session_id = manifest.session_id,
         .events = total_events,
-        .bytes = totalBytes(segments.items),
+        .bytes = bytes,
+        .overhead = meter.finish(io, allocator, total_events, bytes),
     };
 }
 

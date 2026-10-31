@@ -188,7 +188,10 @@ pub fn parseJson(allocator: std.mem.Allocator, line: []const u8) ParseError!RawE
         allocator,
         line,
         .{ .max_value_len = line.len },
-    ) catch return error.InvalidEvent;
+    ) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.InvalidEvent,
+    };
     return fromValue(value);
 }
 

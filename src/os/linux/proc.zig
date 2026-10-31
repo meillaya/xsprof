@@ -102,6 +102,42 @@ fn exists(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+/// Reads a file with the caller's effective credentials. `access(2)` uses the
+/// real UID/GID, so it cannot prove that a capability such as
+/// CAP_DAC_READ_SEARCH will let the service read tracefs. Opening the file
+/// exercises the same permission check the collector will.
+fn readable(io: std.Io, path: []const u8) bool {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return false;
+    file.close(io);
+    return true;
+}
+
+pub const cap_dac_read_search: u6 = 2;
+pub const cap_perfmon: u6 = 38;
+
+/// Parses the `CapEff:` line of `/proc/self/status`. Exposed for tests so the
+/// capability math does not depend on the host running the fuzzer.
+pub fn parseCapEff(status: []const u8) ?u64 {
+    var lines = std.mem.splitScalar(u8, status, '\n');
+    while (lines.next()) |line| {
+        if (!std.mem.startsWith(u8, line, "CapEff:")) continue;
+        const value = std.mem.trim(u8, line["CapEff:".len..], " \t");
+        return std.fmt.parseInt(u64, value, 16) catch null;
+    }
+    return null;
+}
+
+fn readCapEff(io: std.Io, allocator: std.mem.Allocator) ?u64 {
+    const status = readFile(io, allocator, "/proc/self/status", 16 * 1024) orelse return null;
+    return parseCapEff(status);
+}
+
+pub fn effectiveCapability(io: std.Io, allocator: std.mem.Allocator, bit: u6) bool {
+    if (builtin.os.tag != .linux) return false;
+    const caps = readCapEff(io, allocator) orelse return false;
+    return (caps >> bit) & 1 == 1;
+}
+
 fn readTrimmed(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -326,6 +362,7 @@ fn capsLinux(io: std.Io, allocator: std.mem.Allocator) ![]Capability {
     const caps = try allocator.alloc(Capability, 5);
 
     const paranoid_raw = readTrimmed(io, allocator, "/proc/sys/kernel/perf_event_paranoid", 64);
+    const perfmon = effectiveCapability(io, allocator, cap_perfmon);
     if (paranoid_raw.len == 0) {
         caps[0] = .{ .name = "perf_event", .state = .skip, .reason = "perf_event_paranoid unreadable" };
     } else {
@@ -340,13 +377,23 @@ fn capsLinux(io: std.Io, allocator: std.mem.Allocator) ![]Capability {
                     .{paranoid},
                 ),
             };
+        } else if (perfmon) {
+            caps[0] = .{
+                .name = "perf_event",
+                .state = .ready,
+                .reason = try std.fmt.allocPrint(
+                    allocator,
+                    "perf_event_paranoid={d}; CAP_PERFMON effective (tracepoints permitted)",
+                    .{paranoid},
+                ),
+            };
         } else {
             caps[0] = .{
                 .name = "perf_event",
                 .state = .skip,
                 .reason = try std.fmt.allocPrint(
                     allocator,
-                    "perf_event_paranoid={d} (need CAP_PERFMON or paranoid<=1; fail-closed SKIP)",
+                    "perf_event_paranoid={d}; no CAP_PERFMON (fail-closed SKIP)",
                     .{paranoid},
                 ),
             };
@@ -354,7 +401,7 @@ fn capsLinux(io: std.Io, allocator: std.mem.Allocator) ![]Capability {
     }
 
     const sched_format = "/sys/kernel/tracing/events/sched/sched_switch/format";
-    if (exists(io, sched_format)) {
+    if (readable(io, sched_format)) {
         caps[1] = .{
             .name = "sched_tracepoints",
             .state = .ready,
@@ -506,6 +553,21 @@ pub fn writePreflight(
     try writeFacts(w, facts);
     try w.writeAll(",\"host_mutation\":false,\"schema\":\"xsprof/preflight/v1\"," ++
         "\"tool\":\"xsprof\"}\n");
+}
+
+test "CapEff parsing recognizes CAP_PERFMON and CAP_DAC_READ_SEARCH" {
+    const status =
+        "Name:\txsprof\n" ++
+        "CapInh:\t0000000000000000\n" ++
+        "CapPrm:\t000001ffffffffff\n" ++
+        "CapEff:\t000001ffffffffff\n" ++
+        "CapBnd:\t000001ffffffffff\n";
+    const caps = parseCapEff(status).?;
+    try std.testing.expect((caps >> cap_perfmon) & 1 == 1);
+    try std.testing.expect((caps >> cap_dac_read_search) & 1 == 1);
+    try std.testing.expect((caps >> 50) & 1 == 0);
+    try std.testing.expect(parseCapEff("Name:\txsprof\n") == null);
+    try std.testing.expect(parseCapEff("CapEff:\tnot-hex\n") == null);
 }
 
 test "non-Linux probes fail closed with reasons" {

@@ -32,6 +32,16 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
     if (target.result.os.tag == .macos) {
+        // Cross-building a universal app needs the macOS SDK framework path;
+        // native builds already resolve it through the host sysroot.
+        if (b.option([]const u8, "macos-sdk", "macOS SDK path for cross builds")) |sdk| {
+            const frameworks = b.pathJoin(&.{ sdk, "System", "Library", "Frameworks" });
+            const sdk_libs = b.pathJoin(&.{ sdk, "usr", "lib" });
+            exe_mod.addFrameworkPath(.{ .cwd_relative = frameworks });
+            core_mod.addFrameworkPath(.{ .cwd_relative = frameworks });
+            exe_mod.addLibraryPath(.{ .cwd_relative = sdk_libs });
+            core_mod.addLibraryPath(.{ .cwd_relative = sdk_libs });
+        }
         for ([_][]const u8{ "AppKit", "Metal", "QuartzCore" }) |framework| {
             exe_mod.linkFramework(framework, .{});
             core_mod.linkFramework(framework, .{});
@@ -57,6 +67,19 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit and integration tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+
+    const fuzz_mod = b.createModule(.{
+        .root_source_file = b.path("tests/fuzz.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "xsprof", .module = core_mod },
+        },
+    });
+    const fuzz_tests = b.addTest(.{ .root_module = fuzz_mod });
+    const run_fuzz_tests = b.addRunArtifact(fuzz_tests);
+    const fuzz_step = b.step("fuzz", "Run deterministic parser fuzz tests");
+    fuzz_step.dependOn(&run_fuzz_tests.step);
 
     const fmt = b.addFmt(.{
         .paths = &.{
@@ -133,6 +156,13 @@ pub fn build(b: *std.Build) void {
     check.dependOn(web_step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
+    check.dependOn(&run_fuzz_tests.step);
+    if (target.result.os.tag == .linux) {
+        const service_smoke = b.addSystemCommand(&.{ "sh", "qa/service_smoke.sh" });
+        service_smoke.step.dependOn(b.getInstallStep());
+        const service_step = b.step("service-smoke", "Root systemd smoke on a disposable Linux VM");
+        service_step.dependOn(&service_smoke.step);
+    }
     if (target.result.os.tag == .macos) {
         const macos_smoke = b.addSystemCommand(&.{ "sh", "qa/macos_smoke.sh" });
         macos_smoke.step.dependOn(b.getInstallStep());

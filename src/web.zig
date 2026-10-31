@@ -165,15 +165,7 @@ export fn web_pointer(x: f32, y: f32, clicked: u32, down: u32, scroll: f32) void
 
 export fn web_key(key: u32) void {
     const frame = frame_ptr orelse return;
-    frame.input.key = switch (key) {
-        0 => .zero,
-        1 => .escape,
-        2 => .left,
-        3 => .right,
-        4 => .filter,
-        5 => .clear,
-        else => .none,
-    };
+    frame.input.key = @import("ui/input.zig").fromWebCode(key);
 }
 
 export fn web_set_screen(id: u32) void {

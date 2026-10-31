@@ -49,6 +49,8 @@ restore it to `main`.
 ./tools/zig build fmt-check
 ./tools/zig build lines
 ./tools/zig build vendor-check
+./tools/zig build fuzz            # deterministic parser fuzz tests
+./tools/zig build service-smoke   # Linux root, disposable VM only
 ```
 
 Vendor refresh (developer-only, needs network):
@@ -78,9 +80,10 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 are complete. The v1 productization plan is active: M0, M1 core, and the
-first M3 slice are landed; M2 interaction, the M4 live-pipeline rework, and M5
-packaging remain. Keep the read-only safety invariants, P0–P7 gates, and the
-600-line limit green. Native windows are human-run; automated work uses
-snapshots, Metal offscreen parity, Xvfb, and hidden-window smoke. Re-run
-`zig build check` and `qa/cli_parity.sh` after any behavior change.
+P0–P7 are complete. The v1 productization plan has landed M0–M4 and M6; M5
+release tooling is complete, while Developer ID notarization and public tap
+publication need external Apple/tap credentials. Keep the read-only safety
+invariants, P0–P7 gates, and the 600-line limit green. Native windows are
+human-run; automated work uses snapshots, Metal offscreen parity, Xvfb, hidden
+window smoke, and the gated systemd service smoke in a disposable Linux VM.
+Re-run `zig build check` and `qa/cli_parity.sh` after any behavior change.

@@ -250,3 +250,20 @@ test "fromData matches file load counts" {
     try std.testing.expectEqual(@as(u32, 0), session.refusals);
     try std.testing.expectEqual(@as(u32, 3), session.lost);
 }
+
+test "real workload fixture builds multi-CPU slices" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/real/scheduler-mix.ndjson",
+    );
+    try std.testing.expectEqual(@as(usize, 12000), session.events.len);
+    try std.testing.expectEqual(@as(u8, 4), session.cpu_count);
+    try std.testing.expectEqual(@as(u32, 4574), session.switches);
+    try std.testing.expectEqual(@as(u32, 40), session.migrations);
+    try std.testing.expectEqual(@as(u32, 0), session.lost);
+    try std.testing.expect(session.slices.len > 1000);
+    try std.testing.expect(session.metrics.tasks.len > 8);
+}

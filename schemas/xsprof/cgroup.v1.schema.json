@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/cgroup.v1.schema.json",
+  "title": "xsprof cgroup attribution snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cgroup_version", "groups", "host_mutation", "reason", "schema", "source", "state", "tasks", "truncated"],
+  "properties": {
+    "cgroup_version": { "type": "integer", "minimum": 0, "maximum": 2 },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sample_comms", "tasks"],
+        "properties": {
+          "path": { "type": "string" },
+          "sample_comms": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+          "tasks": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "host_mutation": { "const": false },
+    "reason": { "type": "string" },
+    "schema": { "const": "xsprof/cgroup/v1" },
+    "source": { "const": "proc_cgroup" },
+    "state": { "enum": ["READY", "SKIP", "REFUSE"] },
+    "tasks": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" }
+  }
+}

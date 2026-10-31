@@ -2,6 +2,8 @@
 
 const std = @import("std");
 const draw = @import("../ui/draw.zig");
+const session_mod = @import("../stream/session.zig");
+const metrics_mod = @import("../analyze/metrics.zig");
 
 pub fn formatTime(allocator: std.mem.Allocator, us: u64) ![]const u8 {
     return std.fmt.allocPrint(allocator, "{d}.{d:0>3}s", .{ us / 1_000_000, (us / 1000) % 1000 });
@@ -49,28 +51,6 @@ pub fn paintHover(
         color,
         clip,
     );
-}
-
-const input_mod = @import("../ui/input.zig");
-const session_mod = @import("../stream/session.zig");
-const metrics_mod = @import("../analyze/metrics.zig");
-
-pub fn handleFilterInput(
-    filter: *?[]const u8,
-    selection_comm: ?[]const u8,
-    input: *input_mod.Input,
-) bool {
-    if (input.key == .filter) {
-        if (selection_comm) |comm| filter.* = comm;
-        input.key = .none;
-        return true;
-    }
-    if (input.key == .clear) {
-        filter.* = null;
-        input.key = .none;
-        return true;
-    }
-    return false;
 }
 
 pub fn selectedMetric(

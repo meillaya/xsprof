@@ -1,0 +1,162 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the v prefix (for example 0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  HAS_APPLE_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+  HAS_TAP: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+  HOMEBREW_TAP_REPO: meillaya/homebrew-xsprof
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-linux-gnu
+          - arch: aarch64
+            target: aarch64-linux-gnu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then version=$INPUT_VERSION; else version=${GITHUB_REF_NAME#v}; fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          test "$(sed -n 's/.*version = "\(.*\)".*/\1/p' build.zig.zon | head -1)" = "$version"
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Package Linux tarball
+        env:
+          XSPROF_TARGET: ${{ matrix.target }}
+          XSPROF_OS: linux
+          XSPROF_ARCH: ${{ matrix.arch }}
+        run: |
+          sh tools/package.sh
+          cd dist
+          sha256sum "xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz" \
+            > "xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/xsprof-*.tar.gz*
+
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then version=$INPUT_VERSION; else version=${GITHUB_REF_NAME#v}; fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          test "$(sed -n 's/.*version = "\(.*\)".*/\1/p' build.zig.zon | head -1)" = "$version"
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Import Developer ID certificate
+        if: env.HAS_APPLE_SIGNING == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/xsprof-signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "$MACOS_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          security default-keychain -s "$keychain"
+          rm -f "$RUNNER_TEMP/cert.p12"
+      - name: Package and notarize macOS app
+        env:
+          XSPROF_UNIVERSAL: "1"
+          XSPROF_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ "$HAS_APPLE_SIGNING" = "true" ]; then
+            XSPROF_NOTARIZE=1 sh tools/package_macos_app.sh
+          else
+            sh tools/package_macos_app.sh
+          fi
+          cd dist
+          shasum -a 256 "Xsprof-${VERSION}-macos.zip" > "Xsprof-${VERSION}-macos.zip.sha256"
+      - name: Remove signing keychain
+        if: always() && env.HAS_APPLE_SIGNING == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/xsprof-signing.keychain-db" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/Xsprof-*.zip*
+
+  release:
+    needs: [linux, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then version=$INPUT_VERSION; else version=${GITHUB_REF_NAME#v}; fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip --clobber
+          else
+            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip \
+              --title "xsprof ${VERSION}" --generate-notes
+          fi
+      - name: Update Homebrew tap
+        if: env.HAS_TAP == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          arm=$(sha256sum "dist/xsprof-${VERSION}-linux-aarch64.tar.gz" | cut -d' ' -f1)
+          x86=$(sha256sum "dist/xsprof-${VERSION}-linux-x86_64.tar.gz" | cut -d' ' -f1)
+          mac=$(sha256sum "dist/Xsprof-${VERSION}-macos.zip" | cut -d' ' -f1)
+          tap="$RUNNER_TEMP/homebrew-tap"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${HOMEBREW_TAP_REPO}.git" "$tap"
+          sh tools/update_homebrew_tap.sh --tap-dir "$tap" --version "$VERSION" \
+            --linux-arm64 "$arm" --linux-x86_64 "$x86" --macos "$mac"

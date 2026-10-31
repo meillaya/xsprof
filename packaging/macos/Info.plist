@@ -11,5 +11,9 @@
   <key>CFBundleVersion</key><string>@VERSION@</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>LSEnvironment</key>
+  <dict>
+    <key>XSPROF_APP_MODE</key><string>1</string>
+  </dict>
 </dict>
 </plist>
