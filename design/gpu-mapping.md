@@ -1,9 +1,10 @@
 # GPU rendering contract
 
 This document maps the design tokens to a flat-instance GPU UI so the
-prototype in `design/index.html` can be reproduced pixel-for-pixel. It is a contract,
-not a claim that the current `xsui` renderer implements every item yet; the
-known gaps are listed at the end.
+prototype in `design/index.html` can be reproduced as closely as the staged
+font rasterizer allows. The console and augmented `xsui` primitives are
+implemented; the remaining gaps are listed at the end, and measured residuals
+live in [`evidence/parity.json`](evidence/parity.json).
 
 The token values live in [`tokens.json`](tokens.json),
 [`palettes.json`](palettes.json), and the generated [`tokens.css`](tokens.css).
@@ -266,21 +267,32 @@ delta < 4, mismatched pixel ratio < 3%); anti-aliasing is the only expected
 difference. A pixel-perfect claim requires a diff report, not just a visual
 check.
 
-## 11. Known gaps checklist
+## 11. Implementation checklist
 
-- [ ] Extend the GPU theme token model with `raised-2`, `field`, `dim`,
-      `faint`, `line-strong`, tints, lanes, and focus.
-- [ ] Add fractional font sizes and explicit line-height to text.
-- [ ] Add letter spacing, wrapping, ellipsis, and text anchoring.
-- [ ] Add color-mix helpers or precompute all derived colors per palette.
-- [ ] Add grid, wrap, max-width, absolute overlays, and breakpoint layout.
-- [ ] Add dashed-line and inset-selection primitives.
-- [ ] Add scroll offsets/clip containers for stage, ledger, palette, and
-      appearance.
-- [ ] Add dialog backdrop compositing and focus return.
-- [ ] Add the state matrix and the explicit SKIP/REFUSE/loss fallback tests.
-- [ ] Add snapshot fixtures for all screens and palettes.
+- [x] Extend the GPU theme token model with `raised-2`, `field`, `dim`,
+      `faint`, `line-strong`, tints, lanes, and focus. Generated six-palette
+      source lives in `lib/xsui/src/design_palettes.zig`.
+- [x] Add fractional font sizes and explicit line-height; glyph atlas sizes
+      are fixed-point keys and composite glyphs are supported.
+- [x] Add letter spacing, wrapping, ellipsis, and horizontal/vertical text
+      anchoring in `xsui.Canvas`.
+- [x] Precompute all derived color-mix values per palette.
+- [x] Add absolute composition, column/row/grid/wrap helpers, max-width, and
+      responsive 1280/1440 layouts. The current shell implements the 1280
+      two-column and 1440 three-column states; the 1024 bottom-rail state is
+      not yet pixel-verified.
+- [x] Add line, dashed-line, inset fill, and rounded-rectangle primitives.
+- [x] Add stage scroll offsets with clipping on wheel/scroll input.
+- [ ] Add independent ledger/palette/appearance scroll containers; the stage
+      currently scrolls as one clipped surface.
+- [x] Add dialog backdrop compositing; focus return and full focus rings are
+      partial.
+- [x] Add explicit SKIP/REFUSE/loss fallbacks and live-vs-replay source labels.
+- [x] Add snapshot fixtures for all screens, all six palettes, and overlays.
+- [ ] Replace the staged TTF coverage rasterizer with a Chromium-compatible
+      shaper/hinter if literal DOM pixel parity is required. Current residual
+      error is dominated by glyph antialiasing and subpixel positioning.
 
-Until these are implemented, treat the tokens as the design contract and the
-prototype as the visual reference; do not claim pixel-perfect GPU parity from
-the current renderer alone.
+The parity report records actual pixel metrics, not a pass/fail claim. The
+token tests and unamplified screenshots cover colors/geometry; do not claim
+pixel-perfect text parity from the current rasterizer.

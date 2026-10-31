@@ -71,6 +71,8 @@ pub const Metrics = struct {
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
     lost: u64 = 0,
+    wait: Histogram = .{},
+    offcpu: Histogram = .{},
     cpus: []const CpuMetric = &.{},
     tasks: []const TaskMetric = &.{},
 };
@@ -112,6 +114,8 @@ pub const Index = struct {
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
     lost: u64 = 0,
+    wait: Histogram = .{},
+    offcpu: Histogram = .{},
 
     pub fn init(allocator: std.mem.Allocator) Index {
         return .{
@@ -208,11 +212,15 @@ pub const Index = struct {
                 incoming.comm = try self.names.allocator().dupe(u8, entry.comm);
             }
             if (incoming.runnable_since_ns) |started| {
-                incoming.wait.observe((now -| started) / 1000);
+                const wait_us = (now -| started) / 1000;
+                incoming.wait.observe(wait_us);
+                self.wait.observe(wait_us);
                 incoming.runnable_since_ns = null;
             }
             if (incoming.sleep_since_ns) |started| {
-                incoming.offcpu.observe((now -| started) / 1000);
+                const offcpu_us = (now -| started) / 1000;
+                incoming.offcpu.observe(offcpu_us);
+                self.offcpu.observe(offcpu_us);
                 incoming.sleep_since_ns = null;
             }
         }
@@ -270,6 +278,8 @@ pub const Index = struct {
             .faults_minor = self.faults_minor,
             .faults_major = self.faults_major,
             .lost = self.lost,
+            .wait = self.wait,
+            .offcpu = self.offcpu,
             .cpus = try cpu_list.toOwnedSlice(allocator),
             .tasks = try task_list.toOwnedSlice(allocator),
         };

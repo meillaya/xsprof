@@ -1,34 +1,26 @@
 import { Renderer } from "/gl.js";
 
 const canvas = document.getElementById("ui");
+const errorBox = document.getElementById("boot-error");
 const status = document.getElementById("status");
-const errorBox = document.getElementById("error");
+const fileInput = document.getElementById("file");
 const params = new URLSearchParams(location.search);
 const token = params.get("token") || "";
-const screenNames = ["Overview", "Timeline", "Advisor", "Events", "Capture"];
-let screen = Math.max(0, Math.min(4, Number(params.get("screen") || 0)));
-const light = params.get("theme") === "light";
 const encoder = new TextEncoder();
+const screens = { overview: 0, timeline: 1, advisor: 2, events: 3, capture: 4 };
+const themes = { dark: 0, graphite: 0, paper: 1, light: 1, latte: 2, frappe: 3, macchiato: 4, mocha: 5 };
 let exports = null;
 let renderer = null;
 let live = false;
-let paused = false;
-let follow = true;
-let liveSource = null;
-const fileInput = document.getElementById("file");
-const scenarioButton = document.getElementById("scenario");
-const scenarioFileButton = document.getElementById("scenario-file-button");
-const scenarioFileInput = document.getElementById("scenario-file");
-const downloadButton = document.getElementById("download");
-const traceButton = document.getElementById("trace");
-const compareFileButton = document.getElementById("compare-file-button");
-const compareFileInput = document.getElementById("compare-file");
-const compareClearButton = document.getElementById("compare-clear");
-let lastScenarioResult = "";
+let source = null;
+let last = performance.now();
+let raf = 0;
+let busy = false;
+let loadGeneration = 0;
 
-function fail(message) {
+function fail(error) {
   errorBox.hidden = false;
-  errorBox.textContent = String(message);
+  errorBox.textContent = String(error && error.stack ? error.stack : error);
   status.textContent = "error";
 }
 
@@ -36,333 +28,289 @@ function api(path) {
   return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
-function loadJournalText(text, resetScreen) {
+function setStatus(text) {
+  status.textContent = text;
+}
+
+function resize() {
+  if (!exports) return;
+  const w = Math.max(320, Math.floor(canvas.clientWidth || window.innerWidth));
+  const h = Math.max(240, Math.floor(canvas.clientHeight || window.innerHeight));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    exports.web_ui_resize(w, h);
+  }
+}
+
+function drawFrame() {
+  if (!exports) return;
+  const count = exports.web_ui_frame();
+  const stride = exports.web_ui_instance_stride();
+  const ip = exports.web_ui_instances_ptr();
+  const ap = exports.web_ui_atlas_ptr();
+  const as = exports.web_ui_atlas_size();
+  const av = exports.web_ui_atlas_version();
+  if (count && ip && ap) {
+    renderer.draw(ip, count, stride, exports.memory, canvas.width, canvas.height, ap, as, av);
+  }
+  setStatus(`console · ${count} instances · host_mutation=false`);
+
+  if (exports.web_ui_take_open()) fileInput.click();
+  if (exports.web_ui_take_reload()) reloadSource();
+}
+
+function loadJournalText(text, label) {
   const data = encoder.encode(text);
   const ptr = data.length ? exports.web_alloc(data.length) : 0;
   if (data.length && !ptr) throw new Error("wasm allocation failed");
   if (data.length) new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
-  const ok = exports.web_load_journal(ptr, data.length);
+  const ok = exports.web_ui_load_journal(ptr, data.length);
   if (ptr) exports.web_free(ptr, data.length);
   if (!ok) throw new Error("journal parse failed");
-  if (!resetScreen) exports.web_set_screen(screen);
+  setStatus(`${label} loaded`);
 }
 
-function frame() {
-  const count = exports.web_frame();
-  const stride = exports.web_instance_stride();
-  const ip = exports.web_instances_ptr();
-  const ap = exports.web_atlas_ptr();
-  const as = exports.web_atlas_size();
-  const av = exports.web_atlas_version();
-  if (count && ip && ap) {
-    renderer.draw(ip, count, stride, exports.memory, canvas.width, canvas.height, ap, as, av);
+async function loadRecorderMetadata() {
+  try {
+    const response = await fetch(api("/api/recorder"));
+    if (!response.ok) return;
+    const data = encoder.encode(await response.text());
+    const ptr = data.length ? exports.web_alloc(data.length) : 0;
+    if (data.length && !ptr) return;
+    if (data.length) new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
+    exports.web_ui_load_recorder(ptr, data.length);
+    if (ptr) exports.web_free(ptr, data.length);
+  } catch (error) {
+    console.warn("recorder metadata unavailable", error);
   }
-  status.textContent = `${screenNames[screen]} · ${count} instances · refusals=${exports.web_refusals()} caps=${exports.web_capabilities()} · host_mutation=false`;
+}
+
+function loadDemoText(text) {
+  const data = encoder.encode(text);
+  const ptr = data.length ? exports.web_alloc(data.length) : 0;
+  if (data.length && !ptr) throw new Error("wasm allocation failed");
+  if (data.length) new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
+  const ok = exports.web_ui_load_demo(ptr, data.length);
+  if (ptr) exports.web_free(ptr, data.length);
+  if (!ok) throw new Error("demo model parse failed");
+}
+
+async function reloadSource() {
+  if (source === "demo") {
+    const response = await fetch("/assets/design-demo.json");
+    if (!response.ok) throw new Error(`demo: HTTP ${response.status}`);
+    loadDemoText(await response.text());
+    drawFrame();
+    return;
+  }
+  const response = await fetch(api("/api/journal"));
+  if (!response.ok) throw new Error(`journal: HTTP ${response.status}`);
+  loadJournalText(await response.text(), live ? "live journal" : "journal");
+  await loadRecorderMetadata();
+  drawFrame();
 }
 
 async function boot() {
-  if (!canvas.getContext("webgl2")) throw new Error("WebGL2 is unavailable");
+  canvas.focus();
+  if (!canvas.getContext("webgl2")) throw new Error("WebGL2 is unavailable in this browser");
   renderer = new Renderer(canvas);
   await renderer.init();
   const response = await fetch("/assets/xsprof-web.wasm");
   if (!response.ok) throw new Error(`wasm: HTTP ${response.status}`);
   const { instance } = await WebAssembly.instantiateStreaming(response, {});
   exports = instance.exports;
-  const memory = exports.memory;
+  window.__xsprof = { exports, renderer, drawFrame: () => drawFrame(), stop: () => cancelAnimationFrame(raf), ready: false };
+  resize();
+  if (!exports.web_ui_init(canvas.width, canvas.height)) throw new Error("UI init failed");
 
-  function size() {
-    const dpr = 1;
-    canvas.width = Math.max(640, Math.floor(canvas.clientWidth * dpr));
-    canvas.height = Math.max(360, Math.floor(canvas.clientHeight * dpr));
-  }
-  size();
-  if (!exports.web_init(canvas.width, canvas.height)) throw new Error("UI init failed");
-  if (light) exports.web_set_theme(1);
+  const initialScreen = screens[String(params.get("screen") || "overview")] ?? 0;
+  exports.web_ui_set_screen(initialScreen);
+  const initialTheme = themes[String(params.get("theme") || "dark")] ?? 0;
+  exports.web_ui_set_theme(initialTheme);
 
   const metaResponse = await fetch(api("/api/meta"));
   if (!metaResponse.ok) throw new Error(`meta: HTTP ${metaResponse.status}`);
   const meta = await metaResponse.json();
   live = meta.source === "live";
-  if (live) exports.web_set_live(1);
+  if (params.get("demo") === "1") live = false;
+  exports.web_ui_set_live(live ? 1 : 0);
+  source = live ? "live" : "journal";
 
-  const journal = await fetch(api("/api/journal"));
-  if (!journal.ok) throw new Error(`journal: HTTP ${journal.status}`);
-  loadJournalText(await journal.text(), true);
-  exports.web_set_screen(screen);
-  frame();
-  scenarioButton.disabled = false;
-  scenarioFileButton.disabled = false;
-  traceButton.disabled = false;
-  compareFileButton.disabled = false;
-  compareClearButton.disabled = false;
+  if (params.get("demo") === "1") {
+    try {
+      const demoResponse = await fetch("/assets/design-demo.json");
+      if (demoResponse.ok) {
+        loadDemoText(await demoResponse.text());
+        source = "demo";
+      } else {
+        const journal = await fetch(api("/api/journal"));
+        if (!journal.ok) throw new Error(`journal: HTTP ${journal.status}`);
+        loadJournalText(await journal.text(), "journal");
+      }
+    } catch (error) {
+      console.warn("demo model unavailable, falling back to journal", error);
+      const journal = await fetch(api("/api/journal"));
+      if (journal.ok) loadJournalText(await journal.text(), "journal");
+    }
+  } else {
+    const journal = await fetch(api("/api/journal"));
+    if (!journal.ok) throw new Error(`journal: HTTP ${journal.status}`);
+    loadJournalText(await journal.text(), live ? "live journal" : "journal");
+  }
 
+  if (source !== "demo") await loadRecorderMetadata();
+  drawFrame();
+  window.__xsprof.ready = true;
   if (live) startLive();
-
-  function stopLive() {
-    if (liveSource) {
-      liveSource.close();
-      liveSource = null;
-    }
-    live = false;
-    exports.web_set_live(0);
-    exports.web_set_paused(0);
-    exports.web_set_follow(1);
-    paused = false;
-    follow = true;
-  }
-
-  async function reloadLive() {
-    const response = await fetch(api("/api/journal"));
-    if (!response.ok) return;
-    loadJournalText(await response.text(), false);
-    frame();
-  }
-
-  function setPaused(value) {
-    paused = value;
-    exports.web_set_paused(paused ? 1 : 0);
-    if (!paused) follow = true, exports.web_set_follow(1), reloadLive();
-    frame();
-  }
-
-  async function openFile(file) {
-    if (!file) return;
-    stopLive();
-    const text = await file.text();
-    loadJournalText(text, true);
-    exports.web_set_screen(screen);
-    frame();
-  }
-
-  fileInput.addEventListener("change", () => openFile(fileInput.files[0]));
-
-  async function runScenarioText(text, label) {
-    scenarioButton.disabled = true;
-    scenarioFileButton.disabled = true;
-    try {
-      const data = encoder.encode(text);
-      const ptr = exports.web_alloc(data.length);
-      if (!ptr) throw new Error("scenario allocation failed");
-      new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
-      const ok = exports.web_run_scenario(ptr, data.length);
-      exports.web_free(ptr, data.length);
-      if (!ok) throw new Error("scenario run failed");
-      const resultPtr = exports.web_scenario_result_ptr();
-      const resultLen = exports.web_scenario_result_len();
-      const result = new TextDecoder().decode(
-        new Uint8Array(exports.memory.buffer, resultPtr, resultLen),
-      );
-      lastScenarioResult = result;
-      downloadButton.disabled = false;
-      console.log(result);
-      frame();
-      status.textContent = result.includes('"status":"passed"')
-        ? `${label} · PASS`
-        : `${label} · FAIL`;
-    } catch (error) {
-      fail(error);
-    } finally {
-      scenarioButton.disabled = false;
-      scenarioFileButton.disabled = false;
-  traceButton.disabled = false;
-  compareFileButton.disabled = false;
-  compareClearButton.disabled = false;
-    }
-  }
-
-  async function runScenario() {
-    const response = await fetch("/scenarios/healthy.json");
-    if (!response.ok) {
-      fail(`scenario: HTTP ${response.status}`);
-      return;
-    }
-    await runScenarioText(await response.text(), "scenario healthy");
-  }
-
-  scenarioButton.addEventListener("click", runScenario);
-  scenarioFileButton.addEventListener("click", () => scenarioFileInput.click());
-  scenarioFileInput.addEventListener("change", async () => {
-    const file = scenarioFileInput.files[0];
-    if (!file) return;
-    await runScenarioText(await file.text(), `scenario ${file.name}`);
-    scenarioFileInput.value = "";
-  });
-  compareFileButton.addEventListener("click", () => compareFileInput.click());
-  compareFileInput.addEventListener("change", async () => {
-    const file = compareFileInput.files[0];
-    if (!file) return;
-    try {
-      const data = encoder.encode(await file.text());
-      const ptr = exports.web_alloc(data.length);
-      if (!ptr) throw new Error("compare allocation failed");
-      new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
-      const ok = exports.web_load_compare(ptr, data.length);
-      exports.web_free(ptr, data.length);
-      if (!ok) throw new Error("compare journal failed");
-      frame();
-      status.textContent = `compare ${file.name} · ready`;
-    } catch (error) {
-      fail(error);
-    } finally {
-      compareFileInput.value = "";
-    }
-  });
-  compareClearButton.addEventListener("click", () => {
-    exports.web_clear_compare();
-    frame();
-  });
-  traceButton.addEventListener("click", () => {
-    if (!exports.web_generate_trace()) {
-      fail("trace export failed");
-      return;
-    }
-    const ptr = exports.web_trace_result_ptr();
-    const len = exports.web_trace_result_len();
-    const blob = new Blob(
-      [new Uint8Array(exports.memory.buffer, ptr, len)],
-      { type: "application/json" },
-    );
-    const anchor = document.createElement("a");
-    anchor.href = URL.createObjectURL(blob);
-    anchor.download = "xsprof-trace.json";
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
-  });
-  downloadButton.addEventListener("click", () => {
-    if (!lastScenarioResult) return;
-    const blob = new Blob([lastScenarioResult], { type: "application/json" });
-    const anchor = document.createElement("a");
-    anchor.href = URL.createObjectURL(blob);
-    anchor.download = "xsprof-lab-run.json";
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
-  });
-  window.addEventListener("dragover", (event) => event.preventDefault());
-  window.addEventListener("drop", (event) => {
-    event.preventDefault();
-    openFile(event.dataTransfer.files[0]);
-  });
-
-  function startLive() {
-    const source = new EventSource(api("/api/events"));
-    liveSource = source;
-    let pending = "";
-    let timer = 0;
-    function scheduleFlush() {
-      if (timer) return;
-      timer = setTimeout(flush, 250);
-    }
-    function flush() {
-      timer = 0;
-      if (!pending) return;
-      const data = encoder.encode(pending);
-      pending = "";
-      const ptr = exports.web_alloc(data.length);
-      if (!ptr) return;
-      new Uint8Array(memory.buffer, ptr, data.length).set(data);
-      exports.web_append_journal(ptr, data.length);
-      exports.web_free(ptr, data.length);
-      frame();
-    }
-    source.onmessage = (event) => {
-      if (paused || !follow) return;
-      pending += event.data + "\n";
-      scheduleFlush();
-    };
-    source.addEventListener("reset", async () => {
-      const response = await fetch(api("/api/journal"));
-      if (!response.ok) return;
-      loadJournalText(await response.text(), false);
-      frame();
-    });
-    source.onerror = () => {
-      status.textContent = "live stream reconnecting…";
-    };
-  }
-
-  window.addEventListener("resize", () => {
-    size();
-    exports.web_resize(canvas.width, canvas.height);
-    frame();
-  });
-  function canvasPoint(event) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (event.clientX - rect.left) * (canvas.width / Math.max(1, rect.width)),
-      y: (event.clientY - rect.top) * (canvas.height / Math.max(1, rect.height)),
-    };
-  }
-
-  canvas.addEventListener("pointerdown", (event) => {
-    if (!exports) return;
-    const point = canvasPoint(event);
-    exports.web_pointer(point.x, point.y, 1, 1, 0);
-    frame();
-  });
-  window.addEventListener("pointerup", (event) => {
-    if (!exports) return;
-    const point = canvasPoint(event);
-    exports.web_pointer(point.x, point.y, 0, 0, 0);
-  });
-  canvas.addEventListener("wheel", (event) => {
-    if (!exports) return;
-    event.preventDefault();
-    const point = canvasPoint(event);
-    exports.web_pointer(point.x, point.y, 0, 0, event.deltaY);
-    frame();
-  }, { passive: false });
-  window.addEventListener("keydown", (event) => {
-    if (event.key >= "1" && event.key <= "5") {
-      screen = Number(event.key) - 1;
-      exports.web_set_screen(screen);
-      frame();
-      return;
-    }
-    if (event.key === "p" && live) {
-      setPaused(!paused);
-      return;
-    }
-    if (event.key === "f" && live) {
-      follow = !follow;
-      exports.web_set_follow(follow ? 1 : 0);
-      if (follow) reloadLive();
-      frame();
-      return;
-    }
-    if (event.key === "o") {
-      fileInput.click();
-      return;
-    }
-    if (event.key === "c" || event.key === "x") {
-      exports.web_key(event.key === "c" ? 4 : 5);
-      frame();
-      return;
-    }
-    if (event.key === "k" || event.key === "l" || event.key === "P") {
-      exports.web_key(event.key === "k" ? 6 : event.key === "l" ? 7 : 8);
-      frame();
-      return;
-    }
-    if (event.key === "L") {
-      exports.web_key(9);
-      frame();
-      return;
-    }
-    if (event.key === "K") {
-      exports.web_key(10);
-      frame();
-      return;
-    }
-    let key = 255;
-    if (event.key === "0") key = 0;
-    else if (event.key === "Escape") key = 1;
-    else if (event.key === "ArrowLeft") key = 2;
-    else if (event.key === "ArrowRight") key = 3;
-    if (key !== 255) {
-      exports.web_key(key);
-      frame();
-    }
-  });
+  requestAnimationFrame(loop);
 }
+
+function loop(now) {
+  raf = requestAnimationFrame(loop);
+  if (!exports || busy) return;
+  const dt = Math.min(100, Math.max(0, now - last));
+  last = now;
+  exports.web_ui_tick(Math.floor(dt));
+  drawFrame();
+}
+
+function startLive() {
+  if (!live || typeof EventSource === "undefined") return;
+  let timer = 0;
+  let pending = false;
+  const events = new EventSource(api("/api/events"));
+  const schedule = () => {
+    pending = true;
+    if (timer) return;
+    timer = setTimeout(async () => {
+      timer = 0;
+      if (!pending || busy) return;
+      pending = false;
+      busy = true;
+      try {
+        await reloadSource();
+      } catch (error) {
+        console.warn(error);
+      } finally {
+        busy = false;
+      }
+    }, 300);
+  };
+  events.onmessage = schedule;
+  events.addEventListener("reset", schedule);
+  events.onerror = () => setStatus("live stream reconnecting…");
+  window.addEventListener("pagehide", () => events.close(), { once: true });
+}
+
+function canvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * (canvas.width / Math.max(1, rect.width)),
+    y: (event.clientY - rect.top) * (canvas.height / Math.max(1, rect.height)),
+  };
+}
+
+let down = null;
+canvas.addEventListener("pointerdown", (event) => {
+  if (!exports) return;
+  down = { ...canvasPoint(event), id: event.pointerId };
+  canvas.setPointerCapture?.(event.pointerId);
+});
+canvas.addEventListener("pointerup", (event) => {
+  if (!exports || !down) return;
+  const point = canvasPoint(event);
+  const dx = point.x - down.x;
+  const dy = point.y - down.y;
+  if (dx * dx + dy * dy <= 36) {
+    exports.web_ui_click(point.x, point.y);
+    drawFrame();
+  }
+  down = null;
+});
+canvas.addEventListener("pointercancel", () => { down = null; });
+
+function keyCode(event) {
+  switch (event.key) {
+    case "ArrowUp": return 0x11;
+    case "ArrowDown": return 0x12;
+    case "ArrowLeft": return 0x13;
+    case "ArrowRight": return 0x14;
+    case "Escape": return 0x1b;
+    case "Enter": return 0x0a;
+    case "Backspace": return 0x7f;
+    case "Tab": return 0;
+    default:
+      if (event.key.length === 1) return event.key.codePointAt(0);
+      return 0;
+  }
+}
+
+window.addEventListener("keydown", (event) => {
+  if (!exports) return;
+  if (event.key === "Tab") return;
+  const cp = keyCode(event);
+  if (!cp) return;
+  const meta = event.metaKey || event.ctrlKey;
+  if (meta || cp === 32 || cp === 0x1b || cp === 0x11 || cp === 0x12 || cp === 0x13 || cp === 0x14) {
+    event.preventDefault();
+  }
+  exports.web_ui_key(cp, event.metaKey ? 1 : 0, event.ctrlKey ? 1 : 0, event.shiftKey ? 1 : 0);
+  drawFrame();
+}, { passive: false });
+
+canvas.addEventListener("wheel", (event) => {
+  if (!exports) return;
+  event.preventDefault();
+  const delta = Math.max(-120, Math.min(120, event.deltaY)) * 0.8;
+  exports.web_ui_scroll(delta);
+  drawFrame();
+}, { passive: false });
+
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  busy = true;
+  try {
+    exports.web_ui_set_live(0);
+    loadJournalText(await file.text(), file.name);
+    source = "journal";
+    drawFrame();
+  } catch (error) {
+    fail(error);
+  } finally {
+    fileInput.value = "";
+    busy = false;
+  }
+});
+
+window.addEventListener("dragover", (event) => event.preventDefault());
+window.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  const file = event.dataTransfer?.files?.[0];
+  if (!file || !exports) return;
+  busy = true;
+  try {
+    exports.web_ui_set_live(0);
+    exports.web_ui_set_live(0);
+    loadJournalText(await file.text(), file.name);
+    source = "journal";
+    drawFrame();
+  } catch (error) {
+    fail(error);
+  } finally {
+    busy = false;
+  }
+});
+
+let resizeTimer = 0;
+window.addEventListener("resize", () => {
+  if (resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    resizeTimer = 0;
+    resize();
+    drawFrame();
+  }, 80);
+});
 
 boot().catch(fail);

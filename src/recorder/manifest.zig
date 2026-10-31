@@ -79,10 +79,16 @@ pub fn parse(allocator: std.mem.Allocator, data: []const u8) !Manifest {
 }
 
 pub fn read(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !?Manifest {
-    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch |err| switch (err) {
-        error.FileNotFound => return null,
-        else => return err,
-    };
+    const file = if (path.len != 0 and path[0] == '/')
+        std.Io.Dir.openFileAbsolute(io, path, .{}) catch |err| switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        }
+    else
+        std.Io.Dir.cwd().openFile(io, path, .{}) catch |err| switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        };
     defer file.close(io);
     var buffer: [32 * 1024]u8 = undefined;
     var reader = file.readerStreaming(io, &buffer);
@@ -146,4 +152,16 @@ test "manifest round-trips" {
     try std.testing.expectEqual(@as(usize, 1), parsed.segments.len);
     try std.testing.expectEqualStrings("segments/one.ndjson", parsed.segments[0].path);
     try std.testing.expect(parsed.segments[0].closed);
+}
+
+test "reads a relative recorder manifest" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const manifest = try read(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/design/recorder/manifest.json",
+    );
+    try std.testing.expect(manifest != null);
+    try std.testing.expect(manifest.?.segments.len == 1);
 }

@@ -14,6 +14,7 @@ const chrome_trace = @import("viz/chrome_trace.zig");
 const session_mod = @import("stream/session.zig");
 const stream_store = @import("stream/store.zig");
 const stream_index = @import("stream/index.zig");
+const console = @import("web_console.zig");
 
 const gpa = std.heap.wasm_allocator;
 
@@ -375,4 +376,89 @@ export fn web_width() u32 {
 
 export fn web_height() u32 {
     return height;
+}
+
+// --- Design console bridge (visible web UI) -------------------------------
+export fn web_ui_init(w: u32, h: u32) u32 {
+    return console.init(w, h);
+}
+
+export fn web_ui_resize(w: u32, h: u32) void {
+    console.resize(w, h);
+}
+
+export fn web_ui_load_journal(addr: usize, len: usize) u32 {
+    return console.loadJournal(addr, len);
+}
+
+export fn web_ui_load_recorder(addr: usize, len: usize) u32 {
+    return console.loadRecorder(addr, len);
+}
+
+export fn web_ui_load_demo(addr: usize, len: usize) u32 {
+    return console.loadDemo(addr, len);
+}
+
+export fn web_ui_frame() u32 {
+    return console.frame();
+}
+
+export fn web_ui_instances_ptr() usize {
+    return console.instancesPtr();
+}
+
+export fn web_ui_instance_stride() u32 {
+    return @intCast(xsui.webgl.instance_stride_floats);
+}
+
+export fn web_ui_atlas_ptr() usize {
+    return console.atlasPtr();
+}
+
+export fn web_ui_atlas_size() u32 {
+    return console.atlasSize();
+}
+
+export fn web_ui_atlas_version() u32 {
+    return console.atlasVersion();
+}
+
+export fn web_ui_key(codepoint: u32, meta: u32, ctrl: u32, shift: u32) void {
+    console.key(codepoint, meta, ctrl, shift);
+}
+
+export fn web_ui_click(x: f32, y: f32) void {
+    console.click(x, y);
+}
+
+export fn web_ui_scroll(delta: f32) void {
+    console.scroll(delta);
+}
+
+export fn web_ui_tick(delta_ms: u32) void {
+    console.tick(delta_ms);
+}
+
+export fn web_ui_set_screen(index: u32) void {
+    console.setScreen(index);
+}
+
+export fn web_ui_set_theme(index: u32) void {
+    console.setTheme(index);
+}
+
+export fn web_ui_set_live(value: u32) void {
+    console.setLive(value);
+}
+
+export fn web_ui_take_open() u32 {
+    return console.takeOpen();
+}
+
+export fn web_ui_take_reload() u32 {
+    return console.takeReload();
+}
+
+export fn web_ui_loaded() u32 {
+    return console.isLoaded();
 }

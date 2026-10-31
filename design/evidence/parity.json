@@ -1,0 +1,76 @@
+{
+  "screens": {
+    "advisor": {
+      "mean_abs_channel_error": 7.9402,
+      "over16_pct": 7.917,
+      "over24_pct": 6.875,
+      "pixels": 1296000
+    },
+    "capture": {
+      "mean_abs_channel_error": 8.9699,
+      "over16_pct": 12.728,
+      "over24_pct": 6.401,
+      "pixels": 1296000
+    },
+    "events": {
+      "mean_abs_channel_error": 6.1943,
+      "over16_pct": 6.55,
+      "over24_pct": 5.227,
+      "pixels": 1296000
+    },
+    "overview": {
+      "mean_abs_channel_error": 8.2152,
+      "over16_pct": 8.207,
+      "over24_pct": 6.702,
+      "pixels": 1296000
+    },
+    "timeline": {
+      "mean_abs_channel_error": 6.6865,
+      "over16_pct": 7.309,
+      "over24_pct": 6.068,
+      "pixels": 1296000
+    }
+  },
+  "target": {
+    "mean_abs_channel_error": 2.0,
+    "over24_pct": 3.0
+  },
+  "themes": {
+    "dark": {
+      "mean_abs_channel_error": 8.2875,
+      "over16_pct": 8.295,
+      "over24_pct": 6.787,
+      "pixels": 1296000
+    },
+    "frappe": {
+      "mean_abs_channel_error": 7.3098,
+      "over16_pct": 8.571,
+      "over24_pct": 7.023,
+      "pixels": 1296000
+    },
+    "latte": {
+      "mean_abs_channel_error": 7.8176,
+      "over16_pct": 9.099,
+      "over24_pct": 8.047,
+      "pixels": 1296000
+    },
+    "macchiato": {
+      "mean_abs_channel_error": 7.8871,
+      "over16_pct": 8.749,
+      "over24_pct": 7.294,
+      "pixels": 1296000
+    },
+    "mocha": {
+      "mean_abs_channel_error": 8.3945,
+      "over16_pct": 8.875,
+      "over24_pct": 7.37,
+      "pixels": 1296000
+    },
+    "paper": {
+      "mean_abs_channel_error": 8.58,
+      "over16_pct": 9.458,
+      "over24_pct": 8.371,
+      "pixels": 1296000
+    }
+  }
+}

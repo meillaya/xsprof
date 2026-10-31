@@ -49,6 +49,7 @@ pub const tester = @import("tester.zig");
 /// Dark, light, and high-contrast presets plus token overrides.
 pub const themes = @import("theme.zig");
 /// Renderer extension contract and capability vocabulary.
+pub const canvas = @import("canvas.zig");
 pub const gpu = @import("gpu/renderer.zig");
 /// Zig side of the WebGL2 instance/attribute/atlas ABI.
 pub const webgl = gpu.webgl;
@@ -119,6 +120,10 @@ pub const Font = font.Font;
 pub const Glyph = font.Glyph;
 
 /// Headless tester: build, render, hash, snapshot, and script input.
+pub const Canvas = canvas.Canvas;
+pub const TextStyle = canvas.TextStyle;
+pub const TextLayout = canvas.TextLayout;
+pub const TextAlign = canvas.HorizontalAlign;
 pub const Tester = tester.Tester;
 /// View callback signature accepted by `Tester`.
 pub const ViewFn = tester.ViewFn;
@@ -135,5 +140,6 @@ test {
     _ = font;
     _ = tester;
     _ = themes;
+    _ = canvas;
     _ = gpu;
 }

@@ -17,6 +17,7 @@ pub fn cmdServe(
     var live_capture = false;
     var live_stride: u32 = 80;
     var live_dir: ?[]const u8 = null;
+    var recorder_dir: ?[]const u8 = null;
     var journal_explicit = false;
     var assets_explicit = false;
     var demo = false;
@@ -44,6 +45,9 @@ pub fn cmdServe(
             addr = args[i];
         } else if (std.mem.eql(u8, arg, "--live")) {
             live_capture = true;
+        } else if (std.mem.eql(u8, arg, "--recorder-dir") and i + 1 < args.len) {
+            i += 1;
+            recorder_dir = args[i];
         } else if (std.mem.eql(u8, arg, "--live-dir") and i + 1 < args.len) {
             i += 1;
             live_dir = args[i];
@@ -90,6 +94,7 @@ pub fn cmdServe(
         .live = live_capture,
         .live_stride = live_stride,
         .live_dir = live_dir,
+        .recorder_dir = recorder_dir,
     }) catch |serve_error| {
         try err.print("serve: {s}\n", .{@errorName(serve_error)});
         return 1;

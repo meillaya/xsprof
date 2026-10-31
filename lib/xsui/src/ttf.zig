@@ -197,6 +197,8 @@ pub const Font = struct {
         if (glyph.len < 10) return .{ .advance = advance_px };
         const contours_i = @as(i16, @bitCast(be16(glyph, 0)));
         if (contours_i == 0) return .{ .advance = advance_px };
+        // Negative contour counts are composite glyphs; collectGlyph resolves
+        // their components. The header bounds still describe the composite.
         const x_min = @as(i16, @bitCast(be16(glyph, 2)));
         const y_min = @as(i16, @bitCast(be16(glyph, 4)));
         const x_max = @as(i16, @bitCast(be16(glyph, 6)));

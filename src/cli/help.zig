@@ -15,9 +15,13 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
         \\                          Chrome Trace timeline from a JSONL journal
         \\  record --duration <ms> [--output <f>]
         \\                          Live read-only perf capture (SKIP if unprivileged)
-        \\  serve [--journal <f>]   Read-only local web frontend
-        \\  snapshot [--replay <f>] Headless PNG snapshot of the profiler UI
-        \\  ui [--replay <f>]       Native profiler UI
+        \\  serve [--journal <f>] [--recorder-dir <d>] [--live]
+        \\                          Read-only loopback console; live is Linux-only
+        \\  snapshot [--replay <f>] [--recorder-dir <d>] [--theme <t>]
+        \\           [--view <s>] [--overlay <o>] [--demo-model <f>]
+        \\                          Headless PNG snapshot of the console
+        \\  ui [--replay <f>] [--recorder-dir <d>] [--theme <t>] [--view <s>]
+        \\                          Native console (human-run window)
         \\  bpf-gate --json         VM-marker-gated no-op BPF gate
         \\  daemon [--dir <d>]      Foreground Linux recorder
         \\  capture --last <dur>    Extract a recorder window
