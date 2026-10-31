@@ -11,6 +11,7 @@ const layout = @import("../../ui/layout.zig");
 const app_mod = @import("../../app/app.zig");
 const gallery = @import("../../app/gallery.zig");
 const session_mod = @import("../../stream/session.zig");
+const input_mod = @import("../../ui/input.zig");
 
 const width: u32 = 1280;
 const height: u32 = 720;
@@ -25,6 +26,10 @@ pub const App = struct {
     view: objc.Object = undefined,
     delegate: objc.Object = undefined,
     dirty: bool = true,
+    input: input_mod.Input = .{},
+    selection: ?app_mod.Selection = null,
+    view_window: ?app_mod.Window = null,
+    timeline: app_mod.TimelineGeometry = .{},
 
     fn attach(self: *App, hidden: bool) !void {
         const pool = objc.Pool.push();
@@ -98,8 +103,19 @@ pub const App = struct {
         var ui = layout.Ui.init(&frame);
         defer ui.deinit();
         if (self.session) |*session| {
-            var state = app_mod.State{ .session = session, .screen = self.screen };
+            var state = app_mod.State{
+                .session = session,
+                .screen = self.screen,
+                .window = self.view_window,
+                .selection = self.selection,
+                .timeline = self.timeline,
+            };
+            ui.frame.input = self.input;
             app_mod.view(&state, &ui) catch return false;
+            self.selection = state.selection;
+            self.view_window = state.window;
+            self.timeline = state.timeline;
+            self.input.clearTransient();
         } else {
             gallery.build(&ui) catch return false;
         }
@@ -159,6 +175,14 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
         'q' => self.close(),
         't' => {
             self.light = !self.light;
+            self.dirty = true;
+        },
+        '0' => {
+            self.input.key = .zero;
+            self.dirty = true;
+        },
+        27 => {
+            self.input.key = .escape;
             self.dirty = true;
         },
         else => {},

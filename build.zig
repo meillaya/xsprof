@@ -105,7 +105,7 @@ pub fn build(b: *std.Build) void {
         "web_instance_stride", "web_atlas_ptr",      "web_atlas_size",
         "web_width",           "web_height",         "web_refusals",
         "web_capabilities",    "web_append_journal", "web_set_live",
-        "web_atlas_version",
+        "web_atlas_version",   "web_pointer",        "web_key",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;

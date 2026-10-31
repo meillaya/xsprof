@@ -20,6 +20,8 @@ var journal_buf: std.ArrayList(u8) = .empty;
 var live_mode = false;
 var frame_ptr: ?*frame_mod.Frame = null;
 var loaded: ?session_mod.Session = null;
+var view_state: app.State = undefined;
+var view_ready = false;
 var screen: app.Screen = .overview;
 var theme: draw.Theme = .{};
 var width: u32 = 1280;
@@ -99,6 +101,7 @@ export fn web_load_journal(addr: usize, len: usize) u32 {
     }
     reloadSession();
     screen = .overview;
+    view_ready = false;
     return 1;
 }
 
@@ -122,6 +125,26 @@ export fn web_append_journal(addr: usize, len: usize) u32 {
 
 export fn web_set_live(value: u32) void {
     live_mode = value != 0;
+}
+
+export fn web_pointer(x: f32, y: f32, clicked: u32, down: u32, scroll: f32) void {
+    const frame = frame_ptr orelse return;
+    frame.input.pointer_x = x;
+    frame.input.pointer_y = y;
+    frame.input.pointer_down = down != 0;
+    if (clicked != 0) frame.input.clicked = true;
+    frame.input.scroll_y += scroll;
+}
+
+export fn web_key(key: u32) void {
+    const frame = frame_ptr orelse return;
+    frame.input.key = switch (key) {
+        0 => .zero,
+        1 => .escape,
+        2 => .left,
+        3 => .right,
+        else => .none,
+    };
 }
 
 export fn web_set_screen(id: u32) void {
@@ -153,12 +176,18 @@ export fn web_frame() u32 {
     var ui = layout.Ui.init(frame);
     defer ui.deinit();
     if (loaded) |*session| {
-        var state = app.State{ .session = session, .screen = screen };
-        app.view(&state, &ui) catch return 0;
+        if (!view_ready) {
+            view_state = .{ .session = session, .screen = screen };
+            view_ready = true;
+        }
+        view_state.session = session;
+        view_state.screen = screen;
+        app.view(&view_state, &ui) catch return 0;
     } else {
         gallery.build(&ui) catch return 0;
     }
     ui.finish() catch return 0;
+    frame.input.clearTransient();
     return @intCast(frame.list.items.items.len);
 }
 

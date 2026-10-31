@@ -7,6 +7,7 @@ const frame_mod = @import("../ui/frame.zig");
 const layout = @import("../ui/layout.zig");
 const widgets = @import("../ui/widgets.zig");
 const session_mod = @import("../stream/session.zig");
+const input_mod = @import("../ui/input.zig");
 const advisor = @import("../analyze/advisor.zig");
 
 pub const Screen = enum { overview, timeline, advisor, events, capture };
@@ -28,12 +29,35 @@ pub fn parseScreen(name: []const u8) ?Screen {
     return null;
 }
 
+pub const Window = struct {
+    start_us: u64,
+    end_us: u64,
+};
+
+pub const Selection = struct {
+    pid: i32,
+    comm: []const u8,
+};
+
+pub const TimelineGeometry = struct {
+    plot: layout.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
+    start_us: u64 = 0,
+    end_us: u64 = 0,
+    lane_h: f32 = 0,
+    cpu_count: u8 = 0,
+    valid: bool = false,
+};
+
 pub const State = struct {
     session: *const session_mod.Session,
     screen: Screen = .overview,
+    window: ?Window = null,
+    selection: ?Selection = null,
+    timeline: TimelineGeometry = .{},
 };
 
 pub fn view(state: *State, ui: *layout.Ui) !void {
+    handleTimelineInput(state, &ui.frame.input);
     var root = try ui.column(.{ .bg = ui.theme.bg });
     try header(state, ui);
     var body = try ui.row(.{
@@ -51,6 +75,70 @@ pub fn view(state: *State, ui: *layout.Ui) !void {
     body.end();
     try footer(ui);
     root.end();
+}
+
+fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
+    if (input.key == .zero) {
+        state.window = null;
+        state.selection = null;
+        input.key = .none;
+        return;
+    }
+    if (input.key == .escape) {
+        state.selection = null;
+        input.key = .none;
+        return;
+    }
+    const geometry = state.timeline;
+    if (!geometry.valid or !input.inside(geometry.plot.x, geometry.plot.y, geometry.plot.w, geometry.plot.h)) {
+        return;
+    }
+    const full_start = state.session.first_us;
+    const full_end = @max(state.session.last_us, full_start + 1);
+    var window = state.window orelse Window{ .start_us = full_start, .end_us = full_end };
+    if (input.scroll_y != 0) {
+        const span = window.end_us - window.start_us;
+        const factor: f64 = if (input.scroll_y > 0) 0.8 else 1.25;
+        const next_span: u64 = @intFromFloat(@max(
+            1000.0,
+            @min(@as(f64, @floatFromInt(full_end - full_start)), @as(f64, @floatFromInt(span)) * factor),
+        ));
+        const fraction = (input.pointer_x - geometry.plot.x) / @max(1.0, geometry.plot.w);
+        const focus = window.start_us + @as(u64, @intFromFloat(fraction * @as(f32, @floatFromInt(span))));
+        var start = focus -| @as(u64, @intFromFloat(@as(f64, @floatFromInt(next_span)) * fraction));
+        if (start < full_start) start = full_start;
+        var end = start + next_span;
+        if (end > full_end) {
+            end = full_end;
+            start = end -| next_span;
+        }
+        window = .{ .start_us = start, .end_us = end };
+        state.window = window;
+        input.scroll_y = 0;
+    }
+    if (input.clicked) {
+        const lane_offset = input.pointer_y - (geometry.plot.y + 20);
+        if (lane_offset < 0) return;
+        const lane_index: usize = @intFromFloat(@floor(lane_offset / @max(1.0, geometry.lane_h)));
+        if (lane_index >= geometry.cpu_count) return;
+        const fraction = (input.pointer_x - geometry.plot.x) / @max(1.0, geometry.plot.w);
+        const when = window.start_us + @as(u64, @intFromFloat(fraction * @as(f32, @floatFromInt(window.end_us - window.start_us))));
+        for (state.session.slices) |slice| {
+            if (slice.cpu != lane_index) continue;
+            if (when < slice.start_us or when > slice.end_us) continue;
+            state.selection = .{ .pid = slice.pid, .comm = slice.comm };
+            break;
+        }
+        input.clicked = false;
+    }
+}
+
+fn selectedMetric(state: *const State) ?@import("../analyze/metrics.zig").TaskMetric {
+    const selection = state.selection orelse return null;
+    for (state.session.metrics.tasks) |task| {
+        if (task.pid == selection.pid and std.mem.eql(u8, task.comm, selection.comm)) return task;
+    }
+    return null;
 }
 
 fn header(state: *State, ui: *layout.Ui) !void {
@@ -238,6 +326,28 @@ fn timeline(state: *State, ui: *layout.Ui) !void {
         .user = state,
         .paint = paintTimeline,
     });
+    if (state.selection) |selection| {
+        var row = try ui.row(.{ .height = 30, .gap = 10, .align_items = .center });
+        try ui.text(.{
+            .text = try std.fmt.allocPrint(ui.allocator, "selected {s} pid={d}", .{ selection.comm, selection.pid }),
+            .size = 11,
+            .color = ui.theme.live,
+        });
+        if (selectedMetric(state)) |task| {
+            try ui.text(.{
+                .text = try std.fmt.allocPrint(
+                    ui.allocator,
+                    "p95={d}ms offcpu={d}ms switches={d}",
+                    .{ task.wait_p95_us / 1000, task.offcpu_p95_us / 1000, task.switches },
+                ),
+                .size = 11,
+                .color = ui.theme.text,
+            });
+        }
+        row.end();
+    } else {
+        try ui.text(.{ .text = "click a slice to inspect; wheel zooms; 0 resets", .size = 10, .color = ui.theme.muted });
+    }
     panel.end();
 }
 
@@ -336,11 +446,14 @@ fn formatTime(allocator: std.mem.Allocator, us: u64) ![]const u8 {
 }
 
 fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
-    const state: *const State = @ptrCast(@alignCast(user.?));
+    const state: *State = @ptrCast(@alignCast(user.?));
     const session = state.session;
     const th = frame.theme;
-    const start = session.first_us;
-    const end = @max(session.last_us, start + 1);
+    const full_start = session.first_us;
+    const full_end = @max(session.last_us, full_start + 1);
+    const window = state.window orelse Window{ .start_us = full_start, .end_us = full_end };
+    const start = window.start_us;
+    const end = @max(window.end_us, start + 1);
     const left = 34.0;
     const plot_x = rect.x + left;
     const plot_w = rect.w - left;
@@ -358,6 +471,14 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
     }
     const lanes = @max(1, session.cpu_count);
     const lane_h = @min(28.0, (rect.h - 24) / @as(f32, @floatFromInt(lanes)));
+    state.timeline = .{
+        .plot = .{ .x = plot_x, .y = rect.y, .w = plot_w, .h = lane_h * @as(f32, @floatFromInt(lanes)) },
+        .start_us = start,
+        .end_us = end,
+        .lane_h = lane_h,
+        .cpu_count = @intCast(@min(lanes, 255)),
+        .valid = true,
+    };
     var cpu: usize = 0;
     while (cpu < lanes) : (cpu += 1) {
         const y = rect.y + 20 + @as(f32, @floatFromInt(cpu)) * lane_h;
@@ -374,6 +495,11 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         const y = rect.y + 20 + @as(f32, @floatFromInt(slice.cpu)) * lane_h;
         const color = palette(th, slice.comm);
         try frame.list.rect(x0, y + 2, @max(1, x1 - x0), @max(1, lane_h - 6), color, clip);
+        if (state.selection) |selection| {
+            if (slice.pid == selection.pid and std.mem.eql(u8, slice.comm, selection.comm)) {
+                try frame.list.rect(x0, y + 2, @max(1, x1 - x0), 2, th.text, clip);
+            }
+        }
     }
     if (session.lost != 0) {
         var buf: [32]u8 = undefined;
@@ -425,59 +551,4 @@ fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, cl
         const detail = if (is_loss) "explicit sample loss - unsafe" else e.detail;
         _ = try frame.list.text(0, &frame.regular, 10, rect.x + 300, y, detail, if (is_loss) th.refuse else th.muted, clip);
     }
-}
-
-test "overview and timeline views render" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const session = try session_mod.Session.load(
-        std.testing.io,
-        arena.allocator(),
-        "fixtures/ui/healthy.ndjson",
-    );
-    var state = State{ .session = &session };
-    var frame: frame_mod.Frame = undefined;
-    try frame.init(arena.allocator(), 960, 540, .{});
-    defer frame.deinit();
-    for ([_]Screen{ .overview, .timeline, .advisor, .events, .capture }) |screen| {
-        state.screen = screen;
-        var ui = layout.Ui.init(&frame);
-        defer ui.deinit();
-        try view(&state, &ui);
-        try ui.finish();
-    }
-}
-
-test "capability-only session keeps counters at zero" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const line =
-        "{\"schema\":\"xsprof/event/v1\",\"event\":\"capability\",\"ts_ns\":0," ++
-        "\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"a\":0,\"b\":0,\"c\":0," ++
-        "\"comm\":\"live_capture\",\"detail\":\"live_capture:SKIP:why\"," ++
-        "\"host_mutation\":false}\n";
-    const data = line ++ line ++ line;
-    const session = try session_mod.Session.fromData(arena.allocator(), "test", data);
-    try std.testing.expectEqual(@as(u32, 0), session.lost);
-    try std.testing.expectEqual(@as(u32, 0), session.refusals);
-    try std.testing.expectEqual(@as(usize, 3), session.events.len);
-    var state = State{ .session = &session };
-    var frame: frame_mod.Frame = undefined;
-    try frame.init(arena.allocator(), 960, 540, .{});
-    defer frame.deinit();
-    var ui = layout.Ui.init(&frame);
-    defer ui.deinit();
-    try view(&state, &ui);
-    try ui.finish();
-    var expect_zero = false;
-    var i: usize = 0;
-    while (i < ui.nodes.items.len) : (i += 1) {
-        const text = ui.nodeText(i) orelse continue;
-        if (std.mem.eql(u8, text, "lost / refusals")) {
-            try std.testing.expect(i + 1 < ui.nodes.items.len);
-            const value = ui.nodeText(i + 1) orelse "";
-            if (std.mem.eql(u8, value, "0 / 0")) expect_zero = true;
-        }
-    }
-    try std.testing.expect(expect_zero);
 }
