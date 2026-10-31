@@ -28,6 +28,10 @@ Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest closed
 segments when the byte or age budget is exceeded and writes a
 `retention_loss` marker.
 
+If the process is killed, the next start marks the stale segment closed, adds
+`capture_interrupted previous_session=<id>`, and starts a new segment without
+discarding the earlier history.
+
 ## Extract a window
 
 ```sh

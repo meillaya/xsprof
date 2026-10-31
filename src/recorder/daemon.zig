@@ -60,9 +60,17 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
 
     var segments: std.ArrayList(manifest_mod.Segment) = .empty;
     defer segments.deinit(allocator);
+    var previous_session: ?[]const u8 = null;
     if (try manifest_mod.read(io, allocator, manifest_path)) |existing| {
         if (existing.state == .recording) {
+            previous_session = existing.session_id;
             try segments.appendSlice(allocator, existing.segments);
+            if (segments.items.len != 0) {
+                const last = &segments.items[segments.items.len - 1];
+                last.closed = true;
+                last.end_wall_ns = now_wall;
+                last.end_mono_ns = now_mono;
+            }
         }
     }
 
@@ -97,6 +105,20 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     };
     defer capture.deinit();
 
+    if (previous_session) |session_id| {
+        var detail_buf: [128]u8 = undefined;
+        const detail = std.fmt.bufPrint(
+            &detail_buf,
+            "capture_interrupted previous_session={s}",
+            .{session_id},
+        ) catch "capture_interrupted";
+        try segment.writeEvent(.{
+            .kind = .marker,
+            .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+            .cpu = -1,
+            .detail = detail,
+        });
+    }
     try segment.writeEvent(.{
         .kind = .marker,
         .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
