@@ -19,6 +19,18 @@ pub const Result = struct {
     duration_ms: u32 = 0,
 };
 
+const default_poll_timeout_ms: u32 = 20;
+const default_ring_pages: u16 = 64;
+const max_cpus = 256;
+
+pub const Options = struct {
+    poll_timeout_ms: u32 = default_poll_timeout_ms,
+    ring_pages: u16 = default_ring_pages,
+    wakeups: bool = true,
+    migrations: bool = true,
+    faults: bool = true,
+};
+
 pub fn probe(io: std.Io, allocator: std.mem.Allocator) !Result {
     if (!live_linux) {
         return .{ .state = .SKIP, .reason = "non-Linux host: perf_event_open unavailable" };
@@ -39,7 +51,7 @@ fn readFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8, max: usi
     return reader.interface.allocRemaining(allocator, .limited(max)) catch null;
 }
 
-fn tracefsRoot(io: std.Io) ?[]const u8 {
+pub fn tracefsRoot(io: std.Io) ?[]const u8 {
     for (tracefs_candidates) |base| {
         var path_buffer: [256]u8 = undefined;
         const path = std.fmt.bufPrint(
@@ -75,18 +87,6 @@ fn probeLinux(io: std.Io, allocator: std.mem.Allocator) !Result {
     return .{ .state = .READY, .reason = "sched tracepoints + perf_event_paranoid<=1" };
 }
 
-/// Linux-only implementation is only analyzed when targeting Linux.
-pub fn record(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    duration_ms: u32,
-) !Result {
-    if (!live_linux) {
-        return .{ .state = .SKIP, .reason = "non-Linux host: perf_event_open unavailable" };
-    }
-    return recordLinux(io, allocator, duration_ms);
-}
-
 const RingKind = enum { switch_, wakeup, migrate, faults };
 
 const Fields = struct {
@@ -113,25 +113,83 @@ const Ring = struct {
     data: []u8,
 };
 
-const Capture = struct {
+pub const Batch = struct {
+    events: []event.RawEvent,
+    lost: u64,
+    arena: std.heap.ArenaAllocator,
+
+    pub fn deinit(self: *Batch) void {
+        self.arena.deinit();
+        self.events = &.{};
+    }
+};
+
+pub const Capture = struct {
     io: std.Io,
     allocator: std.mem.Allocator,
+    opts: Options = .{},
     rings: std.ArrayList(Ring) = .empty,
     events: std.ArrayList(event.RawEvent) = .empty,
+    batch_arena: std.heap.ArenaAllocator,
     lost: u64 = 0,
+    lost_pending: u64 = 0,
     cpus: u32 = 0,
     root: []const u8 = "",
     switch_fields: Fields = .{},
     wakeup_fields: Fields = .{},
     migrate_fields: Fields = .{},
 
-    fn deinit(self: *Capture) void {
+    /// Open all rings once. The caller probes first when it needs the exact
+    /// SKIP/REFUSE reason.
+    pub fn open(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Capture {
+        const probe_result = try probeLinux(io, allocator);
+        if (probe_result.state != .READY) return error.CaptureNotReady;
+        const root = tracefsRoot(io) orelse return error.CaptureNotReady;
+        return openReady(io, allocator, opts, root);
+    }
+
+    pub fn poll(self: *Capture, timeout_ms: u32) !usize {
+        const poll_fds = try self.allocator.alloc(std.posix.pollfd, self.rings.items.len);
+        defer self.allocator.free(poll_fds);
+        for (self.rings.items, 0..) |ring, index| {
+            poll_fds[index] = .{ .fd = ring.fd, .events = std.posix.POLL.IN, .revents = 0 };
+        }
+        _ = std.posix.poll(poll_fds, @intCast(@min(timeout_ms, std.math.maxInt(i32)))) catch return 0;
+        var drained: usize = 0;
+        for (poll_fds, 0..) |poll_fd, index| {
+            if (poll_fd.revents & std.posix.POLL.IN == 0) continue;
+            try drain(self, &self.rings.items[index]);
+            drained += 1;
+        }
+        return drained;
+    }
+
+    /// Transfer the current batch and its arena to the caller. The caller
+    /// must call `Batch.deinit` after serializing or copying the events.
+    pub fn take(self: *Capture) !Batch {
+        const owned = self.events.toOwnedSlice(self.batch_arena.allocator()) catch |err| {
+            return err;
+        };
+        const old_arena = self.batch_arena;
+        self.batch_arena = std.heap.ArenaAllocator.init(self.allocator);
+        self.events = .empty;
+        const lost = self.lost_pending;
+        self.lost_pending = 0;
+        return .{ .events = owned, .lost = lost, .arena = old_arena };
+    }
+
+    pub fn stats(self: *const Capture) struct { lost: u64, cpus: u32 } {
+        return .{ .lost = self.lost, .cpus = self.cpus };
+    }
+
+    pub fn deinit(self: *Capture) void {
         for (self.rings.items) |ring| {
             _ = std.os.linux.munmap(ring.base, ring.length);
             _ = std.os.linux.close(ring.fd);
         }
         self.rings.deinit(self.allocator);
-        self.events.deinit(self.allocator);
+        self.events.deinit(self.batch_arena.allocator());
+        self.batch_arena.deinit();
     }
 };
 
@@ -185,6 +243,7 @@ fn openRing(
     cpu: u32,
     id: u64,
     fields: Fields,
+    ring_pages: u16,
 ) !Ring {
     var attr: std.os.linux.perf_event_attr = .{
         .type = .TRACEPOINT,
@@ -215,7 +274,7 @@ fn openRing(
     const fd: i32 = @intCast(rc);
     errdefer _ = std.os.linux.close(fd);
     const page_size = std.heap.pageSize();
-    const length = page_size * 9;
+    const length = page_size * (@as(usize, ring_pages) + 1);
     const map_rc = std.os.linux.mmap(
         null,
         length,
@@ -294,7 +353,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
         9 => {
             const sample = parseSample(bytes) orelse return;
             if (ring.kind == .faults) {
-                try self.events.append(self.allocator, .{
+                try self.events.append(self.batch_arena.allocator(), .{
                     .kind = .page_fault,
                     .ts_ns = sample.ts_ns,
                     .cpu = sample.cpu,
@@ -313,7 +372,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
             const orig_cpu = readU32(raw, fields.orig_cpu);
             const dest_cpu = readU32(raw, fields.dest_cpu);
             switch (ring.kind) {
-                .switch_ => try self.events.append(self.allocator, .{
+                .switch_ => try self.events.append(self.batch_arena.allocator(), .{
                     .kind = .sched_switch,
                     .ts_ns = sample.ts_ns,
                     .cpu = sample.cpu,
@@ -321,11 +380,11 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .tid = sample.tid,
                     .a = next_pid,
                     .b = prev_pid,
-                    .comm = try commAt(self.allocator, raw, fields.next_comm),
+                    .comm = try commAt(self.batch_arena.allocator(), raw, fields.next_comm),
                 }),
                 .wakeup => {
                     const woken = if (pid != 0) pid else readU32(raw, fields.pid);
-                    try self.events.append(self.allocator, .{
+                    try self.events.append(self.batch_arena.allocator(), .{
                         .kind = .sched_wakeup,
                         .ts_ns = sample.ts_ns,
                         .cpu = sample.cpu,
@@ -333,10 +392,10 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                         .tid = sample.tid,
                         .a = woken,
                         .b = target_cpu,
-                        .comm = try commAt(self.allocator, raw, fields.comm),
+                        .comm = try commAt(self.batch_arena.allocator(), raw, fields.comm),
                     });
                 },
-                .migrate => try self.events.append(self.allocator, .{
+                .migrate => try self.events.append(self.batch_arena.allocator(), .{
                     .kind = .sched_migrate,
                     .ts_ns = sample.ts_ns,
                     .cpu = sample.cpu,
@@ -344,7 +403,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .tid = sample.tid,
                     .a = orig_cpu,
                     .b = dest_cpu,
-                    .comm = try commAt(self.allocator, raw, fields.comm),
+                    .comm = try commAt(self.batch_arena.allocator(), raw, fields.comm),
                 }),
                 .faults => {},
             }
@@ -353,12 +412,13 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
             if (bytes.len >= 24) {
                 const lost = std.mem.readInt(u64, bytes[16..24], .little);
                 self.lost += lost;
+                self.lost_pending += lost;
                 const detail = try std.fmt.allocPrint(
-                    self.allocator,
+                    self.batch_arena.allocator(),
                     "sample_loss perf_ring lost={d}",
                     .{lost},
                 );
-                try self.events.append(self.allocator, .{
+                try self.events.append(self.batch_arena.allocator(), .{
                     .kind = .marker,
                     .ts_ns = @intCast(std.Io.Clock.now(.awake, self.io).nanoseconds),
                     .cpu = @intCast(ring.cpu),
@@ -404,79 +464,86 @@ fn drain(self: *Capture, ring: *Ring) !void {
     ring.page.data_tail = head;
 }
 
-fn recordLinux(io: std.Io, allocator: std.mem.Allocator, duration_ms: u32) !Result {
-    var probe_result = try probeLinux(io, allocator);
-    if (probe_result.state != .READY) return probe_result;
-    const root = tracefsRoot(io) orelse return .{
-        .state = .REFUSE,
-        .reason = "tracefs disappeared",
+pub fn openReady(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    opts: Options,
+    root: []const u8,
+) !Capture {
+    var capture: Capture = .{
+        .io = io,
+        .allocator = allocator,
+        .opts = opts,
+        .batch_arena = std.heap.ArenaAllocator.init(allocator),
+        .root = root,
     };
-    var capture: Capture = .{ .io = io, .allocator = allocator, .root = root };
-    defer capture.deinit();
+    errdefer capture.deinit();
 
-    const switch_id = tracepointId(io, allocator, root, "sched_switch") catch return .{
-        .state = .REFUSE,
-        .reason = "sched_switch tracepoint unavailable",
-    };
+    const switch_id = tracepointId(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
     const wakeup_id = tracepointId(io, allocator, root, "sched_wakeup") catch 0;
     const migrate_id = tracepointId(io, allocator, root, "sched_migrate_task") catch 0;
-    capture.switch_fields = formatFor(io, allocator, root, "sched_switch") catch return .{
-        .state = .REFUSE,
-        .reason = "sched_switch format unreadable",
-    };
+    capture.switch_fields = formatFor(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
     capture.wakeup_fields = formatFor(io, allocator, root, "sched_wakeup") catch .{};
     capture.migrate_fields = formatFor(io, allocator, root, "sched_migrate_task") catch .{};
 
-    const cpu_count = @min(std.Thread.getCpuCount() catch 1, 256);
+    const cpu_count = @min(std.Thread.getCpuCount() catch 1, max_cpus);
     capture.cpus = @intCast(cpu_count);
     var cpu: u32 = 0;
     while (cpu < cpu_count) : (cpu += 1) {
-        try capture.rings.append(allocator, try openRing(io, allocator, .switch_, cpu, switch_id, capture.switch_fields));
-        if (wakeup_id != 0) capture.rings.append(allocator, try openRing(io, allocator, .wakeup, cpu, wakeup_id, capture.wakeup_fields)) catch {};
-        if (migrate_id != 0) capture.rings.append(allocator, try openRing(io, allocator, .migrate, cpu, migrate_id, capture.migrate_fields)) catch {};
-        capture.rings.append(allocator, try openRing(io, allocator, .faults, cpu, 0, .{})) catch {};
-    }
-    if (capture.rings.items.len == 0) {
-        return .{ .state = .SKIP, .reason = "no perf events could be opened", .cpus = capture.cpus };
-    }
-
-    const start = std.Io.Clock.now(.awake, io).nanoseconds;
-    const duration_ns = @as(i96, duration_ms) * std.time.ns_per_ms;
-    const deadline = start + duration_ns;
-    var poll_fds: std.ArrayList(std.posix.pollfd) = .empty;
-    defer poll_fds.deinit(allocator);
-    for (capture.rings.items) |ring| {
-        try poll_fds.append(allocator, .{ .fd = ring.fd, .events = std.posix.POLL.IN, .revents = 0 });
-    }
-    while (std.Io.Clock.now(.awake, io).nanoseconds < deadline) {
-        const remaining_ns = deadline - std.Io.Clock.now(.awake, io).nanoseconds;
-        const timeout_ms: i32 = @intCast(@min(@divTrunc(remaining_ns, std.time.ns_per_ms), 100));
-        _ = std.posix.poll(poll_fds.items, timeout_ms) catch continue;
-        for (poll_fds.items, 0..) |poll_fd, index| {
-            if (poll_fd.revents & std.posix.POLL.IN == 0) continue;
-            try drain(&capture, &capture.rings.items[index]);
-            poll_fds.items[index].revents = 0;
+        try capture.rings.append(allocator, try openRing(
+            io,
+            allocator,
+            .switch_,
+            cpu,
+            switch_id,
+            capture.switch_fields,
+            opts.ring_pages,
+        ));
+        if (opts.wakeups and wakeup_id != 0) {
+            capture.rings.append(allocator, try openRing(
+                io,
+                allocator,
+                .wakeup,
+                cpu,
+                wakeup_id,
+                capture.wakeup_fields,
+                opts.ring_pages,
+            )) catch {};
+        }
+        if (opts.migrations and migrate_id != 0) {
+            capture.rings.append(allocator, try openRing(
+                io,
+                allocator,
+                .migrate,
+                cpu,
+                migrate_id,
+                capture.migrate_fields,
+                opts.ring_pages,
+            )) catch {};
+        }
+        if (opts.faults) {
+            capture.rings.append(allocator, try openRing(
+                io,
+                allocator,
+                .faults,
+                cpu,
+                0,
+                .{},
+                opts.ring_pages,
+            )) catch {};
         }
     }
-    for (capture.rings.items) |*ring| {
-        try drain(&capture, ring);
-    }
-    probe_result.events = try capture.events.toOwnedSlice(allocator);
-    probe_result.lost = capture.lost;
-    probe_result.cpus = capture.cpus;
-    probe_result.duration_ms = duration_ms;
-    return probe_result;
+    if (capture.rings.items.len == 0) return error.NoEvents;
+    return capture;
 }
 
+// Checks that probing has a defined SKIP/REFUSE/READY state off Linux.
 test "capture fails closed off Linux or without privilege" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const p = try probe(std.testing.io, arena.allocator());
     if (!live_linux) {
         try std.testing.expectEqual(State.SKIP, p.state);
-        const result = try record(std.testing.io, arena.allocator(), 1);
-        try std.testing.expectEqual(State.SKIP, result.state);
-        try std.testing.expectEqual(@as(usize, 0), result.events.len);
     } else {
         try std.testing.expect(p.state == .SKIP or p.state == .REFUSE or p.state == .READY);
     }
