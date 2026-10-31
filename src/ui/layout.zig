@@ -49,6 +49,8 @@ pub const Style = struct {
     border_width: f32 = 0,
     radius: f32 = 0,
     clip: bool = true,
+    /// Non-zero controls register a hit rectangle in `Ui.hits` for the app.
+    hit_id: u32 = 0,
 };
 
 pub const FontWeight = enum { regular, bold };
@@ -92,6 +94,13 @@ const Node = struct {
     custom_paint: ?PaintFn = null,
 };
 
+pub const Hit = struct {
+    rect: Rect,
+    id: u32,
+};
+
+pub const max_hits = 128;
+
 pub const Container = struct {
     ui: *Ui,
     index: u32,
@@ -106,6 +115,8 @@ pub const Ui = struct {
     allocator: std.mem.Allocator,
     nodes: std.ArrayList(Node) = .empty,
     stack: std.ArrayList(u32) = .empty,
+    hits: std.ArrayList(Hit) = .empty,
+    hits_overflow: bool = false,
     theme: draw.Theme,
 
     pub fn init(frame: *frame_mod.Frame) Ui {
@@ -120,6 +131,7 @@ pub const Ui = struct {
         for (self.nodes.items) |*node| node.children.deinit(self.allocator);
         self.nodes.deinit(self.allocator);
         self.stack.deinit(self.allocator);
+        self.hits.deinit(self.allocator);
     }
 
     fn add(self: *Ui, style: Style) !u32 {
@@ -190,6 +202,21 @@ pub const Ui = struct {
 
     pub fn nodeRect(self: *const Ui, index: usize) Rect {
         return self.nodes.items[index].rect;
+    }
+
+    /// Returns the topmost control under the pointer after `finish`.
+    pub fn hitAt(self: *const Ui, x: f32, y: f32) ?u32 {
+        var index = self.hits.items.len;
+        while (index > 0) {
+            index -= 1;
+            const hit = self.hits.items[index];
+            if (x >= hit.rect.x and x < hit.rect.x + hit.rect.w and
+                y >= hit.rect.y and y < hit.rect.y + hit.rect.h)
+            {
+                return hit.id;
+            }
+        }
+        return null;
     }
 
     pub fn nodeText(self: *const Ui, index: usize) ?[]const u8 {
@@ -370,6 +397,13 @@ pub const Ui = struct {
                 clip,
             );
         }
+        if (node.style.hit_id != 0) {
+            if (self.hits.items.len >= max_hits) {
+                self.hits_overflow = true;
+            } else {
+                try self.hits.append(self.allocator, .{ .rect = rect, .id = node.style.hit_id });
+            }
+        }
         if (node.custom_paint) |paint_fn| {
             try paint_fn(node.custom_user, self.frame, rect, clip);
         }
@@ -438,4 +472,20 @@ test "layout paint produces deterministic pixels" {
         hash *%= 1099511628211;
     }
     try std.testing.expect(hash != 0);
+}
+
+test "hit targets resolve after layout" {
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(std.testing.allocator, 200, 100, .{});
+    defer frame.deinit();
+    var ui = Ui.init(&frame);
+    defer ui.deinit();
+    const root = try ui.column(.{ .padding = Edges.all(10) });
+    const button = try ui.row(.{ .height = 20, .hit_id = 7 });
+    try ui.text(.{ .text = "apply", .size = 10 });
+    button.end();
+    root.end();
+    try ui.finish();
+    try std.testing.expectEqual(@as(?u32, 7), ui.hitAt(15, 15));
+    try std.testing.expect(ui.hitAt(150, 80) == null);
 }

@@ -23,6 +23,8 @@ pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const session = @import("stream/session.zig");
 pub const serve = @import("serve/server.zig");
 pub const live = @import("capture/live.zig");
+pub const capture_lab_worker = @import("capture/lab_worker.zig");
+pub const stream_live_feed = @import("stream/live_feed.zig");
 pub const recording = @import("capture/recording.zig");
 pub const recorder_manifest = @import("recorder/manifest.zig");
 pub const recorder_segment = @import("recorder/segment.zig");
@@ -36,11 +38,15 @@ pub const ui_frame = @import("ui/frame.zig");
 pub const ui_layout = @import("ui/layout.zig");
 pub const ui_tester = @import("ui/tester.zig");
 pub const ui_draw = @import("ui/draw.zig");
+pub const ui_controls = @import("ui/controls.zig");
 pub const ui_raster = @import("ui/raster.zig");
 pub const demo = @import("app/demo.zig");
 pub const gallery = @import("app/gallery.zig");
 pub const app = @import("app/app.zig");
 pub const app_test = @import("app/app_test.zig");
+pub const lab_action = @import("app/lab/action.zig");
+pub const lab_state = @import("app/lab/state.zig");
+pub const lab_source = @import("app/lab/source.zig");
 pub const cli = @import("cli/root.zig");
 
 test {
@@ -65,6 +71,8 @@ test {
     _ = stream_index;
     _ = serve;
     _ = live;
+    _ = capture_lab_worker;
+    _ = stream_live_feed;
     _ = recording;
     _ = recorder_manifest;
     _ = recorder_segment;
@@ -80,5 +88,8 @@ test {
     _ = gallery;
     _ = app;
     _ = app_test;
+    _ = lab_action;
+    _ = lab_state;
+    _ = lab_source;
     _ = cli;
 }

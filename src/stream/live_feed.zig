@@ -35,9 +35,12 @@ pub const Store = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (data.len >= self.max_bytes) {
+            const tail = data[data.len - self.max_bytes ..];
+            const newline = std.mem.indexOfScalar(u8, tail, '\n');
+            const keep = if (newline) |at| tail[at + 1 ..] else tail[tail.len..];
             self.bytes.clearRetainingCapacity();
-            self.base = 0;
-            self.bytes.appendSlice(std.heap.smp_allocator, data[data.len - self.max_bytes ..]) catch return;
+            self.base += data.len - keep.len;
+            self.bytes.appendSlice(std.heap.smp_allocator, keep) catch return;
             return;
         }
         while (self.bytes.items.len + data.len > self.max_bytes) {
@@ -99,4 +102,15 @@ test "live store bounds and offsets" {
     const later = try store.since(std.testing.allocator, 4);
     defer std.testing.allocator.free(later.data);
     try std.testing.expectEqualStrings("two\n", later.data);
+}
+
+test "oversized append keeps a complete trailing line" {
+    var store = Store.init();
+    defer store.deinit();
+    store.max_bytes = 6;
+    store.append("aa\nbb\ncc\n");
+    const snap = try store.snapshot(std.testing.allocator);
+    defer std.testing.allocator.free(snap);
+    try std.testing.expectEqualStrings("cc\n", snap);
+    try std.testing.expectEqual(@as(u64, 9), store.endOffset());
 }

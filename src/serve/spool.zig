@@ -3,7 +3,7 @@
 
 const std = @import("std");
 const manifest_mod = @import("../recorder/manifest.zig");
-const store_mod = @import("live_store.zig");
+const store_mod = @import("../stream/live_feed.zig");
 
 const poll_ms = 100;
 const read_chunk = 256 * 1024;
