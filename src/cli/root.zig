@@ -17,6 +17,7 @@ const recording = @import("../capture/recording.zig");
 const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
+const recorder_cmd = @import("recorder_cmd.zig");
 
 const Writer = std.Io.Writer;
 
@@ -32,6 +33,8 @@ const known_commands = [_][]const u8{
     "snapshot",
     "ui",
     "bpf-gate",
+    "daemon",
+    "capture",
 };
 
 const refusal_reason =
@@ -57,6 +60,8 @@ fn writeHelp(w: *Writer) Writer.Error!void {
         \\  snapshot [--replay <f>] Headless PNG snapshot of the profiler UI
         \\  ui [--replay <f>]       Native profiler UI
         \\  bpf-gate --json         VM-marker-gated no-op BPF gate
+        \\  daemon [--dir <d>]      Foreground Linux recorder
+        \\  capture --last <dur>    Extract a recorder window
         \\  version                 Print version
         \\  help                    Print this help
         \\
@@ -419,6 +424,12 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "bpf-gate")) {
         return bpf_cmd.cmdBpf(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "daemon")) {
+        return recorder_cmd.cmdDaemon(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "capture")) {
+        return recorder_cmd.cmdCapture(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});
