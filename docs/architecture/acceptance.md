@@ -51,6 +51,23 @@ The full gate also passed natively in the disposable Fedora 44 aarch64 VM:
 `zig build check` completed 23/23 steps with 90/90 unit tests, plus CLI parity
 and web smoke.
 
+## GUI lab progress (M7, in progress)
+
+- L0/L1: bounded input events, layout hit targets, controls, pure lab reducer,
+  transactional source loading, shared live feed, and the off-thread capture
+  worker.
+- L2/L3: native lab rail, source buttons and path editing, capture controls,
+  transport window advancement, inspector, palette, and trace export.
+- L4: `xsprof lab`, scenario schema, built-in scenarios, canonical run JSON,
+  per-step snapshots, and `zig build lab-smoke`.
+- L5: the wasm replay client shares the lab state and rail; native-only source
+  and capture controls are hidden.
+- Linux VM gate: `zig build check` passed with 105 tests, CLI parity, web
+  smoke, and lab smoke.
+
+Remaining M7 work: compare controls, web scenario/file actions, and the final
+acceptance sweep.
+
 Commands for the productization sweep:
 
 ```sh

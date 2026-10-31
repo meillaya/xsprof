@@ -23,6 +23,11 @@ pub const Hit = enum(u32) {
     pause = 7,
     step = 8,
     fit = 9,
+    export_trace = 10,
+    source_input = 30,
+    source_load = 31,
+    export_input = 32,
+    export_write = 33,
     palette_close = 20,
     palette_healthy = 21,
     palette_scheduler_mix = 22,
@@ -65,14 +70,13 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     const column = try ui.column(.{
         .width = rail_width,
         .padding = layout.Edges.all(10),
-        .gap = 8,
+        .gap = 6,
         .bg = th.panel,
         .border = th.hairline,
         .border_width = 1,
         .radius = 4,
     });
     try ui.text(.{ .text = "LAB", .size = 11, .color = th.live, .weight = .bold });
-    try ui.text(.{ .text = "read-only bench", .size = 9, .color = th.muted });
     if (lab.palette.open) {
         try ui.text(.{ .text = "COMMANDS", .size = 9, .color = th.skip, .weight = .bold });
         if (lab.host_controls) {
@@ -88,9 +92,21 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
 
     try ui.text(.{ .text = "SOURCE", .size = 9, .color = th.muted, .weight = .bold });
     if (lab.host_controls) {
-        try controls.button(ui, @backingInt(Hit.healthy), "healthy", .{ .width = rail_width - 20 });
-        try controls.button(ui, @backingInt(Hit.scheduler_mix), "scheduler-mix", .{ .width = rail_width - 20 });
-        try controls.button(ui, @backingInt(Hit.empty), "empty", .{ .width = rail_width - 20 });
+        try controls.textField(
+            ui,
+            @backingInt(Hit.source_input),
+            lab.sourceInputSlice(),
+            lab.input_focus == .source_path,
+            "journal path",
+        );
+        var load_row = try ui.row(.{ .height = 26 });
+        try controls.button(ui, @backingInt(Hit.source_load), "load path", .{ .width = 100, .tone = .primary });
+        load_row.end();
+        var sources = try ui.row(.{ .height = 26, .gap = 4 });
+        try controls.button(ui, @backingInt(Hit.healthy), "healthy", .{ .width = 62 });
+        try controls.button(ui, @backingInt(Hit.scheduler_mix), "real", .{ .width = 58 });
+        try controls.button(ui, @backingInt(Hit.empty), "empty", .{ .width = 58 });
+        sources.end();
     } else {
         try ui.text(.{ .text = "replay only; open a journal", .size = 9, .color = th.skip });
     }
@@ -147,6 +163,7 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     var fit_row = try ui.row(.{ .height = 26 });
     try controls.button(ui, @backingInt(Hit.fit), "fit window", .{ .width = 100 });
     fit_row.end();
+
     try ui.text(.{
         .text = try std.fmt.allocPrint(ui.allocator, "cursor {d}ms", .{lab.transport.cursor_us / 1000}),
         .size = 9,
@@ -154,6 +171,19 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
     });
 
     try ui.text(.{ .text = "INSPECTOR", .size = 9, .color = th.muted, .weight = .bold });
+    if (lab.host_controls) {
+        try ui.text(.{ .text = "EXPORT", .size = 9, .color = th.muted, .weight = .bold });
+        try controls.textField(
+            ui,
+            @backingInt(Hit.export_input),
+            lab.exportInputSlice(),
+            lab.input_focus == .export_path,
+            "trace.json",
+        );
+        var write_row = try ui.row(.{ .height = 26 });
+        try controls.button(ui, @backingInt(Hit.export_write), "write trace", .{ .width = 100 });
+        write_row.end();
+    }
     if (lab.view.selection) |selection| {
         try ui.text(.{
             .text = try std.fmt.allocPrint(ui.allocator, "{s} pid={d}", .{ selection.comm, selection.pid }),
@@ -171,8 +201,6 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
                 .color = th.live,
             });
         }
-    } else {
-        try ui.text(.{ .text = "no selection", .size = 9, .color = th.muted });
     }
 
     if (lab.toast_len != 0) {
@@ -187,6 +215,28 @@ fn rail(user: ?*anyopaque, ui: *layout.Ui) !void {
 
 pub fn collect(lab: *lab_state.LabState, ui: *layout.Ui, input: *input_mod.Input) Messages {
     var messages = Messages{};
+    if (lab.input_focus != .none) {
+        for (input.keyEvents()) |event| {
+            if (event.text_len != 0) {
+                messages.add(.{ .intent = .{ .text_input = .{
+                    .field = lab.input_focus,
+                    .text = event.textSlice(),
+                } } });
+            }
+        }
+        if (input.key == .backspace) {
+            messages.add(.{ .intent = .{ .backspace_input = lab.input_focus } });
+            input.key = .none;
+        }
+        if (input.key == .enter) {
+            messages.add(.{ .intent = .{ .submit_input = lab.input_focus } });
+            input.key = .none;
+        }
+        if (input.key == .escape) {
+            messages.add(.{ .intent = .cancel_input });
+            input.key = .none;
+        }
+    }
     if (input.key == .lab) {
         messages.add(.{ .intent = .toggle_rail });
         input.key = .none;
@@ -223,6 +273,14 @@ pub fn collect(lab: *lab_state.LabState, ui: *layout.Ui, input: *input_mod.Input
                 @backingInt(Hit.pause) => messages.add(.{ .intent = .{ .transport = .pause } }),
                 @backingInt(Hit.step) => messages.add(.{ .intent = .{ .transport = .step_forward } }),
                 @backingInt(Hit.fit) => messages.add(.{ .intent = .{ .transport = .fit } }),
+                @backingInt(Hit.export_trace) => messages.add(.{ .intent = .{ .exports = .{
+                    .kind = .trace,
+                    .path = "xsprof-trace.json",
+                } } }),
+                @backingInt(Hit.source_input) => messages.add(.{ .intent = .{ .focus_input = .source_path } }),
+                @backingInt(Hit.source_load) => messages.add(.{ .intent = .{ .submit_input = .source_path } }),
+                @backingInt(Hit.export_input) => messages.add(.{ .intent = .{ .focus_input = .export_path } }),
+                @backingInt(Hit.export_write) => messages.add(.{ .intent = .{ .submit_input = .export_path } }),
                 @backingInt(Hit.palette_close) => messages.add(.{ .intent = .palette_close }),
                 @backingInt(Hit.palette_healthy) => messages.add(.{ .intent = .{ .open_source = .{
                     .kind = .replay,

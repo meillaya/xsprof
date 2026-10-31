@@ -13,6 +13,8 @@ pub const LabPanel = enum { source, capture, transport, scenarios, inspector, ex
 
 pub const Focus = enum { screen, rail, palette, text_field };
 
+pub const InputField = enum { none, source_path, export_path };
+
 pub const ExportKind = enum { trace, report, snapshot, run_json };
 
 pub const TransportIntent = enum {
@@ -40,6 +42,11 @@ pub const Intent = union(enum) {
     transport: TransportIntent,
     filter_comm: []const u8,
     select_pid: i32,
+    focus_input: InputField,
+    text_input: struct { field: InputField, text: []const u8 },
+    backspace_input: InputField,
+    submit_input: InputField,
+    cancel_input,
     exports: struct { kind: ExportKind, path: []const u8 },
     quit,
     dismiss_error,

@@ -168,7 +168,8 @@ Status is updated only when a phase gate actually passes.
   runner, built-in scenarios, and `zig build lab-smoke`. Web parity and the
   remaining export/compare controls are still open. L5 now uses the lab state
   and rail in the wasm replay client with native-only capture controls
-  hidden.
+  hidden. L3 path editing and trace export are in the native rail. Compare
+  controls and web scenario actions remain.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
