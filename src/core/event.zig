@@ -44,6 +44,23 @@ pub fn kindName(kind: Kind) []const u8 {
     return @tagName(kind);
 }
 
+/// Loss markers carry either `dropped=N` or `lost=N`. Return the magnitude so
+/// the UI can report events, not marker rows.
+pub fn lossMagnitude(detail: []const u8) u32 {
+    var value: u32 = 1;
+    inline for ([_][]const u8{ "dropped=", "lost=" }) |prefix| {
+        if (std.mem.indexOf(u8, detail, prefix)) |at| {
+            const start = at + prefix.len;
+            var end = start;
+            while (end < detail.len and std.ascii.isDigit(detail[end])) : (end += 1) {}
+            if (end > start) {
+                value = std.fmt.parseInt(u32, detail[start..end], 10) catch 1;
+            }
+        }
+    }
+    return value;
+}
+
 pub fn kindFromName(name: []const u8) ?Kind {
     inline for (@typeInfo(Kind).@"enum".field_names) |field_name| {
         if (std.mem.eql(u8, name, field_name)) return @field(Kind, field_name);

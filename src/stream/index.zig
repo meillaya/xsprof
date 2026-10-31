@@ -4,6 +4,7 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const session = @import("session.zig");
+const metrics_mod = @import("../analyze/metrics.zig");
 
 const Slice = session.Slice;
 const Capability = session.Capability;
@@ -35,6 +36,7 @@ pub const Index = struct {
     capabilities: std.ArrayList(Capability) = .empty,
     cap_names: std.StringHashMap(usize),
     comm_counts: std.StringHashMap(u32),
+    metrics_index: metrics_mod.Index,
     last_switch: [max_cpus]?Switch = @splat(null),
     first_us: u64 = std.math.maxInt(u64),
     last_us: u64 = 0,
@@ -52,6 +54,7 @@ pub const Index = struct {
             .allocator = allocator,
             .cap_names = std.StringHashMap(usize).init(allocator),
             .comm_counts = std.StringHashMap(u32).init(allocator),
+            .metrics_index = metrics_mod.Index.init(allocator),
         };
     }
 
@@ -61,9 +64,11 @@ pub const Index = struct {
         self.capabilities.deinit(self.allocator);
         self.cap_names.deinit();
         self.comm_counts.deinit();
+        self.metrics_index.deinit();
     }
 
     pub fn append(self: *Index, new_events: []const event.RawEvent) !void {
+        try self.metrics_index.append(new_events);
         try self.events.appendSlice(self.allocator, new_events);
         for (new_events) |e| {
             const us = e.ts_ns / 1000;
@@ -109,7 +114,7 @@ pub const Index = struct {
                     if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
                         std.mem.indexOf(u8, e.detail, "lost") != null)
                     {
-                        self.lost += 1;
+                        self.lost += event.lossMagnitude(e.detail);
                     }
                 },
                 .refusal, .incident => self.refusals += 1,
@@ -167,6 +172,7 @@ pub const Index = struct {
             .lost = self.lost,
             .refusals = self.refusals,
             .cpu_count = self.cpu_count,
+            .metrics = try self.metrics_index.snapshot(allocator),
         };
     }
 };

@@ -15,6 +15,7 @@ pub fn cmdServe(
     var assets_dir: []const u8 = "zig-out/web";
     var addr: []const u8 = "127.0.0.1";
     var live_capture = false;
+    var live_stride: u32 = 80;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -35,6 +36,12 @@ pub fn cmdServe(
             addr = args[i];
         } else if (std.mem.eql(u8, arg, "--live")) {
             live_capture = true;
+        } else if (std.mem.eql(u8, arg, "--live-stride") and i + 1 < args.len) {
+            i += 1;
+            live_stride = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("serve: invalid --live-stride\n");
+                return 2;
+            };
         }
     }
     if (!std.mem.eql(u8, addr, "127.0.0.1") and !std.mem.eql(u8, addr, "::1")) {
@@ -61,6 +68,7 @@ pub fn cmdServe(
         .assets_dir = assets_dir,
         .token = token[0..],
         .live = live_capture,
+        .live_stride = live_stride,
     }) catch |serve_error| {
         try err.print("serve: {s}\n", .{@errorName(serve_error)});
         return 1;
