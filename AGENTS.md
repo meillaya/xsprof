@@ -78,8 +78,7 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P4 is complete: perf capture, `record`, live SSE updates, bounded downsample
-loss markers, and browser incremental rendering are validated in a disposable
-Linux VM. P5 is the native macOS AppKit + Metal window, offscreen pixel tests,
-hidden-window smoke test, and `xsprof ui`. Update the roadmap when a gate
-passes.
+P5 is complete: native macOS AppKit window, CAMetalLayer, instanced Metal
+renderer, headless Metal/CPU parity, hidden-window smoke, and `xsprof ui`.
+P6 is the native Linux X11/GL surface, Xvfb smoke, packaging, and a11y/
+performance polish. Update the roadmap when a gate passes.

@@ -31,6 +31,12 @@ pub fn build(b: *std.Build) void {
         .name = "xsprof",
         .root_module = exe_mod,
     });
+    if (target.result.os.tag == .macos) {
+        for ([_][]const u8{ "AppKit", "Metal", "QuartzCore" }) |framework| {
+            exe_mod.linkFramework(framework, .{});
+            core_mod.linkFramework(framework, .{});
+        }
+    }
     b.installArtifact(exe);
 
     const run_step = b.step("run", "Run xsprof");
@@ -122,4 +128,11 @@ pub fn build(b: *std.Build) void {
     check.dependOn(web_step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
+    if (target.result.os.tag == .macos) {
+        const macos_smoke = b.addSystemCommand(&.{ "sh", "qa/macos_smoke.sh" });
+        macos_smoke.step.dependOn(b.getInstallStep());
+        const macos_smoke_step = b.step("macos-smoke", "Hidden AppKit/Metal window smoke");
+        macos_smoke_step.dependOn(&macos_smoke.step);
+        check.dependOn(&macos_smoke.step);
+    }
 }
