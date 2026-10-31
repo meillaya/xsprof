@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/compare.v1.schema.json",
+  "title": "xsprof baseline comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["base", "base_source", "candidate", "candidate_source", "host_mutation", "regressions", "schema", "tasks", "threshold_pct"],
+  "properties": {
+    "base": { "type": "object" },
+    "base_source": { "type": "string" },
+    "candidate": { "type": "object" },
+    "candidate_source": { "type": "string" },
+    "host_mutation": { "const": false },
+    "regressions": { "type": "integer" },
+    "schema": { "const": "xsprof/compare/v1" },
+    "tasks": { "type": "array" },
+    "threshold_pct": { "type": "number" }
+  }
+}
