@@ -45,7 +45,21 @@ printable-ASCII comms, increasing ns timestamps, and valid UTF-8 JSON.
 The host (macOS) and any unprivileged Linux host report SKIP and exit 1; this
 is the tested fail-closed behavior.
 
-## Not yet wired
+## Live SSE and the browser
 
-Live SSE/browser updates are still pending. P4a exposes capture to the CLI and
-journal; the web frontend currently consumes replay journals.
+`xsprof serve --live` starts a capture worker that repeatedly opens the perf
+rings, downsamples (every 80th event) into a bounded 8 MiB store, and emits an
+explicit `sample_loss live_downsample dropped=N` marker per batch. Endpoints:
+
+- `/api/journal` — current snapshot for initial load.
+- `/api/events` — one-shot SSE batches with `id:` offsets and `Last-Event-ID`
+  resume; an `event: reset` frame tells the client to reload after trimming.
+- `/api/meta` — `source:"live"`.
+
+The browser appends SSE lines through `web_append_journal`, re-renders while
+preserving the active screen, and reloads on reset. Verified in the VM with a
+headless Chromium screenshot: LIVE READY capability, 51k+ events, 4 CPUs,
+loss markers, `host_mutation=false`.
+
+The worker downsamples for UI responsiveness; the CLI `record` remains the
+full-fidelity evidence path.

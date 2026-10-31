@@ -131,8 +131,8 @@ fn paintCpu(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip:
 fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
     _ = user;
     const th = frame.theme;
-    _ = try frame.list.text(0, &frame.regular, 9, rect.x, rect.y, "0ms", th.muted, clip);
-    _ = try frame.list.text(0, &frame.regular, 9, rect.x + rect.w - 30, rect.y, "250ms", th.muted, clip);
+    _ = try frame.list.text(0, &frame.regular, 12, rect.x, rect.y, "0ms", th.muted, clip);
+    _ = try frame.list.text(0, &frame.regular, 12, rect.x + rect.w - 40, rect.y, "250ms", th.muted, clip);
     try frame.list.rect(rect.x, rect.y + 14, rect.w, 1, th.hairline, clip);
     var lane: usize = 0;
     while (lane < 10) : (lane += 1) {
@@ -190,5 +190,5 @@ test "gallery layout renders deterministically" {
     const first = fnv(pixels);
     const again = fnv(pixels);
     try std.testing.expectEqual(first, again);
-    try std.testing.expectEqual(@as(u64, 0x19923098db2fca5), first);
+    try std.testing.expectEqual(@as(u64, 0x3b88f8a022063aa7), first);
 }

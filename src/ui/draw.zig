@@ -55,11 +55,9 @@ pub const Instance = extern struct {
     pad: u32 = 0,
 };
 
-const AtlasKey = struct {
-    font: u8,
-    size: u16,
-    gid: u16,
-};
+fn atlasKey(font: u8, size: u16, gid: u16) u64 {
+    return (@as(u64, font) << 32) | (@as(u64, size) << 16) | gid;
+}
 
 pub const GlyphEntry = struct {
     uv: [4]f32,
@@ -78,7 +76,8 @@ pub const Atlas = struct {
     shelf_x: usize = 0,
     shelf_y: usize = 0,
     shelf_h: usize = 0,
-    entries: std.AutoHashMap(AtlasKey, GlyphEntry),
+    version: u32 = 0,
+    entries: std.AutoHashMap(u64, GlyphEntry),
 
     pub fn init(allocator: std.mem.Allocator) !Atlas {
         const pixels = try allocator.alloc(u8, 1024 * 1024);
@@ -86,7 +85,7 @@ pub const Atlas = struct {
         return .{
             .allocator = allocator,
             .pixels = pixels,
-            .entries = std.AutoHashMap(AtlasKey, GlyphEntry).init(allocator),
+            .entries = std.AutoHashMap(u64, GlyphEntry).init(allocator),
         };
     }
 
@@ -102,7 +101,7 @@ pub const Atlas = struct {
         gid: u16,
         size_px: u16,
     ) !GlyphEntry {
-        const key = AtlasKey{ .font = font_index, .size = size_px, .gid = gid };
+        const key = atlasKey(font_index, size_px, gid);
         if (self.entries.get(key)) |entry| return entry;
         const bitmap = try font.rasterize(self.allocator, gid, @floatFromInt(size_px));
         defer if (bitmap.pixels.len != 0) self.allocator.free(bitmap.pixels);
@@ -118,6 +117,7 @@ pub const Atlas = struct {
                 .advance = bitmap.advance,
             };
             try self.entries.put(key, entry);
+            self.version +%= 1;
             return entry;
         }
         if (self.shelf_x + w + 1 > self.width) {
@@ -150,6 +150,7 @@ pub const Atlas = struct {
             .advance = bitmap.advance,
         };
         try self.entries.put(key, entry);
+        self.version +%= 1;
         return entry;
     }
 };

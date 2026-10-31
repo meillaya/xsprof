@@ -44,6 +44,7 @@ rows use refusal styling.
 ## Typography and spacing
 
 - Monospace-first: JetBrains Mono (OFL), bundled. Sizes 10/11/12/14/16/20.
+  Numeric values use 14–16 px so the dotted zero stays legible; labels may use 9–10 px.
 - Regular 400, medium 500, bold 700. Tabular numerals for counters/times.
 - 4 px spacing grid; 1 px borders; 4–6 px radii; no decorative shadows.
 - Long paths are relative evidence references; truncate visually, never

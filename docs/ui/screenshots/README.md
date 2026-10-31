@@ -17,3 +17,7 @@ the committed screenshot is compressed for review.
 of the wasm/WebGL2 replay client served by `xsprof serve` (P3). No window is
 opened by `snapshot`; the browser check was run explicitly by the agent with
 Playwright headless Chromium.
+
+`p4-live-web.png` is a headless Chromium capture of `serve --live` inside the
+disposable Linux VM: LIVE capability READY, real perf events, downsampled loss
+markers, and browser-side incremental rendering.

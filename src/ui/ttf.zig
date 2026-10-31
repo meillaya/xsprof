@@ -245,11 +245,6 @@ pub const Font = struct {
     ) !void {
         _ = self;
         const ss = 4;
-        const hr_w: usize = @as(usize, width) * ss;
-        const hr_h: usize = @as(usize, height) * ss;
-        const bits = try allocator.alloc(u8, hr_w * hr_h);
-        @memset(bits, 0);
-
         var edges: std.ArrayList(struct { x0: f32, y0: f32, x1: f32, y1: f32 }) = .empty;
         for (contours) |contour| {
             if (contour.len < 2) continue;
@@ -262,71 +257,33 @@ pub const Font = struct {
                 try edges.append(allocator, .{ .x0 = a.x, .y0 = a.y, .x1 = b.x, .y1 = b.y });
             }
         }
-
-        var crossings: std.ArrayList(struct { x: f32, dir: i32 }) = .empty;
-        var sy: usize = 0;
-        while (sy < hr_h) : (sy += 1) {
-            crossings.clearRetainingCapacity();
-            const scan_y = @as(f32, @floatFromInt(sy)) + 0.5;
-            for (edges.items) |e| {
-                const up = (e.y0 <= scan_y and e.y1 > scan_y);
-                const down = (e.y1 <= scan_y and e.y0 > scan_y);
-                if (!up and !down) continue;
-                const t = (scan_y - e.y0) / (e.y1 - e.y0);
-                try crossings.append(allocator, .{
-                    .x = e.x0 + t * (e.x1 - e.x0),
-                    .dir = if (e.y1 > e.y0) 1 else -1,
-                });
-            }
-            insertionSortCrossings(crossings.items);
-            var winding: i32 = 0;
-            var span_start: f32 = 0;
-            for (crossings.items) |cross| {
-                const before = winding;
-                winding += cross.dir;
-                if (before == 0 and winding != 0) {
-                    span_start = cross.x;
-                } else if (before != 0 and winding == 0) {
-                    const from: usize = @as(usize, @intFromFloat(@max(0, @floor(span_start))));
-                    const to: usize = @as(usize, @intFromFloat(@min(
-                        @as(f32, @floatFromInt(hr_w - 1)),
-                        @ceil(cross.x - 1),
-                    )));
-                    if (from <= to and from < hr_w) {
-                        @memset(bits[sy * hr_w + from .. sy * hr_w + @min(to + 1, hr_w)], 1);
-                    }
-                }
-            }
-        }
-
+        const inv_samples: f32 = 1.0 / @as(f32, @floatFromInt(ss * ss));
         var y: usize = 0;
         while (y < height) : (y += 1) {
             var x: usize = 0;
             while (x < width) : (x += 1) {
-                var sum: u32 = 0;
-                var yy: usize = 0;
-                while (yy < ss) : (yy += 1) {
-                    var xx: usize = 0;
-                    while (xx < ss) : (xx += 1) {
-                        sum += bits[(y * ss + yy) * hr_w + x * ss + xx];
+                var inside_count: u32 = 0;
+                var sy: usize = 0;
+                while (sy < ss) : (sy += 1) {
+                    var sx: usize = 0;
+                    while (sx < ss) : (sx += 1) {
+                        const px = @as(f32, @floatFromInt(x * ss + sx)) + 0.5;
+                        const py = @as(f32, @floatFromInt(y * ss + sy)) + 0.5;
+                        var inside = false;
+                        for (edges.items) |e| {
+                            if ((e.y0 > py) == (e.y1 > py)) continue;
+                            const xint = e.x0 + (py - e.y0) * (e.x1 - e.x0) / (e.y1 - e.y0);
+                            if (xint > px) inside = !inside;
+                        }
+                        if (inside) inside_count += 1;
                     }
                 }
-                const coverage = @as(f32, @floatFromInt(sum)) / @as(f32, @floatFromInt(ss * ss));
+                const coverage = @as(f32, @floatFromInt(inside_count)) * inv_samples;
                 pixels[y * width + x] = @intFromFloat(@sqrt(coverage) * 255.0);
             }
         }
     }
 };
-fn insertionSortCrossings(items: anytype) void {
-    var i: usize = 1;
-    while (i < items.len) : (i += 1) {
-        const key = items[i];
-        var j = i;
-        while (j > 0 and key.x < items[j - 1].x) : (j -= 1) items[j] = items[j - 1];
-        items[j] = key;
-    }
-}
-
 fn flatten(
     allocator: std.mem.Allocator,
     contour: []const Point,
@@ -337,66 +294,101 @@ fn flatten(
 ) ![]Vec2 {
     const n = contour.len;
     var poly: std.ArrayList(Vec2) = .empty;
-    const to_px = struct {
-        fn f(p: Point, xm: i16, ym: i16, s: f32, sub: usize) Vec2 {
+    const Transform = struct {
+        fn px(p: Point, xm: i16, ym: i16, s: f32, sub: usize) Vec2 {
             return .{
                 .x = (p.x - @as(f32, @floatFromInt(xm)) + 1) * s * @as(f32, @floatFromInt(sub)),
                 .y = (@as(f32, @floatFromInt(ym)) - p.y + 1) * s * @as(f32, @floatFromInt(sub)),
             };
         }
-    }.f;
-
-    var start_index: usize = 0;
-    var found = false;
+    };
+    var start_idx: ?usize = null;
     for (contour, 0..) |p, i| {
         if (p.on) {
-            start_index = i;
-            found = true;
+            start_idx = i;
             break;
         }
     }
+
+    var start: Vec2 = undefined;
     var current: Vec2 = undefined;
-    if (found) {
-        current = to_px(contour[start_index], x_min, y_max, scale, ss);
+    if (start_idx) |si| {
+        start = Transform.px(contour[si], x_min, y_max, scale, ss);
+        current = start;
+        try poly.append(allocator, current);
+        var i = (si + 1) % n;
+        var guard: usize = 0;
+        while (i != si and guard < n + 4) : (guard += 1) {
+            const p = contour[i];
+            if (p.on) {
+                current = Transform.px(p, x_min, y_max, scale, ss);
+                try poly.append(allocator, current);
+                i = (i + 1) % n;
+            } else {
+                const next = contour[(i + 1) % n];
+                const control = Transform.px(p, x_min, y_max, scale, ss);
+                if (next.on) {
+                    const end = Transform.px(next, x_min, y_max, scale, ss);
+                    try appendQuad(allocator, &poly, current, control, end);
+                    current = end;
+                    if ((i + 1) % n == si) break;
+                    i = (i + 2) % n;
+                } else {
+                    const mid = Vec2{
+                        .x = (p.x + next.x) / 2,
+                        .y = (p.y + next.y) / 2,
+                    };
+                    const end = Transform.px(.{ .x = mid.x, .y = mid.y, .on = true }, x_min, y_max, scale, ss);
+                    try appendQuad(allocator, &poly, current, control, end);
+                    current = end;
+                    i = (i + 1) % n;
+                }
+            }
+        }
+        if (current.x != start.x or current.y != start.y) {
+            try poly.append(allocator, start);
+        }
     } else {
-        const p0 = contour[0];
-        const p1 = contour[n - 1];
-        current = to_px(.{
-            .x = (p0.x + p1.x) / 2,
-            .y = (p0.y + p1.y) / 2,
+        const first = contour[0];
+        const last = contour[n - 1];
+        start = Transform.px(.{
+            .x = (first.x + last.x) / 2,
+            .y = (first.y + last.y) / 2,
             .on = true,
         }, x_min, y_max, scale, ss);
-    }
-    try poly.append(allocator, current);
-
-    var step: usize = 0;
-    while (step < n) : (step += 1) {
-        const idx = (start_index + 1 + step) % n;
-        const p = contour[idx];
-        if (p.on) {
-            current = to_px(p, x_min, y_max, scale, ss);
-            try poly.append(allocator, current);
-            continue;
+        current = start;
+        try poly.append(allocator, current);
+        var i: usize = 0;
+        while (i < n) : (i += 1) {
+            const p = contour[i];
+            const next = contour[(i + 1) % n];
+            const control = Transform.px(p, x_min, y_max, scale, ss);
+            const mid = Vec2{ .x = (p.x + next.x) / 2, .y = (p.y + next.y) / 2 };
+            const end = Transform.px(.{ .x = mid.x, .y = mid.y, .on = true }, x_min, y_max, scale, ss);
+            try appendQuad(allocator, &poly, current, control, end);
+            current = end;
         }
-        const next = contour[(idx + 1) % n];
-        const end_point = if (next.on)
-            next
-        else
-            Point{ .x = (p.x + next.x) / 2, .y = (p.y + next.y) / 2, .on = true };
-        const control = to_px(p, x_min, y_max, scale, ss);
-        const end = to_px(end_point, x_min, y_max, scale, ss);
-        var t: f32 = 0.2;
-        while (t < 1.0) : (t += 0.2) {
-            const mt = 1.0 - t;
-            try poly.append(allocator, .{
-                .x = mt * mt * current.x + 2 * mt * t * control.x + t * t * end.x,
-                .y = mt * mt * current.y + 2 * mt * t * control.y + t * t * end.y,
-            });
-        }
-        current = end;
-        try poly.append(allocator, end);
     }
     return poly.toOwnedSlice(allocator);
+}
+
+fn appendQuad(
+    allocator: std.mem.Allocator,
+    poly: *std.ArrayList(Vec2),
+    from: Vec2,
+    control: Vec2,
+    to: Vec2,
+) !void {
+    const steps = 8;
+    var step: usize = 1;
+    while (step <= steps) : (step += 1) {
+        const t = @as(f32, @floatFromInt(step)) / @as(f32, @floatFromInt(steps));
+        const mt = 1.0 - t;
+        try poly.append(allocator, .{
+            .x = mt * mt * from.x + 2 * mt * t * control.x + t * t * to.x,
+            .y = mt * mt * from.y + 2 * mt * t * control.y + t * t * to.y,
+        });
+    }
 }
 
 fn collectGlyph(
@@ -578,6 +570,8 @@ test "bundled font loads and rasterizes A" {
     try std.testing.expect(font.units_per_em > 0);
     const gid = font.glyphIndex('A');
     try std.testing.expect(gid != 0);
+    try std.testing.expectEqual(@as(u16, 737), font.glyphIndex('0'));
+    try std.testing.expectEqual(@as(u16, 740), font.glyphIndex('3'));
     try std.testing.expect(font.advance(gid) > 0);
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

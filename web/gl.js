@@ -17,6 +17,7 @@ export class Renderer {
     this.vbo = null;
     this.atlas = null;
     this.atlasSize = 0;
+    this.atlasVersion = 0;
   }
 
   async init() {
@@ -94,10 +95,13 @@ export class Renderer {
     this.atlasSize = size;
   }
 
-  draw(ptr, count, strideFloats, memory, width, height, atlasPtr, atlasSize) {
+  draw(ptr, count, strideFloats, memory, width, height, atlasPtr, atlasSize, atlasVersion) {
     const gl = this.gl;
     if (count === 0) return;
-    if (atlasSize !== this.atlasSize) this.uploadAtlas(atlasPtr, atlasSize, memory);
+    if (atlasSize !== this.atlasSize || atlasVersion !== this.atlasVersion) {
+      this.uploadAtlas(atlasPtr, atlasSize, memory);
+      this.atlasVersion = atlasVersion;
+    }
     gl.viewport(0, 0, width, height);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(this.program);

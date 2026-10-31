@@ -83,7 +83,8 @@ fn header(state: *State, ui: *layout.Ui) !void {
         });
         box.end();
     }
-    var source = try widgets.chip(ui, "REPLAY", th.live);
+    const live = std.mem.startsWith(u8, state.session.source, "live");
+    var source = try widgets.chip(ui, if (live) "LIVE" else "REPLAY", if (live) th.live else th.pending);
     source.end();
     var ro = try widgets.chip(ui, "READ-ONLY", th.pass);
     ro.end();
@@ -133,7 +134,7 @@ fn overview(state: *State, ui: *layout.Ui) !void {
 
     var caps = try widgets.panel(ui, "CAPABILITIES", .{ .flex = 1 });
     if (state.session.capabilities.len == 0) {
-        try emptyNote(ui, "No capability rows in this replay.");
+        try emptyNote(ui, "No capability rows in this session.");
     } else {
         for (state.session.capabilities) |cap| {
             var row = try ui.row(.{ .height = 22, .gap = 10, .align_items = .center });
@@ -165,8 +166,14 @@ fn overview(state: *State, ui: *layout.Ui) !void {
     const last = try formatTime(ui.allocator, state.session.last_us);
     try kv(ui, "source", state.session.source);
     try kv(ui, "window", try std.fmt.allocPrint(ui.allocator, "{s} -> {s}", .{ first, last }));
-    try kv(ui, "lost samples", try std.fmt.allocPrint(ui.allocator, "{d}", .{state.session.lost}));
-    try kv(ui, "refusals", try std.fmt.allocPrint(ui.allocator, "{d}", .{state.session.refusals}));
+    try kv(
+        ui,
+        "lost / refusals",
+        try std.fmt.allocPrint(ui.allocator, "{d} / {d}", .{
+            state.session.lost,
+            state.session.refusals,
+        }),
+    );
     range.end();
     right.end();
 }
@@ -178,9 +185,9 @@ fn stat(ui: *layout.Ui, label: []const u8, value: anytype, color: draw.Color) !v
 }
 
 fn kv(ui: *layout.Ui, key: []const u8, value: []const u8) !void {
-    var row = try ui.row(.{ .height = 18, .gap = 8 });
-    try ui.text(.{ .text = key, .size = 9, .color = ui.theme.muted });
-    try ui.text(.{ .text = value, .size = 10, .color = ui.theme.text });
+    var row = try ui.row(.{ .height = 21, .gap = 8 });
+    try ui.text(.{ .text = key, .size = 10, .color = ui.theme.muted });
+    try ui.text(.{ .text = value, .size = 14, .color = ui.theme.text });
     row.end();
 }
 
@@ -318,7 +325,7 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         const x = plot_x + plot_w * @as(f32, @floatFromInt(tick)) / 4.0;
         try frame.list.rect(x, rect.y + 14, 1, rect.h - 14, th.hairline, clip);
         const label = try formatTime(frame.allocator, t);
-        _ = try frame.list.text(0, &frame.regular, 9, x + 2, rect.y, label, th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 12, x + 2, rect.y, label, th.muted, clip);
     }
     const lanes = @max(1, session.cpu_count);
     const lane_h = @min(28.0, (rect.h - 24) / @as(f32, @floatFromInt(lanes)));
@@ -328,7 +335,7 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
         try frame.list.rect(plot_x, y, plot_w, lane_h - 3, th.raised, clip);
         var label_buf: [16]u8 = undefined;
         const label = std.fmt.bufPrint(&label_buf, "CPU{d}", .{cpu}) catch "CPU";
-        _ = try frame.list.text(0, &frame.regular, 9, rect.x, y + 2, label, th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 10, rect.x, y + 2, label, th.muted, clip);
     }
     const span = @as(f32, @floatFromInt(end - start));
     for (session.slices) |slice| {
@@ -381,13 +388,13 @@ fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, cl
             (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
                 std.mem.indexOf(u8, e.detail, "lost") != null);
         const color = if (is_loss) th.refuse else th.text;
-        _ = try frame.list.text(0, &frame.regular, 9, rect.x, y, try formatTime(frame.allocator, e.ts_ns / 1000), th.muted, clip);
-        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 74, y, @tagName(e.kind), color, clip);
+        _ = try frame.list.text(0, &frame.regular, 12, rect.x, y, try formatTime(frame.allocator, e.ts_ns / 1000), th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 76, y, @tagName(e.kind), color, clip);
         var meta: [64]u8 = undefined;
         const meta_text = std.fmt.bufPrint(&meta, "cpu={d} pid={d}", .{ e.cpu, e.pid }) catch "";
-        _ = try frame.list.text(0, &frame.regular, 9, rect.x + 190, y, meta_text, th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 192, y, meta_text, th.muted, clip);
         const detail = if (is_loss) "explicit sample loss - unsafe" else e.detail;
-        _ = try frame.list.text(0, &frame.regular, 9, rect.x + 300, y, detail, if (is_loss) th.refuse else th.muted, clip);
+        _ = try frame.list.text(0, &frame.regular, 10, rect.x + 300, y, detail, if (is_loss) th.refuse else th.muted, clip);
     }
 }
 
@@ -410,4 +417,38 @@ test "overview and timeline views render" {
         try view(&state, &ui);
         try ui.finish();
     }
+}
+
+test "capability-only session keeps counters at zero" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const line =
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"capability\",\"ts_ns\":0," ++
+        "\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"a\":0,\"b\":0,\"c\":0," ++
+        "\"comm\":\"live_capture\",\"detail\":\"live_capture:SKIP:why\"," ++
+        "\"host_mutation\":false}\n";
+    const data = line ++ line ++ line;
+    const session = try session_mod.Session.fromData(arena.allocator(), "test", data);
+    try std.testing.expectEqual(@as(u32, 0), session.lost);
+    try std.testing.expectEqual(@as(u32, 0), session.refusals);
+    try std.testing.expectEqual(@as(usize, 3), session.events.len);
+    var state = State{ .session = &session };
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(arena.allocator(), 960, 540, .{});
+    defer frame.deinit();
+    var ui = layout.Ui.init(&frame);
+    defer ui.deinit();
+    try view(&state, &ui);
+    try ui.finish();
+    var expect_zero = false;
+    var i: usize = 0;
+    while (i < ui.nodes.items.len) : (i += 1) {
+        const text = ui.nodeText(i) orelse continue;
+        if (std.mem.eql(u8, text, "lost / refusals")) {
+            try std.testing.expect(i + 1 < ui.nodes.items.len);
+            const value = ui.nodeText(i + 1) orelse "";
+            if (std.mem.eql(u8, value, "0 / 0")) expect_zero = true;
+        }
+    }
+    try std.testing.expect(expect_zero);
 }
