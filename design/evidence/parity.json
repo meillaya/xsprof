@@ -7,9 +7,9 @@
       "pixels": 1296000
     },
     "capture": {
-      "mean_abs_channel_error": 8.9699,
-      "over16_pct": 12.728,
-      "over24_pct": 6.401,
+      "mean_abs_channel_error": 8.9503,
+      "over16_pct": 12.715,
+      "over24_pct": 6.389,
       "pixels": 1296000
     },
     "events": {

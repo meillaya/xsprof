@@ -55,7 +55,7 @@ fn drawRecorder(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
     var window_buf: [160]u8 = undefined;
     const window_text = std.fmt.bufPrint(&window_buf, "{s} · excerpt {s}", .{
         if (model.meta.captureWindow.len > 0) model.meta.captureWindow else "window not attached",
-        if (model.meta.excerpt.len > 0) model.meta.excerpt else "0.000 s",
+        if (model.meta.excerpt.len > 0) model.meta.excerpt else "not attached",
     }) catch "";
     var host_buf: [192]u8 = undefined;
     const host_text = std.fmt.bufPrint(&host_buf, "{s}{s}{s}", .{
@@ -134,7 +134,7 @@ fn drawCommands(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
     try panelHead(canvas, th, rect, "04", "RUN IT YOURSELF", "copy");
     var y = rect.y + 39;
     const cmds = [_][2][]const u8{
-        .{ "record a bounded window", "xsprof record --duration 30s --out /tmp/xsprof" },
+        .{ "record a bounded window", "xsprof record --duration <ms> --out <dir>" },
         .{ "render a deterministic snapshot", "xsprof snapshot --replay /tmp/xsprof/journal.ndjson --out /tmp/xsprof.png" },
         .{ "serve the console on loopback", "xsprof serve --journal /tmp/xsprof/journal.ndjson" },
         .{ "replay in the native window", "xsprof ui --replay /tmp/xsprof/journal.ndjson" },

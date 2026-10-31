@@ -256,14 +256,18 @@ fn buildCapabilities(allocator: std.mem.Allocator, session: *const Session) ![]m
 }
 
 fn buildMemory(allocator: std.mem.Allocator, session: *const Session, agg: @import("../../analyze/aggregates.zig").Aggregates) !?model_mod.Memory {
-    _ = allocator;
+    var numa_buf: [64]u8 = undefined;
+    const numa = if (agg.llc_domains > 1)
+        try std.fmt.allocPrint(allocator, "{d} LLC domains", .{agg.llc_domains})
+    else
+        std.fmt.bufPrint(&numa_buf, "{d} node", .{@max(1, agg.llc_domains)}) catch "one node";
     const mem: model_mod.Memory = .{
         .pageFaults = @intCast(@max(0, agg.page_faults)),
         .cacheMiss = 0,
         .reclaims = 0,
         .reclaimMax = 0,
         .cross = 0,
-        .numa = if (agg.llc_domains > 1) "multiple LLC domains" else "1 node",
+        .numa = numa,
         .has_llc = agg.pmu_collected,
         .has_reclaim = false,
         .has_cross = agg.pmu_collected and agg.remote_fault_ratio > 0,
