@@ -554,7 +554,6 @@ pub fn writePreflight(
     try w.writeAll(",\"host_mutation\":false,\"schema\":\"xsprof/preflight/v1\"," ++
         "\"tool\":\"xsprof\"}\n");
 }
-
 test "CapEff parsing recognizes CAP_PERFMON and CAP_DAC_READ_SEARCH" {
     const status =
         "Name:\txsprof\n" ++
@@ -563,11 +562,11 @@ test "CapEff parsing recognizes CAP_PERFMON and CAP_DAC_READ_SEARCH" {
         "CapEff:\t000001ffffffffff\n" ++
         "CapBnd:\t000001ffffffffff\n";
     const caps = parseCapEff(status).?;
-    try std.testing.expect((caps >> cap_perfmon) & 1 == 1);
-    try std.testing.expect((caps >> cap_dac_read_search) & 1 == 1);
+    try std.testing.expect((caps >> cap_perfmon) & 1 == 1 and
+        (caps >> cap_dac_read_search) & 1 == 1);
     try std.testing.expect((caps >> 50) & 1 == 0);
-    try std.testing.expect(parseCapEff("Name:\txsprof\n") == null);
-    try std.testing.expect(parseCapEff("CapEff:\tnot-hex\n") == null);
+    try std.testing.expect(parseCapEff("Name:\txsprof\n") == null and
+        parseCapEff("CapEff:\tnot-hex\n") == null);
 }
 
 test "probes report a reason on every host" {
