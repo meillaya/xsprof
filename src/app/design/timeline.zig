@@ -312,6 +312,7 @@ fn drawFoot(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     tiny.tracking = 0.95;
     try label(canvas, x, y, "FULL EXCERPT", tiny);
     try canvas.rounded(.{ .x = x, .y = y + 18.25, .w = 300, .h = 34 }, 3, th.field, th.line, 1);
+    canvas.hit(305, .{ .x = x, .y = y + 18.25, .w = 300, .h = 34 });
     // Density minimap.
     var buckets: [200]u32 = @splat(0);
     const total = @max(1.0, model.summary.windowMs);
