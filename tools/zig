@@ -1,0 +1,9 @@
+#!/bin/sh
+# Use the pinned Zig 0.17.0 toolchain, bootstrapping it on first use.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ZIG="$ROOT/.tools/zig-0.17.0/zig"
+if [ ! -x "$ZIG" ]; then
+    "$ROOT/tools/bootstrap.sh"
+fi
+exec "$ZIG" "$@"

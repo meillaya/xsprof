@@ -1,3 +1,0 @@
-# 2 groups == 80 processes run
-Total time: 0.321 [sec]
-claim: release-eligible

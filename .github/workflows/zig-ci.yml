@@ -1,0 +1,25 @@
+name: zig-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Check
+        run: ./tools/zig build check --summary all

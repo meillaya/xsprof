@@ -1,8 +1,0 @@
-{
-  "host_mutation": false,
-  "outcome": "PASS",
-  "reason": "fixture pass row",
-  "release_eligible": false,
-  "scenario_id": "fixture-pass",
-  "schema": "zig-scheduler/matrix-incident/v1"
-}
