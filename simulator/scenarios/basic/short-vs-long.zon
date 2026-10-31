@@ -1,6 +1,0 @@
-# Golden oracle scenario
-name: short-vs-long
-rr_quantum: 2
-task: L 0 8
-task: S1 1 2
-task: S2 2 1
