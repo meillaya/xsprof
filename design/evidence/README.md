@@ -37,7 +37,10 @@ the reference diff so design drift stays visible.
 | `parity.json` | Advisory reference metrics (MAE, >16, >24) |
 | `cross_surface.json` | Formal CPU vs WebGL2 vs Metal gate report |
 | `interactions.json` | Clipboard, brush, focus-trap, and skip-link gate |
-| `../media/xsprof-ui-demo.mp4` | Headless boot/use recording over the real VM capture (H.264) |
+| `../media/xsprof-ui-demo.mp4` | Headless boot/use replay over the real VM capture (H.264) |
+| `../media/xsprof-ui-live.mp4` | Live VM stream recorded through the SSH loopback tunnel |
+| `screenshots/live-stream/` | LIVE console screenshots while the VM stream advances |
+| `live_stream.json` | Representative live counters, source, and loss disclosure |
 
 ## Method
 
@@ -62,6 +65,10 @@ the reference diff so design drift stays visible.
   headless Chromium, clicks a real command Copy button, verifies the exact
   clipboard text, then drags the timeline brush and verifies the visual
   band/zoom changed.
+- **Live stream:** `xsprof serve --live --live-stride 20` runs inside the
+  podman VM; an SSH local-forward exposes its loopback port to this host. The
+  console records LIVE with advancing counters. The server's real
+  downsample/ring loss is shown as `LOSS`, not hidden.
 - No real window is opened, activated, or captured.
 
 ## Commands

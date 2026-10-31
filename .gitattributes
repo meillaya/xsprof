@@ -1,14 +1,4 @@
-# Generated, grep-friendly reference corpora. Do not render diffs for these.
-docs/vendor/zig-0.17.0/*.txt linguist-generated=true -diff
-docs/vendor/zig-0.17.0/*.txt text eol=lf
-
-# Keep source diffs readable.
-*.zig text eol=lf
-*.zon text eol=lf
-*.md text eol=lf
-*.json text eol=lf
-*.glsl text eol=lf
-*.metal text eol=lf
-
-# Upstream license kept verbatim
-lib/xsui/assets/fonts/OFL.txt -whitespace
+# Design reference and capture evidence are generated source material. Keep
+# them tracked (README/media links depend on them) but out of line diffs and
+# GitHub language statistics.
+design/** -diff linguist-vendored
