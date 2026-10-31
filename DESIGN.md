@@ -1,5 +1,9 @@
 # xsprof UI design contract
 
+> The interactive console prototype is [`design/index.html`](design/index.html);
+> its extracted token set, screens, flows, keybindings, and GPU mapping live in
+> [`design/`](design/README.md). This document remains the profiler screen contract.
+
 The profiler UI is a dense, read-only operator console. It should feel like an
 instrument panel, not a marketing dashboard: compact monospace rows, visible
 evidence, exact reason codes, and state colors that carry meaning.
@@ -37,9 +41,11 @@ evidence, exact reason codes, and state colors that carry meaning.
 | `status.pending` | `#ded6c9` | queued/pending |
 | `status.vm` | `#b48cff` | VM-only identity |
 
-Additional themes: light “paper” and high-contrast. Unavailable data is
-`SKIP`/uncollected, never a fabricated zero. Lost/gapped/refused/malformed
-rows use refusal styling.
+Additional themes: light “paper” and high-contrast, exposed as
+`xsui.themes.light` / `xsui.themes.high_contrast` with
+`xsui.themes.derive` for overrides. Unavailable data is `SKIP`/uncollected,
+never a fabricated zero. Lost/gapped/refused/malformed rows use refusal
+styling.
 
 ## Typography and spacing
 

@@ -11,4 +11,4 @@ docs/vendor/zig-0.17.0/*.txt text eol=lf
 *.metal text eol=lf
 
 # Upstream license kept verbatim
-assets/fonts/OFL.txt -whitespace
+lib/xsui/assets/fonts/OFL.txt -whitespace

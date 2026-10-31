@@ -1,6 +1,7 @@
 # Architecture overview
 
-`xsprof` is split so the profiler core, the UI library, and the surfaces can be
+`xsprof` is split so the profiler core, the standalone UI package
+([`lib/xsui`](../../lib/xsui/README.md)), and the native/web surfaces can be
 tested independently.
 
 ```
@@ -12,10 +13,11 @@ perf_event_open / tracefs / /proc / /sys / BPF (VM only)
         |                                                        +-> advisor
         |                                                        +-> SSE stream
         v
-   app state (replay/live) -> xsui retained tree -> layout -> paint -> DrawList
+   app state (replay/live) -> xsui (lib/xsui) tree -> layout -> paint -> DrawList
                                                                |
                                       +------------------------+------------------+
                                    CPU raster              WebGL2 (JS)        Metal (macOS)
+                                                                              GL 3.3 (Linux)
 ```
 
 ## Layers
@@ -29,10 +31,10 @@ perf_event_open / tracefs / /proc / /sys / BPF (VM only)
 | Viz | `src/viz/` | pure Chrome Trace serialization |
 | Stream | `src/stream/` | bounded event store, indexes, derived slices/flows |
 | Serve | `src/serve/` | loopback GET/HEAD, static assets, SSE; no mutation |
-| UI | `src/ui/` | platform- and profiler-neutral; native + wasm |
+| UI | `lib/xsui/` | standalone package; target-neutral core for native + wasm |
 | App | `src/app/` | profiler screens over stream/analysis |
-| Platform | `src/platform/` | macOS AppKit/Metal, Linux X11/GL, web ABI, headless |
-| GPU | `src/gpu/` | one draw list; CPU/Metal/WebGL2 backends |
+| Platform | `src/platform/` | macOS AppKit window, Linux X11/GLX surface, web ABI, headless |
+| GPU | `lib/xsui/src/gpu/` | one draw list; CPU/Metal/GL/WebGL2 backends |
 | CLI | `src/cli/`, `src/main.zig` | dispatch only |
 
 ## Data model
@@ -62,11 +64,14 @@ perf_event_open / tracefs / /proc / /sys / BPF (VM only)
 
 ## Surfaces
 
-- **Web first:** `wasm32-freestanding` + WebGL2; tiny JS shim; loopback SSE.
-- **Native macOS:** AppKit + `CAMetalLayer` + `CAMetalDisplayLink`; hand-written
-  Objective-C runtime layer; precompiled MSL embedded.
-- **Native Linux:** X11 + GLX/OpenGL 3.3 via `dlopen`; Xvfb tests; web is the
-  Wayland path.
+- **Web first:** `wasm32-freestanding` + WebGL2; tiny JS shim consumes the
+  `xsui` instance/atlas ABI; loopback SSE.
+- **Native macOS:** AppKit window surface + `xsui-metal` (`CAMetalLayer`);
+  hand-written Objective-C runtime layer from `xsui-objc`; MSL embedded by the
+  package.
+- **Native Linux:** X11 + GLX surface in `src/platform/linux`; OpenGL 3.3
+  renderer in `xsui-gl`, loaded via `dlopen`; Xvfb tests; web is the Wayland
+  path.
 - **Headless:** CPU rasterizer + Tester + PNG snapshots on every host.
 
 ## Failure posture

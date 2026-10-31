@@ -48,6 +48,7 @@ restore it to `main`.
 ./tools/zig build lines
 ./tools/zig build vendor-check
 ./tools/zig build fuzz            # deterministic parser fuzz tests
+./tools/zig build xsui-package    # standalone GPU UI package gate
 ./tools/zig build service-smoke   # Linux root, disposable VM only
 devenv shell                      # git/curl/xz; Zig still comes from tools/zig
 ```
@@ -64,9 +65,17 @@ sh qa/vendor_hash.sh
 - `src/core/` has no OS or UI imports.
 - `src/os/linux/` is guarded by `builtin.os.tag`; non-Linux builds return
   SKIP/REFUSE, never fake data.
-- `src/ui/` has no profiler or OS imports; it compiles for native and wasm.
-- `src/app/` is platform-neutral; `src/platform/` owns surfaces; `src/gpu/`
-  owns renderers. The app uses one draw list everywhere.
+- `lib/xsui/` is the standalone GPU UI package: target-neutral core, CPU
+  rasterizer, Metal/GL backends, fonts, and shaders. Its core has no profiler
+  or OS imports and compiles for native and wasm; native backends are separate
+  modules (`xsui-metal`, `xsui-gl`, `xsui-objc`). Treat it as a consumer would:
+  xsprof imports it as a path dependency and only uses its public API.
+- `src/app/` is platform-neutral; `src/platform/` owns windows and contexts;
+  renderers live in `lib/xsui/src/gpu/`. The app uses one draw list everywhere.
+- `design/` holds the console prototype (`index.html`) and its UI/UX token contract:
+  palettes, typography, layout, components, screens, flows, keybindings, and the
+  GPU mapping. Keep it in sync with the prototype (`python3 design/validate.py`);
+  it is design input, not runtime code.
 - Wire schemas live in `schemas/xsprof/`; fixtures in `fixtures/`; golden
   bytes in `tests/golden/`. Keep them in lockstep with the Zig constants.
 - JSON output is canonical: keys strictly ascending, compact separators, no

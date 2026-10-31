@@ -1,7 +1,8 @@
 //! Small formatting and palette helpers shared by the app painters.
 
 const std = @import("std");
-const draw = @import("../ui/draw.zig");
+const xsui = @import("xsui");
+const draw = xsui.draw;
 const session_mod = @import("../stream/session.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 
@@ -25,7 +26,7 @@ pub fn palette(th: draw.Theme, comm: []const u8) draw.Color {
 }
 
 pub fn paintHover(
-    frame: *@import("../ui/frame.zig").Frame,
+    frame: *xsui.frame.Frame,
     plot_x: f32,
     top_y: f32,
     plot_w: f32,

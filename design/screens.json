@@ -1,0 +1,994 @@
+{
+  "$schema": "xsprof/design-screens/v1",
+  "source": {
+    "file": "design/index.html",
+    "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
+    "bytes": 221754
+  },
+  "tokens": [
+    "tokens.json",
+    "palettes.json"
+  ],
+  "shell": {
+    "id": "shell",
+    "role": "application frame shared by every screen",
+    "layout": {
+      "rows": [
+        "topbar 52px",
+        "body 1fr",
+        "keybar 30px"
+      ],
+      "bodyColumns": [
+        "rail 92px",
+        "stage 1fr"
+      ],
+      "height": "100dvh",
+      "overflow": "hidden"
+    },
+    "regions": [
+      {
+        "id": "skip-link",
+        "component": "skip-link",
+        "content": "Skip to profiler content",
+        "visible": "focus only",
+        "target": "#main"
+      },
+      {
+        "id": "topbar",
+        "component": "cmdbar",
+        "children": [
+          {
+            "id": "brand",
+            "children": [
+              {
+                "id": "brand-mark",
+                "content": "xsprof logo mark",
+                "size": "24x24",
+                "radius": 5
+              },
+              {
+                "id": "wordmark",
+                "content": "xsprof",
+                "type": "14px/700/-0.01em"
+              },
+              {
+                "id": "brand-sub",
+                "content": "read-only scheduler & memory profiler",
+                "type": "10.5px dim"
+              }
+            ]
+          },
+          {
+            "id": "bar-screen",
+            "children": [
+              {
+                "content": "/"
+              },
+              {
+                "content": "Current screen title",
+                "type": "12px"
+              }
+            ]
+          },
+          {
+            "id": "session-meta",
+            "content": [
+              "vm-lab-04",
+              "·",
+              "6.8.0-40-generic",
+              "·",
+              "x86_64"
+            ],
+            "type": "11px dim/muted"
+          },
+          {
+            "id": "bar-actions",
+            "children": [
+              {
+                "id": "source-chip",
+                "component": "chip",
+                "state": "REPLAY | JOURNAL",
+                "title": "Data source"
+              },
+              {
+                "id": "loss-chip",
+                "component": "chip",
+                "state": "loss N",
+                "title": "Events dropped by the ring buffer"
+              },
+              {
+                "id": "safety-chip",
+                "component": "chip",
+                "content": "read-only · host_mutation=false",
+                "icon": "lock",
+                "title": "Every record carries host_mutation=false"
+              },
+              {
+                "id": "palette-button",
+                "component": "iconButton",
+                "icon": "menu",
+                "content": "⌘K",
+                "aria": "Command palette",
+                "aria-keyshortcuts": "Meta+K Control+K"
+              },
+              {
+                "id": "theme-button",
+                "component": "iconButton",
+                "icon": "sun",
+                "aria": "Appearance: Graphite. Open theme menu",
+                "aria-expanded": "false"
+              },
+              {
+                "id": "help-button",
+                "component": "iconButton",
+                "content": "?",
+                "aria": "Keyboard help"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "body",
+        "children": [
+          {
+            "id": "screenrail",
+            "component": "screenrail",
+            "items": [
+              {
+                "key": "1",
+                "screen": "overview",
+                "label": "Overview"
+              },
+              {
+                "key": "2",
+                "screen": "timeline",
+                "label": "Timeline"
+              },
+              {
+                "key": "3",
+                "screen": "advisor",
+                "label": "Advisor"
+              },
+              {
+                "key": "4",
+                "screen": "events",
+                "label": "Events"
+              },
+              {
+                "key": "5",
+                "screen": "capture",
+                "label": "Capture"
+              }
+            ],
+            "foot": {
+              "pulse": "live",
+              "label": "replay"
+            }
+          },
+          {
+            "id": "stage",
+            "component": "stage",
+            "children": "active screen"
+          }
+        ]
+      },
+      {
+        "id": "keybar",
+        "component": "keybar",
+        "items": [
+          {
+            "keys": "1–5",
+            "action": "screens"
+          },
+          {
+            "keys": "/",
+            "action": "filter"
+          },
+          {
+            "keys": "space",
+            "action": "playhead"
+          },
+          {
+            "keys": "f",
+            "action": "fit"
+          },
+          {
+            "keys": "+ −",
+            "action": "zoom"
+          },
+          {
+            "keys": "w",
+            "action": "theme"
+          },
+          {
+            "keys": "⌘K",
+            "action": "palette"
+          },
+          {
+            "keys": "?",
+            "action": "help"
+          }
+        ],
+        "status": [
+          "▚",
+          "replay|journal",
+          "·",
+          "fixture/journal name",
+          "·",
+          "switches",
+          "·",
+          "lost",
+          "·",
+          "host_mutation=false"
+        ]
+      }
+    ],
+    "responsive": {
+      "1320": "3-column grids become 2 columns; last panel spans both",
+      "1140": "brand sub hidden; timeline and events become single column; inspector becomes 190px + 1fr",
+      "1024": "rail moves to a fixed bottom bar (56px item min); keybar hidden; grids single column",
+      "780": "session meta hidden; safety text hidden; palette hint hidden; stage padding 14px 14px 84px; brief 2 columns; ledger/thread rows restructure",
+      "420": "brand sub and source chip hidden; loss word hidden; stat values 22/28px; theme grid one column"
+    },
+    "a11y": {
+      "skipLink": true,
+      "tablist": "vertical on desktop, arrow-key navigation",
+      "focus": "2px outline offset 2px",
+      "dialogs": "modal, Escape close, focus returns to trigger"
+    }
+  },
+  "screens": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "route": "#overview",
+      "navKey": "1",
+      "purpose": "Capture summary, capability posture, per-CPU load, advisor preview, top threads, event mix, memory/NUMA, loss ledger.",
+      "head": {
+        "eyebrow": "Session 04 · healthy fixture",
+        "title": "Overview",
+        "note": "Capture window 14:02:11 → 14:07:11 · excerpt 13.970 s",
+        "actions": [
+          "Open journal",
+          "Reload fixture"
+        ]
+      },
+      "regions": [
+        {
+          "id": "brief",
+          "component": "brief",
+          "stats": [
+            {
+              "label": "p95 wake→run",
+              "primary": true,
+              "valueExample": "0.900 ms",
+              "sub": "p99 1.977 ms · 4 CPUs"
+            },
+            {
+              "label": "Switches",
+              "valueExample": "1,040",
+              "sub": "74.4 /s · 182 migrations"
+            },
+            {
+              "label": "Events",
+              "valueExample": "1,444",
+              "sub": "13.970 s excerpt · 5 m 00 s capture"
+            },
+            {
+              "label": "Lost",
+              "valueExample": "3",
+              "sub": "ring overflow · never zero-filled",
+              "refuseWhenNonZero": true
+            },
+            {
+              "label": "CPU busy",
+              "valueExample": "38%",
+              "sub": "runqueue 4.1 peak"
+            }
+          ]
+        },
+        {
+          "id": "grid-primary",
+          "component": "grid-3",
+          "panels": [
+            {
+              "index": "01",
+              "title": "Capability matrix",
+              "meta": "7 signals",
+              "content": "capabilityRow x7: perf_event_open READY, tracefs READY, ring buffer READY, sched tracepoints READY, memory counters DEGRADED, BPF probes SKIP, pagemap REFUSE; each with detail reason and glyph"
+            },
+            {
+              "index": "02",
+              "title": "Per-CPU lanes",
+              "meta": "busy · rq · p95",
+              "content": "4 cpuRow entries: cpuN, busy %, 120x18 strip, rq, p95 (warn when >2ms), switches",
+              "note": "48 buckets across the excerpt. Idle spans stay dark — never counted as load."
+            },
+            {
+              "index": "03",
+              "title": "Advisor",
+              "metaLink": "all 7 rules →",
+              "note": "Suggestion only — never applied.",
+              "content": "advisorMini x7: severity dot, rule id, severity label"
+            }
+          ]
+        },
+        {
+          "id": "grid-secondary",
+          "component": "grid-3",
+          "panels": [
+            {
+              "index": "04",
+              "title": "Top threads",
+              "meta": "by p95 wake→run",
+              "content": "threadTable: 7 rows; columns thread, pid, sw, mig, p95, share; swatch uses lane color; p95 hot when >2ms"
+            },
+            {
+              "index": "05",
+              "title": "Event mix",
+              "meta": "1,444 total",
+              "content": "eventMix rows: switch, wakeup, migrate, page fault, cache miss, loss; 92px label + track + count"
+            },
+            {
+              "index": "06",
+              "title": "Memory & NUMA",
+              "meta": "counters",
+              "content": "4 mem cells: Page faults 9,400; LLC miss 12.8%; Direct reclaim 41; Cross-CCX 6.2%",
+              "note": "Sampled counters. An unavailable signal reads SKIP, never zero."
+            }
+          ]
+        },
+        {
+          "id": "loss-ledger",
+          "component": "panel loss-panel",
+          "index": "07",
+          "title": "Loss ledger",
+          "meta": "3 events · never zero-filled",
+          "content": "lossRow: LOSS chip, timestamp, detail, absolute time · not zero-filled; tint-refuse background"
+        }
+      ],
+      "states": [
+        {
+          "id": "ready",
+          "behavior": "fixture data renders all regions"
+        },
+        {
+          "id": "no-capabilities",
+          "behavior": "panel note: probes not requested for offline journal; nothing inferred"
+        },
+        {
+          "id": "no-cpu-slices",
+          "behavior": "panel note: load a capture with sched_switch durations"
+        },
+        {
+          "id": "no-advisor",
+          "behavior": "single SKIP row: rules not re-evaluated"
+        },
+        {
+          "id": "no-memory",
+          "behavior": "each cell reads uncollected, never 0"
+        },
+        {
+          "id": "no-loss",
+          "behavior": "panel note: a clean window is not proof of a clean host"
+        },
+        {
+          "id": "loss",
+          "behavior": "lost stat gets is-refuse class; loss ledger rows use tint-refuse"
+        }
+      ],
+      "interactions": [
+        "Open journal -> file picker/drag-drop flow",
+        "Reload fixture -> restore REF",
+        "all 7 rules -> advisor",
+        "panel rows are read-only"
+      ]
+    },
+    {
+      "id": "timeline",
+      "title": "Timeline",
+      "route": "#timeline",
+      "navKey": "2",
+      "purpose": "CPU and thread lanes over the capture window with playback, brush/zoom, loss bands, minimap, and slice inspector.",
+      "head": {
+        "eyebrow": "window 0.000 s – 13.970 s · 1,040 switches",
+        "title": "Timeline",
+        "actions": [
+          "Zoom out (−)",
+          "Zoom in (+)",
+          "Fit",
+          "Play/Pause",
+          "0.000 s clock",
+          "Advisor"
+        ]
+      },
+      "regions": [
+        {
+          "id": "tl-wrap",
+          "component": "timeline.wrap",
+          "children": [
+            {
+              "id": "tl-plot",
+              "component": "timeline.plot",
+              "geometry": {
+                "ruler": 28,
+                "cpuRows": 4,
+                "cpuRowHeight": 40,
+                "laneGap": 20,
+                "threadRows": "up to 4",
+                "threadRowHeight": 30,
+                "labelWidth": 78,
+                "rightPad": 12,
+                "bottomPad": 8,
+                "minWidth": 320
+              },
+              "content": [
+                "ruler ticks, 1/2/5×10 step targeting visible/6",
+                "4 CPU lanes with slice rects",
+                "up to 4 thread lanes",
+                "loss bands + LOSS labels",
+                "brush, playhead, selected event marker"
+              ]
+            },
+            {
+              "id": "tl-inspector",
+              "component": "timeline.inspector",
+              "states": [
+                {
+                  "id": "idle",
+                  "content": "Select a slice to read task, duration, p95 wait, off-CPU time, switch count. Drag across lanes to zoom; f restores full excerpt."
+                },
+                {
+                  "id": "slice",
+                  "content": "inspector heading, cpu tag, task swatch, pid/start, duration, p95 wake→run, off-CPU p95, switches, migrations, Focus ±150ms, Events for task, read-only note"
+                },
+                {
+                  "id": "event",
+                  "content": "inspector heading, type tag, task, absolute/relative timestamp, cpu, pid, detail, Event detail, Clear"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tl-legend",
+          "component": "timeline.legend",
+          "content": "idle + up to 6 task lane swatches + loss band"
+        },
+        {
+          "id": "tl-foot",
+          "component": "timeline.foot",
+          "children": [
+            {
+              "id": "minimap",
+              "component": "timeline.minimap",
+              "label": "full excerpt",
+              "content": "200-bucket density, loss bands, visible window box, live leading marker"
+            },
+            {
+              "id": "tl-hint",
+              "content": "drag brush to zoom · click inspect slice · space playhead"
+            },
+            {
+              "id": "tl-state",
+              "content": "REPLAY · no live tail"
+            }
+          ]
+        }
+      ],
+      "modes": {
+        "intervals": "journal has switch durations; slices are colored rounded rects; inspector reports duration/p95/off-CPU/switches/migrations",
+        "ticks": "journal has no durations; switch events render as 1.5px ticks; inspector reports raw tick fields and does not infer intervals"
+      },
+      "states": [
+        {
+          "id": "empty",
+          "behavior": "no slices/ticks in the excerpt; plot remains with ruler and empty lanes"
+        },
+        {
+          "id": "playing",
+          "behavior": "play button aria-pressed=true and label Pause; playhead advances linearly, loops, clock updates"
+        },
+        {
+          "id": "paused",
+          "behavior": "play label Play; playhead stays"
+        },
+        {
+          "id": "selected-slice",
+          "behavior": "1.5px text stroke around slice; inspector slice view"
+        },
+        {
+          "id": "selected-event",
+          "behavior": "8px marker + dashed guide; inspector event view"
+        },
+        {
+          "id": "brushing",
+          "behavior": "live tinted brush rect while dragging; release >20ms zooms"
+        },
+        {
+          "id": "loss",
+          "behavior": "refuse bands, dashed line, LOSS chip; never hidden or zero-filled"
+        }
+      ],
+      "interactions": [
+        "drag >4px to brush",
+        "release >20ms to zoom",
+        "click slice to select",
+        "hover tooltip",
+        "double-click fit",
+        "minimap click center",
+        "±/f/space/t keys"
+      ]
+    },
+    {
+      "id": "advisor",
+      "title": "Advisor",
+      "route": "#advisor",
+      "navKey": "3",
+      "purpose": "Seven rules with severity, confidence, evidence chips, suggestion-only recommendations, and evidence focus.",
+      "head": {
+        "eyebrow": "Seven rules · evidence-linked",
+        "title": "Advisor",
+        "note": "Suggestion only. xsprof never applies, loads, or attaches anything.",
+        "filters": [
+          "All 7",
+          "Warning",
+          "Info",
+          "Clear",
+          "Skip"
+        ]
+      },
+      "regions": [
+        {
+          "id": "advisor-grid",
+          "component": "advisor.grid",
+          "cards": [
+            {
+              "id": "p95-wakeup-latency",
+              "severity": "WARNING",
+              "confidence": 0.86,
+              "focus": [
+                6100,
+                8800,
+                2
+              ]
+            },
+            {
+              "id": "runqueue-imbalance",
+              "severity": "WARNING",
+              "confidence": 0.74,
+              "focus": [
+                3200,
+                6400,
+                2
+              ]
+            },
+            {
+              "id": "migration-churn",
+              "severity": "INFO",
+              "confidence": 0.61,
+              "focus": [
+                1400,
+                4200,
+                1
+              ]
+            },
+            {
+              "id": "switch-rate",
+              "severity": "CLEAR",
+              "confidence": 0.92,
+              "focus": null
+            },
+            {
+              "id": "cache-miss-pressure",
+              "severity": "INFO",
+              "confidence": 0.55,
+              "focus": [
+                7600,
+                10600,
+                0
+              ]
+            },
+            {
+              "id": "memory-reclaim-stall",
+              "severity": "CLEAR",
+              "confidence": 0.88,
+              "focus": null
+            },
+            {
+              "id": "numa-cross-traffic",
+              "severity": "SKIP",
+              "confidence": null,
+              "focus": null
+            }
+          ],
+          "cardAnatomy": [
+            "state badge + rule id + confidence (or uncollected)",
+            "confidence bar when collected",
+            "summary",
+            "evidence chips",
+            "Suggestion only — never applied. recommendation",
+            "Show evidence → when focus exists"
+          ]
+        },
+        {
+          "id": "advisor-empty",
+          "component": "empty-inline",
+          "content": "No rules match this filter. Choose “All 7” to see the full set.",
+          "visibleWhen": "filtered set empty"
+        }
+      ],
+      "states": [
+        {
+          "id": "ready",
+          "behavior": "7 cards; All 7 label matches actual count"
+        },
+        {
+          "id": "offline-journal",
+          "behavior": "single SKIP card: advisor runs in native profiler; browser journal is read-only; rules not re-evaluated"
+        },
+        {
+          "id": "filter-empty",
+          "behavior": "empty inline message; filter chips remain active"
+        },
+        {
+          "id": "filter-disabled",
+          "behavior": "severity filters disabled when no rules collected"
+        }
+      ],
+      "interactions": [
+        "filter chip toggles one active filter",
+        "Show evidence -> focusRange -> timeline with toast",
+        "suggestion text is static safety copy"
+      ]
+    },
+    {
+      "id": "events",
+      "title": "Events",
+      "route": "#events",
+      "navKey": "4",
+      "purpose": "Append-only sanitized ledger with text + type filtering, detail pane, and loss rows.",
+      "head": {
+        "eyebrow": "Append-only ledger · sanitized",
+        "title": "Events",
+        "filter": {
+          "placeholder": "comm, pid, type…",
+          "label": "Filter",
+          "key": "/"
+        }
+      },
+      "regions": [
+        {
+          "id": "events-toolbar",
+          "children": [
+            {
+              "id": "event-types",
+              "component": "filters",
+              "content": "All + one chip per event type with count, sorted by count desc"
+            },
+            {
+              "id": "event-count",
+              "content": "N events · showing M (or N of Total · showing M)"
+            }
+          ]
+        },
+        {
+          "id": "events-body",
+          "component": "events.columns",
+          "children": [
+            {
+              "id": "ledger",
+              "columns": [
+                "time",
+                "type",
+                "cpu",
+                "comm / pid",
+                "detail"
+              ],
+              "rowCount": "up to 80",
+              "rowHeight": "min 27px",
+              "maxHeight": "min(56vh, 520px)",
+              "states": [
+                "normal",
+                "hover",
+                "selected (inset 2px live)",
+                "loss (tint refuse + ■)",
+                "empty result"
+              ]
+            },
+            {
+              "id": "event-detail",
+              "states": [
+                "empty: Select a ledger row to read its fields.",
+                "selected: timestamp, type badge, field table, Open in timeline, Filter comm, privacy note"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "event-more",
+          "content": "Showing first 80 of N matches. Refine the filter or pick an event type to narrow the ledger.",
+          "visibleWhen": "filtered rows > 80"
+        }
+      ],
+      "states": [
+        {
+          "id": "ready",
+          "behavior": "ledger rows sorted by time, detail default empty"
+        },
+        {
+          "id": "filtered",
+          "behavior": "query matches type + comm + pid + detail; type chip constrains"
+        },
+        {
+          "id": "empty",
+          "behavior": "empty state: No events match “query”. Clear the filter or choose another type."
+        },
+        {
+          "id": "loss",
+          "behavior": "loss row uses tint-refuse and type color refuse; detail explains gap preserved"
+        },
+        {
+          "id": "malformed-lines",
+          "behavior": "bad JSONL lines are skipped; load toast reports count"
+        }
+      ],
+      "interactions": [
+        "/ focuses filter",
+        "Esc clears and blurs",
+        "type chip filters",
+        "row click selects detail",
+        "Open in timeline",
+        "Filter comm"
+      ]
+    },
+    {
+      "id": "capture",
+      "title": "Capture",
+      "route": "#capture",
+      "navKey": "5",
+      "purpose": "Read-only recorder status, retention budget, segments, exact CLI commands, and refused verbs.",
+      "head": {
+        "eyebrow": "Read-only status · no mutation controls",
+        "title": "Capture",
+        "note": "Attach a recorder in a terminal. This view cannot start, stop, or alter a capture."
+      },
+      "regions": [
+        {
+          "id": "capture-col-left",
+          "children": [
+            {
+              "id": "recorder-state",
+              "index": "01",
+              "title": "Recorder state",
+              "meta": "REPLAY",
+              "rows": [
+                "Source REPLAY",
+                "Recorder not attached",
+                "Manifest manifest.json · replay fixture",
+                "Window 5 m 00 s · excerpt 13.970 s",
+                "Host vm-lab-04 · 6.8.0-40-generic",
+                "host_mutation false (pass)"
+              ]
+            },
+            {
+              "id": "retention",
+              "index": "02",
+              "title": "Retention budget",
+              "meta": "412 MiB / 2 GiB",
+              "content": "6px meter at 20%, 0 → 2 GiB scale, oldest closed segments drop first, retention_loss marker",
+              "note": "Each drop writes an explicit retention_loss marker — never a silent gap."
+            },
+            {
+              "id": "segments",
+              "index": "03",
+              "title": "Segments",
+              "meta": "6 segments",
+              "rows": "s-0007..s-0002; 14.2/16.0 MiB; windows; OPEN/CLOSED/LOSS 1 tags"
+            }
+          ]
+        },
+        {
+          "id": "capture-col-right",
+          "children": [
+            {
+              "id": "commands",
+              "index": "04",
+              "title": "Run it yourself",
+              "meta": "copy exact commands",
+              "commands": [
+                "xsprof record --duration 2000 --output session.ndjson",
+                "xsprof daemon --foreground --dir /var/lib/xsprof --retain 10m --max-bytes 2G",
+                "xsprof capture --last 5m --dir /var/lib/xsprof --out incident.ndjson",
+                "xsprof watch --dir /var/lib/xsprof --window 30s"
+              ]
+            },
+            {
+              "id": "safety",
+              "index": "05",
+              "title": "Refused by design",
+              "meta": "host_mutation=false",
+              "note": "These verbs fail closed. The profiler does not write /proc or /sys, elevate privileges, enable BPF, or auto-apply advisor recommendations.",
+              "refused": [
+                "load",
+                "attach",
+                "enable",
+                "mutate",
+                "apply",
+                "sched-ext-attach",
+                "setaffinity",
+                "setpriority",
+                "bind"
+              ],
+              "privacy": "Runtime samples never include argv, environment variables, secrets, or tokens."
+            }
+          ]
+        }
+      ],
+      "states": [
+        {
+          "id": "ready",
+          "behavior": "replay fixture status, 6 segments, 20% retention"
+        },
+        {
+          "id": "journal-loaded",
+          "behavior": "Recorder = journal loaded (offline); manifest = file name; no segment index if single file"
+        },
+        {
+          "id": "no-retention",
+          "behavior": "meta not available; scale reads —; meter 0%"
+        },
+        {
+          "id": "no-segments",
+          "behavior": "panel note: single extracted file has no rotation history"
+        },
+        {
+          "id": "copy",
+          "behavior": "Copy button writes command; success toast; failure toast if clipboard unavailable"
+        }
+      ],
+      "interactions": [
+        "Copy command buttons",
+        "no capture-control controls by design"
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "id": "command-palette",
+      "component": "dialog.palette",
+      "trigger": [
+        "⌘K/Ctrl K",
+        "palette button"
+      ],
+      "width": 560,
+      "marginTop": "14vh",
+      "content": [
+        "input placeholder Jump to screen, switch theme, open journal…",
+        "list of 17 commands grouped screen/action/theme",
+        "footer ↑↓ move · enter run"
+      ],
+      "states": [
+        "open",
+        "filtered",
+        "no matches",
+        "keyboard active"
+      ]
+    },
+    {
+      "id": "appearance",
+      "component": "dialog.themes",
+      "trigger": [
+        "w",
+        "theme button",
+        "palette action"
+      ],
+      "width": 620,
+      "marginTop": "6vh",
+      "content": [
+        "Graphite and Paper are console defaults",
+        "Catppuccin flavours remap the same semantic tokens",
+        "core: Graphite, Paper",
+        "flavours: Latte, Frappe, Macchiato, Mocha",
+        "selection applies immediately; esc closes"
+      ],
+      "themeSwatches": {
+        "dark": [
+          "#050505",
+          "#10100e",
+          "#58d7e8",
+          "#f5efe4"
+        ],
+        "paper": [
+          "#f3ead7",
+          "#f8f1e3",
+          "#0c6776",
+          "#1b1813"
+        ],
+        "latte": [
+          "#dce0e8",
+          "#eff1f5",
+          "#1753b9",
+          "#4c4f69"
+        ],
+        "frappe": [
+          "#232634",
+          "#303446",
+          "#91adef",
+          "#c6d0f5"
+        ],
+        "macchiato": [
+          "#181926",
+          "#24273a",
+          "#8aadf4",
+          "#cad3f5"
+        ],
+        "mocha": [
+          "#11111b",
+          "#1e1e2e",
+          "#89b4fa",
+          "#cdd6f4"
+        ]
+      }
+    },
+    {
+      "id": "keyboard-help",
+      "component": "dialog.help",
+      "trigger": [
+        "?",
+        "help button"
+      ],
+      "width": 640,
+      "marginTop": "8vh",
+      "content": "10 key/action rows; footer: Every pointer action has a key, and every key has a visible control."
+    },
+    {
+      "id": "toast",
+      "component": "toast",
+      "trigger": [
+        "theme change",
+        "load result",
+        "copy result",
+        "clipboard failure",
+        "journal parse failure"
+      ],
+      "position": "right 20, bottom 44",
+      "autoDismissMs": 3400,
+      "states": [
+        "info",
+        "error (refuse left border)"
+      ]
+    },
+    {
+      "id": "file-input",
+      "component": "hidden utility",
+      "accept": ".ndjson,.jsonl,.json",
+      "trigger": "Open journal button, drag-drop, palette Open journal…",
+      "notVisual": true
+    }
+  ],
+  "stateMatrix": {
+    "requiredProgramStates": [
+      "loading",
+      "empty",
+      "ready",
+      "skip",
+      "refuse",
+      "loss",
+      "stale",
+      "malformed"
+    ],
+    "implementedInPrototype": {
+      "ready": true,
+      "empty": true,
+      "skip": true,
+      "refuse": true,
+      "loss": true,
+      "malformed": "partial (toast + skipped lines)",
+      "loading": false,
+      "stale": "represented only as REPLAY · no live tail"
+    },
+    "policy": "A missing signal is never displayed as zero. Loss and refusal rows are explicit. READY is scoped to the gate that produced it."
+  }
+}

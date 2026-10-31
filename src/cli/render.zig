@@ -1,26 +1,13 @@
 const std = @import("std");
+const xsui = @import("xsui");
 const builtin = @import("builtin");
-const ui_frame = @import("../ui/frame.zig");
-const ui_layout = @import("../ui/layout.zig");
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
 const gallery = @import("../app/gallery.zig");
 const app = @import("../app/app.zig");
 const session_mod = @import("../stream/session.zig");
 
 const Writer = std.Io.Writer;
-
-fn themeFromName(name: []const u8) @import("../ui/draw.zig").Theme {
-    if (std.mem.eql(u8, name, "light")) {
-        return .{
-            .bg = .{ .r = 0xf3, .g = 0xea, .b = 0xd7 },
-            .panel = .{ .r = 0xff, .g = 0xf8, .b = 0xeb },
-            .raised = .{ .r = 0xe9, .g = 0xdf, .b = 0xcb },
-            .text = .{ .r = 0x1a, .g = 0x17, .b = 0x12 },
-            .muted = .{ .r = 0x6b, .g = 0x5f, .b = 0x51 },
-            .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
-        };
-    }
-    return .{};
-}
 
 pub fn cmdSnapshot(
     io: std.Io,
@@ -68,13 +55,13 @@ pub fn cmdSnapshot(
         try err.writeAll("snapshot: width/height must be 64..4096\n");
         return 2;
     }
-    var frame: ui_frame.Frame = undefined;
-    frame.init(allocator, width, height, themeFromName(theme_name)) catch {
+    var frame: frame_mod.Frame = undefined;
+    frame.init(allocator, width, height, xsui.themes.named(theme_name) orelse xsui.themes.dark) catch {
         try err.writeAll("snapshot: cannot initialize UI frame\n");
         return 1;
     };
     defer frame.deinit();
-    var ui = ui_layout.Ui.init(&frame);
+    var ui = layout.Ui.init(&frame);
     defer ui.deinit();
     if (replay) |journal_path| {
         const screen = app.parseScreen(screen_name) orelse {

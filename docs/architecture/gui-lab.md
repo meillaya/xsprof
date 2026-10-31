@@ -247,8 +247,8 @@ src/app/lab/scenario.zig     schema, parser, assertions
 src/app/lab/runner.zig       headless step runner
 src/app/lab/controller.zig   source and capture interface
 src/app/lab_view.zig         Lab rail and panels
-src/ui/input.zig             text and multi-key input
-src/ui/widgets/              button, toggle, list, modal, text field
+lib/xsui/src/input.zig       text and multi-key input
+lib/xsui/src/controls.zig    button, toggle, list, text field
 src/platform/macos/lab.zig   executor: capture, files, snapshot
 src/platform/linux/lab.zig   executor: capture, files, snapshot
 src/platform/web/lab.zig     replay-only executor

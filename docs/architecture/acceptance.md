@@ -13,11 +13,13 @@ repository plus a disposable Linux VM for live/BPF lanes.
 | P5 | AppKit `NSWindow` + `CAMetalLayer`; instanced Metal; offscreen Metal/CPU parity (avg 0.50); hidden-window smoke; `xsprof ui`. |
 | P6 | X11 + GLX native window; runtime-loaded X11/GL; Xvfb smoke; mapped native screenshot; glibc packaging note. |
 | P7 | Host-refused/Vm-marker-gated `bpf-gate`; no-op tracepoint `BPF_PROG_LOAD` + perf attach for 200 ms; libbpf dlopen probe; schema + parity. |
+| xsui package | `lib/xsui/` builds/tests standalone, has no `xsprof` imports, pins the WebGL instance ABI, and runs its own public-API PNG example; xsprof consumes it as a path dependency. |
 
 ## Commands run for the final gate
 
 ```sh
-./tools/zig build check          # fmt, lines, vendor, CLI parity, web, 58 tests, hidden macOS smoke
+./tools/zig build check          # fmt, lines, vendor, CLI parity, web, tests, hidden macOS smoke
+./tools/zig build xsui-package
 ./tools/zig build web-smoke
 sh qa/cli_parity.sh
 sh qa/macos_smoke.sh

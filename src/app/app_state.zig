@@ -3,7 +3,8 @@
 //! the main view over the repository line limit.
 
 const std = @import("std");
-const layout = @import("../ui/layout.zig");
+const xsui = @import("xsui");
+const layout = xsui.layout;
 const session_mod = @import("../stream/session.zig");
 const filter_mod = @import("filter.zig");
 

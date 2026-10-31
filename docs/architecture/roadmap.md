@@ -174,3 +174,23 @@ Status is updated only when a phase gate actually passes.
   (`fixtures/real/scheduler-mix.ndjson`). The overhead work also fixed an
   unbounded CLI-arena leak in the long-lived daemon: RSS is now ~2.5 MB after
   hundreds of thousands of events instead of growing to gigabytes.
+
+## xsui package extraction (post-P7)
+
+- `lib/xsui/` is now a standalone Zig 0.17 package with its own
+  `build.zig`, `build.zig.zon`, README, example, tests, bundled fonts, and
+  shaders. `xsprof` consumes it as a `.path` dependency and imports only
+  `xsui` / `xsui-metal` / `xsui-gl` / `xsui-objc`.
+- The target-neutral `xsui` module owns the draw list, layout, widgets,
+  controls, input, CPU rasterizer, PNG writer, TrueType reader, Tester, and
+  theme presets. Native backends are separate modules so wasm never pulls in
+  a framework or OS surface.
+- Public extension points: `Ui.custom` painters, `themes.derive`,
+  `FrameOptions.fonts`, the `gpu.Renderer` capability/interface contract, and
+  scripted `Tester` input.
+- `qa/xsui_package.sh` verifies package import isolation, version lockstep,
+  standalone tests, and a public-API-only PNG example. `zig build
+  xsui-package` runs it from the root gate.
+- Headless snapshots for the gallery, light theme, replay timeline, and the
+  lab scenario were byte-identical before and after the move; `zig build
+  check` remains green on macOS and in the Linux VM.

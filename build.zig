@@ -4,20 +4,23 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const fonts_mod = b.addModule("fonts", .{
-        .root_source_file = b.path("assets/fonts/fonts.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    const xsui_dep = b.dependency("xsui", .{ .target = target, .optimize = optimize });
+    const xsui_mod = xsui_dep.module("xsui");
+    const metal_mod = if (target.result.os.tag == .macos) xsui_dep.module("xsui-metal") else null;
+    const objc_mod = if (target.result.os.tag == .macos) xsui_dep.module("xsui-objc") else null;
+    const gl_mod = if (target.result.os.tag == .linux) xsui_dep.module("xsui-gl") else null;
 
     const core_mod = b.addModule("xsprof", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "fonts", .module = fonts_mod },
+            .{ .name = "xsui", .module = xsui_mod },
         },
     });
+    if (metal_mod) |module| core_mod.addImport("xsui-metal", module);
+    if (objc_mod) |module| core_mod.addImport("xsui-objc", module);
+    if (gl_mod) |module| core_mod.addImport("xsui-gl", module);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -37,10 +40,14 @@ pub fn build(b: *std.Build) void {
         if (b.option([]const u8, "macos-sdk", "macOS SDK path for cross builds")) |sdk| {
             const frameworks = b.pathJoin(&.{ sdk, "System", "Library", "Frameworks" });
             const sdk_libs = b.pathJoin(&.{ sdk, "usr", "lib" });
-            exe_mod.addFrameworkPath(.{ .cwd_relative = frameworks });
-            core_mod.addFrameworkPath(.{ .cwd_relative = frameworks });
-            exe_mod.addLibraryPath(.{ .cwd_relative = sdk_libs });
-            core_mod.addLibraryPath(.{ .cwd_relative = sdk_libs });
+            for ([_]*std.Build.Module{ exe_mod, core_mod, xsui_mod }) |module| {
+                module.addFrameworkPath(.{ .cwd_relative = frameworks });
+                module.addLibraryPath(.{ .cwd_relative = sdk_libs });
+            }
+            for ([_]*std.Build.Module{ metal_mod.?, objc_mod.? }) |module| {
+                module.addFrameworkPath(.{ .cwd_relative = frameworks });
+                module.addLibraryPath(.{ .cwd_relative = sdk_libs });
+            }
         }
         for ([_][]const u8{ "AppKit", "Metal", "QuartzCore" }) |framework| {
             exe_mod.linkFramework(framework, .{});
@@ -64,9 +71,21 @@ pub fn build(b: *std.Build) void {
     const exe_tests = b.addTest(.{ .root_module = exe_mod });
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
+    const xsui_api_mod = b.createModule(.{
+        .root_source_file = b.path("tests/xsui.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "xsui", .module = xsui_mod },
+        },
+    });
+    const xsui_api_tests = b.addTest(.{ .root_module = xsui_api_mod });
+    const run_xsui_api_tests = b.addRunArtifact(xsui_api_tests);
+
     const test_step = b.step("test", "Run unit and integration tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+    test_step.dependOn(&run_xsui_api_tests.step);
 
     const fuzz_mod = b.createModule(.{
         .root_source_file = b.path("tests/fuzz.zig"),
@@ -86,6 +105,11 @@ pub fn build(b: *std.Build) void {
             b.path("build.zig"),
             b.path("build.zig.zon"),
             b.path("src"),
+            b.path("lib/xsui/build.zig"),
+            b.path("lib/xsui/build.zig.zon"),
+            b.path("lib/xsui/src"),
+            b.path("lib/xsui/examples"),
+            b.path("lib/xsui/assets/fonts/fonts.zig"),
             b.path("tests"),
             b.path("tools"),
         },
@@ -107,18 +131,18 @@ pub fn build(b: *std.Build) void {
     const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
     cli_parity_step.dependOn(&cli_parity.step);
 
+    const xsui_package = b.addSystemCommand(&.{ "sh", "qa/xsui_package.sh" });
+    const xsui_package_step = b.step("xsui-package", "Test the standalone xsui package");
+    xsui_package_step.dependOn(&xsui_package.step);
+
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
-    const web_fonts_mod = b.createModule(.{
-        .root_source_file = b.path("assets/fonts/fonts.zig"),
-        .target = wasm_target,
-        .optimize = optimize,
-    });
+    const web_xsui_dep = b.dependency("xsui", .{ .target = wasm_target, .optimize = optimize });
     const web_mod = b.createModule(.{
         .root_source_file = b.path("src/web.zig"),
         .target = wasm_target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "fonts", .module = web_fonts_mod },
+            .{ .name = "xsui", .module = web_xsui_dep.module("xsui") },
         },
     });
     web_mod.export_symbol_names = &.{
@@ -139,9 +163,17 @@ pub fn build(b: *std.Build) void {
     const web_step = b.step("web", "Build the WebAssembly frontend into zig-out/web");
     const wasm_install = b.addInstallFile(web_exe.getEmittedBin(), "web/assets/xsprof-web.wasm");
     web_step.dependOn(&wasm_install.step);
-    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "style.css", "shaders/ui.vert.glsl", "shaders/ui.frag.glsl" };
+    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "style.css" };
     inline for (web_assets) |asset| {
         const install = b.addInstallFile(b.path("web/" ++ asset), "web/" ++ asset);
+        web_step.dependOn(&install.step);
+    }
+    inline for ([_][]const u8{ "ui.vert.glsl", "ui.frag.glsl" }) |shader| {
+        const source = b.fmt("src/gpu/shaders/webgl2/{s}", .{shader});
+        const install = b.addInstallFile(
+            web_xsui_dep.path(source),
+            b.fmt("web/shaders/{s}", .{shader}),
+        );
         web_step.dependOn(&install.step);
     }
     inline for ([_][]const u8{ "healthy.json", "loss.json", "empty.json", "scheduler-mix.json" }) |name| {
@@ -160,9 +192,11 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&lines.step);
     check.dependOn(&vendor.step);
     check.dependOn(&cli_parity.step);
+    check.dependOn(&xsui_package.step);
     check.dependOn(web_step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
+    check.dependOn(&run_xsui_api_tests.step);
     check.dependOn(&run_fuzz_tests.step);
     if (target.result.os.tag == .linux) {
         const lab_smoke = b.addSystemCommand(&.{ "sh", "qa/lab_smoke.sh" });

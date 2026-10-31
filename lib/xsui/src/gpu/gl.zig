@@ -2,7 +2,11 @@
 //! libGL; the X11 surface owns the context and swap.
 
 const std = @import("std");
-const draw = @import("../../ui/draw.zig");
+const xsui = @import("xsui");
+const draw = xsui.draw;
+
+pub const vertex_shader_source = @embedFile("shaders/gl330/ui.vert.glsl");
+pub const fragment_shader_source = @embedFile("shaders/gl330/ui.frag.glsl");
 
 const GL = struct {
     lib: std.DynLib,
@@ -158,9 +162,15 @@ pub const Renderer = struct {
         self.gl.lib.close();
     }
 
+    /// Adapts this renderer to the public `xsui.gpu.Renderer` contract. The
+    /// host must make a GL context current before calling draw.
+    pub fn interface(self: *Renderer) xsui.gpu.Renderer {
+        return interfaceFor(self);
+    }
+
     fn createPipeline(self: *Renderer) !void {
-        const vs = try self.compile(0x8B31, @embedFile("ui.vert.glsl"));
-        const fs = try self.compile(0x8B30, @embedFile("ui.frag.glsl"));
+        const vs = try self.compile(0x8B31, vertex_shader_source);
+        const fs = try self.compile(0x8B30, fragment_shader_source);
         const program = self.gl.create_program();
         self.gl.attach_shader(program, vs);
         self.gl.attach_shader(program, fs);
@@ -264,3 +274,69 @@ pub const Renderer = struct {
         self.gl.draw_arrays_instanced(5, 0, 4, @intCast(instances.len));
     }
 };
+
+/// Probes the dynamic GL loader. A missing library or GLX entry point is
+/// SKIP with a reason; no context is created here.
+pub fn capability() xsui.gpu.Capability {
+    var lib = std.DynLib.open("libGL.so.1") catch return .{
+        .backend = .gl,
+        .status = .skip,
+        .reason = "libGL.so.1 not found",
+    };
+    defer lib.close();
+    const get_proc = lib.lookup(
+        *const fn ([*:0]const u8) callconv(.c) ?*anyopaque,
+        "glXGetProcAddress",
+    ) orelse return .{
+        .backend = .gl,
+        .status = .skip,
+        .reason = "glXGetProcAddress not found",
+    };
+    _ = get_proc;
+    return .{ .backend = .gl, .status = .ready, .reason = "OpenGL 3.3 via GLX" };
+}
+
+fn interfaceDeinit(context: *anyopaque) void {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    self.deinit();
+}
+
+fn interfaceResize(context: *anyopaque, target: xsui.gpu.Target) void {
+    _ = context;
+    _ = target;
+}
+
+fn interfaceDraw(
+    context: *anyopaque,
+    list: *const draw.DrawList,
+    target: xsui.gpu.Target,
+    background: draw.Color,
+) !bool {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    self.paint(list.items.items, list.atlas, target.width, target.height, background);
+    return true;
+}
+
+const interface_vtable: xsui.gpu.Renderer.VTable = .{
+    .backend = .gl,
+    .deinit = interfaceDeinit,
+    .resize = interfaceResize,
+    .draw = interfaceDraw,
+};
+
+/// Adapts a concrete renderer to the public `xsui.gpu.Renderer` contract.
+pub fn interfaceFor(self: *Renderer) xsui.gpu.Renderer {
+    return .{ .context = self, .vtable = &interface_vtable };
+}
+
+test "gl capability reports an explicit state" {
+    const cap = capability();
+    try std.testing.expectEqual(xsui.gpu.Backend.gl, cap.backend);
+    try std.testing.expect(cap.status == .ready or cap.status == .skip);
+    try std.testing.expect(cap.reason.len != 0);
+}
+
+test "gl shader sources are bundled" {
+    try std.testing.expect(std.mem.indexOf(u8, vertex_shader_source, "#version 330") != null);
+    try std.testing.expect(std.mem.indexOf(u8, fragment_shader_source, "u_atlas") != null);
+}

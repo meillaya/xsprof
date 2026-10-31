@@ -2,9 +2,10 @@
 //! JS owns WebGL2; Zig owns the UI tree, draw list, and glyph atlas.
 
 const std = @import("std");
-const draw = @import("ui/draw.zig");
-const frame_mod = @import("ui/frame.zig");
-const layout = @import("ui/layout.zig");
+const xsui = @import("xsui");
+const draw = xsui.draw;
+const frame_mod = xsui.frame;
+const layout = xsui.layout;
 const app = @import("app/app.zig");
 const lab_state = @import("app/lab/state.zig");
 const lab_view = @import("app/lab_view.zig");
@@ -13,7 +14,6 @@ const chrome_trace = @import("viz/chrome_trace.zig");
 const session_mod = @import("stream/session.zig");
 const stream_store = @import("stream/store.zig");
 const stream_index = @import("stream/index.zig");
-const ttf = @import("ui/ttf.zig");
 
 const gpa = std.heap.wasm_allocator;
 
@@ -209,7 +209,7 @@ export fn web_pointer(x: f32, y: f32, clicked: u32, down: u32, scroll: f32) void
 
 export fn web_key(key: u32) void {
     const frame = frame_ptr orelse return;
-    frame.input.key = @import("ui/input.zig").fromWebCode(key);
+    frame.input.key = xsui.input.fromWebCode(key);
 }
 
 export fn web_set_screen(id: u32) void {
@@ -225,14 +225,7 @@ export fn web_set_screen(id: u32) void {
 }
 
 export fn web_set_theme(light: u32) void {
-    theme = if (light != 0) .{
-        .bg = .{ .r = 0xf3, .g = 0xea, .b = 0xd7 },
-        .panel = .{ .r = 0xff, .g = 0xf8, .b = 0xeb },
-        .raised = .{ .r = 0xe9, .g = 0xdf, .b = 0xcb },
-        .text = .{ .r = 0x1a, .g = 0x17, .b = 0x12 },
-        .muted = .{ .r = 0x6b, .g = 0x5f, .b = 0x51 },
-        .hairline = .{ .r = 0xc9, .g = 0xba, .b = 0xa2 },
-    } else .{};
+    theme = if (light != 0) xsui.themes.light else xsui.themes.dark;
     if (frame_ptr) |frame| frame.theme = theme;
 }
 
@@ -350,7 +343,7 @@ export fn web_instances_ptr() usize {
 }
 
 export fn web_instance_stride() u32 {
-    return @intCast(@sizeOf(draw.Instance) / @sizeOf(f32));
+    return @intCast(xsui.webgl.instance_stride_floats);
 }
 
 export fn web_atlas_ptr() usize {

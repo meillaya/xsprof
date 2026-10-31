@@ -1,0 +1,420 @@
+{
+  "$schema": "xsprof/design-keybindings/v1",
+  "source": {
+    "file": "design/index.html",
+    "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
+    "bytes": 221754
+  },
+  "principles": [
+    "Every pointer action has a key, and every key has a visible control.",
+    "Typing contexts and open dialogs suppress global navigation keys.",
+    "Space is not hijacked when focus is on a button, link, or tab.",
+    "Focus is always visible: 2px outline with 2px offset and 2px radius."
+  ],
+  "contexts": [
+    {
+      "id": "global",
+      "when": "no modal open; focus is not in an input, textarea, or contentEditable element; Meta/Ctrl+K is checked first",
+      "bindings": [
+        {
+          "keys": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "action": "switch screen",
+          "targets": [
+            "overview",
+            "timeline",
+            "advisor",
+            "events",
+            "capture"
+          ],
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "Meta+K",
+            "Control+K"
+          ],
+          "action": "open command palette",
+          "preventDefault": true,
+          "priority": "before dialog guard",
+          "note": "openPalette is a no-op when the palette is already open"
+        },
+        {
+          "keys": [
+            "/"
+          ],
+          "action": "switch to Events and focus the filter",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "?"
+          ],
+          "action": "open keyboard help",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "f"
+          ],
+          "action": "switch to Timeline and fit to the full excerpt",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "+",
+            "="
+          ],
+          "action": "zoom timeline in by 0.6 around the playhead",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "-",
+            "_"
+          ],
+          "action": "zoom timeline out by 1.7 around the playhead",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "Space"
+          ],
+          "action": "toggle play/pause, switching to Timeline if needed",
+          "preventDefault": true,
+          "guard": "ignore when focus is on button, link, or [role=tab]"
+        },
+        {
+          "keys": [
+            "t"
+          ],
+          "action": "move playhead to the end of the visible window",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "w"
+          ],
+          "action": "open the appearance dialog",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "c"
+          ],
+          "action": "copy a summary of the selected slice",
+          "requires": "a selected slice",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "clear slice/event selection",
+          "requires": "a selection exists",
+          "preventDefault": false
+        }
+      ]
+    },
+    {
+      "id": "dialog-open",
+      "when": "palette, help, or appearance dialog is open",
+      "bindings": [
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "close the topmost open dialog in priority palette > help > appearance",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "*"
+          ],
+          "action": "all other global keys are ignored; native dialog and focused controls handle Tab/Enter/Space",
+          "preventDefault": false
+        }
+      ]
+    },
+    {
+      "id": "palette-input",
+      "when": "command palette is open and its input has focus",
+      "bindings": [
+        {
+          "keys": [
+            "ArrowDown"
+          ],
+          "action": "move active command down (clamped)",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "ArrowUp"
+          ],
+          "action": "move active command up (clamped)",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "Enter"
+          ],
+          "action": "run active command",
+          "preventDefault": true,
+          "guard": "no-op when the filtered list is empty"
+        },
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "close palette (handled by global dialog guard)",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "typing"
+          ],
+          "action": "filter commands by lowercase substring over label + group",
+          "preventDefault": false
+        }
+      ]
+    },
+    {
+      "id": "events-filter-input",
+      "when": "the Events search input has focus",
+      "bindings": [
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "clear query, re-render, and blur the input",
+          "preventDefault": false
+        },
+        {
+          "keys": [
+            "typing"
+          ],
+          "action": "update query live; reset row limit to 80",
+          "preventDefault": false
+        }
+      ]
+    },
+    {
+      "id": "rail-tablist",
+      "when": "focus is inside the vertical screen rail",
+      "bindings": [
+        {
+          "keys": [
+            "ArrowDown",
+            "ArrowRight"
+          ],
+          "action": "select and focus next screen (wraps)",
+          "preventDefault": true
+        },
+        {
+          "keys": [
+            "ArrowUp",
+            "ArrowLeft"
+          ],
+          "action": "select and focus previous screen (wraps)",
+          "preventDefault": true
+        }
+      ]
+    },
+    {
+      "id": "timeline-pointer",
+      "when": "Timeline screen is active",
+      "bindings": [
+        {
+          "gesture": "pointerdown on plot inside x0",
+          "action": "begin brush drag",
+          "preventDefault": false
+        },
+        {
+          "gesture": "pointermove >4px horizontally",
+          "action": "show live brush range",
+          "preventDefault": false
+        },
+        {
+          "gesture": "pointerup with brush >20ms",
+          "action": "focus/zoom to brushed range and toast",
+          "preventDefault": false
+        },
+        {
+          "gesture": "pointerup without drag",
+          "action": "select slice or tick under pointer",
+          "preventDefault": false
+        },
+        {
+          "gesture": "pointermove without drag",
+          "action": "show tooltip for hit row/time",
+          "preventDefault": false
+        },
+        {
+          "gesture": "dblclick",
+          "action": "fit timeline to full excerpt",
+          "preventDefault": false
+        },
+        {
+          "gesture": "click minimap",
+          "action": "center current span on clicked ratio",
+          "preventDefault": false
+        }
+      ]
+    },
+    {
+      "id": "native-port",
+      "when": "GPU/native implementation",
+      "bindings": [
+        {
+          "keys": [
+            "Super+K",
+            "Ctrl+K"
+          ],
+          "action": "command palette (map Meta+K to Super on macOS and Ctrl on Linux/Windows)"
+        },
+        {
+          "keys": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "action": "keep screen digits unchanged"
+        },
+        {
+          "keys": [
+            "/",
+            "?",
+            "f",
+            "+/-",
+            "Space",
+            "t",
+            "w",
+            "c",
+            "Escape"
+          ],
+          "action": "keep the web bindings; route to the UI input queue"
+        },
+        {
+          "keys": [
+            "q"
+          ],
+          "action": "native-only quit is not part of this prototype; add it as a window action only if the GPU host requires it"
+        }
+      ]
+    },
+    {
+      "id": "skip-link",
+      "when": "the skip link is focused",
+      "bindings": [
+        {
+          "keys": [
+            "Enter"
+          ],
+          "action": "focus the main stage (#main)",
+          "preventDefault": false
+        }
+      ]
+    }
+  ],
+  "footerKeybar": [
+    {
+      "keys": "1–5",
+      "label": "screens"
+    },
+    {
+      "keys": "/",
+      "label": "filter"
+    },
+    {
+      "keys": "space",
+      "label": "playhead"
+    },
+    {
+      "keys": "f",
+      "label": "fit"
+    },
+    {
+      "keys": "+ −",
+      "label": "zoom"
+    },
+    {
+      "keys": "w",
+      "label": "theme"
+    },
+    {
+      "keys": "⌘K",
+      "label": "palette"
+    },
+    {
+      "keys": "?",
+      "label": "help"
+    }
+  ],
+  "helpSheet": [
+    {
+      "keys": "1 – 5",
+      "action": "Switch screen: Overview, Timeline, Advisor, Events, Capture"
+    },
+    {
+      "keys": "/",
+      "action": "Focus the events filter"
+    },
+    {
+      "keys": "space",
+      "action": "Play or pause the timeline playhead"
+    },
+    {
+      "keys": "f",
+      "action": "Fit the timeline to the full excerpt"
+    },
+    {
+      "keys": "+ −",
+      "action": "Zoom the timeline around the playhead"
+    },
+    {
+      "keys": "t",
+      "action": "Jump the playhead to the end"
+    },
+    {
+      "keys": "w",
+      "action": "Open the appearance menu"
+    },
+    {
+      "keys": "⌘K / Ctrl K",
+      "action": "Command palette"
+    },
+    {
+      "keys": "esc",
+      "action": "Close overlays or clear the slice selection"
+    },
+    {
+      "keys": "?",
+      "action": "This sheet"
+    }
+  ],
+  "ariaKeyshortcuts": {
+    "paletteButton": "Meta+K Control+K"
+  },
+  "pointerControls": [
+    "rail items switch screens",
+    "chips and icon buttons open source/loss detail, palette, appearance, help",
+    "theme options apply immediately",
+    "filters toggle severity/type",
+    "ledger rows select; detail actions open timeline or filter comm",
+    "copy buttons write capture commands",
+    "dialog backdrop closes the dialog",
+    "timeline plot and minimap as listed above"
+  ],
+  "typingRules": [
+    "Global single-key shortcuts are suppressed while an input/textarea/contentEditable is focused.",
+    "Escape in the events filter is the only typing-context global action.",
+    "Modifier shortcuts still work while typing (Meta/Ctrl+K palette)."
+  ]
+}

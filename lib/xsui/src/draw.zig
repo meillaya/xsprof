@@ -68,10 +68,14 @@ pub const GlyphEntry = struct {
     advance: u32,
 };
 
+/// Fixed atlas dimensions shared by the CPU, Metal, GL, and WebGL2 backends.
+pub const atlas_width: usize = 1024;
+pub const atlas_height: usize = 1024;
+
 pub const Atlas = struct {
     allocator: std.mem.Allocator,
-    width: usize = 1024,
-    height: usize = 1024,
+    width: usize = atlas_width,
+    height: usize = atlas_height,
     pixels: []u8,
     shelf_x: usize = 0,
     shelf_y: usize = 0,
@@ -80,7 +84,7 @@ pub const Atlas = struct {
     entries: std.AutoHashMap(u64, GlyphEntry),
 
     pub fn init(allocator: std.mem.Allocator) !Atlas {
-        const pixels = try allocator.alloc(u8, 1024 * 1024);
+        const pixels = try allocator.alloc(u8, atlas_width * atlas_height);
         @memset(pixels, 0);
         return .{
             .allocator = allocator,
