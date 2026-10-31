@@ -6,6 +6,8 @@ pub const Key = enum(u8) {
     escape = 2,
     left = 3,
     right = 4,
+    filter = 5,
+    clear = 6,
 };
 
 pub const Input = struct {

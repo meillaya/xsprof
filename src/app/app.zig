@@ -54,6 +54,7 @@ pub const State = struct {
     screen: Screen = .overview,
     window: ?Window = null,
     selection: ?Selection = null,
+    filter: ?[]const u8 = null,
     timeline: TimelineGeometry = .{},
     live_paused: bool = false,
     live_follow: bool = true,
@@ -122,6 +123,7 @@ fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
             }
         }
     }
+    if (app_util.handleFilterInput(&state.filter, if (state.selection) |selection| selection.comm else null, input)) return;
     if (input.key == .zero) {
         state.window = null;
         state.selection = null;
@@ -175,14 +177,6 @@ fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
         }
         input.clicked = false;
     }
-}
-
-fn selectedMetric(state: *const State) ?@import("../analyze/metrics.zig").TaskMetric {
-    const selection = state.selection orelse return null;
-    for (state.session.metrics.tasks) |task| {
-        if (task.pid == selection.pid and std.mem.eql(u8, task.comm, selection.comm)) return task;
-    }
-    return null;
 }
 
 fn header(state: *State, ui: *layout.Ui) !void {
@@ -273,7 +267,7 @@ fn overview(state: *State, ui: *layout.Ui) !void {
 
     var caps = try widgets.panel(ui, "CAPABILITIES", .{ .flex = 1 });
     if (state.session.capabilities.len == 0) {
-        try emptyNote(ui, "No capability rows in this session.");
+        try ui.text(.{ .text = "No capability rows in this session.", .size = 10, .color = ui.theme.skip });
     } else {
         for (state.session.capabilities) |cap| {
             var row = try ui.row(.{ .height = 22, .gap = 10, .align_items = .center });
@@ -359,10 +353,6 @@ fn kv(ui: *layout.Ui, key: []const u8, value: []const u8) !void {
     row.end();
 }
 
-fn emptyNote(ui: *layout.Ui, note: []const u8) !void {
-    try ui.text(.{ .text = note, .size = 10, .color = ui.theme.skip });
-}
-
 fn stateColor(th: draw.Theme, state: []const u8) draw.Color {
     if (std.mem.eql(u8, state, "READY")) return th.pass;
     if (std.mem.eql(u8, state, "DEGRADED")) return th.pending;
@@ -384,7 +374,7 @@ fn timeline(state: *State, ui: *layout.Ui) !void {
             .size = 11,
             .color = ui.theme.live,
         });
-        if (selectedMetric(state)) |task| {
+        if (app_util.selectedMetric(state.session, selection.pid, selection.comm)) |task| {
             try ui.text(.{
                 .text = try std.fmt.allocPrint(
                     ui.allocator,
@@ -397,7 +387,15 @@ fn timeline(state: *State, ui: *layout.Ui) !void {
         }
         row.end();
     } else {
-        try ui.text(.{ .text = "click a slice to inspect; wheel zooms; 0 resets", .size = 10, .color = ui.theme.muted });
+        if (state.filter) |filter| {
+            try ui.text(.{
+                .text = try std.fmt.allocPrint(ui.allocator, "filter={s}  c filters selection  x clears", .{filter}),
+                .size = 10,
+                .color = ui.theme.skip,
+            });
+        } else {
+            try ui.text(.{ .text = "click a slice to inspect; c filters selection; wheel zooms; 0 resets", .size = 10, .color = ui.theme.muted });
+        }
     }
     panel.end();
 }
@@ -537,6 +535,9 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
     const span = @as(f32, @floatFromInt(end - start));
     for (session.slices) |slice| {
         if (slice.cpu >= lanes) continue;
+        if (state.filter) |filter| {
+            if (!std.mem.eql(u8, slice.comm, filter)) continue;
+        }
         const slice_start = @max(slice.start_us, start);
         const slice_end = @min(slice.end_us, end);
         if (slice_end <= slice_start) continue;

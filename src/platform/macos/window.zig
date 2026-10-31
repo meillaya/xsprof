@@ -211,6 +211,14 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
             self.input.key = .zero;
             self.dirty = true;
         },
+        'c' => {
+            self.input.key = .filter;
+            self.dirty = true;
+        },
+        'x' => {
+            self.input.key = .clear;
+            self.dirty = true;
+        },
         27 => {
             self.input.key = .escape;
             self.dirty = true;
