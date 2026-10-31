@@ -76,37 +76,9 @@ the corresponding developer flag.
 
 `record` needs perf tracepoints and `CAP_PERFMON`; without them it reports
 `SKIP` and exits non-zero. `daemon` keeps one capture open, rotates segments,
-and writes an atomic manifest. `watch` is the SSH view shown above. `serve`
+and writes an atomic manifest. `watch` is the SSH view. `serve`
 exposes a loopback replay or live view behind a random token. `ui` opens the
 native profiler. Unknown verbs fail closed.
-
-## Design contract
-
-The console prototype is [`design/index.html`](design/index.html). Its extracted token set,
-screen/flow/keybinding inventory, palette source, and GPU mapping live in
-[`design/`](design/README.md) (`tokens.json`, `palettes.json`, `tokens.css`,
-`screens.json`, `flows.json`, `keybindings.json`, `command-palette.json`).
-
-```sh
-python3 design/validate.py   # source hash + token/palette/CSS consistency
-```
-
-## Console evidence
-
-- Prototype reference: [`design/screenshots/prototype/`](design/screenshots/prototype/)
-- GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
-- Real Linux-VM perf capture: [`fixtures/real/macos-vm-sched.ndjson`](fixtures/real/macos-vm-sched.ndjson) and [`design/screenshots/live/`](design/screenshots/live/)
-- Replay preview GIF / full video: [`design/media/xsprof-ui-demo.gif`](design/media/xsprof-ui-demo.gif) · [`MP4`](design/media/xsprof-ui-demo.mp4)
-- Live preview GIF / full video: [`design/media/xsprof-ui-live.gif`](design/media/xsprof-ui-live.gif) · [`MP4`](design/media/xsprof-ui-live.mp4)
-- Live-stream screenshots: [`design/screenshots/live-stream/`](design/screenshots/live-stream/)
-- Formal UI contract: [`design/ui-spec.json`](design/ui-spec.json)
-- Cross-surface report: [`design/evidence/cross_surface.json`](design/evidence/cross_surface.json)
-- Evidence method: [`design/evidence/README.md`](design/evidence/README.md)
-
-```sh
-./tools/zig build web
-sh qa/ui_evidence.sh   # developer-only: replay screenshots/video + CPU/Metal/WebGL2 gate
-```
 
 ## Safety
 
@@ -123,22 +95,6 @@ Runtime samples never include argv, environment variables, secrets, or tokens.
 ./tools/package_macos_app.sh    # universal macOS app, ad-hoc signed
 ```
 
-## Release status
-
-No `v0.2.0` tag, public release, or Homebrew tap has been published. Packaging,
-notarization, and release workflows are in the tree, but publication is blocked
-on three external items:
-
-- no Developer ID certificate or notary credentials, so the local macOS app is
-  ad-hoc signed;
-- exhausted GitHub Actions minutes, so the tag-driven release workflow has not
-  run end-to-end;
-- no `meillaya/homebrew-xsprof` tap or `HOMEBREW_TAP_TOKEN`.
-
-The Linux tarballs and universal app build locally, and `zig build check`
-passes. To publish, configure the signing and tap secrets, push a `v*` tag, and
-let the release workflow build, notarize, publish, and update the tap.
-
 ## Development
 
 ```sh
@@ -146,12 +102,4 @@ let the release workflow build, notarize, publish, and update the tap.
 ./tools/zig build fuzz
 (cd lib/xsui && ../../tools/zig build test)   # package in isolation
 ./tools/zig build service-smoke               # Linux root, disposable VM
-```
-
-The demo GIF uses a real capture fixture. Regenerating it needs Go, ffmpeg,
-and ttyd:
-
-```sh
-go install github.com/charmbracelet/vhs@main
-vhs docs/media/watch.tape
 ```
