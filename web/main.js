@@ -227,6 +227,11 @@ async function boot() {
       frame();
       return;
     }
+    if (event.key === "L") {
+      exports.web_key(9);
+      frame();
+      return;
+    }
     let key = 255;
     if (event.key === "0") key = 0;
     else if (event.key === "Escape") key = 1;

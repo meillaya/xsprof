@@ -147,7 +147,7 @@ pub fn cmdUi(
                 return 1;
             };
         }
-        native.run(allocator, session, screen, light, smoke) catch |run_error| {
+        native.run(io, allocator, session, screen, light, smoke) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
             return 1;
         };
@@ -162,7 +162,7 @@ pub fn cmdUi(
                 return 1;
             };
         }
-        native.run(allocator, session, screen, light, smoke) catch |run_error| {
+        native.run(io, allocator, session, screen, light, smoke) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
             return 1;
         };

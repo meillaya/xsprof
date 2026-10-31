@@ -9,7 +9,9 @@ const draw = @import("../../ui/draw.zig");
 const frame_mod = @import("../../ui/frame.zig");
 const layout = @import("../../ui/layout.zig");
 const app_mod = @import("../../app/app.zig");
-const gallery = @import("../../app/gallery.zig");
+const lab_state = @import("../../app/lab/state.zig");
+const lab_controller = @import("../../app/lab/controller.zig");
+const lab_view = @import("../../app/lab_view.zig");
 const session_mod = @import("../../stream/session.zig");
 const input_mod = @import("../../ui/input.zig");
 
@@ -18,18 +20,17 @@ const height: u32 = 720;
 
 pub const App = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     renderer: metal.Renderer,
+    lab: lab_state.LabState,
+    controller: lab_controller.Controller,
     session: ?session_mod.Session = null,
-    screen: app_mod.Screen = .overview,
     light: bool = false,
     window: objc.Object = undefined,
     view: objc.Object = undefined,
     delegate: objc.Object = undefined,
     dirty: bool = true,
     input: input_mod.Input = .{},
-    selection: ?app_mod.Selection = null,
-    view_window: ?app_mod.Window = null,
-    timeline: app_mod.TimelineGeometry = .{},
 
     fn attach(self: *App, hidden: bool) !void {
         const pool = objc.Pool.push();
@@ -102,24 +103,19 @@ pub const App = struct {
         defer frame.deinit();
         var ui = layout.Ui.init(&frame);
         defer ui.deinit();
-        if (self.session) |*session| {
-            var state = app_mod.State{
-                .session = session,
-                .screen = self.screen,
-                .window = self.view_window,
-                .selection = self.selection,
-                .timeline = self.timeline,
-            };
-            ui.frame.input = self.input;
-            app_mod.view(&state, &ui) catch return false;
-            self.selection = state.selection;
-            self.view_window = state.window;
-            self.timeline = state.timeline;
-            self.input.clearTransient();
-        } else {
-            gallery.build(&ui) catch return false;
-        }
+        ui.frame.input = self.input;
+        lab_view.build(&self.lab, &ui) catch return false;
         ui.finish() catch return false;
+        const messages = lab_view.collect(&self.lab, &ui, &ui.frame.input);
+        for (messages.slice()) |message| {
+            const effects = self.lab.apply(message) catch continue;
+            self.controller.apply(self.io, &self.lab, effects.slice()) catch {};
+        }
+        self.controller.poll(&self.lab) catch {};
+        if (messages.len != 0 or self.lab.capture.phase == .running or self.lab.transport.playing) {
+            self.dirty = true;
+        }
+        self.input.clearTransient();
         return self.renderer.present(frame.list.items.items, &frame.atlas, width, height, theme.bg);
     }
 
@@ -154,8 +150,13 @@ fn isFlipped(_: objc.Object, _: objc.SEL) callconv(.c) objc.BOOL {
 
 fn tick(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
     const self = objc.getZig(App, target) orelse return;
-    if (!self.dirty) return;
-    if (self.render()) self.dirty = false;
+    const active = self.lab.capture.phase == .running or self.lab.capture.phase == .starting or
+        self.lab.transport.playing;
+    if (!self.dirty and !active) return;
+    if (self.render()) {
+        self.dirty = self.dirty or self.lab.capture.phase == .running or
+            self.lab.capture.phase == .starting or self.lab.transport.playing;
+    }
 }
 
 fn localPoint(target: objc.Object, event: objc.Object) objc.CGPoint {
@@ -197,7 +198,7 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     if (chars.len == 0) return;
     const ch = chars[0];
     if (ch >= '1' and ch <= '5') {
-        self.screen = @fromBackingInt(@intCast(ch - '1'));
+        self.lab.view.screen = @fromBackingInt(@intCast(ch - '1'));
         self.dirty = true;
         return;
     }
@@ -227,6 +228,22 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
             self.input.key = .loss;
             self.dirty = true;
         },
+        'L' => {
+            self.input.key = .lab;
+            self.dirty = true;
+        },
+        'K' => {
+            self.input.key = .palette;
+            self.dirty = true;
+        },
+        127 => {
+            self.input.key = .backspace;
+            self.dirty = true;
+        },
+        13 => {
+            self.input.key = .enter;
+            self.dirty = true;
+        },
         'x' => {
             self.input.key = .clear;
             self.dirty = true;
@@ -245,6 +262,7 @@ fn windowWillClose(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c
 }
 
 pub fn run(
+    io: std.Io,
     allocator: std.mem.Allocator,
     session: ?session_mod.Session,
     screen: app_mod.Screen,
@@ -252,14 +270,27 @@ pub fn run(
     smoke: bool,
 ) !void {
     if (builtin.os.tag != .macos) return error.UnsupportedPlatform;
+    var lab = try lab_state.LabState.init(std.heap.smp_allocator);
+    if (session != null) {
+        lab.view.session = &session.?;
+        lab.view.screen = screen;
+        lab.source.phase = .ready;
+    } else {
+        lab.view.screen = screen;
+    }
     var app = App{
         .allocator = allocator,
+        .io = io,
         .renderer = try metal.Renderer.init(),
+        .lab = lab,
+        .controller = lab_controller.Controller.init(std.heap.smp_allocator),
         .session = session,
-        .screen = screen,
         .light = light,
     };
+    defer app.lab.deinit();
+    defer app.controller.deinit();
     defer app.renderer.deinit();
+    if (app.session != null) app.lab.view.session = &app.session.?;
     try app.attach(smoke);
     if (smoke) {
         std.debug.print("native smoke: hidden NSWindow/CAMetalLayer created; no frame shown\n", .{});
