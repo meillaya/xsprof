@@ -122,14 +122,15 @@ pub fn build(b: *std.Build) void {
         },
     });
     web_mod.export_symbol_names = &.{
-        "web_init",            "web_resize",         "web_alloc",
-        "web_free",            "web_load_journal",   "web_set_screen",
-        "web_set_theme",       "web_frame",          "web_instances_ptr",
-        "web_instance_stride", "web_atlas_ptr",      "web_atlas_size",
-        "web_width",           "web_height",         "web_refusals",
-        "web_capabilities",    "web_append_journal", "web_set_live",
-        "web_atlas_version",   "web_pointer",        "web_key",
-        "web_set_paused",      "web_set_follow",
+        "web_init",                "web_resize",              "web_alloc",
+        "web_free",                "web_load_journal",        "web_set_screen",
+        "web_set_theme",           "web_frame",               "web_instances_ptr",
+        "web_instance_stride",     "web_atlas_ptr",           "web_atlas_size",
+        "web_width",               "web_height",              "web_refusals",
+        "web_capabilities",        "web_append_journal",      "web_set_live",
+        "web_atlas_version",       "web_pointer",             "web_key",
+        "web_set_paused",          "web_set_follow",          "web_run_scenario",
+        "web_scenario_result_ptr", "web_scenario_result_len",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;
@@ -139,6 +140,10 @@ pub fn build(b: *std.Build) void {
     const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "style.css", "shaders/ui.vert.glsl", "shaders/ui.frag.glsl" };
     inline for (web_assets) |asset| {
         const install = b.addInstallFile(b.path("web/" ++ asset), "web/" ++ asset);
+        web_step.dependOn(&install.step);
+    }
+    inline for ([_][]const u8{ "healthy.json", "loss.json", "empty.json", "scheduler-mix.json" }) |name| {
+        const install = b.addInstallFile(b.path("scenarios/" ++ name), "web/scenarios/" ++ name);
         web_step.dependOn(&install.step);
     }
 

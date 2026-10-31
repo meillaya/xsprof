@@ -29,6 +29,9 @@ The P3 web surface is a **read-only replay client**:
 - the replay client now uses the same lab state and rail as native: `L`
   toggles the rail, `K` opens the command palette, and the inspector follows
   the selected task; live capture controls stay native-only;
+- the `run healthy scenario` button loads `scenarios/healthy.json`, runs the
+  same assertions in wasm, and reports PASS or FAIL; no snapshots or host
+  paths are involved;
 - `c` filters by the selected comm, `P` by pid, `k` cycles event kinds, `l`
   toggles loss/refusal rows, and `x` clears the combined filter;
   `?theme=light` selects the paper theme; `1..5` switches screens.
@@ -50,6 +53,7 @@ The P3 web surface is a **read-only replay client**:
 ```sh
 ./tools/zig build web
 ./tools/zig build web-smoke
+node qa/web_lab_smoke.mjs   # optional, requires Node
 ```
 
 `web_smoke` starts a loopback server, checks index/wasm/token behavior, rejects

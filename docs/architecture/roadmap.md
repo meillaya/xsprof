@@ -158,18 +158,16 @@ Status is updated only when a phase gate actually passes.
   labels it notarized. A tag-driven publication run also needs available
   GitHub Actions minutes; the packaging scripts and workflow lint pass
   locally without publishing.
-- **M7 in progress:** [`gui-lab.md`](gui-lab.md) defines the action/reducer model,
-  source and capture controllers, workbench panels, scenario schema, headless
-  `lab` runner, and the L0–L6 delivery sequence. L0+L1 landed with input,
-  hit testing, controls, the reducer, source loading, live feed, and capture
-  worker. L2 added the native lab rail, source buttons, capture controls,
-  transport buttons, and a command palette. L3 adds transport window
-  advancement and the inspector; L4 adds the scenario schema, headless
-  runner, built-in scenarios, and `zig build lab-smoke`. Web parity and the
-  remaining export/compare controls are still open. L5 now uses the lab state
-  and rail in the wasm replay client with native-only capture controls
-  hidden. L3 path editing and trace export are in the native rail. Compare
-  controls and web scenario actions remain.
+- **M7 in progress:** [`gui-lab.md`](gui-lab.md) defines the action/reducer
+  model, source and capture controllers, workbench panels, scenario schema,
+  headless runner, and the L0–L6 sequence. L0/L1 landed input, hit testing,
+  controls, the reducer, source loading, live feed, and the capture worker.
+  L2/L3 added the native rail, palette, source and export path editing,
+  capture controls, transport windows, inspector, and trace export. L4 added
+  scenarios, `xsprof lab`, per-step snapshots, and `lab-smoke`. L5 shares the
+  lab state and rail in wasm, hides native-only controls, and runs the healthy
+  scenario through `web_run_scenario`. Remaining: A/B compare controls, custom
+  web scenario files, and the final M7 sweep.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
