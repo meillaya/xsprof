@@ -551,6 +551,7 @@ fn paintTimeline(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, 
             }
         }
     }
+    try app_util.paintHover(frame, plot_x, rect.y + 20, plot_w, lane_h, lanes, start, end, clip);
     if (session.lost != 0) {
         var buf: [32]u8 = undefined;
         const label = std.fmt.bufPrint(&buf, "LOSS x{d}", .{session.lost}) catch "LOSS";
@@ -579,6 +580,9 @@ fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, cl
         index -= 1;
         const e = session.events[index];
         const y = rect.y + @as(f32, @floatFromInt(row)) * row_h;
+        if (frame.input.inside(rect.x, y, rect.w, row_h)) {
+            try frame.list.rect(rect.x, y, rect.w, row_h - 1, th.raised, clip);
+        }
         row += 1;
         const is_loss = e.kind == .marker and
             (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
