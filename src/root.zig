@@ -15,7 +15,10 @@ pub const journal = @import("stream/journal.zig");
 pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const ttf = @import("ui/ttf.zig");
 pub const ui_frame = @import("ui/frame.zig");
+pub const ui_layout = @import("ui/layout.zig");
+pub const ui_tester = @import("ui/tester.zig");
 pub const demo = @import("app/demo.zig");
+pub const gallery = @import("app/gallery.zig");
 pub const cli = @import("cli/root.zig");
 
 test {
@@ -32,6 +35,9 @@ test {
     _ = chrome_trace;
     _ = ttf;
     _ = ui_frame;
+    _ = ui_layout;
+    _ = ui_tester;
     _ = demo;
+    _ = gallery;
     _ = cli;
 }

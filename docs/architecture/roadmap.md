@@ -6,8 +6,8 @@ Status is updated only when a phase gate actually passes.
 |---|---|---|
 | P0 | Archive C++; pin Zig 0.17; vendor stdlib text; skeleton build/CI; guidance docs | **complete** |
 | P1 | Core event/JSON/privacy/safety; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | **complete** |
-| P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | in progress |
-| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | planned |
+| P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
+| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | next |
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | planned |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | planned |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | planned |
@@ -22,17 +22,19 @@ Status is updated only when a phase gate actually passes.
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
 
-## P2 progress
+## P2 gate (passed)
 
 - Flat instance draw list + R8 glyph atlas.
 - Bundled JetBrains Mono (OFL) with an in-repo TrueType reader: simple and
   composite glyphs, cmap 4/12, scanline coverage, gamma-corrected alpha.
 - CPU reference rasterizer with rounded rects, borders, glyphs, clipping.
 - Dependency-free PNG writer and headless `xsprof snapshot` command.
-- First demo screenshot at 1280x720 renders correctly; 43 tests pass,
-  including font, atlas, raster, PNG, and frame checks.
-- Remaining for P2: flex/slot layout, widget primitives, Tester input/clock,
-  golden snapshot hashes, and Metal/WebGL2 draw-list consumers.
+- Flex/column layout with padding, gap, flex, alignment, clipping, custom
+  paint nodes, and cached per-frame measures.
+- Reusable panel/chip/stat/rule widgets and a layout-driven profiler gallery.
+- `xsui.Tester` with deterministic clock + framebuffer hash + snapshot.
+- Golden framebuffer hash for the 960x540 gallery; 48 tests pass.
+- Native Metal/WebGL2 draw-list consumers remain in P3/P5 by design.
 
 ## P1 gate (passed)
 
