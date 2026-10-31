@@ -13,6 +13,10 @@ pub const Key = enum(u8) {
     kind = 7,
     loss = 8,
     pid = 9,
+    lab = 10,
+    palette = 11,
+    backspace = 12,
+    enter = 13,
 };
 
 pub const Mods = packed struct(u4) {
@@ -48,6 +52,10 @@ pub fn fromWebCode(code: u32) Key {
         6 => .kind,
         7 => .loss,
         8 => .pid,
+        9 => .lab,
+        10 => .palette,
+        11 => .backspace,
+        12 => .enter,
         else => .none,
     };
 }
@@ -107,6 +115,8 @@ test "web key codes stay stable" {
     try std.testing.expectEqual(Key.kind, fromWebCode(6));
     try std.testing.expectEqual(Key.loss, fromWebCode(7));
     try std.testing.expectEqual(Key.pid, fromWebCode(8));
+    try std.testing.expectEqual(Key.lab, fromWebCode(9));
+    try std.testing.expectEqual(Key.palette, fromWebCode(10));
     try std.testing.expectEqual(Key.none, fromWebCode(99));
 }
 

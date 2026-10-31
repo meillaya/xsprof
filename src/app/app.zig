@@ -21,7 +21,17 @@ pub const Selection = app_state.Selection;
 pub const TimelineGeometry = app_state.TimelineGeometry;
 pub const State = app_state.State;
 
+pub const ViewOptions = struct {
+    leading_width: f32 = 0,
+    leading_user: ?*anyopaque = null,
+    leading_build: ?*const fn (?*anyopaque, *layout.Ui) anyerror!void = null,
+};
+
 pub fn view(state: *State, ui: *layout.Ui) !void {
+    return viewWithOptions(state, ui, .{});
+}
+
+pub fn viewWithOptions(state: *State, ui: *layout.Ui, options: ViewOptions) !void {
     state.events.session = state.session;
     state.events.filter = &state.filter;
     handleTimelineInput(state, &ui.frame.input);
@@ -33,6 +43,9 @@ pub fn view(state: *State, ui: *layout.Ui) !void {
         .padding = layout.Edges.all(12),
         .gap = 12,
     });
+    if (options.leading_build) |build| {
+        try build(options.leading_user, ui);
+    }
     switch (state.screen) {
         .overview => try overview(state, ui),
         .timeline => try timeline(state, ui),

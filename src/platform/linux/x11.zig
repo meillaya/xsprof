@@ -9,7 +9,9 @@ const draw = @import("../../ui/draw.zig");
 const frame_mod = @import("../../ui/frame.zig");
 const layout = @import("../../ui/layout.zig");
 const app_mod = @import("../../app/app.zig");
-const gallery = @import("../../app/gallery.zig");
+const lab_state = @import("../../app/lab/state.zig");
+const lab_controller = @import("../../app/lab/controller.zig");
+const lab_view = @import("../../app/lab_view.zig");
 const session_mod = @import("../../stream/session.zig");
 const input_mod = @import("../../ui/input.zig");
 
@@ -168,19 +170,19 @@ const X11 = struct {
 
 pub const App = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     x: X11,
     display: *Display,
     window: Window,
     context: *GLXContext,
     renderer: gl.Renderer,
+    lab: lab_state.LabState,
+    controller: lab_controller.Controller,
     session: ?session_mod.Session = null,
-    screen: app_mod.Screen = .overview,
     light: bool = false,
     wm_delete: Atom,
     input: input_mod.Input = .{},
-    selection: ?app_mod.Selection = null,
-    view_window: ?app_mod.Window = null,
-    timeline: app_mod.TimelineGeometry = .{},
+    dirty: bool = false,
 };
 
 const width: u32 = 1280;
@@ -200,28 +202,32 @@ fn render(self: *App) !void {
     defer frame.deinit();
     var ui = layout.Ui.init(&frame);
     defer ui.deinit();
-    if (self.session) |*session| {
-        var state = app_mod.State{
-            .session = session,
-            .screen = self.screen,
-            .window = self.view_window,
-            .selection = self.selection,
-            .timeline = self.timeline,
-        };
-        frame.input = self.input;
-        try app_mod.view(&state, &ui);
-        self.selection = state.selection;
-        self.view_window = state.window;
-        self.timeline = state.timeline;
-        self.input.clearTransient();
-    } else {
-        try gallery.build(&ui);
-    }
+    frame.input = self.input;
+    try lab_view.build(&self.lab, &ui);
     try ui.finish();
+    const messages = lab_view.collect(&self.lab, &ui, &ui.frame.input);
+    for (messages.slice()) |message| {
+        const effects = self.lab.apply(message) catch continue;
+        self.controller.apply(self.io, &self.lab, effects.slice()) catch {};
+    }
+    self.controller.poll(&self.lab) catch {};
+    self.dirty = messages.len != 0 or self.lab.capture.phase == .running or self.lab.transport.playing;
+    self.input.clearTransient();
     self.renderer.paint(frame.list.items.items, &frame.atlas, width, height, theme.bg);
 }
 
+fn present(self: *App) !void {
+    var passes: usize = 0;
+    while (passes < 3) : (passes += 1) {
+        self.dirty = false;
+        try render(self);
+        self.x.swap_buffers(self.display, self.window);
+        if (!self.dirty) break;
+    }
+}
+
 pub fn run(
+    io: std.Io,
     allocator: std.mem.Allocator,
     session: ?session_mod.Session,
     screen: app_mod.Screen,
@@ -277,28 +283,38 @@ pub fn run(
     var renderer = try gl.Renderer.init();
     defer renderer.deinit();
 
+    var lab = try lab_state.LabState.init(std.heap.smp_allocator);
+    lab.view.screen = screen;
+    if (session != null) {
+        lab.view.session = &session.?;
+        lab.source.phase = .ready;
+    }
     var app = App{
         .allocator = allocator,
+        .io = io,
         .x = x,
         .display = display,
         .window = window,
         .context = context,
         .renderer = renderer,
+        .lab = lab,
+        .controller = lab_controller.Controller.init(std.heap.smp_allocator),
         .session = session,
-        .screen = screen,
         .light = light,
         .wm_delete = wm_delete,
     };
+    defer app.lab.deinit();
+    defer app.controller.deinit();
+    if (app.session != null) app.lab.view.screen = screen;
+    if (app.session != null) app.lab.view.session = &app.session.?;
     if (smoke) {
-        try render(&app);
-        x.swap_buffers(display, window);
+        try present(&app);
         std.debug.print("linux smoke: X11/GLX context and one frame rendered offscreen\n", .{});
         return;
     }
     _ = x.map_window(display, window);
     _ = x.flush(display);
-    try render(&app);
-    x.swap_buffers(display, window);
+    try present(&app);
     while (true) {
         var event: Event = undefined;
         _ = x.next_event(display, &event);
@@ -306,7 +322,7 @@ pub fn run(
             2 => {
                 const sym = x.lookup_keysym(&event.key, 0);
                 if (sym >= '1' and sym <= '5') {
-                    app.screen = @fromBackingInt(@intCast(@as(u8, @intCast(sym)) - '1'));
+                    app.lab.view.screen = @fromBackingInt(@intCast(@as(u8, @intCast(sym)) - '1'));
                 } else if (sym == 't') {
                     app.light = !app.light;
                 } else if (sym == 'c') {
@@ -317,13 +333,20 @@ pub fn run(
                     app.input.key = .kind;
                 } else if (sym == 'l') {
                     app.input.key = .loss;
+                } else if (sym == 'L') {
+                    app.input.key = .lab;
+                } else if (sym == 'K') {
+                    app.input.key = .palette;
+                } else if (sym == 0xff08) {
+                    app.input.key = .backspace;
+                } else if (sym == 0xff0d) {
+                    app.input.key = .enter;
                 } else if (sym == 'x') {
                     app.input.key = .clear;
                 } else if (sym == 'q' or sym == 0xff1b) {
                     break;
                 }
-                try render(&app);
-                x.swap_buffers(display, window);
+                try present(&app);
             },
             4 => {
                 const button = event.button.button;
@@ -335,8 +358,7 @@ pub fn run(
                     app.input.pointer_down = true;
                     app.input.clicked = true;
                 }
-                try render(&app);
-                x.swap_buffers(display, window);
+                try present(&app);
             },
             5 => {
                 app.input.pointer_down = false;
@@ -346,8 +368,7 @@ pub fn run(
                 app.input.pointer_y = @floatFromInt(event.button.y);
             },
             12, 22 => {
-                try render(&app);
-                x.swap_buffers(display, window);
+                try present(&app);
             },
             33 => {
                 if (event.client.data.l[0] == @as(c_long, @intCast(wm_delete))) break;

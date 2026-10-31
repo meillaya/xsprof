@@ -35,10 +35,11 @@ pub const SourceStore = struct {
         io: std.Io,
         path: []const u8,
     ) !*const session_mod.Session {
-        self.clear();
-        const source = try self.arena.allocator().dupe(u8, path);
-        const loaded = try session_mod.Session.load(io, self.arena.allocator(), source);
-        return self.adopt(loaded);
+        var next = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer next.deinit();
+        const source = try next.allocator().dupe(u8, path);
+        const loaded = try session_mod.Session.load(io, next.allocator(), source);
+        return self.install(next, loaded);
     }
 
     pub fn loadRecorder(
@@ -47,19 +48,29 @@ pub const SourceStore = struct {
         dir: []const u8,
         window_ms: u64,
     ) !*const session_mod.Session {
-        self.clear();
-        const data = try extract.extract(io, self.arena.allocator(), .{
+        var next = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer next.deinit();
+        const data = try extract.extract(io, next.allocator(), .{
             .dir = dir,
             .last_ms = window_ms,
         });
-        const source = try std.fmt.allocPrint(self.arena.allocator(), "{s} window={d}ms", .{ dir, window_ms });
-        const loaded = try session_mod.Session.fromData(self.arena.allocator(), source, data);
-        return self.adopt(loaded);
+        const source = try std.fmt.allocPrint(next.allocator(), "{s} window={d}ms", .{ dir, window_ms });
+        const loaded = try session_mod.Session.fromData(next.allocator(), source, data);
+        return self.install(next, loaded);
     }
 
-    fn adopt(self: *SourceStore, loaded: session_mod.Session) !*const session_mod.Session {
+    /// Only replaces the visible session after the new one has loaded. A
+    /// failed load leaves the previous session and its view pointer intact.
+    fn install(
+        self: *SourceStore,
+        next: std.heap.ArenaAllocator,
+        loaded: session_mod.Session,
+    ) !*const session_mod.Session {
         const session = try self.allocator.create(session_mod.Session);
         session.* = loaded;
+        self.clear();
+        self.arena.deinit();
+        self.arena = next;
         self.session = session;
         return session;
     }
@@ -77,5 +88,5 @@ test "source store replaces sessions and fails closed" {
         error.JournalUnreadable,
         store.loadReplay(std.testing.io, "fixtures/ui/does-not-exist.ndjson"),
     );
-    try std.testing.expect(store.current() == null);
+    try std.testing.expect(store.current() == session);
 }

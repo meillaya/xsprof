@@ -1,6 +1,7 @@
 # GUI lab plan
 
-Status: proposed. This document plans the work; it does not implement a lab.
+Status: in progress. L0 and L1 are implemented; L2 has the native lab rail,
+source buttons, capture controls, transport buttons, and command palette.
 
 ## Goal
 

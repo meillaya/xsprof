@@ -18,7 +18,7 @@ Status is updated only when a phase gate actually passes.
 | M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
 | M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
-| M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **planned** |
+| M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **in progress** |
 
 ## P7 gate (passed)
 
@@ -158,9 +158,12 @@ Status is updated only when a phase gate actually passes.
   labels it notarized. A tag-driven publication run also needs available
   GitHub Actions minutes; the packaging scripts and workflow lint pass
   locally without publishing.
-- **M7 planned:** [`gui-lab.md`](gui-lab.md) defines the action/reducer model,
+- **M7 in progress:** [`gui-lab.md`](gui-lab.md) defines the action/reducer model,
   source and capture controllers, workbench panels, scenario schema, headless
-  `lab` runner, and the L0–L6 delivery sequence.
+  `lab` runner, and the L0–L6 delivery sequence. L0+L1 landed with input,
+  hit testing, controls, the reducer, source loading, live feed, and capture
+  worker. L2 adds the native lab rail, source buttons, capture controls,
+  transport buttons, and a command palette.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture
