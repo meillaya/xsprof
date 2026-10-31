@@ -5,7 +5,7 @@ scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
 Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
 dense operator UI on the GPU.
 
-**Status: active rewrite; P4 live capture, SSE, and browser updates are validated in a VM.** The historical C++ implementation is
+**Status: P0–P7 complete. The full rewrite builds on Zig 0.17.0 with web, native macOS, and native Linux surfaces; the Linux live path and VM-only BPF gate are validated in a disposable VM.** The historical C++ implementation is
 preserved on the local branch `archive/cpp-0.1.0` and tag `cpp-0.1.0`. The
 archived deterministic simulator under `simulator/` is excluded from this
 build and is not modified by the rewrite.
@@ -25,10 +25,12 @@ build and is not modified by the rewrite.
 
 - Zig 0.17.0. `./tools/zig` downloads the verified host toolchain on first use.
 - macOS 15+ or Linux 5.10+.
-- Native macOS UI additionally needs the Xcode SDK (Metal framework).
-- No C compiler, Python, npm, or third-party runtime libraries are required by
-  the build or the shipped binary. Python is used only to regenerate the
-  vendored Zig reference text.
+- Native macOS UI additionally needs the Xcode SDK (AppKit/Metal frameworks).
+- Native Linux UI needs glibc, X11, and OpenGL/GLX at runtime; they are loaded
+  with `dlopen`, not linked at build time.
+- No C compiler, Python, npm, or third-party build dependency is required for
+  the shipped binary. Python is only used to regenerate vendored Zig text;
+  headless browser screenshots use a developer-installed Playwright.
 
 ## Build
 
@@ -54,10 +56,14 @@ xsprof capabilities --json
 xsprof advise --json|--md
 xsprof timeline --input journal.jsonl [--window start:end] [--chunk-size N]
 xsprof record --duration ms [--output journal.jsonl]
-xsprof serve [--journal journal.jsonl]
+xsprof serve [--journal journal.jsonl] [--live]
 xsprof snapshot [--replay journal.jsonl]
-xsprof ui [--replay journal.jsonl]
+xsprof ui [--replay journal.jsonl] [--view overview|timeline|advisor|events|capture]
+xsprof bpf-gate --json
 ```
+
+Native Linux builds use `-Dtarget=<arch>-linux-gnu` for the window path; the
+static-musl CLI still works but cannot `dlopen` system X11/GL.
 
 The web replay client is served read-only over loopback:
 
@@ -66,8 +72,8 @@ The web replay client is served read-only over loopback:
 ./zig-out/bin/xsprof serve --journal fixtures/ui/healthy.ndjson
 ```
 
-Commands marked known but not yet implemented exit 2 with a clear message until
-their phase lands. Unknown commands fail closed with a refusal record.
+Unknown commands fail closed with a refusal record. The unsafe `bpf` verb is
+always refused; `bpf-gate` is the VM-marker-gated read-only lane.
 
 ## Layout
 

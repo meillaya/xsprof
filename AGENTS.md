@@ -78,7 +78,8 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P6 is complete: native Linux X11/GLX surface, Xvfb smoke, mapped-window
-screenshot, and dynamic-glibc packaging notes. P7 is the VM-marker-gated BPF
-`dlopen` lane, the final safety/privacy/golden sweep, and release docs. Update
-the roadmap when a gate passes.
+P0–P7 are complete. Maintenance work must keep the read-only safety invariants,
+the P0–P7 gates, and the 600-line limit green. Native macOS/Linux windows are
+explicitly human-run; automated work uses snapshots, Metal offscreen parity,
+Xvfb smoke, and hidden-window smoke. Re-run `zig build check` and
+`qa/cli_parity.sh` after any behavior change.

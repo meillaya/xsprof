@@ -16,6 +16,7 @@ pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const session = @import("stream/session.zig");
 pub const serve = @import("serve/server.zig");
 pub const live = @import("capture/live.zig");
+pub const bpf = @import("capture/bpf.zig");
 pub const ttf = @import("ui/ttf.zig");
 pub const ui_frame = @import("ui/frame.zig");
 pub const ui_layout = @import("ui/layout.zig");

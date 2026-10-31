@@ -11,5 +11,5 @@ if [ ! -x "$BIN" ]; then
     echo "xvfb_smoke: SKIP (binary missing: $BIN)"
     exit 0
 fi
-xvfb-run -a -s "-screen 0 1280x720x24" "$BIN" ui --smoke
+xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" "$BIN" ui --smoke
 echo "xvfb_smoke: PASS"

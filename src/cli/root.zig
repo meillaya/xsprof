@@ -15,6 +15,7 @@ const session_mod = @import("../stream/session.zig");
 const live = @import("../capture/live.zig");
 const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
+const bpf_cmd = @import("bpf_cmd.zig");
 
 const Writer = std.Io.Writer;
 
@@ -29,6 +30,7 @@ const known_commands = [_][]const u8{
     "serve",
     "snapshot",
     "ui",
+    "bpf-gate",
 };
 
 const refusal_reason =
@@ -53,6 +55,7 @@ fn writeHelp(w: *Writer) Writer.Error!void {
         \\  serve [--journal <f>]   Read-only local web frontend
         \\  snapshot [--replay <f>] Headless PNG snapshot of the profiler UI
         \\  ui [--replay <f>]       Native profiler UI
+        \\  bpf-gate --json         VM-marker-gated no-op BPF gate
         \\  version                 Print version
         \\  help                    Print this help
         \\
@@ -412,6 +415,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "ui")) {
         return render_cmd.cmdUi(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "bpf-gate")) {
+        return bpf_cmd.cmdBpf(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

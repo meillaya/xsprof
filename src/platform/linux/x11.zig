@@ -100,6 +100,7 @@ const X11 = struct {
     set_wm_protocols: *const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int,
     destroy_window: *const fn (*Display, Window) callconv(.c) c_int,
     flush: *const fn (*Display) callconv(.c) c_int,
+    query_extension: *const fn (*Display, [*:0]const u8, *c_int, *c_int, *c_int) callconv(.c) c_int,
     free: *const fn (?*anyopaque) callconv(.c) void,
     choose_visual: *const fn (*Display, c_int, [*]c_int) callconv(.c) ?*VisualInfo,
     create_context: *const fn (*Display, *VisualInfo, ?*GLXContext, c_int) callconv(.c) ?*GLXContext,
@@ -130,6 +131,7 @@ const X11 = struct {
             .set_wm_protocols = lib.lookup(*const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int, "XSetWMProtocols") orelse return error.NoX11,
             .destroy_window = lib.lookup(*const fn (*Display, Window) callconv(.c) c_int, "XDestroyWindow") orelse return error.NoX11,
             .flush = lib.lookup(*const fn (*Display) callconv(.c) c_int, "XFlush") orelse return error.NoX11,
+            .query_extension = lib.lookup(*const fn (*Display, [*:0]const u8, *c_int, *c_int, *c_int) callconv(.c) c_int, "XQueryExtension") orelse return error.NoX11,
             .free = lib.lookup(*const fn (?*anyopaque) callconv(.c) void, "XFree") orelse return error.NoX11,
             .choose_visual = gl_lib.lookup(*const fn (*Display, c_int, [*]c_int) callconv(.c) ?*VisualInfo, "glXChooseVisual") orelse return error.NoGLX,
             .create_context = gl_lib.lookup(*const fn (*Display, *VisualInfo, ?*GLXContext, c_int) callconv(.c) ?*GLXContext, "glXCreateContext") orelse return error.NoGLX,
@@ -198,8 +200,15 @@ pub fn run(
     const display = x.open(null) orelse return error.NoDisplay;
     defer _ = x.close(display);
     const screen_num = x.default_screen(display);
+    var glx_opcode: c_int = 0;
+    var glx_event: c_int = 0;
+    var glx_error: c_int = 0;
+    if (x.query_extension(display, "GLX", &glx_opcode, &glx_event, &glx_error) == 0)
+        return error.NoGLXExtension;
     var visual_attrs = [_]c_int{ 4, 1, 5, 1, 8, 8, 9, 8, 10, 8, 11, 8, 12, 0 };
-    const visual_info = x.choose_visual(display, screen_num, &visual_attrs) orelse return error.NoVisual;
+    var simple_attrs = [_]c_int{ 4, 1, 5, 1, 0 };
+    const visual_info = x.choose_visual(display, screen_num, &visual_attrs) orelse
+        x.choose_visual(display, screen_num, &simple_attrs) orelse return error.NoVisual;
     defer x.free(visual_info);
     const root = x.root_window(display, screen_num);
     const colormap = x.create_colormap(display, root, visual_info.visual, 0);

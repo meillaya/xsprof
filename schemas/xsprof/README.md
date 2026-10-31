@@ -16,3 +16,5 @@ on `archive/cpp-0.1.0` and are not served by this rewrite.
 
 Key ordering is lexical and compact; required fields are validated at the
 boundary, and every record carries `host_mutation=false`.
+
+- `bpf-gate.v1.schema.json` — VM-marker-gated no-op BPF load/attach result.
