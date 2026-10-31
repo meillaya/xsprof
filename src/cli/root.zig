@@ -8,7 +8,8 @@ const advisor = @import("../analyze/advisor.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
 const ui_frame = @import("../ui/frame.zig");
-const demo = @import("../app/demo.zig");
+const gallery = @import("../app/gallery.zig");
+const ui_layout = @import("../ui/layout.zig");
 
 const Writer = std.Io.Writer;
 
@@ -300,8 +301,14 @@ fn cmdSnapshot(
         return 1;
     };
     defer frame.deinit();
-    demo.build(&frame) catch {
-        try err.writeAll("snapshot: cannot build demo frame\n");
+    var ui = ui_layout.Ui.init(&frame);
+    defer ui.deinit();
+    gallery.build(&ui) catch {
+        try err.writeAll("snapshot: cannot build gallery frame\n");
+        return 1;
+    };
+    ui.finish() catch {
+        try err.writeAll("snapshot: cannot finish gallery layout\n");
         return 1;
     };
     frame.savePng(io, path) catch |save_error| {
