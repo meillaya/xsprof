@@ -21,3 +21,6 @@ Playwright headless Chromium.
 `p4-live-web.png` is a headless Chromium capture of `serve --live` inside the
 disposable Linux VM: LIVE capability READY, real perf events, downsampled loss
 markers, and browser-side incremental rendering.
+
+`p6-linux.png` is a native X11/OpenGL frame rendered under Xvfb from the
+healthy replay fixture (no browser, no window manager).

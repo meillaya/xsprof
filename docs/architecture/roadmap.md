@@ -10,8 +10,8 @@ Status is updated only when a phase gate actually passes.
 | P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | **complete** |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
-| P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | next |
-| P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | planned |
+| P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | **complete** |
+| P7 | VM-only BPF `dlopen` gate, final safety/privacy/golden sweep, docs | next |
 
 ## P0 gate (passed)
 
@@ -21,6 +21,16 @@ Status is updated only when a phase gate actually passes.
 - `./tools/zig build check` green on macOS: fmt, 600-line limit, vendor hashes,
   9 unit tests.
 - No C++ build files on `main`; `simulator/` untouched.
+
+## P6 gate (passed)
+
+- Native X11 `NSWindow`-equivalent surface with a GLX OpenGL 3.3 context;
+  X11/GL loaded through `std.DynLib`, no build-time GUI dependency.
+- One instanced draw over the shared `draw.Instance` list; R8 atlas upload;
+  keyboard screens/theme/quit and `WM_DELETE_WINDOW`.
+- Headless Xvfb smoke renders one frame without mapping the window; a mapped
+  window screenshot is committed at `docs/ui/screenshots/p6-linux.png`.
+- Dynamic-glibc packaging target documented; static-musl CLI remains supported.
 
 ## P5 gate (passed)
 
