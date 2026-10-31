@@ -44,6 +44,7 @@ visible.
 ## Limits
 
 - Fixed 1280×720 at 1× scale; no resize/Retina equivalent yet.
-- No accessibility tree or pointer hit-testing; keyboard navigation only.
+- Pointer click, scroll, and motion events feed the shared UI input. No
+  accessibility tree yet.
 - Native live streaming remains web-only; replay/gallery are native.
 - No packaging artifact yet beyond the `zig-out` install tree.

@@ -135,6 +135,8 @@ const view_methods = [_]objc.Method{
     .{ .name = "isFlipped", .imp = &isFlipped, .types = "c@:" },
     .{ .name = "keyDown:", .imp = &keyDown, .types = "v@:@" },
     .{ .name = "mouseDown:", .imp = &mouseDown, .types = "v@:@" },
+    .{ .name = "mouseUp:", .imp = &mouseUp, .types = "v@:@" },
+    .{ .name = "scrollWheel:", .imp = &scrollWheel, .types = "v@:@" },
 };
 
 const delegate_methods = [_]objc.Method{
@@ -156,8 +158,36 @@ fn tick(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
     if (self.render()) self.dirty = false;
 }
 
-fn mouseDown(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
+fn localPoint(target: objc.Object, event: objc.Object) objc.CGPoint {
+    const window_point = objc.msg(objc.CGPoint, event, "locationInWindow", .{});
+    return objc.msg(objc.CGPoint, target, "convertPoint:fromView:", .{
+        window_point,
+        @as(?objc.Object, null),
+    });
+}
+
+fn mouseDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
     const self = objc.getZig(App, target) orelse return;
+    const point = localPoint(target, event);
+    self.input.pointer_x = @floatCast(point.x);
+    self.input.pointer_y = @floatCast(point.y);
+    self.input.pointer_down = true;
+    self.input.clicked = true;
+    self.dirty = true;
+}
+
+fn mouseUp(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
+    const self = objc.getZig(App, target) orelse return;
+    self.input.pointer_down = false;
+    self.dirty = true;
+}
+
+fn scrollWheel(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
+    const self = objc.getZig(App, target) orelse return;
+    const point = localPoint(target, event);
+    self.input.pointer_x = @floatCast(point.x);
+    self.input.pointer_y = @floatCast(point.y);
+    self.input.scroll_y = @floatCast(objc.msg(f64, event, "scrollingDeltaY", .{}));
     self.dirty = true;
 }
 
