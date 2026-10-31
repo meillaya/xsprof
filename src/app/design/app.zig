@@ -508,6 +508,24 @@ pub const App = struct {
                 302 => self.fitTimeline(),
                 303 => self.state.timeline_playing = !self.state.timeline_playing,
                 304 => self.setScreen(.advisor),
+                305 => {
+                    const vw: f32 = @floatFromInt(self.viewport_w);
+                    const stage_x: f32 = if (vw <= 1024) 0 else 92;
+                    const pad: f32 = if (vw <= 780) 14 else 24;
+                    const head_y = 52 + (if (vw <= 780) @as(f32, 14) else 16);
+                    const plot_y = head_y + 53.75 + 12;
+                    const foot_y = plot_y + 338 + 8 + 15.75 + 12;
+                    const mini_x = stage_x + pad;
+                    const ratio = std.math.clamp((x - mini_x) / 300.0, 0, 1);
+                    const start = self.state.viewStart(self.model.summary.windowMs);
+                    const span = @max(300.0, self.state.viewEnd(self.model.summary.windowMs) - start);
+                    const center = @as(f64, @floatCast(ratio)) * self.model.summary.windowMs;
+                    var next_start = center - span * 0.5;
+                    next_start = std.math.clamp(next_start, 0, @max(0, self.model.summary.windowMs - span));
+                    self.state.timeline_start = next_start;
+                    self.state.timeline_end = @min(self.model.summary.windowMs, next_start + span);
+                    _ = foot_y;
+                },
                 400, 401, 402, 403, 404 => self.state.advisor_filter = @fromBackingInt(@intCast(id - 400)),
                 520 => {
                     self.state.events_filter_focused = true;
