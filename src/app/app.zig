@@ -54,6 +54,11 @@ pub const State = struct {
     window: ?Window = null,
     selection: ?Selection = null,
     timeline: TimelineGeometry = .{},
+    live_paused: bool = false,
+    live_follow: bool = true,
+    event_scroll: usize = 0,
+    events_rect: layout.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
+    events_visible: usize = 0,
 };
 
 pub fn view(state: *State, ui: *layout.Ui) !void {
@@ -78,6 +83,16 @@ pub fn view(state: *State, ui: *layout.Ui) !void {
 }
 
 fn handleTimelineInput(state: *State, input: *input_mod.Input) void {
+    if (state.screen == .events and state.events_visible != 0 and
+        input.scroll_y != 0 and
+        input.inside(state.events_rect.x, state.events_rect.y, state.events_rect.w, state.events_rect.h))
+    {
+        const max_scroll = state.session.events.len -| state.events_visible;
+        const step: usize = if (input.scroll_y > 0) 3 else 0;
+        state.event_scroll = @min(max_scroll, state.event_scroll + step);
+        if (input.scroll_y < 0) state.event_scroll -|= 3;
+        input.scroll_y = 0;
+    }
     if (input.key == .zero) {
         state.window = null;
         state.selection = null;
@@ -174,6 +189,13 @@ fn header(state: *State, ui: *layout.Ui) !void {
     const live = std.mem.startsWith(u8, state.session.source, "live");
     var source = try widgets.chip(ui, if (live) "LIVE" else "REPLAY", if (live) th.live else th.pending);
     source.end();
+    if (state.live_paused) {
+        var paused = try widgets.chip(ui, "PAUSED", th.skip);
+        paused.end();
+    } else if (live and !state.live_follow) {
+        var hold = try widgets.chip(ui, "HOLD", th.skip);
+        hold.end();
+    }
     var ro = try widgets.chip(ui, "READ-ONLY", th.pass);
     ro.end();
     var mut = try widgets.chip(ui, "host_mutation=false", th.muted);
@@ -524,16 +546,21 @@ fn palette(th: draw.Theme, comm: []const u8) draw.Color {
 }
 
 fn paintEvents(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4]f32) !void {
-    const state: *const State = @ptrCast(@alignCast(user.?));
+    const state: *State = @ptrCast(@alignCast(user.?));
     const session = state.session;
     const th = frame.theme;
     const row_h = 22.0;
     const visible: usize = @intFromFloat(@max(0, rect.h) / row_h);
     if (visible == 0) return;
+    state.events_rect = rect;
+    state.events_visible = visible;
     const total = session.events.len;
-    const start = if (total > visible) total - visible else 0;
+    const max_scroll = total -| visible;
+    state.event_scroll = @min(state.event_scroll, max_scroll);
+    const first = total -| (visible + state.event_scroll);
+    const start = first;
     var row: usize = 0;
-    var index = total;
+    var index = total - state.event_scroll;
     while (index > start) {
         index -= 1;
         const e = session.events[index];

@@ -12,6 +12,10 @@ const encoder = new TextEncoder();
 let exports = null;
 let renderer = null;
 let live = false;
+let paused = false;
+let follow = true;
+let liveSource = null;
+const fileInput = document.getElementById("file");
 
 function fail(message) {
   errorBox.hidden = false;
@@ -80,8 +84,52 @@ async function boot() {
 
   if (live) startLive();
 
+  function stopLive() {
+    if (liveSource) {
+      liveSource.close();
+      liveSource = null;
+    }
+    live = false;
+    exports.web_set_live(0);
+    exports.web_set_paused(0);
+    exports.web_set_follow(1);
+    paused = false;
+    follow = true;
+  }
+
+  async function reloadLive() {
+    const response = await fetch(api("/api/journal"));
+    if (!response.ok) return;
+    loadJournalText(await response.text(), false);
+    frame();
+  }
+
+  function setPaused(value) {
+    paused = value;
+    exports.web_set_paused(paused ? 1 : 0);
+    if (!paused) follow = true, exports.web_set_follow(1), reloadLive();
+    frame();
+  }
+
+  async function openFile(file) {
+    if (!file) return;
+    stopLive();
+    const text = await file.text();
+    loadJournalText(text, true);
+    exports.web_set_screen(screen);
+    frame();
+  }
+
+  fileInput.addEventListener("change", () => openFile(fileInput.files[0]));
+  window.addEventListener("dragover", (event) => event.preventDefault());
+  window.addEventListener("drop", (event) => {
+    event.preventDefault();
+    openFile(event.dataTransfer.files[0]);
+  });
+
   function startLive() {
     const source = new EventSource(api("/api/events"));
+    liveSource = source;
     let pending = "";
     let timer = 0;
     function scheduleFlush() {
@@ -101,6 +149,7 @@ async function boot() {
       frame();
     }
     source.onmessage = (event) => {
+      if (paused || !follow) return;
       pending += event.data + "\n";
       scheduleFlush();
     };
@@ -151,6 +200,21 @@ async function boot() {
       screen = Number(event.key) - 1;
       exports.web_set_screen(screen);
       frame();
+      return;
+    }
+    if (event.key === "p" && live) {
+      setPaused(!paused);
+      return;
+    }
+    if (event.key === "f" && live) {
+      follow = !follow;
+      exports.web_set_follow(follow ? 1 : 0);
+      if (follow) reloadLive();
+      frame();
+      return;
+    }
+    if (event.key === "o") {
+      fileInput.click();
       return;
     }
     let key = 255;

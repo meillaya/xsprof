@@ -19,6 +19,10 @@ The P3 web surface is a **read-only replay client**:
 - The browser appends only new NDJSON lines through a stable block store and
   an incremental session index; it no longer reparses the full journal.
 - `?screen=0..4` selects Overview/Timeline/Advisor/Events/Capture;
+- `p` pauses live updates, `f` toggles follow-tail, `o` opens a local
+  `.ndjson`/`.jsonl`/`.json` capture, and `0` resets the timeline window;
+- drag/drop a capture anywhere on the page to load it locally; nothing is
+  uploaded;
   `?theme=light` selects the paper theme; `1..5` switches screens.
 - `/api/meta` is `xsprof/ui-session/v1` with `host_mutation=false` and an event
   count.

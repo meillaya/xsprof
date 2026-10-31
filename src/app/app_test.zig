@@ -110,3 +110,33 @@ test "timeline click selects a slice" {
     try std.testing.expect(state.selection != null);
     try std.testing.expectEqual(slice.pid, state.selection.?.pid);
 }
+
+// Checks that wheel input over the event ledger advances the scroll window.
+test "event ledger wheel scrolls" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try session_mod.Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/healthy.ndjson",
+    );
+    var state = State{ .session = &session, .screen = .events };
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(arena.allocator(), 960, 540, .{});
+    defer frame.deinit();
+
+    var first = layout.Ui.init(&frame);
+    defer first.deinit();
+    try view(&state, &first);
+    try first.finish();
+    try std.testing.expect(state.events_visible > 0);
+
+    frame.input.pointer_x = state.events_rect.x + 10;
+    frame.input.pointer_y = state.events_rect.y + 10;
+    frame.input.scroll_y = 1;
+    var second = layout.Ui.init(&frame);
+    defer second.deinit();
+    try view(&state, &second);
+    try second.finish();
+    try std.testing.expect(state.event_scroll > 0);
+}
