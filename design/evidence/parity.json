@@ -1,33 +1,33 @@
 {
   "screens": {
     "advisor": {
-      "mean_abs_channel_error": 6.4529,
-      "over16_pct": 6.947,
-      "over24_pct": 5.86,
+      "mean_abs_channel_error": 5.6728,
+      "over16_pct": 6.592,
+      "over24_pct": 5.505,
       "pixels": 1296000
     },
     "capture": {
-      "mean_abs_channel_error": 7.9801,
-      "over16_pct": 12.03,
-      "over24_pct": 5.707,
+      "mean_abs_channel_error": 7.2002,
+      "over16_pct": 11.675,
+      "over24_pct": 5.352,
       "pixels": 1296000
     },
     "events": {
-      "mean_abs_channel_error": 5.0855,
-      "over16_pct": 5.667,
-      "over24_pct": 4.317,
+      "mean_abs_channel_error": 4.3056,
+      "over16_pct": 5.312,
+      "over24_pct": 3.962,
       "pixels": 1296000
     },
     "overview": {
-      "mean_abs_channel_error": 4.1354,
-      "over16_pct": 5.047,
-      "over24_pct": 3.6,
+      "mean_abs_channel_error": 3.6811,
+      "over16_pct": 4.924,
+      "over24_pct": 3.47,
       "pixels": 1296000
     },
     "timeline": {
-      "mean_abs_channel_error": 6.0385,
-      "over16_pct": 6.753,
-      "over24_pct": 5.539,
+      "mean_abs_channel_error": 5.2586,
+      "over16_pct": 6.398,
+      "over24_pct": 5.184,
       "pixels": 1296000
     }
   },
@@ -37,39 +37,39 @@
   },
   "themes": {
     "dark": {
-      "mean_abs_channel_error": 4.2158,
-      "over16_pct": 5.155,
-      "over24_pct": 3.695,
+      "mean_abs_channel_error": 3.7963,
+      "over16_pct": 5.057,
+      "over24_pct": 3.589,
       "pixels": 1296000
     },
     "frappe": {
-      "mean_abs_channel_error": 3.7962,
-      "over16_pct": 5.295,
-      "over24_pct": 3.954,
+      "mean_abs_channel_error": 3.4933,
+      "over16_pct": 5.186,
+      "over24_pct": 3.839,
       "pixels": 1296000
     },
     "latte": {
-      "mean_abs_channel_error": 4.1105,
-      "over16_pct": 5.84,
-      "over24_pct": 4.869,
+      "mean_abs_channel_error": 3.8766,
+      "over16_pct": 5.732,
+      "over24_pct": 4.753,
       "pixels": 1296000
     },
     "macchiato": {
-      "mean_abs_channel_error": 4.106,
-      "over16_pct": 5.486,
-      "over24_pct": 4.256,
+      "mean_abs_channel_error": 3.7776,
+      "over16_pct": 5.378,
+      "over24_pct": 4.141,
       "pixels": 1296000
     },
     "mocha": {
-      "mean_abs_channel_error": 4.3341,
-      "over16_pct": 5.594,
-      "over24_pct": 4.307,
+      "mean_abs_channel_error": 3.9894,
+      "over16_pct": 5.488,
+      "over24_pct": 4.194,
       "pixels": 1296000
     },
     "paper": {
-      "mean_abs_channel_error": 4.4474,
-      "over16_pct": 6.198,
-      "over24_pct": 5.152,
+      "mean_abs_channel_error": 4.2334,
+      "over16_pct": 6.091,
+      "over24_pct": 5.039,
       "pixels": 1296000
     }
   }

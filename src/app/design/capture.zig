@@ -32,7 +32,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     eyebrow.tracking = 1.47;
     try label(canvas, x, y, "READ-ONLY STATUS  ·  NO MUTATION CONTROLS", eyebrow);
     var h1 = style(common.text_13, th.text, .bold);
-    h1.size = 20;
+    h1.size = if (width <= 780) 18 else 20;
     h1.line_height = 1.1;
     h1.tracking = -0.4;
     try label(canvas, x, y + 18.75, "Capture", h1);

@@ -36,7 +36,7 @@ the reference diff so design drift stays visible.
 | `screenshots/diff/` | Amplified advisory reference/program difference images |
 | `parity.json` | Advisory reference metrics (MAE, >16, >24) |
 | `cross_surface.json` | Formal CPU vs WebGL2 vs Metal gate report |
-| `interactions.json` | Clipboard and brush interaction gate |
+| `interactions.json` | Clipboard, brush, focus-trap, and skip-link gate |
 | `../media/xsprof-ui-demo.mp4` | Short headless boot/use recording (H.264) |
 
 ## Method
@@ -88,8 +88,10 @@ use OS screen recording. That path is deliberately outside automated work.
 
 ## Remaining work
 
-The formal contract and cross-surface gate are green. The 1024/780/420 shell,
-compact topbar, one-column Overview/Capture/Advisor modes, stacked
-Events/Timeline, clipboard requests, and brush zoom are wired. Remaining
-polish: mobile ledger/thread rows, the complete focus-return model, and native
-Linux clipboard selection. The reference diff remains advisory.
+The formal contract, cross-surface gate, and interaction gate are green.
+Responsive shell/one-column modes, mobile ledger/thread rows, phone theme grid,
+focus traversal/trapping/return, skip-link focus, clipboard requests on
+web/macOS/X11, and brush zoom are wired. Remaining platform polish: the native
+Linux open-journal picker; the X11 clipboard path is compile-verified but not
+exercised because this host has no Xvfb/xclip. The reference diff remains
+advisory.

@@ -9,5 +9,11 @@
     "band_visible": true,
     "zoom_changed": true
   },
+  "focus": {
+    "pass": true,
+    "skip_first": true,
+    "canvas_focused": true,
+    "ring_visible": true
+  },
   "pass": true
 }

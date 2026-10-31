@@ -169,7 +169,8 @@ fn drawStatCard(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect, i: 
         else => if (model.summary.runqueue) |rq| std.fmt.bufPrint(&sub_buf, "runqueue {d:.1} peak", .{rq}) catch "" else "runqueue not sampled",
     };
     var value_style = style(text_13, if (i == 3 and model.summary.lost > 0) th.refuse else th.text, .bold);
-    value_style.size = if (i == 0) 34 else 27;
+    const phone = rect.w < 250;
+    value_style.size = if (i == 0) (if (phone) 28 else 34) else (if (phone) 22 else 27);
     value_style.line_height = 1.05;
     value_style.tracking = -0.8;
     var label_style = style(text_105, th.dim, .regular);
@@ -310,28 +311,46 @@ fn drawSecondaryGrid(model: *const Model, canvas: *Canvas, th: Theme, x: f32, y:
     const gap = 12.0;
     const wide = w >= 1200;
     if (w < 900) {
-        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = w, .h = 264.25 });
+        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = w, .h = 264.25 }, true);
         try drawMix(model, canvas, th, .{ .x = x, .y = y + 264.25 + gap, .w = w, .h = 264.25 });
         try drawMemory(model, canvas, th, .{ .x = x, .y = y + (264.25 + gap) * 2, .w = w, .h = 264.25 });
         return;
     }
     if (wide) {
         const panel_w = (w - gap * 2) / 3;
-        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = panel_w, .h = 264.25 });
+        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = panel_w, .h = 264.25 }, false);
         try drawMix(model, canvas, th, .{ .x = x + panel_w + gap, .y = y, .w = panel_w, .h = 264.25 });
         try drawMemory(model, canvas, th, .{ .x = x + (panel_w + gap) * 2, .y = y, .w = panel_w, .h = 264.25 });
     } else {
         const panel_w = (w - gap) / 2;
-        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = panel_w, .h = 264.25 });
+        try drawThreads(model, canvas, th, .{ .x = x, .y = y, .w = panel_w, .h = 264.25 }, false);
         try drawMix(model, canvas, th, .{ .x = x + panel_w + gap, .y = y, .w = panel_w, .h = 264.25 });
         try drawMemory(model, canvas, th, .{ .x = x, .y = y + 264.25 + gap, .w = w, .h = 210.92 });
     }
     _ = h;
 }
 
-fn drawThreads(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
+fn drawThreads(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect, compact: bool) !void {
     try panelBase(canvas, th, rect);
     try panelHead(canvas, th, rect, "04", "TOP THREADS", "by p95 wake→run");
+    if (compact) {
+        var row_y = rect.y + 37;
+        for (model.threads[0..@min(model.threads.len, 4)]) |thread| {
+            try canvas.fill(.{ .x = rect.x + 14, .y = row_y + 7, .w = 2, .h = 13 }, th.lane(thread.lane));
+            try label(canvas, rect.x + 22, row_y + 5, thread.comm, style(text_12, th.text, .regular));
+            var p95_buf: [32]u8 = undefined;
+            const p95_text = if (thread.p95) |p| std.fmt.bufPrint(&p95_buf, "{d:.2} ms", .{p}) catch "—" else "—";
+            try labelRight(canvas, rect.x + rect.w - 14, row_y + 5, p95_text, style(text_11, if ((thread.p95 orelse 0) > 2) th.skip else th.text, .regular));
+            var meta_buf: [96]u8 = undefined;
+            const meta = std.fmt.bufPrint(&meta_buf, "pid {d} · {d} sw · {d} mig", .{ thread.pid, thread.switches, thread.migrations }) catch "";
+            try label(canvas, rect.x + 22, row_y + 23, meta, style(text_10, th.faint, .regular));
+            try canvas.fill(.{ .x = rect.x + 14, .y = row_y + 43, .w = rect.w - 28, .h = 3 }, th.line);
+            try canvas.fill(.{ .x = rect.x + 14, .y = row_y + 43, .w = (rect.w - 28) * @as(f32, @floatCast(@min(1.0, thread.share / 20.0))), .h = 3 }, th.live);
+            try borderLine(canvas, rect.x + 1, row_y + 55, rect.w - 2, th.line);
+            row_y += 55;
+        }
+        return;
+    }
     const gap = 6.0;
     const fixed = [_]f32{ 46, 52, 48, 66, 44 };
     const inner_w = rect.w - 28;

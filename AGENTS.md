@@ -101,4 +101,5 @@ retired; `xsprof lab` remains a headless scenario/QA tool. Re-run
 evidence is developer-only under `design/evidence/` (`qa/ui_evidence.sh`).
 `design/ui-spec.json` is the formal runtime contract; CPU is canonical and
 `qa/ui_cross_surface.py` gates Metal/WebGL2 against it. Reference diffs are
-advisory, not acceptance criteria.
+advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
+covered by `qa/ui_interactions.cjs`.

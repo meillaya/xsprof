@@ -30,7 +30,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     eyebrow.tracking = 1.47;
     try label(canvas, x, y, "APPEND-ONLY LEDGER  ·  SANITIZED", eyebrow);
     var h1 = style(common.text_13, th.text, .bold);
-    h1.size = 20;
+    h1.size = if (width <= 780) 18 else 20;
     h1.line_height = 1.1;
     h1.tracking = -0.4;
     try label(canvas, x, y + 18.75, "Events", h1);
@@ -99,6 +99,10 @@ fn typeChip(canvas: *Canvas, th: Theme, x: *f32, y: f32, text_value: []const u8,
 
 fn drawLedger(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
+    if (rect.w < 800) {
+        try drawLedgerCompact(model, state, canvas, th, rect);
+        return;
+    }
     try canvas.fill(.{ .x = rect.x + 1, .y = rect.y + 1, .w = rect.w - 2, .h = 31 }, th.raised);
     try borderLine(canvas, rect.x + 1, rect.y + 32, rect.w - 2, th.line);
     var head = style(common.text_95, th.faint, .regular);
@@ -150,6 +154,42 @@ fn drawLedger(model: *const Model, state: *const State, canvas: *Canvas, th: The
     try label(canvas, rect.x + 14, rect.y + rect.h - 21, footer, style(common.text_10, th.faint, .regular));
 }
 
+fn drawLedgerCompact(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void {
+    canvas.pushClip(.{ .x = rect.x + 1, .y = rect.y + 1, .w = rect.w - 2, .h = rect.h - 35 });
+    var row_y = rect.y + 1;
+    const max_rows: usize = 8;
+    var matched: usize = 0;
+    var shown: usize = 0;
+    for (model.events) |event| {
+        if (!eventMatches(event, state)) continue;
+        matched += 1;
+        if (shown >= max_rows) continue;
+        const i = shown;
+        shown += 1;
+        if (i % 2 == 1) try canvas.fill(.{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 60 }, th.panel);
+        if (event.loss) try canvas.fill(.{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 60 }, th.tint_refuse);
+        var tb: [32]u8 = undefined;
+        try label(canvas, rect.x + 12, row_y + 7, format.secs(&tb, event.ts, 3), style(common.text_11, th.dim, .regular));
+        const type_color = eventColor(th, event.type);
+        try label(canvas, rect.x + 64, row_y + 7.5, fullTypeLabel(event.type), style(common.text_10, type_color, .regular));
+        var cb: [16]u8 = undefined;
+        const cpu_text = std.fmt.bufPrint(&cb, "c{d}", .{event.cpu}) catch "";
+        try labelRight(canvas, rect.x + rect.w - 12, row_y + 7, cpu_text, style(common.text_11, th.dim, .regular));
+        var pb: [48]u8 = undefined;
+        const comm_pid = std.fmt.bufPrint(&pb, "{s} {d}", .{ event.comm, event.pid }) catch event.comm;
+        try label(canvas, rect.x + 12, row_y + 24, comm_pid, style(common.text_12, th.text, .regular));
+        try label(canvas, rect.x + 12, row_y + 42, event.detail, style(common.text_105, th.muted, .regular));
+        try borderLine(canvas, rect.x + 1, row_y + 60, rect.w - 2, th.line);
+        canvas.hit(500 + @as(u32, @intCast(i)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 60 });
+        row_y += 60;
+    }
+    canvas.popClip();
+    try borderLine(canvas, rect.x + 1, rect.y + rect.h - 28, rect.w - 2, th.line);
+    var footer_buf: [128]u8 = undefined;
+    const footer = std.fmt.bufPrint(&footer_buf, "{d} matches · {d} shown", .{ matched, shown }) catch "";
+    try label(canvas, rect.x + 12, rect.y + rect.h - 21, footer, style(common.text_10, th.faint, .regular));
+}
+
 fn drawDetail(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
     if (state.events_selected) |index| {
@@ -166,6 +206,15 @@ fn drawDetail(model: *const Model, state: *const State, canvas: *Canvas, th: The
                 try label(canvas, rect.x + 100, y, field[1], style(common.text_10, th.muted, .regular));
                 y += 20;
             }
+            const actions_y = rect.y + rect.h - 42;
+            const timeline_btn = Rect{ .x = rect.x + 14, .y = actions_y, .w = 88, .h = 28 };
+            const filter_btn = Rect{ .x = rect.x + 110, .y = actions_y, .w = 106, .h = 28 };
+            try canvas.rounded(timeline_btn, 4, th.raised, th.line_strong, 1);
+            try label(canvas, timeline_btn.x + 9, actions_y + 5.5, "Timeline", style(common.text_11, th.text, .regular));
+            try canvas.rounded(filter_btn, 4, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
+            try label(canvas, filter_btn.x + 9, actions_y + 5.5, "Filter task", style(common.text_11, th.muted, .regular));
+            canvas.hit(610, timeline_btn);
+            canvas.hit(611, filter_btn);
             return;
         }
     }

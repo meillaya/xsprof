@@ -19,95 +19,95 @@
     {
       "state": "overview-graphite",
       "candidate": "webgl2",
-      "mae": 1.27960262345679,
-      "over24": 0.9340277777777777,
+      "mae": 0.4993202160493827,
+      "over24": 0.5787808641975309,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "timeline-graphite",
       "candidate": "webgl2",
-      "mae": 2.0646836419753085,
-      "over24": 2.6877314814814817,
+      "mae": 1.284679012345679,
+      "over24": 2.3325617283950617,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "advisor-graphite",
       "candidate": "webgl2",
-      "mae": 1.2255532407407408,
-      "over24": 0.9309413580246914,
+      "mae": 0.4455486111111111,
+      "over24": 0.5757716049382716,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "events-graphite",
       "candidate": "webgl2",
-      "mae": 0.987912037037037,
-      "over24": 0.4199845679012345,
+      "mae": 0.2078672839506173,
+      "over24": 0.06473765432098766,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "capture-graphite",
       "candidate": "webgl2",
-      "mae": 1.0784050925925925,
-      "over24": 0.42268518518518516,
+      "mae": 0.29836033950617286,
+      "over24": 0.06743827160493827,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-dark",
       "candidate": "webgl2",
-      "mae": 1.3587152777777778,
-      "over24": 1.0008487654320988,
+      "mae": 0.6136643518518519,
+      "over24": 0.669212962962963,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-paper",
       "candidate": "webgl2",
-      "mae": 1.4320578703703704,
-      "over24": 1.2362654320987654,
+      "mae": 0.9015979938271605,
+      "over24": 0.9000771604938271,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-latte",
       "candidate": "webgl2",
-      "mae": 1.356141975308642,
-      "over24": 1.3661265432098766,
+      "mae": 0.8621766975308642,
+      "over24": 1.0296296296296297,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-frappe",
       "candidate": "webgl2",
-      "mae": 1.255494598765432,
-      "over24": 1.2901234567901234,
+      "mae": 0.689358024691358,
+      "over24": 0.9491512345679012,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-macchiato",
       "candidate": "webgl2",
-      "mae": 1.3866859567901235,
-      "over24": 1.3484567901234568,
+      "mae": 0.7769320987654321,
+      "over24": 1.0116512345679012,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-mocha",
       "candidate": "webgl2",
-      "mae": 1.4077623456790123,
-      "over24": 1.3204475308641974,
+      "mae": 0.7650192901234568,
+      "over24": 0.9836419753086421,
       "pixels": 1296000,
       "pass": true
     },
     {
       "state": "overview-graphite",
       "candidate": "metal",
-      "mae": 0.4218287037037037,
+      "mae": 0.42167824074074073,
       "over24": 0.3325617283950617,
       "pixels": 1296000,
       "pass": true

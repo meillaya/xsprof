@@ -9,6 +9,7 @@ const objc = @import("xsui-objc");
 const metal = @import("xsui-metal");
 const frame_mod = xsui.frame;
 const console_app = @import("../../app/design/app.zig");
+const focus_mod = @import("../../app/design/focus.zig");
 const state_mod = @import("../../app/design/state.zig");
 
 const width: u32 = 1280;
@@ -208,6 +209,7 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     switch (keycode) {
         53 => cp = 0x1b,
         36 => cp = 0x0a,
+        48 => cp = 0x09,
         51 => cp = 0x7f,
         126 => cp = 0x11,
         125 => cp = 0x12,
@@ -222,6 +224,10 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
         return;
     }
     if (cp == 0) return;
+    if (focus_mod.key(&self.design, &self.canvas, cp, mods.shift)) {
+        _ = self.render();
+        return;
+    }
     self.design.handleKey(cp, mods);
     self.syncClipboard();
     _ = self.render();

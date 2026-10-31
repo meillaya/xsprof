@@ -65,6 +65,13 @@ pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
     }
     try overlays.draw(state, canvas, th, width, height);
     try overlays.drawToast(state, canvas, th, width, height);
+    if (state.focus_visible) {
+        if (state.focus_id) |id| {
+            if (canvas.hitRect(id)) |hit| {
+                try canvas.stroke(.{ .x = hit.x - 2, .y = hit.y - 2, .w = hit.w + 4, .h = hit.h + 4 }, 4, th.focus, 2);
+            }
+        }
+    }
 }
 
 fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {

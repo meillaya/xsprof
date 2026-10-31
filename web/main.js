@@ -68,8 +68,21 @@ function flushCopy() {
   const text = new TextDecoder().decode(new Uint8Array(exports.memory.buffer, ptr, len));
   exports.web_ui_copy_clear();
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
   }
+}
+
+function fallbackCopy(text) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;";
+  document.body.appendChild(area);
+  area.select();
+  try { document.execCommand("copy"); } catch (_) {}
+  area.remove();
 }
 
 function loadJournalText(text, label) {
@@ -124,7 +137,6 @@ async function reloadSource() {
 }
 
 async function boot() {
-  canvas.focus();
   if (!canvas.getContext("webgl2")) throw new Error("WebGL2 is unavailable in this browser");
   renderer = new Renderer(canvas);
   await renderer.init();
@@ -232,9 +244,14 @@ canvas.addEventListener("pointerdown", (event) => {
   canvas.setPointerCapture?.(event.pointerId);
 });
 canvas.addEventListener("pointermove", (event) => {
-  if (!exports || !down) return;
+  if (!exports) return;
   const point = canvasPoint(event);
   exports.web_ui_pointer_move(point.x, point.y);
+  drawFrame();
+});
+canvas.addEventListener("pointerleave", () => {
+  if (!exports?.web_ui_pointer_leave) return;
+  exports.web_ui_pointer_leave();
   drawFrame();
 });
 canvas.addEventListener("pointerup", (event) => {
@@ -257,20 +274,28 @@ function keyCode(event) {
     case "Escape": return 0x1b;
     case "Enter": return 0x0a;
     case "Backspace": return 0x7f;
-    case "Tab": return 0;
+    case "Tab": return 0x09;
     default:
       if (event.key.length === 1) return event.key.codePointAt(0);
       return 0;
   }
 }
 
+document.getElementById("skip").addEventListener("click", (event) => {
+  event.preventDefault();
+  canvas.focus();
+  if (exports?.web_ui_focus_rail) exports.web_ui_focus_rail();
+  drawFrame();
+});
+
 window.addEventListener("keydown", (event) => {
   if (!exports) return;
-  if (event.key === "Tab") return;
+  if (event.key === "Tab" && document.activeElement !== canvas) return;
+  if (document.activeElement?.id === "skip" && (event.key === "Tab" || event.key === "Enter")) return;
   const cp = keyCode(event);
   if (!cp) return;
   const meta = event.metaKey || event.ctrlKey;
-  if (meta || cp === 32 || cp === 0x1b || cp === 0x11 || cp === 0x12 || cp === 0x13 || cp === 0x14) {
+  if (event.key === "Tab" || meta || cp === 32 || cp === 0x1b || cp === 0x11 || cp === 0x12 || cp === 0x13 || cp === 0x14) {
     event.preventDefault();
   }
   exports.web_ui_key(cp, event.metaKey ? 1 : 0, event.ctrlKey ? 1 : 0, event.shiftKey ? 1 : 0);

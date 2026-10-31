@@ -298,8 +298,9 @@ is `qa/ui_cross_surface.py`; reference diffs are advisory.
       one-column Overview/Capture/Advisor, and stacked Events/Timeline.
 - [x] Emit bounded clipboard requests; web uses the Clipboard API, macOS uses
       NSPasteboard. Brush drag/zoom is wired on web.
-- [ ] Mobile ledger/thread rows, complete focus traversal/return, and native
-      Linux clipboard selection remain.
+- [x] Mobile ledger/thread rows, phone theme grid/stat sizes, focus
+      traversal/trapping/return, skip-link focus, and X11 clipboard selection.
+- [ ] Native Linux open-journal picker remains; use `--replay`/web file input.
 
 The cross-surface report records actual pixel metrics and pass/fail against the
 formal thresholds. Reference-progress is reported separately and is advisory.

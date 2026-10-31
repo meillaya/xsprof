@@ -8,6 +8,7 @@ const builtin = @import("builtin");
 const gl = @import("xsui-gl");
 const frame_mod = xsui.frame;
 const console_app = @import("../../app/design/app.zig");
+const focus_mod = @import("../../app/design/focus.zig");
 
 const Display = opaque {};
 const Window = c_ulong;
@@ -89,11 +90,35 @@ const ClientMessage = extern struct {
     format: c_int,
     data: extern union { b: [20]u8, s: [10]c_short, l: [5]c_long },
 };
+const SelectionRequest = extern struct {
+    type: c_int,
+    serial: c_ulong,
+    send_event: c_int,
+    display: ?*Display,
+    owner: Window,
+    requestor: Window,
+    selection: Atom,
+    target: Atom,
+    property: Atom,
+    time: c_ulong,
+};
+const SelectionEvent = extern struct {
+    type: c_int,
+    serial: c_ulong,
+    send_event: c_int,
+    display: ?*Display,
+    requestor: Window,
+    selection: Atom,
+    target: Atom,
+    property: Atom,
+    time: c_ulong,
+};
 const Event = extern union {
     type: c_int,
     key: KeyEvent,
     button: ButtonEvent,
     client: ClientMessage,
+    selection_request: SelectionRequest,
     pad: [24]c_long,
 };
 
@@ -116,6 +141,9 @@ const X11 = struct {
     set_wm_protocols: *const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int,
     destroy_window: *const fn (*Display, Window) callconv(.c) c_int,
     flush: *const fn (*Display) callconv(.c) c_int,
+    set_selection_owner: *const fn (*Display, Atom, Window, c_ulong) callconv(.c) c_int,
+    change_property: *const fn (*Display, Window, Atom, Atom, c_int, c_int, [*]const u8, c_int) callconv(.c) c_int,
+    send_event: *const fn (*Display, Window, c_int, c_long, *anyopaque) callconv(.c) c_int,
     query_extension: *const fn (*Display, [*:0]const u8, *c_int, *c_int, *c_int) callconv(.c) c_int,
     free: *const fn (?*anyopaque) callconv(.c) void,
     choose_visual: *const fn (*Display, c_int, [*]c_int) callconv(.c) ?*VisualInfo,
@@ -148,6 +176,9 @@ const X11 = struct {
             .set_wm_protocols = lib.lookup(*const fn (*Display, Window, [*]Atom, c_int) callconv(.c) c_int, "XSetWMProtocols") orelse return error.NoX11,
             .destroy_window = lib.lookup(*const fn (*Display, Window) callconv(.c) c_int, "XDestroyWindow") orelse return error.NoX11,
             .flush = lib.lookup(*const fn (*Display) callconv(.c) c_int, "XFlush") orelse return error.NoX11,
+            .set_selection_owner = lib.lookup(*const fn (*Display, Atom, Window, c_ulong) callconv(.c) c_int, "XSetSelectionOwner") orelse return error.NoX11,
+            .change_property = lib.lookup(*const fn (*Display, Window, Atom, Atom, c_int, c_int, [*]const u8, c_int) callconv(.c) c_int, "XChangeProperty") orelse return error.NoX11,
+            .send_event = lib.lookup(*const fn (*Display, Window, c_int, c_long, *anyopaque) callconv(.c) c_int, "XSendEvent") orelse return error.NoX11,
             .query_extension = lib.lookup(*const fn (*Display, [*:0]const u8, *c_int, *c_int, *c_int) callconv(.c) c_int, "XQueryExtension") orelse return error.NoX11,
             .free = lib.lookup(*const fn (?*anyopaque) callconv(.c) void, "XFree") orelse return error.NoX11,
             .choose_visual = gl_lib.lookup(*const fn (*Display, c_int, [*]c_int) callconv(.c) ?*VisualInfo, "glXChooseVisual") orelse return error.NoGLX,
@@ -176,10 +207,48 @@ pub const App = struct {
     frame: frame_mod.Frame,
     canvas: xsui.Canvas,
     wm_delete: Atom,
+    clipboard_atom: Atom,
+    utf8_atom: Atom,
+    targets_atom: Atom,
+    clip_buf: [512]u8 = undefined,
+    clip_len: usize = 0,
 };
 
 const width: u32 = 1280;
 const height: u32 = 720;
+
+fn syncClipboard(self: *App) void {
+    const text = self.design.copyText();
+    if (text.len == 0) return;
+    const len = @min(text.len, self.clip_buf.len);
+    @memcpy(self.clip_buf[0..len], text[0..len]);
+    self.clip_len = len;
+    _ = self.x.set_selection_owner(self.display, self.clipboard_atom, self.window, 0);
+    self.design.clearCopy();
+}
+
+fn serveSelection(self: *App, request: SelectionRequest) void {
+    const property = if (request.property != 0) request.property else request.target;
+    var utf8_list = [_]Atom{self.utf8_atom};
+    if (request.target == self.targets_atom) {
+        _ = self.x.change_property(self.display, request.requestor, property, 4, 32, 0, @ptrCast(&utf8_list), 1);
+    } else if (self.clip_len > 0) {
+        _ = self.x.change_property(self.display, request.requestor, property, self.utf8_atom, 8, 0, self.clip_buf[0..].ptr, @intCast(self.clip_len));
+    }
+    var notify = SelectionEvent{
+        .type = 31,
+        .serial = 0,
+        .send_event = 0,
+        .display = self.display,
+        .requestor = request.requestor,
+        .selection = request.selection,
+        .target = request.target,
+        .property = if (self.clip_len > 0 or request.target == self.targets_atom) property else 0,
+        .time = request.time,
+    };
+    _ = self.x.send_event(self.display, request.requestor, 0, 0, @ptrCast(&notify));
+    _ = self.x.flush(self.display);
+}
 
 fn render(self: *App) !void {
     self.frame.theme = self.design.theme();
@@ -259,6 +328,9 @@ pub fn run(
     var renderer = try gl.Renderer.init();
     defer renderer.deinit();
 
+    const clipboard_atom = x.intern_atom(display, "CLIPBOARD", 0);
+    const utf8_atom = x.intern_atom(display, "UTF8_STRING", 0);
+    const targets_atom = x.intern_atom(display, "TARGETS", 0);
     var design = console_app.App.init(allocator);
     design.state.screen = @fromBackingInt(@intCast(@min(screen_index, 4)));
     if (recorder_dir) |dir| design.setRecorderDir(dir);
@@ -286,6 +358,9 @@ pub fn run(
         .frame = undefined,
         .canvas = undefined,
         .wm_delete = wm_delete,
+        .clipboard_atom = clipboard_atom,
+        .utf8_atom = utf8_atom,
+        .targets_atom = targets_atom,
     };
     try app.frame.init(allocator, width, height, app.design.theme());
     defer app.frame.deinit();
@@ -309,7 +384,10 @@ pub fn run(
                     app.design.loadReplay(io, path) catch {};
                 }
             }
-            if (app.design.open_requested) app.design.open_requested = false;
+            if (app.design.open_requested) {
+                app.design.open_requested = false;
+                app.design.showToast("open journal: use `xsprof ui --replay <file>`", true);
+            }
             try present(&app);
             std.Io.sleep(io, .fromMilliseconds(33), .awake) catch {};
         }
@@ -323,6 +401,7 @@ pub fn run(
                 switch (sym) {
                     0xff1b => cp = 0x1b,
                     0xff0d => cp = 0x0a,
+                    0xff09 => cp = 0x09,
                     0xff08 => cp = 0x7f,
                     0xff52 => cp = 0x11,
                     0xff54 => cp = 0x12,
@@ -333,12 +412,19 @@ pub fn run(
                     },
                 }
                 if ((state & 64) != 0 and (cp == 'q' or cp == 'Q')) break;
-                if (cp != 0) app.design.handleKey(cp, .{
+                const mods = console_app.Modifiers{
                     .meta = (state & 64) != 0,
                     .ctrl = (state & 4) != 0,
                     .shift = (state & 1) != 0,
-                });
+                };
+                if (cp != 0 and !focus_mod.key(&app.design, &app.canvas, cp, mods.shift)) {
+                    app.design.handleKey(cp, mods);
+                }
+                syncClipboard(&app);
                 try present(&app);
+            },
+            30 => {
+                serveSelection(&app, event.selection_request);
             },
             4 => {
                 const button = event.button.button;
@@ -350,6 +436,7 @@ pub fn run(
                     const px: f32 = @floatFromInt(event.button.x);
                     const py: f32 = @floatFromInt(event.button.y);
                     app.design.click(&app.canvas, px, py);
+                    syncClipboard(&app);
                     try present(&app);
                 }
             },

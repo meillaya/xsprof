@@ -385,6 +385,16 @@ pub const Canvas = struct {
         self.hits.append(self.allocator, .{ .id = id, .rect = rect }) catch {};
     }
 
+    pub fn hitRect(self: *const Canvas, id: u32) ?Rect {
+        var index = self.hits.items.len;
+        while (index > 0) {
+            index -= 1;
+            const item = self.hits.items[index];
+            if (item.id == id) return item.rect;
+        }
+        return null;
+    }
+
     pub fn hitAt(self: *const Canvas, x: f32, y: f32) ?u32 {
         var index = self.hits.items.len;
         while (index > 0) {
