@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const json = @import("../core/json.zig");
 
 const max_cpus = 256;
 const bucket_count = 64;
@@ -70,8 +71,8 @@ pub const Metrics = struct {
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
     lost: u64 = 0,
-    cpus: []CpuMetric = &.{},
-    tasks: []TaskMetric = &.{},
+    cpus: []const CpuMetric = &.{},
+    tasks: []const TaskMetric = &.{},
 };
 
 const Task = struct {
@@ -296,4 +297,72 @@ test "metrics measure waits and preemption" {
     try std.testing.expect(found_b);
     try std.testing.expect(metrics.cpus.len == 1);
     try std.testing.expect(metrics.cpus[0].busy_us >= 50);
+}
+
+pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
+    const allocator = std.heap.smp_allocator;
+    const task_count = @min(metrics.tasks.len, top);
+    var task_values = try allocator.alloc(json.Value, task_count);
+    defer allocator.free(task_values);
+    var task_entries = try allocator.alloc([]json.Entry, task_count);
+    defer {
+        for (task_entries) |entries| allocator.free(entries);
+        allocator.free(task_entries);
+    }
+    for (metrics.tasks[0..task_count], 0..) |task, index| {
+        const entries = try allocator.alloc(json.Entry, 14);
+        entries[0] = .{ .key = "comm", .value = .{ .string = task.comm } };
+        entries[1] = .{ .key = "faults_major", .value = .{ .unsigned = task.faults_major } };
+        entries[2] = .{ .key = "faults_minor", .value = .{ .unsigned = task.faults_minor } };
+        entries[3] = .{ .key = "last_cpu", .value = .{ .integer = task.last_cpu } };
+        entries[4] = .{ .key = "migrations", .value = .{ .unsigned = task.migrations } };
+        entries[5] = .{ .key = "offcpu_p95_us", .value = .{ .unsigned = task.offcpu_p95_us } };
+        entries[6] = .{ .key = "pid", .value = .{ .integer = task.pid } };
+        entries[7] = .{ .key = "switches", .value = .{ .unsigned = task.switches } };
+        entries[8] = .{ .key = "wait_max_us", .value = .{ .unsigned = task.wait_max_us } };
+        entries[9] = .{ .key = "wait_p50_us", .value = .{ .unsigned = task.wait_p50_us } };
+        entries[10] = .{ .key = "wait_p95_us", .value = .{ .unsigned = task.wait_p95_us } };
+        entries[11] = .{ .key = "wait_p99_us", .value = .{ .unsigned = task.wait_p99_us } };
+        entries[12] = .{ .key = "wait_samples", .value = .{ .unsigned = task.wait_samples } };
+        entries[13] = .{ .key = "wakeups", .value = .{ .unsigned = task.wakeups } };
+        task_entries[index] = entries;
+        task_values[index] = .{ .object = entries };
+    }
+
+    var cpu_values = try allocator.alloc(json.Value, metrics.cpus.len);
+    defer allocator.free(cpu_values);
+    var cpu_entries = try allocator.alloc([]json.Entry, metrics.cpus.len);
+    defer {
+        for (cpu_entries) |entries| allocator.free(entries);
+        allocator.free(cpu_entries);
+    }
+    for (metrics.cpus, 0..) |cpu, index| {
+        const entries = try allocator.alloc(json.Entry, 5);
+        entries[0] = .{ .key = "busy_us", .value = .{ .unsigned = cpu.busy_us } };
+        entries[1] = .{ .key = "cpu", .value = .{ .unsigned = cpu.cpu } };
+        entries[2] = .{ .key = "faults", .value = .{ .unsigned = cpu.faults } };
+        entries[3] = .{ .key = "idle_us", .value = .{ .unsigned = cpu.idle_us } };
+        entries[4] = .{ .key = "switches", .value = .{ .unsigned = cpu.switches } };
+        cpu_entries[index] = entries;
+        cpu_values[index] = .{ .object = entries };
+    }
+
+    try json.write(w, .{ .object = &.{
+        .{ .key = "cpus", .value = .{ .array = cpu_values } },
+        .{ .key = "faults_major", .value = .{ .unsigned = metrics.faults_major } },
+        .{ .key = "faults_minor", .value = .{ .unsigned = metrics.faults_minor } },
+        .{ .key = "first_us", .value = .{ .unsigned = metrics.first_us } },
+        .{ .key = "host_mutation", .value = .{ .boolean = false } },
+        .{ .key = "last_us", .value = .{ .unsigned = metrics.last_us } },
+        .{ .key = "lost", .value = .{ .unsigned = metrics.lost } },
+        .{ .key = "migrations", .value = .{ .unsigned = metrics.migrations } },
+        .{ .key = "quantiles", .value = .{ .object = &.{
+            .{ .key = "approximate", .value = .{ .boolean = true } },
+            .{ .key = "method", .value = .{ .string = "log2_histogram_1us" } },
+        } } },
+        .{ .key = "schema", .value = .{ .string = "xsprof/metrics/v1" } },
+        .{ .key = "switches", .value = .{ .unsigned = metrics.switches } },
+        .{ .key = "tasks", .value = .{ .array = task_values } },
+        .{ .key = "wakeups", .value = .{ .unsigned = metrics.wakeups } },
+    } });
 }

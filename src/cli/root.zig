@@ -20,6 +20,7 @@ const bpf_cmd = @import("bpf_cmd.zig");
 const recorder_cmd = @import("recorder_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
 const watch_cmd = @import("watch_cmd.zig");
+const analysis_cmd = @import("analysis_cmd.zig");
 
 const Writer = std.Io.Writer;
 
@@ -39,6 +40,8 @@ const known_commands = [_][]const u8{
     "capture",
     "doctor",
     "watch",
+    "metrics",
+    "compare",
 };
 
 const refusal_reason =
@@ -68,6 +71,8 @@ fn writeHelp(w: *Writer) Writer.Error!void {
         \\  capture --last <dur>    Extract a recorder window
         \\  doctor --json           Read-only environment diagnostics
         \\  watch [--dir <d>]       ANSI live recorder view
+        \\  metrics --input <f>     Scheduler metrics as JSON
+        \\  compare --base --candidate  Regression report
         \\  version                 Print version
         \\  help                    Print this help
         \\
@@ -442,6 +447,12 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "watch")) {
         return watch_cmd.cmdWatch(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "metrics")) {
+        return analysis_cmd.cmdMetrics(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "compare")) {
+        return analysis_cmd.cmdCompare(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

@@ -11,6 +11,7 @@ pub const safety = @import("core/safety.zig");
 pub const proc = @import("os/linux/proc.zig");
 pub const aggregates = @import("analyze/aggregates.zig");
 pub const metrics = @import("analyze/metrics.zig");
+pub const compare = @import("analyze/compare.zig");
 pub const advisor = @import("analyze/advisor.zig");
 pub const journal = @import("stream/journal.zig");
 pub const stream_store = @import("stream/store.zig");
@@ -47,6 +48,7 @@ test {
     _ = proc;
     _ = aggregates;
     _ = metrics;
+    _ = compare;
     _ = advisor;
     _ = journal;
     _ = chrome_trace;
