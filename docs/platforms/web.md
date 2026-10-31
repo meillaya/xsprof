@@ -12,6 +12,8 @@ The P3 web surface is a **read-only replay client**:
 - `web/gl.js` uploads that buffer once per frame and draws one instanced
   `TRIANGLE_STRIP` call in WebGL2. There is no JS UI framework, no external
   font/CDN, and no telemetry.
+- `serve --live --live-dir <state>` tails the recorder spool instead of
+  opening a second capture.
 - `serve --live` keeps one perf capture open for the process lifetime. It
   exposes one-shot SSE batches with `Last-Event-ID` resume; `--live-stride`
   controls UI downsampling while loss markers report dropped events. Raw

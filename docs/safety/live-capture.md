@@ -47,7 +47,9 @@ is the tested fail-closed behavior.
 
 ## Live SSE and the browser
 
-`xsprof serve --live` opens one perf capture for the process lifetime. It
+`xsprof serve --live --live-dir <state>` tails recorder segments without
+opening a capture. `xsprof serve --live` opens one perf capture for the
+process lifetime. It
 downsamples UI events (`--live-stride`, default 80) into a bounded, line-aligned
 store and aggregates dropped events into one `sample_loss live_downsample`
 marker per second. The browser appends new lines through the incremental store.

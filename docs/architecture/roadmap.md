@@ -135,10 +135,9 @@ Status is updated only when a phase gate actually passes.
   filter combinations.
 - **M3 complete for the first slice:** `metrics`, `compare`, JSON/Markdown/
   self-contained HTML reports, `--fail-on wait.p95`, schemas, CI guide.
-- **M4 core landed:** one long-lived capture in `serve --live`, line-aligned
-  bounded store, incremental WASM store/index, and aggregated loss markers.
-  Remaining: tail the recorder spool instead of the server store, and add
-  pause/follow controls.
+- **M4 complete:** one long-lived capture, recorder-spool tailing with
+  `--live-dir`, line-aligned bounded store, incremental WASM store/index,
+  aggregated loss markers, and pause/follow controls.
 - **M5 pending:** release artifacts, macOS app bundle, Linux packages,
   Homebrew templates, `demo`, first-run flow.
 - **M6 pending:** presets, cgroup attribution, PSI, overhead meter, fuzz,

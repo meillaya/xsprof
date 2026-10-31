@@ -16,6 +16,7 @@ pub fn cmdServe(
     var addr: []const u8 = "127.0.0.1";
     var live_capture = false;
     var live_stride: u32 = 80;
+    var live_dir: ?[]const u8 = null;
     var journal_explicit = false;
     var assets_explicit = false;
     var demo = false;
@@ -43,6 +44,9 @@ pub fn cmdServe(
             addr = args[i];
         } else if (std.mem.eql(u8, arg, "--live")) {
             live_capture = true;
+        } else if (std.mem.eql(u8, arg, "--live-dir") and i + 1 < args.len) {
+            i += 1;
+            live_dir = args[i];
         } else if (std.mem.eql(u8, arg, "--live-stride") and i + 1 < args.len) {
             i += 1;
             live_stride = std.fmt.parseInt(u32, args[i], 10) catch {
@@ -85,6 +89,7 @@ pub fn cmdServe(
         .token = token[0..],
         .live = live_capture,
         .live_stride = live_stride,
+        .live_dir = live_dir,
     }) catch |serve_error| {
         try err.print("serve: {s}\n", .{@errorName(serve_error)});
         return 1;
