@@ -22,6 +22,13 @@ function put(text) {
 }
 if (!e.web_frame()) throw new Error("journal frame failed");
 {
+  if (!e.web_generate_trace()) throw new Error("trace export failed");
+  const ptr = e.web_trace_result_ptr();
+  const len = e.web_trace_result_len();
+  const text = new TextDecoder().decode(new Uint8Array(e.memory.buffer, ptr, len));
+  if (!text.includes('"traceEvents"')) throw new Error("trace JSON missing");
+}
+{
   const [ptr, len] = put(fs.readFileSync("scenarios/healthy.json", "utf8"));
   if (!e.web_run_scenario(ptr, len)) throw new Error("scenario failed");
   e.web_free(ptr, len);

@@ -9,6 +9,7 @@ const app = @import("app/app.zig");
 const lab_state = @import("app/lab/state.zig");
 const lab_view = @import("app/lab_view.zig");
 const scenario = @import("app/lab/scenario.zig");
+const chrome_trace = @import("viz/chrome_trace.zig");
 const session_mod = @import("stream/session.zig");
 const stream_store = @import("stream/store.zig");
 const stream_index = @import("stream/index.zig");
@@ -32,6 +33,7 @@ var loaded: ?session_mod.Session = null;
 var lab: lab_state.LabState = undefined;
 var lab_ready = false;
 var scenario_result: ?[]u8 = null;
+var trace_result: ?[]u8 = null;
 var screen: app.Screen = .overview;
 var theme: draw.Theme = .{};
 var width: u32 = 1280;
@@ -244,6 +246,27 @@ export fn web_run_scenario(addr: usize, len: usize) u32 {
     if (scenario_result) |old| gpa.free(old);
     scenario_result = bytes;
     return 1;
+}
+
+export fn web_generate_trace() u32 {
+    if (loaded == null) return 0;
+    var allocating = std.Io.Writer.Allocating.init(gpa);
+    defer allocating.deinit();
+    chrome_trace.writeTimeline(&allocating.writer, gpa, loaded.?.events, null, null) catch return 0;
+    const bytes = allocating.toOwnedSlice() catch return 0;
+    if (trace_result) |old| gpa.free(old);
+    trace_result = bytes;
+    return 1;
+}
+
+export fn web_trace_result_ptr() usize {
+    const bytes = trace_result orelse return 0;
+    return @intFromPtr(bytes.ptr);
+}
+
+export fn web_trace_result_len() u32 {
+    const bytes = trace_result orelse return 0;
+    return @intCast(bytes.len);
 }
 
 export fn web_scenario_result_ptr() usize {
