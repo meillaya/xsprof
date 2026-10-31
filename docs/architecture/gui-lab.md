@@ -1,6 +1,6 @@
 # GUI lab plan
 
-Status: in progress. L0 and L1 are implemented. L2 adds the native lab rail,
+Status: complete. L0 and L1 are implemented. L2 adds the native lab rail,
 source buttons, capture controls, transport buttons, and command palette. L3
 adds transport window advancement, the inspector, trace export, and native
 path editing. L4 adds the scenario schema, headless runner, built-in
