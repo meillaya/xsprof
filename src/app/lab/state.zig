@@ -140,6 +140,42 @@ pub const LabState = struct {
         self.toast_kind = kind;
     }
 
+    fn endUs(self: *const LabState) u64 {
+        return @max(self.view.session.last_us, self.view.session.first_us + 1);
+    }
+
+    fn focusWindow(self: *LabState) u64 {
+        const full_start = self.view.session.first_us;
+        const full_end = self.endUs();
+        const span = @max(
+            @as(u64, 1000),
+            @min(@as(u64, 2_000_000), (full_end - full_start) / 4),
+        );
+        var start = self.transport.cursor_us;
+        if (start < full_start) start = full_start;
+        if (start >= full_end) start = full_start;
+        var end = start + span;
+        if (end > full_end) {
+            end = full_end;
+            start = end -| span;
+            if (start < full_start) start = full_start;
+        }
+        self.view.window = .{ .start_us = start, .end_us = end };
+        return start;
+    }
+
+    /// Advances playback for a native frame or timer tick. The web and Linux
+    /// shells call this only while `transport.playing` is true.
+    pub fn advance(self: *LabState, delta_us: u64) void {
+        if (!self.transport.playing or self.view.session.events.len == 0) return;
+        const full_start = self.view.session.first_us;
+        const full_end = self.endUs();
+        const scaled: u64 = @intFromFloat(@as(f64, @floatFromInt(delta_us)) * self.transport.speed);
+        self.transport.cursor_us +|= scaled;
+        if (self.transport.cursor_us >= full_end) self.transport.cursor_us = full_start;
+        self.transport.cursor_us = self.focusWindow();
+    }
+
     fn applyIntent(self: *LabState, intent: action.Intent) !action.EffectBatch {
         var batch = action.EffectBatch{};
         switch (intent) {
@@ -187,6 +223,8 @@ pub const LabState = struct {
                 self.source.phase = .none;
                 self.source.path_len = 0;
                 self.source.reason_len = 0;
+                self.transport.cursor_us = 0;
+                self.view.window = null;
                 self.view.session = self.empty_session;
                 if (self.capture.phase == .starting or self.capture.phase == .running) {
                     self.capture.phase = .stopping;
@@ -221,20 +259,47 @@ pub const LabState = struct {
                 self.capture.phase = .stopping;
                 batch.add(.stop_capture);
             },
+            .filter_comm => |comm| {
+                self.view.filter.comm = null;
+                if (comm.len != 0) {
+                    for (self.view.session.events) |entry| {
+                        if (std.mem.eql(u8, entry.comm, comm)) {
+                            self.view.filter.comm = entry.comm;
+                            break;
+                        }
+                    }
+                }
+            },
+            .select_pid => |pid| {
+                self.view.selection = null;
+                for (self.view.session.events) |entry| {
+                    if (entry.pid == pid and entry.comm.len != 0) {
+                        self.view.selection = .{ .pid = pid, .comm = entry.comm };
+                        break;
+                    }
+                }
+            },
             .transport => |transport| switch (transport) {
-                .play => self.transport.playing = true,
+                .play => {
+                    self.transport.playing = true;
+                    if (self.view.window == null) self.transport.cursor_us = self.focusWindow();
+                },
                 .pause => self.transport.playing = false,
                 .step_forward => {
                     self.transport.playing = false;
                     self.transport.cursor_us +|= 1000;
+                    self.transport.cursor_us = @min(self.transport.cursor_us, self.endUs());
+                    _ = self.focusWindow();
                 },
                 .step_back => {
                     self.transport.playing = false;
-                    self.transport.cursor_us -|= 1000;
+                    self.transport.cursor_us = self.transport.cursor_us -| 1000;
+                    _ = self.focusWindow();
                 },
                 .fit => {
                     self.transport.playing = false;
-                    self.transport.cursor_us = 0;
+                    self.transport.cursor_us = self.view.session.first_us;
+                    self.view.window = null;
                 },
                 .follow_on => self.transport.follow = true,
                 .follow_off => self.transport.follow = false,
@@ -265,6 +330,8 @@ pub const LabState = struct {
             .source_ready => |ready| {
                 self.source.phase = .ready;
                 self.view.session = ready.session;
+                self.transport.cursor_us = ready.session.first_us;
+                self.view.window = null;
                 self.focus = .screen;
                 self.setToast(.success, "source ready");
             },
@@ -388,4 +455,43 @@ test "lab reducer refuses a second capture and long paths" {
     } } });
     try std.testing.expectEqual(@as(u8, 0), failed.len);
     try std.testing.expectEqual(SourcePhase.failed, lab.source.phase);
+}
+
+test "transport advances and fits the timeline window" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try session_mod.Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/healthy.ndjson",
+    );
+    var lab = try LabState.init(std.testing.allocator);
+    defer lab.deinit();
+    _ = try lab.apply(.{ .completion = .{ .source_ready = .{ .session = &session } } });
+    _ = try lab.apply(.{ .intent = .{ .transport = .play } });
+    lab.advance(50_000);
+    try std.testing.expect(lab.view.window != null);
+    try std.testing.expect(lab.transport.cursor_us > session.first_us);
+    _ = try lab.apply(.{ .intent = .{ .transport = .fit } });
+    try std.testing.expect(lab.view.window == null);
+}
+
+test "filter intent selects a real switch comm" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try session_mod.Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/healthy.ndjson",
+    );
+    var lab = try LabState.init(std.testing.allocator);
+    defer lab.deinit();
+    _ = try lab.apply(.{ .completion = .{ .source_ready = .{ .session = &session } } });
+    _ = try lab.apply(.{ .intent = .{ .filter_comm = "worker-c" } });
+    try std.testing.expect(lab.view.filter.comm != null);
+    var matches: usize = 0;
+    for (session.slices) |slice| {
+        if (lab.view.filter.matchesSlice(slice)) matches += 1;
+    }
+    try std.testing.expect(matches > 0);
 }

@@ -150,6 +150,7 @@ fn isFlipped(_: objc.Object, _: objc.SEL) callconv(.c) objc.BOOL {
 
 fn tick(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
     const self = objc.getZig(App, target) orelse return;
+    if (self.lab.transport.playing) self.lab.advance(33_000);
     const active = self.lab.capture.phase == .running or self.lab.capture.phase == .starting or
         self.lab.transport.playing;
     if (!self.dirty and !active) return;

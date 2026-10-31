@@ -158,6 +158,12 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&run_exe_tests.step);
     check.dependOn(&run_fuzz_tests.step);
     if (target.result.os.tag == .linux) {
+        const lab_smoke = b.addSystemCommand(&.{ "sh", "qa/lab_smoke.sh" });
+        lab_smoke.step.dependOn(b.getInstallStep());
+        const lab_smoke_step = b.step("lab-smoke", "Headless GUI lab scenarios and snapshots");
+        lab_smoke_step.dependOn(&lab_smoke.step);
+        check.dependOn(&lab_smoke.step);
+
         const service_smoke = b.addSystemCommand(&.{ "sh", "qa/service_smoke.sh" });
         service_smoke.step.dependOn(b.getInstallStep());
         const service_step = b.step("service-smoke", "Root systemd smoke on a disposable Linux VM");

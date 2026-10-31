@@ -189,9 +189,11 @@ pub const Controller = struct {
 };
 
 test "controller loads a replay and reports capture SKIP off Linux" {
-    var lab = try state_mod.LabState.init(std.testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var lab = try state_mod.LabState.init(arena.allocator());
     defer lab.deinit();
-    var controller = Controller.init(std.testing.allocator);
+    var controller = Controller.init(arena.allocator());
     defer controller.deinit();
 
     const open = try lab.apply(.{ .intent = .{ .open_source = .{

@@ -1,7 +1,10 @@
 # GUI lab plan
 
-Status: in progress. L0 and L1 are implemented; L2 has the native lab rail,
-source buttons, capture controls, transport buttons, and command palette.
+Status: in progress. L0 and L1 are implemented. L2 adds the native lab rail,
+source buttons, capture controls, transport buttons, and command palette. L3
+adds transport window advancement and the inspector. L4 adds the scenario
+schema, headless runner, built-in scenarios, and `lab-smoke`. Web parity and
+the remaining export/compare controls are open.
 
 ## Goal
 

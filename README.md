@@ -42,6 +42,7 @@ xsprof watch --dir /var/lib/xsprof
 xsprof serve --journal session.ndjson
 xsprof ui --replay session.ndjson
 xsprof demo
+xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 ```
 
 `record` needs perf tracepoints and `CAP_PERFMON`; without them it reports
