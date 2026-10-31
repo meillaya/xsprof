@@ -131,7 +131,8 @@ Status is updated only when a phase gate actually passes.
   timeline click selection and wheel zoom, selected-task detail, event
   scrolling, local file open, web pause/follow, event click-to-timeline, and
   native macOS/X11 pointer and scroll input, timeline crosshair hover, and
-  event-row hover. Remaining: task filters.
+  event-row hover, and selected-task timeline filtering. Remaining: richer
+  filter combinations.
 - **M3 complete for the first slice:** `metrics`, `compare`, JSON/Markdown/
   self-contained HTML reports, `--fail-on wait.p95`, schemas, CI guide.
 - **M4 core landed:** one long-lived capture in `serve --live`, line-aligned

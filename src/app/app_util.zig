@@ -50,3 +50,36 @@ pub fn paintHover(
         clip,
     );
 }
+
+const input_mod = @import("../ui/input.zig");
+const session_mod = @import("../stream/session.zig");
+const metrics_mod = @import("../analyze/metrics.zig");
+
+pub fn handleFilterInput(
+    filter: *?[]const u8,
+    selection_comm: ?[]const u8,
+    input: *input_mod.Input,
+) bool {
+    if (input.key == .filter) {
+        if (selection_comm) |comm| filter.* = comm;
+        input.key = .none;
+        return true;
+    }
+    if (input.key == .clear) {
+        filter.* = null;
+        input.key = .none;
+        return true;
+    }
+    return false;
+}
+
+pub fn selectedMetric(
+    session: *const session_mod.Session,
+    pid: i32,
+    comm: []const u8,
+) ?metrics_mod.TaskMetric {
+    for (session.metrics.tasks) |task| {
+        if (task.pid == pid and std.mem.eql(u8, task.comm, comm)) return task;
+    }
+    return null;
+}

@@ -24,6 +24,7 @@ The P3 web surface is a **read-only replay client**:
 - drag/drop a capture anywhere on the page to load it locally; nothing is
   uploaded;
 - clicking an event row opens the timeline centered on that event;
+- `c` filters the timeline to the selected comm and `x` clears it;
   `?theme=light` selects the paper theme; `1..5` switches screens.
 - `/api/meta` is `xsprof/ui-session/v1` with `host_mutation=false` and an event
   count.

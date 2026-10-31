@@ -309,6 +309,10 @@ pub fn run(
                     app.screen = @fromBackingInt(@intCast(@as(u8, @intCast(sym)) - '1'));
                 } else if (sym == 't') {
                     app.light = !app.light;
+                } else if (sym == 'c') {
+                    app.input.key = .filter;
+                } else if (sym == 'x') {
+                    app.input.key = .clear;
                 } else if (sym == 'q' or sym == 0xff1b) {
                     break;
                 }

@@ -170,6 +170,8 @@ export fn web_key(key: u32) void {
         1 => .escape,
         2 => .left,
         3 => .right,
+        4 => .filter,
+        5 => .clear,
         else => .none,
     };
 }

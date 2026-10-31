@@ -3,6 +3,7 @@ const app = @import("app.zig");
 const session_mod = @import("../stream/session.zig");
 const frame_mod = @import("../ui/frame.zig");
 const layout = @import("../ui/layout.zig");
+const input_mod = @import("../ui/input.zig");
 
 const State = app.State;
 const Screen = app.Screen;
@@ -170,4 +171,35 @@ test "event click opens the timeline" {
     try second.finish();
     try std.testing.expectEqual(Screen.timeline, state.screen);
     try std.testing.expect(state.window != null);
+}
+
+// Checks that the filter shortcut follows the selected task and clears.
+test "timeline filter shortcut" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try session_mod.Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/healthy.ndjson",
+    );
+    var state = State{
+        .session = &session,
+        .screen = .timeline,
+        .selection = .{ .pid = session.slices[0].pid, .comm = session.slices[0].comm },
+    };
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(arena.allocator(), 960, 540, .{});
+    defer frame.deinit();
+    frame.input.key = input_mod.Key.filter;
+    var first = layout.Ui.init(&frame);
+    defer first.deinit();
+    try view(&state, &first);
+    try first.finish();
+    try std.testing.expect(state.filter != null);
+    frame.input.key = input_mod.Key.clear;
+    var second = layout.Ui.init(&frame);
+    defer second.deinit();
+    try view(&state, &second);
+    try second.finish();
+    try std.testing.expect(state.filter == null);
 }
