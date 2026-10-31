@@ -5,7 +5,7 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const live = @import("../capture/live.zig");
-const Store = @import("live_store.zig").Store;
+const Store = @import("../stream/live_feed.zig").Store;
 const spool = @import("spool.zig");
 
 const Writer = std.Io.Writer;
