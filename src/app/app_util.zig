@@ -21,3 +21,32 @@ pub fn palette(th: draw.Theme, comm: []const u8) draw.Color {
         else => th.pending,
     };
 }
+
+pub fn paintHover(
+    frame: *@import("../ui/frame.zig").Frame,
+    plot_x: f32,
+    top_y: f32,
+    plot_w: f32,
+    lane_h: f32,
+    lanes: usize,
+    start_us: u64,
+    end_us: u64,
+    clip: [4]f32,
+) !void {
+    const color = frame.theme.text;
+    if (!frame.input.inside(plot_x, top_y, plot_w, lane_h * @as(f32, @floatFromInt(lanes)))) return;
+    const fraction = (frame.input.pointer_x - plot_x) / @max(1.0, plot_w);
+    const hover_us = start_us + @as(u64, @intFromFloat(fraction * @as(f32, @floatFromInt(end_us - start_us))));
+    const hover_x = plot_x + plot_w * fraction;
+    try frame.list.rect(hover_x, top_y, 1, lane_h * @as(f32, @floatFromInt(lanes)), color, clip);
+    _ = try frame.list.text(
+        0,
+        &frame.regular,
+        10,
+        @min(hover_x + 4, plot_x + plot_w - 90),
+        top_y,
+        try formatTime(frame.allocator, hover_us),
+        color,
+        clip,
+    );
+}
