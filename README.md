@@ -5,7 +5,7 @@ scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
 Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
 dense operator UI on the GPU.
 
-**Status: active rewrite; P2 UI kernel is complete and renders headless snapshots.** The historical C++ implementation is
+**Status: active rewrite; P3 web replay frontend is complete and renders in a browser.** The historical C++ implementation is
 preserved on the local branch `archive/cpp-0.1.0` and tag `cpp-0.1.0`. The
 archived deterministic simulator under `simulator/` is excluded from this
 build and is not modified by the rewrite.
@@ -37,6 +37,8 @@ build and is not modified by the rewrite.
 ./tools/zig build check      # fmt + line limit + vendor hashes + tests
 ./tools/zig build run -- help
 ./tools/zig build test
+./tools/zig build web          # wasm + browser assets into zig-out/web
+./tools/zig build web-smoke    # loopback/token/no-POST smoke test
 ```
 
 The pinned standard-library source and language reference are vendored as
@@ -55,6 +57,13 @@ xsprof record --duration ms [--output journal.jsonl]
 xsprof serve [--journal journal.jsonl]
 xsprof snapshot [--replay journal.jsonl]
 xsprof ui [--replay journal.jsonl]
+```
+
+The web replay client is served read-only over loopback:
+
+```sh
+./tools/zig build web
+./zig-out/bin/xsprof serve --journal fixtures/ui/healthy.ndjson
 ```
 
 Commands marked known but not yet implemented exit 2 with a clear message until

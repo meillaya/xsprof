@@ -74,11 +74,51 @@ pub fn build(b: *std.Build) void {
     const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
     cli_parity_step.dependOn(&cli_parity.step);
 
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    const web_fonts_mod = b.createModule(.{
+        .root_source_file = b.path("assets/fonts/fonts.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+    const web_mod = b.createModule(.{
+        .root_source_file = b.path("src/web.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "fonts", .module = web_fonts_mod },
+        },
+    });
+    web_mod.export_symbol_names = &.{
+        "web_init",            "web_resize",       "web_alloc",
+        "web_free",            "web_load_journal", "web_set_screen",
+        "web_set_theme",       "web_frame",        "web_instances_ptr",
+        "web_instance_stride", "web_atlas_ptr",    "web_atlas_size",
+        "web_width",           "web_height",       "web_refusals",
+        "web_capabilities",
+    };
+    const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
+    web_exe.entry = .disabled;
+    const web_step = b.step("web", "Build the WebAssembly frontend into zig-out/web");
+    const wasm_install = b.addInstallFile(web_exe.getEmittedBin(), "web/assets/xsprof-web.wasm");
+    web_step.dependOn(&wasm_install.step);
+    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "style.css", "shaders/ui.vert.glsl", "shaders/ui.frag.glsl" };
+    inline for (web_assets) |asset| {
+        const install = b.addInstallFile(b.path("web/" ++ asset), "web/" ++ asset);
+        web_step.dependOn(&install.step);
+    }
+
+    const web_smoke = b.addSystemCommand(&.{ "sh", "qa/web_smoke.sh" });
+    web_smoke.step.dependOn(b.getInstallStep());
+    web_smoke.step.dependOn(web_step);
+    const web_smoke_step = b.step("web-smoke", "Optional loopback web bridge smoke test");
+    web_smoke_step.dependOn(&web_smoke.step);
+
     const check = b.step("check", "Full local gate: fmt, lines, vendor, tests");
     check.dependOn(&fmt.step);
     check.dependOn(&lines.step);
     check.dependOn(&vendor.step);
     check.dependOn(&cli_parity.step);
+    check.dependOn(web_step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
 }

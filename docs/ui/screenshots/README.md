@@ -13,4 +13,7 @@ the bundled JetBrains Mono rasterizer, semantic status colors, and dense
 operator layout. The runtime PNG writer uses uncompressed zlib stored blocks;
 the committed screenshot is compressed for review.
 
-No window is opened by this command.
+`p3-web-overview.png` and `p3-web-timeline.png` are headless Chromium captures
+of the wasm/WebGL2 replay client served by `xsprof serve` (P3). No window is
+opened by `snapshot`; the browser check was run explicitly by the agent with
+Playwright headless Chromium.

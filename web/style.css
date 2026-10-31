@@ -1,0 +1,14 @@
+:root { color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: #050505; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+#status {
+  position: fixed; right: 12px; bottom: 10px; color: #a79b8c;
+  font: 10px/1.4 "JetBrains Mono", ui-monospace, monospace;
+  background: #10100e; border: 1px solid #3a332b; padding: 3px 7px;
+  pointer-events: none;
+}
+#error {
+  position: fixed; inset: 40px; color: #f5efe4; background: #10100e;
+  border: 1px solid #ff6b9a; padding: 18px;
+  font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap;
+}

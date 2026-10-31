@@ -58,6 +58,13 @@ if [ "$SIG" != "89504e470d0a1a0a" ]; then
     echo "snapshot: bad PNG signature ($SIG)" >&2
     fail=1
 fi
+"$BIN" snapshot --replay "$ROOT/fixtures/ui/healthy.ndjson" --view timeline \
+    --out "$TMP/timeline.png" --width 640 --height 360 >/dev/null
+SIG=$(od -An -tx1 -N8 "$TMP/timeline.png" | tr -d ' \n')
+if [ "$SIG" != "89504e470d0a1a0a" ]; then
+    echo "snapshot replay: bad PNG signature ($SIG)" >&2
+    fail=1
+fi
 
 if "$BIN" preflight >/dev/null 2>&1; then
     echo "cli_parity: preflight without --json exited zero" >&2
