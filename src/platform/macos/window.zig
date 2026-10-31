@@ -198,6 +198,19 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     const chars = objc.fromNSString(objc.msg(?objc.Object, event, "charactersIgnoringModifiers", .{}));
     if (chars.len == 0) return;
     const ch = chars[0];
+    if (self.lab.input_focus != .none) {
+        if (ch == 127) {
+            self.input.key = .backspace;
+        } else if (ch == 13) {
+            self.input.key = .enter;
+        } else if (ch == 27) {
+            self.input.key = .escape;
+        } else if (ch >= 32) {
+            _ = self.input.pushText(chars);
+        }
+        self.dirty = true;
+        return;
+    }
     if (ch >= '1' and ch <= '5') {
         self.lab.view.screen = @fromBackingInt(@intCast(ch - '1'));
         self.dirty = true;

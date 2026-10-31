@@ -144,7 +144,30 @@ fn sanitize(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
     return out;
 }
 
-fn applyStep(lab: *lab_state.LabState, step: Step) !void {
+fn writeTrace(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    session: *const session_mod.Session,
+    path: []const u8,
+) !void {
+    if (!safePath(path)) return error.InvalidScenario;
+    const file = std.Io.Dir.cwd().createFile(io, path, .{}) catch
+        return error.ExportFailed;
+    defer file.close(io);
+    var buffer: [64 * 1024]u8 = undefined;
+    var writer = file.writer(io, &buffer);
+    chrome_trace.writeTimeline(&writer.interface, allocator, session.events, null, null) catch
+        return error.ExportFailed;
+    try writer.interface.flush();
+}
+
+fn applyStep(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    lab: *lab_state.LabState,
+    session: *const session_mod.Session,
+    step: Step,
+) !void {
     switch (step.action) {
         .screen => {
             const screen = app.parseScreen(step.value) orelse return error.InvalidScenario;
@@ -163,7 +186,7 @@ fn applyStep(lab: *lab_state.LabState, step: Step) !void {
             _ = try lab.apply(.{ .intent = .{ .transport = transport } });
         },
         .snapshot => {},
-        .export_file => return error.UnsupportedScenarioAction,
+        .export_file => try writeTrace(io, allocator, session, step.value),
     }
 }
 
@@ -273,7 +296,7 @@ pub fn run(
     var snapshots: std.ArrayList([]const u8) = .empty;
     errdefer snapshots.deinit(allocator);
     for (scenario.steps, 0..) |step, index| {
-        try applyStep(&lab, step);
+        try applyStep(io, allocator, &lab, &session, step);
         if (step.action == .snapshot) {
             const name = try snapshot(io, allocator, &lab, options, step.value, index);
             try snapshots.append(allocator, name);

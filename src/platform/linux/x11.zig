@@ -321,6 +321,20 @@ pub fn run(
         switch (event.type) {
             2 => {
                 const sym = x.lookup_keysym(&event.key, 0);
+                if (app.lab.input_focus != .none) {
+                    if (sym == 0xff08) {
+                        app.input.key = .backspace;
+                    } else if (sym == 0xff0d) {
+                        app.input.key = .enter;
+                    } else if (sym == 0xff1b) {
+                        app.input.key = .escape;
+                    } else if (sym >= 32 and sym < 127) {
+                        const byte = [_]u8{@intCast(sym)};
+                        _ = app.input.pushText(&byte);
+                    }
+                    try present(&app);
+                    continue;
+                }
                 if (sym >= '1' and sym <= '5') {
                     app.lab.view.screen = @fromBackingInt(@intCast(@as(u8, @intCast(sym)) - '1'));
                 } else if (sym == 't') {

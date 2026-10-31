@@ -99,6 +99,11 @@ pub const LabState = struct {
     palette: PaletteState = .{},
     focus: action.Focus = .screen,
     active_panel: action.LabPanel = .source,
+    input_focus: action.InputField = .none,
+    source_input: [max_path]u8 = @splat(0),
+    source_input_len: usize = 0,
+    export_input: [max_path]u8 = @splat(0),
+    export_input_len: usize = 0,
     rail_open: bool = true,
     host_controls: bool = true,
     quit_requested: bool = false,
@@ -127,6 +132,14 @@ pub const LabState = struct {
 
     pub fn toastSlice(self: *const LabState) []const u8 {
         return self.toast[0..self.toast_len];
+    }
+
+    pub fn sourceInputSlice(self: *const LabState) []const u8 {
+        return self.source_input[0..self.source_input_len];
+    }
+
+    pub fn exportInputSlice(self: *const LabState) []const u8 {
+        return self.export_input[0..self.export_input_len];
     }
 
     pub fn apply(self: *LabState, msg: action.Msg) !action.EffectBatch {
@@ -177,6 +190,61 @@ pub const LabState = struct {
         self.transport.cursor_us = self.focusWindow();
     }
 
+    fn requestSource(
+        self: *LabState,
+        kind: action.SourceKind,
+        path: []const u8,
+        batch: *action.EffectBatch,
+    ) !void {
+        if (path.len == 0 or path.len > max_path) {
+            self.setToast(.toast_error, "source path is empty or too long");
+            self.source.phase = .failed;
+            self.source.reason_len = copyBounded(&self.source.reason, "invalid source path");
+            return;
+        }
+        if (self.capture.phase == .starting or self.capture.phase == .running) {
+            self.setToast(.toast_error, "stop the capture before opening a source");
+            return;
+        }
+        self.source.kind = kind;
+        self.source.phase = .loading;
+        self.source.path_len = copyBounded(&self.source.path, path);
+        self.source.reason_len = 0;
+        self.scenario.status = .none;
+        batch.add(.{ .load_source = .{ .kind = kind, .path = self.source.pathSlice() } });
+    }
+
+    fn appendInput(self: *LabState, field: action.InputField, text: []const u8) void {
+        const buffer = switch (field) {
+            .source_path => &self.source_input,
+            .export_path => &self.export_input,
+            else => return,
+        };
+        const length = switch (field) {
+            .source_path => &self.source_input_len,
+            .export_path => &self.export_input_len,
+            else => return,
+        };
+        if (length.* + text.len > buffer.len) {
+            self.setToast(.toast_error, "input is too long");
+            return;
+        }
+        @memcpy(buffer[length.*..][0..text.len], text);
+        length.* += text.len;
+    }
+
+    fn backspaceInput(self: *LabState, field: action.InputField) void {
+        switch (field) {
+            .source_path => {
+                if (self.source_input_len != 0) self.source_input_len -= 1;
+            },
+            .export_path => {
+                if (self.export_input_len != 0) self.export_input_len -= 1;
+            },
+            else => {},
+        }
+    }
+
     fn applyIntent(self: *LabState, intent: action.Intent) !action.EffectBatch {
         var batch = action.EffectBatch{};
         switch (intent) {
@@ -199,26 +267,30 @@ pub const LabState = struct {
                 self.palette.open = false;
                 self.focus = .screen;
             },
-            .open_source => |request| {
-                if (request.path.len == 0 or request.path.len > max_path) {
-                    self.setToast(.toast_error, "source path is empty or too long");
-                    self.source.phase = .failed;
-                    self.source.reason_len = copyBounded(&self.source.reason, "invalid source path");
-                    return batch;
-                }
-                if (self.capture.phase == .starting or self.capture.phase == .running) {
-                    self.setToast(.toast_error, "stop the capture before opening a source");
-                    return batch;
-                }
-                self.source.kind = request.kind;
-                self.source.phase = .loading;
-                self.source.path_len = copyBounded(&self.source.path, request.path);
-                self.source.reason_len = 0;
-                self.scenario.status = .none;
-                batch.add(.{ .load_source = .{
-                    .kind = request.kind,
-                    .path = self.source.pathSlice(),
-                } });
+            .open_source => |request| try self.requestSource(request.kind, request.path, &batch),
+            .focus_input => |field| {
+                self.input_focus = field;
+                self.focus = .text_field;
+            },
+            .text_input => |input| self.appendInput(input.field, input.text),
+            .backspace_input => |field| self.backspaceInput(field),
+            .submit_input => |field| switch (field) {
+                .source_path => try self.requestSource(.replay, self.sourceInputSlice(), &batch),
+                .export_path => {
+                    if (self.exportInputSlice().len == 0) {
+                        self.setToast(.toast_error, "export path is empty");
+                    } else {
+                        batch.add(.{ .exports = .{
+                            .kind = .trace,
+                            .path = self.exportInputSlice(),
+                        } });
+                    }
+                },
+                else => {},
+            },
+            .cancel_input => {
+                self.input_focus = .none;
+                self.focus = .rail;
             },
             .close_source => {
                 self.source.phase = .none;
@@ -495,4 +567,21 @@ test "filter intent selects a real switch comm" {
         if (lab.view.filter.matchesSlice(slice)) matches += 1;
     }
     try std.testing.expect(matches > 0);
+}
+
+test "path editing submits a source intent" {
+    var lab = try LabState.init(std.testing.allocator);
+    defer lab.deinit();
+    _ = try lab.apply(.{ .intent = .{ .focus_input = .source_path } });
+    try std.testing.expectEqual(action.InputField.source_path, lab.input_focus);
+    _ = try lab.apply(.{ .intent = .{ .text_input = .{
+        .field = .source_path,
+        .text = "fixtures/ui/empty.ndjson",
+    } } });
+    try std.testing.expectEqualStrings("fixtures/ui/empty.ndjson", lab.sourceInputSlice());
+    _ = try lab.apply(.{ .intent = .{ .backspace_input = .source_path } });
+    try std.testing.expectEqualStrings("fixtures/ui/empty.ndjso", lab.sourceInputSlice());
+    const batch = try lab.apply(.{ .intent = .{ .submit_input = .source_path } });
+    try std.testing.expectEqual(@as(u8, 1), batch.len);
+    try std.testing.expectEqual(SourcePhase.loading, lab.source.phase);
 }
