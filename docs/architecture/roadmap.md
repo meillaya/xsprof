@@ -18,7 +18,7 @@ Status is updated only when a phase gate actually passes.
 | M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
 | M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
-| M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **in progress** |
+| M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **complete** |
 
 ## P7 gate (passed)
 
@@ -158,18 +158,16 @@ Status is updated only when a phase gate actually passes.
   labels it notarized. A tag-driven publication run also needs available
   GitHub Actions minutes; the packaging scripts and workflow lint pass
   locally without publishing.
-- **M7 in progress:** [`gui-lab.md`](gui-lab.md) defines the action/reducer
+- **M7 complete:** [`gui-lab.md`](gui-lab.md) defines the action/reducer
   model, source and capture controllers, workbench panels, scenario schema,
-  headless runner, and the L0–L6 sequence. L0/L1 landed input, hit testing,
-  controls, the reducer, source loading, live feed, and the capture worker.
-  L2/L3 added the native rail, palette, source and export path editing,
-  capture controls, transport windows, inspector, and trace export. L4 added
-  scenarios, `xsprof lab`, per-step snapshots, and `lab-smoke`. L5 shares the
-  lab state and rail in wasm, hides native-only controls, and runs the healthy
-  scenario through `web_run_scenario`, and A/B compare reports regressions from
-  a second source store. The web client runs healthy or user-selected scenario
-  files and downloads run JSON. Remaining: the final M7
-  acceptance sweep.
+  and headless runner. L0/L1 landed input, hit testing, controls, the reducer,
+  source loading, live feed, and the capture worker. L2/L3 added the native
+  rail, palette, source and export path editing, capture controls, transport
+  windows, inspector, compare, host readout, and trace/report/snapshot export.
+  L4 added scenarios, `xsprof lab`, per-step snapshots, and `lab-smoke`. L5
+  shares the lab state and rail in wasm, runs built-in or user-selected
+  scenarios, downloads run JSON and Chrome Trace, and compares a second
+  journal. The final sweep passes on macOS and in the Linux VM.
 - **M6 complete:** presets, cgroup v2 attribution (`xsprof cgroup --json`),
   PSI (`xsprof pressure --json`), recorder overhead meter, deterministic
   parser fuzzing (`zig build fuzz`), and a real multi-process perf fixture

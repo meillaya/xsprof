@@ -13,7 +13,9 @@
 `xsprof` correlates scheduler and memory events without changing the host. It
 records perf tracepoints into bounded rotating segments, extracts the last few
 minutes after an incident, exports Chrome Trace, and runs a seven-rule
-performance advisor. The UI is one draw list rendered by CPU, Metal, or WebGL2.
+performance advisor. The GUI lab opens journals, runs scenarios, compares A/B
+sources, and exports trace, report, and snapshot. The UI is one draw list
+rendered by CPU, Metal, or WebGL2.
 
 ## Requirements
 
@@ -27,7 +29,7 @@ at runtime. The shipped binary has no third-party runtime dependencies.
 
 ```sh
 ./tools/zig build          # zig-out/bin/xsprof
-./tools/zig build check    # formatting, line limit, vendor hashes, 90 tests
+./tools/zig build check    # formatting, line limit, vendor hashes, 106 tests
 ./tools/zig build web      # wasm UI and browser assets
 ./tools/zig build run -- help
 ```

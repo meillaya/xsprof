@@ -72,8 +72,10 @@ and web smoke.
 
 The native rail reports pressure/cgroup state, A/B regressions, and exports
 trace, report, and snapshot. The web lab runs scenarios, downloads run JSON
-and Chrome Trace, and loads a second journal for compare. Remaining: the
-final acceptance sweep.
+and Chrome Trace, and loads a second journal for compare. Final evidence:
+106 tests and lab smoke in the Linux VM, web lab smoke, hidden macOS smoke,
+service smoke (8 segments, 322,130 extracted lines), universal app build, and
+x86_64/aarch64 Linux cross-builds.
 
 Commands for the productization sweep:
 
