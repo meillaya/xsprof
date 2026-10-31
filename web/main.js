@@ -17,6 +17,10 @@ let follow = true;
 let liveSource = null;
 const fileInput = document.getElementById("file");
 const scenarioButton = document.getElementById("scenario");
+const scenarioFileButton = document.getElementById("scenario-file-button");
+const scenarioFileInput = document.getElementById("scenario-file");
+const downloadButton = document.getElementById("download");
+let lastScenarioResult = "";
 
 function fail(message) {
   errorBox.hidden = false;
@@ -83,6 +87,7 @@ async function boot() {
   exports.web_set_screen(screen);
   frame();
   scenarioButton.disabled = false;
+  scenarioFileButton.disabled = false;
 
   if (live) startLive();
 
@@ -124,12 +129,11 @@ async function boot() {
 
   fileInput.addEventListener("change", () => openFile(fileInput.files[0]));
 
-  async function runScenario() {
+  async function runScenarioText(text, label) {
     scenarioButton.disabled = true;
+    scenarioFileButton.disabled = true;
     try {
-      const response = await fetch("/scenarios/healthy.json");
-      if (!response.ok) throw new Error(`scenario: HTTP ${response.status}`);
-      const data = encoder.encode(await response.text());
+      const data = encoder.encode(text);
       const ptr = exports.web_alloc(data.length);
       if (!ptr) throw new Error("scenario allocation failed");
       new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
@@ -138,22 +142,50 @@ async function boot() {
       if (!ok) throw new Error("scenario run failed");
       const resultPtr = exports.web_scenario_result_ptr();
       const resultLen = exports.web_scenario_result_len();
-      const text = new TextDecoder().decode(
+      const result = new TextDecoder().decode(
         new Uint8Array(exports.memory.buffer, resultPtr, resultLen),
       );
-      console.log(text);
+      lastScenarioResult = result;
+      downloadButton.disabled = false;
+      console.log(result);
       frame();
-      status.textContent = text.includes('"status":"passed"')
-        ? "scenario healthy · PASS"
-        : "scenario healthy · FAIL";
+      status.textContent = result.includes('"status":"passed"')
+        ? `${label} · PASS`
+        : `${label} · FAIL`;
     } catch (error) {
       fail(error);
     } finally {
       scenarioButton.disabled = false;
+      scenarioFileButton.disabled = false;
     }
   }
 
+  async function runScenario() {
+    const response = await fetch("/scenarios/healthy.json");
+    if (!response.ok) {
+      fail(`scenario: HTTP ${response.status}`);
+      return;
+    }
+    await runScenarioText(await response.text(), "scenario healthy");
+  }
+
   scenarioButton.addEventListener("click", runScenario);
+  scenarioFileButton.addEventListener("click", () => scenarioFileInput.click());
+  scenarioFileInput.addEventListener("change", async () => {
+    const file = scenarioFileInput.files[0];
+    if (!file) return;
+    await runScenarioText(await file.text(), `scenario ${file.name}`);
+    scenarioFileInput.value = "";
+  });
+  downloadButton.addEventListener("click", () => {
+    if (!lastScenarioResult) return;
+    const blob = new Blob([lastScenarioResult], { type: "application/json" });
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = "xsprof-lab-run.json";
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  });
   window.addEventListener("dragover", (event) => event.preventDefault());
   window.addEventListener("drop", (event) => {
     event.preventDefault();

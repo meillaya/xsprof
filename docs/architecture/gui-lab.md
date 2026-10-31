@@ -8,8 +8,9 @@ scenarios, and `lab-smoke`. The wasm replay client now shares the lab state
 and rail but hides native-only source and capture controls. The wasm client also runs the
 healthy scenario through `web_run_scenario` and reports assertions. L3 A/B
 compare uses a second source store and reports regression counts in the rail.
-Remaining: web file pickers for custom scenarios and the final acceptance
-sweep.
+The web client now has a custom scenario file picker and downloads the
+canonical run JSON. Remaining: web trace export, web compare, and the final
+acceptance sweep.
 
 ## Goal
 
