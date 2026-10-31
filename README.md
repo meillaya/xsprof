@@ -5,7 +5,7 @@ scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
 Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
 dense operator UI on the GPU.
 
-**Status: active rewrite; P3 web replay frontend is complete and renders in a browser.** The historical C++ implementation is
+**Status: active rewrite; P4a Linux perf capture and `record` are validated in a VM.** The historical C++ implementation is
 preserved on the local branch `archive/cpp-0.1.0` and tag `cpp-0.1.0`. The
 archived deterministic simulator under `simulator/` is excluded from this
 build and is not modified by the rewrite.

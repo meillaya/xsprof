@@ -236,7 +236,7 @@ test "fromData matches file load counts" {
     );
     defer file.close(std.testing.io);
     var buffer: [64 * 1024]u8 = undefined;
-    var reader = file.reader(std.testing.io, &buffer);
+    var reader = file.readerStreaming(std.testing.io, &buffer);
     const data = try reader.interface.allocRemaining(arena.allocator(), .limited(2 * 1024 * 1024));
     const session = try Session.fromData(arena.allocator(), "web replay", data);
     try std.testing.expectEqual(@as(usize, 1444), session.events.len);

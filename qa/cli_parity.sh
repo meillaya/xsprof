@@ -70,6 +70,11 @@ if "$BIN" preflight >/dev/null 2>&1; then
     echo "cli_parity: preflight without --json exited zero" >&2
     fail=1
 fi
+if "$BIN" record --duration 1 >"$TMP/record" 2>/dev/null; then
+    echo "cli_parity: record unexpectedly succeeded on this host" >&2
+    fail=1
+fi
+check_contains "$TMP/record" '"host_mutation":false' "record-refusal"
 if "$BIN" timeline --input "$TMP/does-not-exist" >/dev/null 2>&1; then
     echo "cli_parity: missing journal exited zero" >&2
     fail=1

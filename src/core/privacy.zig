@@ -42,18 +42,22 @@ pub fn isSensitiveValue(value: []const u8) bool {
     return false;
 }
 
-/// Copy at most 15 bytes of a kernel comm into `buf`.
+/// Copy at most 15 bytes of a kernel comm into `buf`, replacing bytes outside
+/// printable ASCII so the wire form is always valid UTF-8 JSON.
 pub fn boundComm(comm: []const u8, buf: *[15]u8) []const u8 {
     const n = @min(comm.len, buf.len);
-    @memcpy(buf[0..n], comm[0..n]);
+    for (comm[0..n], 0..) |byte, i| {
+        buf[i] = if (byte >= 0x20 and byte < 0x7f) byte else '?';
+    }
     return buf[0..n];
 }
 
 fn appendToken(out: []u8, used: *usize, token: []const u8) void {
-    if (used.* >= out.len) return;
-    const n = @min(token.len, out.len - used.*);
-    @memcpy(out[used.* .. used.* + n], token[0..n]);
-    used.* += n;
+    for (token) |byte| {
+        if (used.* >= out.len) return;
+        out[used.*] = if (byte >= 0x20 and byte < 0x7f) byte else '?';
+        used.* += 1;
+    }
 }
 
 /// Redact sensitive `key=value` / `key: value` material and secret-looking

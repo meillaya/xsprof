@@ -27,7 +27,7 @@ fn readFile(
         try std.Io.Dir.cwd().openFile(io, path, .{});
     defer file.close(io);
     var buffer: [64 * 1024]u8 = undefined;
-    var reader = file.reader(io, &buffer);
+    var reader = file.readerStreaming(io, &buffer);
     return reader.interface.allocRemaining(allocator, .limited(max));
 }
 
