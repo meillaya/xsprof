@@ -570,18 +570,22 @@ test "CapEff parsing recognizes CAP_PERFMON and CAP_DAC_READ_SEARCH" {
     try std.testing.expect(parseCapEff("CapEff:\tnot-hex\n") == null);
 }
 
-test "non-Linux probes fail closed with reasons" {
+test "probes report a reason on every host" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const caps = try probeCapabilities(std.testing.io, arena.allocator());
     try std.testing.expectEqual(@as(usize, 5), caps.len);
     for (caps) |cap| {
-        try std.testing.expect(cap.state == .skip or cap.state == .refuse);
         try std.testing.expect(cap.reason.len != 0);
+        if (builtin.os.tag != .linux) {
+            try std.testing.expect(cap.state == .skip or cap.state == .refuse);
+        }
     }
     const facts = try collectFacts(std.testing.io, arena.allocator());
-    try std.testing.expectEqual(@as(u32, 0), facts.online_cpus);
-    try std.testing.expectEqual(@as(i32, 99), facts.perf_event_paranoid);
+    if (builtin.os.tag != .linux) {
+        try std.testing.expectEqual(@as(u32, 0), facts.online_cpus);
+        try std.testing.expectEqual(@as(i32, 99), facts.perf_event_paranoid);
+    }
 }
 
 test "preflight serialization carries host_mutation=false" {
