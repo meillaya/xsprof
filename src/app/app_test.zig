@@ -140,3 +140,34 @@ test "event ledger wheel scrolls" {
     try second.finish();
     try std.testing.expect(state.event_scroll > 0);
 }
+
+// Checks that clicking an event row moves the timeline window to that event.
+test "event click opens the timeline" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try session_mod.Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/ui/healthy.ndjson",
+    );
+    var state = State{ .session = &session, .screen = .events };
+    var frame: frame_mod.Frame = undefined;
+    try frame.init(arena.allocator(), 960, 540, .{});
+    defer frame.deinit();
+
+    var first = layout.Ui.init(&frame);
+    defer first.deinit();
+    try view(&state, &first);
+    try first.finish();
+    try std.testing.expect(state.events_start < session.events.len);
+
+    frame.input.pointer_x = state.events_rect.x + 10;
+    frame.input.pointer_y = state.events_rect.y + 5;
+    frame.input.clicked = true;
+    var second = layout.Ui.init(&frame);
+    defer second.deinit();
+    try view(&state, &second);
+    try second.finish();
+    try std.testing.expectEqual(Screen.timeline, state.screen);
+    try std.testing.expect(state.window != null);
+}
