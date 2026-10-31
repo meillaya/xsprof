@@ -13,6 +13,9 @@ pub const aggregates = @import("analyze/aggregates.zig");
 pub const advisor = @import("analyze/advisor.zig");
 pub const journal = @import("stream/journal.zig");
 pub const chrome_trace = @import("viz/chrome_trace.zig");
+pub const ttf = @import("ui/ttf.zig");
+pub const ui_frame = @import("ui/frame.zig");
+pub const demo = @import("app/demo.zig");
 pub const cli = @import("cli/root.zig");
 
 test {
@@ -27,5 +30,8 @@ test {
     _ = advisor;
     _ = journal;
     _ = chrome_trace;
+    _ = ttf;
+    _ = ui_frame;
+    _ = demo;
     _ = cli;
 }

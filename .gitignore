@@ -20,3 +20,6 @@ snapshots-local/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Default local snapshot output
+/xsprof-snapshot.png

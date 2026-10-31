@@ -78,8 +78,8 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P1 is complete: read-only event/JSON/privacy/safety core, preflight and
-capabilities probes, seven-rule advisor, journal ingestion, corrected Chrome
-Trace export, schemas, and the CLI parity gate. P2 is the `xsui` kernel:
-draw list, CPU raster, TrueType text, layout, theme, widgets, Tester, and
-headless snapshots. Update `docs/architecture/roadmap.md` when a gate passes.
+P2 is in progress. The UI kernel already has a flat draw list, bundled
+JetBrains Mono with an in-repo TrueType rasterizer, glyph atlas, CPU reference
+rasterizer, PNG writer, and headless `xsprof snapshot`. Still pending: layout,
+widget primitives, Tester scripts/clock, golden hashes, and Metal/WebGL2
+backends. Update `docs/architecture/roadmap.md` when a gate passes.

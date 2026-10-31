@@ -52,6 +52,13 @@ check_contains "$TMP/trace" '"displayTimeUnit":"ms"' "timeline-units"
     --output "$TMP/trace-output" >/dev/null
 check_contains "$TMP/trace-output" '"traceEvents"' "timeline-output"
 
+"$BIN" snapshot --out "$TMP/snapshot.png" --width 320 --height 200 >/dev/null
+SIG=$(od -An -tx1 -N8 "$TMP/snapshot.png" | tr -d ' \n')
+if [ "$SIG" != "89504e470d0a1a0a" ]; then
+    echo "snapshot: bad PNG signature ($SIG)" >&2
+    fail=1
+fi
+
 if "$BIN" preflight >/dev/null 2>&1; then
     echo "cli_parity: preflight without --json exited zero" >&2
     fail=1

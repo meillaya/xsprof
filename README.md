@@ -5,7 +5,7 @@ scratch in **Zig 0.17.0**. It correlates scheduler and memory events, exports
 Chrome Trace timelines, runs a seven-rule Performance Advisor, and renders a
 dense operator UI on the GPU.
 
-**Status: active rewrite; P1 read-only CLI parity is complete.** The historical C++ implementation is
+**Status: active rewrite; P2 UI kernel is in progress and renders headless snapshots.** The historical C++ implementation is
 preserved on the local branch `archive/cpp-0.1.0` and tag `cpp-0.1.0`. The
 archived deterministic simulator under `simulator/` is excluded from this
 build and is not modified by the rewrite.
