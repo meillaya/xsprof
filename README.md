@@ -7,8 +7,18 @@
 <p align="center">Read-only Linux scheduler and memory profiler.</p>
 
 <p align="center">
-  <img src="docs/media/watch.gif" alt="xsprof watch running over a real four-CPU perf capture" width="900">
+  <video src="design/media/xsprof-ui-demo.mp4" poster="design/media/xsprof-ui-demo-poster.png" width="900" controls muted loop></video>
 </p>
+
+<p align="center"><strong>Replay</strong> of a real 110,284-event Linux-VM perf capture ·
+<a href="design/media/xsprof-ui-demo.mp4">MP4</a></p>
+
+<p align="center">
+  <video src="design/media/xsprof-ui-live.mp4" poster="design/media/xsprof-ui-live-poster.png" width="900" controls muted loop></video>
+</p>
+
+<p align="center"><strong>Live</strong> VM stream over the loopback tunnel ·
+<a href="design/media/xsprof-ui-live.mp4">MP4</a></p>
 
 `xsprof` correlates scheduler and memory events without changing the host. It
 records perf tracepoints into bounded rotating segments, extracts the last few
@@ -86,14 +96,16 @@ python3 design/validate.py   # source hash + token/palette/CSS consistency
 - Prototype reference: [`design/screenshots/prototype/`](design/screenshots/prototype/)
 - GPU console: [`design/screenshots/xsprof/`](design/screenshots/xsprof/)
 - Real Linux-VM perf capture: [`fixtures/real/macos-vm-sched.ndjson`](fixtures/real/macos-vm-sched.ndjson) and [`design/screenshots/live/`](design/screenshots/live/)
-- Short boot/use video over the real capture: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
+- Replay video over the real capture: [`design/media/xsprof-ui-demo.mp4`](design/media/xsprof-ui-demo.mp4)
+- Live-stream video: [`design/media/xsprof-ui-live.mp4`](design/media/xsprof-ui-live.mp4)
+- Live-stream screenshots: [`design/screenshots/live-stream/`](design/screenshots/live-stream/)
 - Formal UI contract: [`design/ui-spec.json`](design/ui-spec.json)
 - Cross-surface report: [`design/evidence/cross_surface.json`](design/evidence/cross_surface.json)
 - Evidence method: [`design/evidence/README.md`](design/evidence/README.md)
 
 ```sh
 ./tools/zig build web
-sh qa/ui_evidence.sh   # developer-only: screenshots, video, CPU/Metal/WebGL2 gate
+sh qa/ui_evidence.sh   # developer-only: replay screenshots/video + CPU/Metal/WebGL2 gate
 ```
 
 ## Safety

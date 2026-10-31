@@ -49,3 +49,21 @@ scheduler tracepoints.
 - Console source reads `REPLAY`; it is a replay of a real capture, not a live
   host claim. Header identity comes from the `ui_host`, `ui_kernel`, and
   `ui_arch` markers.
+
+## Live stream
+
+The live video was recorded against `xsprof serve --live --live-stride 20`
+running as root inside the same podman VM. The VM loopback port was exposed to
+this host with an SSH local forward:
+
+```sh
+ssh -i ~/.local/share/containers/podman/machine/machine -p <ssh-port> \
+  -N -L 8798:127.0.0.1:8798 core@127.0.0.1
+```
+
+The browser then opened the token URL through `http://127.0.0.1:8798/`. Four
+`yes` loops and repeated `dd` writes kept the VM scheduling; the console showed
+`LIVE` with advancing counters and explicit `LOSS 235488` at the captured
+overview frame. The live stream is not archived as a static journal because it
+keeps advancing; the video and `design/evidence/live_stream.json` record the
+observed counters.
