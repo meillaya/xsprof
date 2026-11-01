@@ -61,6 +61,7 @@ say "duration=${DURATION_MS}ms workers=$WORKERS workload=$WORKLOAD max_bytes=$MA
     cat "$STATE/daemon.err" >&2
     fail "daemon failed"
 }
+"$BIN" history --last "${DURATION_MS}ms" --dir "$STATE" >"$STATE/history-result.json" 2>/dev/null || true
 
 python3 - "$STATE" "$DURATION_MS" "$WORKERS" "$WORKLOAD" <<'PY'
 import json, pathlib, re, sys
@@ -71,6 +72,13 @@ workers = int(sys.argv[3])
 workload = sys.argv[4]
 result = json.loads((state / "daemon-result.json").read_text())
 manifest = json.loads((state / "manifest.json").read_text())
+history = None
+history_path = state / "history-result.json"
+if history_path.exists():
+    try:
+        history = json.loads(history_path.read_text())
+    except Exception:
+        history = None
 
 retained_bytes = 0
 retained_events = 0
@@ -113,6 +121,9 @@ print(json.dumps({
     "duration_ms": duration_ms,
     "events": result.get("events", 0),
     "events_per_sec": result.get("events_per_sec", 0),
+    "history_events": history["totals"]["events"] if history else 0,
+    "history_lost_events": history["totals"]["lost"] if history else 0,
+    "history_sidecars": history["sidecars"] if history else 0,
     "loss_markers_retained": sample_loss,
     "lost_events_retained": lost_events,
     "max_bytes": budget,

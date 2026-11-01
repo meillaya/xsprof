@@ -102,9 +102,11 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   4,020,874-event window was bundled on the VM with two findings; no 192 MiB
   refusal remains.
 - The incremental sidecar path removed the rotation stall. A 10-minute Fedora
-  44 aarch64 run captured 83,908,179 events at 139,845/s with zero sample loss
-  and retained 2.0 GiB / 94.44 seconds. The old path lost 2.38M events in 60
-  seconds. Full method and limits: `docs/architecture/retention.md`.
+  44 aarch64 run captured 83,908,179 events at 139,845/s; the retained 2.0 GiB
+  raw window covered 94.44 seconds with no loss markers. The sidecar history
+  for the full 10 minutes lost 3,278 of 81.4M events (0.004%), under the 0.1%
+  target. The old path lost 2.38M events in 60 seconds. Full method and limits:
+  `docs/architecture/retention.md`.
 - `history --last 10m` read 774 sidecars covering 81.4M events with 3,278 lost
   events (0.004%), so the ten-minute history tier is queryable across raw
   drops. `qa/cli_parity.sh` also exercises the sidecar reader with a synthetic

@@ -24,7 +24,8 @@ The 10-minute run:
 | bytes/event | 160.27 |
 | retained bytes | 2,132,270,939 (~2.0 GiB) |
 | covered raw wall window | 94.44 s |
-| sample loss / lost events | 0 / 0 |
+| lost events, 10-min history | 3,278 / 81,409,933 (0.004%) |
+| lost events, retained raw | 0 |
 | retention drops | 128 `retention_loss` markers |
 | RSS | 9,668 KiB |
 | recorder CPU | 7,387 bp of one CPU (~73.9%) |
@@ -37,7 +38,9 @@ seconds (4.5 minutes); ten minutes of raw events at 50k/s would require about
 
 The sidecar tier fills that gap. The same retained state, queried with
 `history --last 10m`, returned 774 sidecars, 81,409,933 events, 74,900,659
-switches, and 3,278 lost events out of 81.4M (0.004%). The sidecar history
+switches, and 3,278 lost events out of 81.4M (0.004%). The retained 94-second
+raw window itself had no loss markers; the earlier segments account for the
+3,278. The full 10-minute loss is under the 0.1% target. The sidecar history
 covers the full ten-minute request even though raw retention keeps only the
 last 94 seconds.
 
