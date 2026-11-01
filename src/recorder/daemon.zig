@@ -3,10 +3,13 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const event = @import("../core/event.zig");
 const live = @import("../capture/live.zig");
+const capture_meta = @import("../capture/session_meta.zig");
 const manifest_mod = @import("manifest.zig");
 const segment_mod = @import("segment.zig");
 const sidecar = @import("sidecar.zig");
+const metrics_mod = @import("../analyze/metrics.zig");
 const overhead = @import("../os/linux/overhead.zig");
 
 const segment_bytes = 16 * 1024 * 1024;
@@ -44,6 +47,9 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     // The daemon is long-lived: capture batches and sidecars must return
     // memory to a freeing allocator, not the CLI's per-process arena.
     const runtime_allocator = std.heap.smp_allocator;
+    var meta_arena = std.heap.ArenaAllocator.init(runtime_allocator);
+    defer meta_arena.deinit();
+    const meta_events = capture_meta.collect(io, meta_arena.allocator()) catch &.{};
     const probe = try live.probe(io, allocator);
     if (probe.state != .READY) return .{ .state = probe.state, .reason = probe.reason };
 
@@ -85,6 +91,12 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     var sequence: u32 = 0;
     var segment = try segment_mod.Writer.create(io, runtime_allocator, dir, sequence, now_wall, now_mono);
     defer segment.deinit();
+    var segment_arena = std.heap.ArenaAllocator.init(runtime_allocator);
+    var segment_metrics = metrics_mod.Index.init(segment_arena.allocator());
+    defer {
+        segment_metrics.deinit();
+        segment_arena.deinit();
+    }
     const segment_path = try allocator.dupe(u8, segment.path);
     try segments.append(allocator, .{
         .path = segment_path,
@@ -133,6 +145,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             .detail = detail,
         });
     }
+    try writeMeta(&segment, &segment_metrics, meta_events);
     try segment.writeEvent(.{
         .kind = .marker,
         .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
@@ -155,6 +168,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         if (poll_result > 0) {
             var batch = try capture.take();
             defer batch.deinit();
+            try segment_metrics.append(batch.events);
             for (batch.events) |entry| {
                 try segment.writeEvent(entry);
                 total_events += 1;
@@ -166,12 +180,14 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
                     "sample_loss perf_ring lost={d}",
                     .{batch.lost},
                 ) catch "sample_loss perf_ring";
-                try segment.writeEvent(.{
+                const loss_event = event.RawEvent{
                     .kind = .marker,
                     .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
                     .cpu = -1,
                     .detail = detail,
-                });
+                };
+                try segment.writeEvent(loss_event);
+                try segment_metrics.append(&.{loss_event});
             }
         } else {
             std.Io.sleep(io, .fromMilliseconds(idle_sleep_ms), .awake) catch {};
@@ -181,7 +197,11 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         const size = segment.sizeBytes();
         if (size >= segment_bytes or now - segment_started >= segment_age_ms * std.time.ns_per_ms) {
             try segment.close();
-            sidecar.writeForSegment(io, runtime_allocator, dir, segments.items[current].path) catch {};
+            writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena);
+            segment_metrics.deinit();
+            segment_arena.deinit();
+            segment_arena = std.heap.ArenaAllocator.init(runtime_allocator);
+            segment_metrics = metrics_mod.Index.init(segment_arena.allocator());
             segment.deinit();
             segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
             segments.items[current].end_mono_ns = now;
@@ -193,6 +213,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             if (sequence > max_seq) sequence = 0;
             const wall = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
             segment = try segment_mod.Writer.create(io, allocator, dir, sequence, wall, now);
+            try writeMeta(&segment, &segment_metrics, meta_events);
             try segments.append(allocator, .{
                 .path = try allocator.dupe(u8, segment.path),
                 .start_wall_ns = wall,
@@ -245,7 +266,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .detail = "capture_stop",
     });
     try segment.close();
-    sidecar.writeForSegment(io, runtime_allocator, dir, segments.items[current].path) catch {};
+    writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena);
     segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
     segments.items[current].end_mono_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds);
     segments.items[current].bytes = segment.stats.bytes;
@@ -266,6 +287,28 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .bytes = bytes,
         .overhead = meter.finish(io, allocator, total_events, bytes),
     };
+}
+
+fn writeMeta(
+    segment: *segment_mod.Writer,
+    metrics: *metrics_mod.Index,
+    events: []const event.RawEvent,
+) !void {
+    for (events) |entry| {
+        try segment.writeEvent(entry);
+        try metrics.append(&.{entry});
+    }
+}
+
+fn writeSidecar(
+    io: std.Io,
+    dir: []const u8,
+    segment_path: []const u8,
+    index: *metrics_mod.Index,
+    arena: *std.heap.ArenaAllocator,
+) void {
+    const metrics = index.snapshot(arena.allocator()) catch return;
+    sidecar.writeMetrics(io, arena.allocator(), dir, segment_path, metrics) catch {};
 }
 
 fn totalBytes(segments: []const manifest_mod.Segment) u64 {

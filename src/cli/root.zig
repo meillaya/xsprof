@@ -4,17 +4,14 @@ const event = @import("../core/event.zig");
 const version = @import("../core/version.zig");
 const safety = @import("../core/safety.zig");
 const proc = @import("../os/linux/proc.zig");
-const aggregates = @import("../analyze/aggregates.zig");
-const advisor = @import("../analyze/advisor.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
-const gallery = @import("../app/gallery.zig");
-const app = @import("../app/app.zig");
-const session_mod = @import("../stream/session.zig");
 const live = @import("../capture/live.zig");
 const recording = @import("../capture/recording.zig");
 const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
+const advise_cmd = @import("advise_cmd.zig");
+const incident_cmd = @import("incident_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
 const recorder_cmd = @import("recorder_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
@@ -32,6 +29,7 @@ const known_commands = [_][]const u8{
     "preflight",
     "capabilities",
     "advise",
+    "incident",
     "timeline",
     "record",
     "serve",
@@ -126,26 +124,6 @@ fn cmdCapabilities(
     const capabilities = try proc.probeCapabilities(io, allocator);
     try proc.writeCapabilities(out, capabilities);
     try out.writeByte('\n');
-    return 0;
-}
-
-fn cmdAdvise(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    args: []const []const u8,
-    out: *Writer,
-) !u8 {
-    var markdown = false;
-    for (args) |arg| {
-        if (std.mem.eql(u8, arg, "--md")) markdown = true;
-    }
-    const facts = try proc.collectFacts(io, allocator);
-    const agg = aggregates.fromFacts(facts);
-    if (markdown) {
-        try advisor.writeReportMarkdown(out, allocator, agg, .{});
-    } else {
-        try advisor.writeReportJson(out, allocator, agg, .{});
-    }
     return 0;
 }
 
@@ -389,7 +367,10 @@ pub fn runWith(
         return cmdCapabilities(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "advise")) {
-        return cmdAdvise(io, allocator, args[2..], out);
+        return advise_cmd.cmdAdvise(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "incident")) {
+        return incident_cmd.cmdIncident(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "timeline")) {
         return cmdTimeline(io, allocator, args[2..], out, err);

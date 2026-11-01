@@ -87,6 +87,33 @@
     "host_mutation": {
       "const": false
     },
+    "rules": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "finding",
+              "clear",
+              "skip"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "schema": {
       "const": "xsprof/advisor-report/v1"
     }
@@ -95,6 +122,7 @@
     "schema",
     "capabilities",
     "findings",
+    "rules",
     "host_mutation"
   ],
   "title": "xsprof advisor report v1",

@@ -10,7 +10,8 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
         \\COMMANDS (read-only, fail-closed):
         \\  preflight --json        Read-only host facts + capability probes
         \\  capabilities --json     Probe perf/tracepoint/BPF/PMU/sched_ext
-        \\  advise --json|--md      Performance Advisor report
+        \\  advise [--input <f>] [--json|--md]
+        \\                          Performance Advisor report (journal or host)
         \\  timeline --input <f> [--window start:end] [--chunk-size N]
         \\                          Chrome Trace timeline from a JSONL journal
         \\  record --duration <ms> [--output <f>]

@@ -4,6 +4,7 @@
 const std = @import("std");
 const live = @import("live.zig");
 const event = @import("../core/event.zig");
+const session_meta = @import("session_meta.zig");
 
 pub const Result = live.Result;
 pub const State = live.State;
@@ -52,6 +53,8 @@ pub fn recordWithOptions(
         @as(i96, duration_ms) * std.time.ns_per_ms;
     var output: std.ArrayList(event.RawEvent) = .empty;
     errdefer output.deinit(allocator);
+    const meta = session_meta.collect(io, allocator) catch &.{};
+    try output.appendSlice(allocator, meta);
 
     while (std.Io.Clock.now(.awake, io).nanoseconds < deadline) {
         const remaining_ns = deadline - std.Io.Clock.now(.awake, io).nanoseconds;
@@ -101,6 +104,9 @@ pub fn recordStream(
         else => return err,
     };
     defer capture.deinit();
+
+    const meta = session_meta.collect(io, allocator) catch &.{};
+    for (meta) |entry| try sink.emit(entry);
 
     const deadline = std.Io.Clock.now(.awake, io).nanoseconds +
         @as(i96, duration_ms) * std.time.ns_per_ms;

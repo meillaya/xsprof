@@ -1,7 +1,15 @@
-# Record the last ten minutes
+# Record a rolling window
 
 The recorder keeps one perf capture open, writes bounded append-only segments,
 and lets you extract the recent window after an incident.
+
+`--retain` is an upper age bound, not the retained duration: `--max-bytes` binds
+first. The real 1.2 s macOS-VM capture is 17.5 MB, or about 15 MB/s, so the
+default 2 GiB budget holds roughly 2–3 minutes at that rate. Raise
+`--max-bytes` or reduce the event mask for a longer window. The Capture screen
+shows the actual retained wall span (`X covered · cap Y`) from the manifest,
+not the configured cap; an extract older than the retained data carries a
+`retention_loss` marker instead of being zero-filled.
 
 ## Prerequisites
 
@@ -35,18 +43,43 @@ discarding the earlier history.
 
 Each closed segment also gets a `metrics/<stem>.json` sidecar with CPU busy,
 switch, wakeup, migration, fault, and top-task p95 wait metrics. The sidecar is
-small enough to keep after raw retention drops the segment.
+small enough to keep after raw retention drops the segment. It is written, but
+the console and advisor do not read sidecars yet; they analyze the extracted
+raw window.
 
 ## Extract a window
 
 ```sh
 ./zig-out/bin/xsprof capture --last 5m --dir /var/lib/xsprof --out incident.ndjson
 ./zig-out/bin/xsprof capture --last 30s --dir /var/lib/xsprof
+./zig-out/bin/xsprof advise --input incident.ndjson --md
 ```
 
 The extractor converts the wall-clock cutoff using each segment's wall and
 monotonic anchors, keeps only complete lines, and emits explicit markers for
-missing, corrupt, or trimmed history. It never fills gaps with zeroes.
+missing, corrupt, or trimmed history. It never fills gaps with zeroes. Session
+metadata (recorder identity, CPU LLC topology, and the buddyinfo snapshot) is
+kept even when its capture-start timestamp is older than the window.
+
+## Bundle the incident
+
+```sh
+./zig-out/bin/xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
+```
+
+The output folder is self-contained and offline:
+
+- `window.ndjson` — the sanitized raw window, including metadata and loss markers
+- `summary.json` — canonical counts, signals, rule statuses, findings, top tasks
+- `report.html` — static report with inline CSS and relative artifact links; no
+  scripts, server, telemetry, or network requests
+- `trace.json` — Chrome Trace export
+
+The summary records both the requested and the actually retained wall window.
+If the byte budget dropped older history, `window.trimmed` is true and the
+report says so instead of implying full coverage. The command refuses a window
+above 192 MiB rather than silently truncating it; request a shorter `--last` on
+very busy systems.
 
 ## Watch over SSH
 

@@ -7,6 +7,21 @@ const proc = @import("../os/linux/proc.zig");
 
 const Writer = std.Io.Writer;
 
+/// Per-signal collection state. A rule may only be CLEAR when every signal it
+/// needs is true; counts alone never imply that a tracepoint was captured.
+pub const Signals = struct {
+    sched_switch: bool = false,
+    sched_wakeup: bool = false,
+    sched_migrate: bool = false,
+    page_fault: bool = false,
+    cpu_topology: bool = false,
+    numa_fault: bool = false,
+    pmu_hitm: bool = false,
+    lock_contention: bool = false,
+    allocator: bool = false,
+    priority_inversion: bool = false,
+};
+
 pub const Aggregates = struct {
     remote_fault_ratio: f64 = 0,
     dominant_node: i32 = -1,
@@ -16,7 +31,9 @@ pub const Aggregates = struct {
     cross_llc_migration: bool = false,
     llc_domains: i32 = 1,
     wakeups: i64 = 0,
+    self_wakeups: i64 = 0,
     unnecessary_wakeups: i64 = 0,
+    unresolved_wakeups: i64 = 0,
     lock_contentions: i64 = 0,
     avg_lock_wait_ms: f64 = 0,
 
@@ -31,6 +48,7 @@ pub const Aggregates = struct {
     priority_inversion_observed: bool = false,
     pmu_collected: bool = false,
     sched_collected: bool = false,
+    signals: Signals = .{},
 };
 
 pub fn writeJson(w: *Writer, agg: Aggregates) Writer.Error!void {
@@ -71,9 +89,26 @@ fn parseBuddyCounts(line: []const u8, out: []i64) usize {
     return n;
 }
 
+/// Ratio of low-order (0-3) buddy blocks to all blocks on one zone line.
+/// Returns null when the line has no usable counts.
+pub fn fragmentationFromBuddyLine(line: []const u8) ?f64 {
+    var counts: [16]i64 = undefined;
+    const n = parseBuddyCounts(line, &counts);
+    if (n < 2) return null;
+    var low: i64 = 0;
+    var high: i64 = 0;
+    for (counts[0..n], 0..) |value, i| {
+        if (i < 4) low += value else high += value;
+    }
+    const total = low + high;
+    if (total <= 0) return null;
+    return @as(f64, @floatFromInt(low)) / @as(f64, @floatFromInt(total));
+}
+
 pub fn fromFacts(facts: proc.Facts) Aggregates {
     var agg: Aggregates = .{};
-    agg.pmu_collected = facts.perf_event_paranoid <= 1;
+    // No PMU counter is read on this path, so the signal is not collected.
+    agg.pmu_collected = false;
     agg.sched_collected = false;
     agg.llc_domains = if (facts.numa_nodes.len == 0)
         1
@@ -81,19 +116,9 @@ pub fn fromFacts(facts: proc.Facts) Aggregates {
         @intCast(@min(facts.numa_nodes.len, std.math.maxInt(i32)));
 
     if (facts.buddyinfo.len != 0) {
-        var counts: [16]i64 = undefined;
-        const n = parseBuddyCounts(facts.buddyinfo[facts.buddyinfo.len - 1], &counts);
-        if (n >= 2) {
-            var low: i64 = 0;
-            var high: i64 = 0;
-            for (counts[0..n], 0..) |value, i| {
-                if (i < 4) low += value else high += value;
-            }
-            const total = low + high;
-            if (total > 0) {
-                agg.buddy_fragmentation = @as(f64, @floatFromInt(low)) /
-                    @as(f64, @floatFromInt(total));
-            }
+        if (fragmentationFromBuddyLine(facts.buddyinfo[facts.buddyinfo.len - 1])) |fragmentation| {
+            agg.buddy_fragmentation = fragmentation;
+            agg.signals.allocator = true;
         }
     }
     return agg;
@@ -121,4 +146,8 @@ test "fragmentation uses the last buddyinfo line" {
     const agg = fromFacts(facts);
     try std.testing.expectApproxEqAbs(@as(f64, 30.0 / 31.0), agg.buddy_fragmentation, 0.0001);
     try std.testing.expectEqual(@as(i32, 1), agg.llc_domains);
+    try std.testing.expect(agg.signals.allocator);
+    try std.testing.expect(!agg.pmu_collected);
+    try std.testing.expect(fragmentationFromBuddyLine("Node 0, zone Normal") == null);
+    try std.testing.expect(fragmentationFromBuddyLine("Node 0, zone Normal 0 0 0 0") == null);
 }

@@ -23,12 +23,25 @@ pub fn writeForSegment(
     try index.append(events);
     const metrics = try index.snapshot(arena_allocator);
 
+    try writeMetrics(io, arena_allocator, dir, segment_path, metrics);
+}
+
+/// Write a sidecar from an already-computed metrics snapshot. The daemon uses
+/// this after accumulating the segment while writing it, so rotation never
+/// re-reads and re-parses the raw file while perf rings are filling.
+pub fn writeMetrics(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    dir: []const u8,
+    segment_path: []const u8,
+    metrics: metrics_mod.Metrics,
+) !void {
     const base = if (std.mem.lastIndexOfScalar(u8, segment_path, '/')) |slash|
         segment_path[slash + 1 ..]
     else
         segment_path;
     const stem = if (std.mem.lastIndexOfScalar(u8, base, '.')) |dot| base[0..dot] else base;
-    const out_path = try std.fmt.allocPrint(arena_allocator, "{s}/metrics/{s}.json", .{ dir, stem });
+    const out_path = try std.fmt.allocPrint(allocator, "{s}/metrics/{s}.json", .{ dir, stem });
     const file = try std.Io.Dir.createFileAbsolute(io, out_path, .{});
     defer file.close(io);
     var buffer: [32 * 1024]u8 = undefined;

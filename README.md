@@ -20,10 +20,13 @@
 <p align="center"><strong>Live</strong> VM stream over the loopback tunnel ·
 <a href="design/media/xsprof-ui-live.mp4">full MP4</a></p>
 
-`xsprof` correlates scheduler and memory events without changing the host. It
-records perf tracepoints into bounded rotating segments, extracts the last few
-minutes after an incident, exports Chrome Trace, and runs a seven-rule
-performance advisor. Its operator console is the prototype from
+`xsprof` correlates scheduler and page-fault events without changing the host.
+It records perf tracepoints into bounded rotating segments, extracts the recent
+window after an incident, and writes a self-contained offline bundle (raw
+window, canonical summary, static HTML report, Chrome Trace). It runs a
+seven-rule advisor that reports `SKIP` when a rule's signal was not captured.
+The recorder's own task is identified and excluded from rankings and
+wakeup-churn analysis. Its operator console is the prototype from
 [`design/index.html`](design/index.html): overview, timeline, advisor, events,
 and capture status, fed by real replay/live data with no fabricated metrics.
 The GPU surface is the standalone [`lib/xsui`](lib/xsui/README.md) package:
@@ -52,7 +55,10 @@ at runtime. The shipped binary has no third-party runtime dependencies.
 
 ```sh
 xsprof record --duration 2000 --output session.ndjson
+xsprof advise --input session.ndjson --json
+xsprof advise --input session.ndjson --md
 xsprof daemon --foreground --dir /var/lib/xsprof
+xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
 xsprof capture --last 5m --dir /var/lib/xsprof
 xsprof watch --dir /var/lib/xsprof
 xsprof serve --journal session.ndjson
@@ -102,4 +108,5 @@ Runtime samples never include argv, environment variables, secrets, or tokens.
 ./tools/zig build fuzz
 (cd lib/xsui && ../../tools/zig build test)   # package in isolation
 ./tools/zig build service-smoke               # Linux root, disposable VM
+qa/retention_bench.sh 120000 0 2G yes         # Linux root, disposable VM
 ```

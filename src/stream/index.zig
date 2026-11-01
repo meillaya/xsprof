@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const session_meta = @import("../core/session_meta.zig");
 const session = @import("session.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 
@@ -48,6 +49,11 @@ pub const Index = struct {
     refusals: u32 = 0,
     cpu_count: u8 = 1,
     out_of_order: u32 = 0,
+    meta: session_meta.Meta = .{},
+    self_switches: u32 = 0,
+    self_migrations: u32 = 0,
+    cross_llc_migrations: u32 = 0,
+    timed_events: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) Index {
         return .{
@@ -68,15 +74,23 @@ pub const Index = struct {
     }
 
     pub fn append(self: *Index, new_events: []const event.RawEvent) !void {
+        for (new_events) |e| self.meta.apply(e);
+        self.metrics_index.setSelf(&self.meta);
         try self.metrics_index.append(new_events);
         try self.events.appendSlice(self.allocator, new_events);
         for (new_events) |e| {
-            const us = e.ts_ns / 1000;
-            self.last_us = @max(self.last_us, us);
-            self.first_us = @min(self.first_us, us);
+            if (!session_meta.isMetadata(e)) {
+                const us = e.ts_ns / 1000;
+                self.last_us = @max(self.last_us, us);
+                self.first_us = @min(self.first_us, us);
+                self.timed_events += 1;
+            }
             switch (e.kind) {
                 .sched_switch => {
                     self.switches += 1;
+                    const incoming: i32 = @intCast(@min(e.a, std.math.maxInt(i32)));
+                    const is_self = self.meta.isSelf(incoming, e.comm);
+                    if (is_self) self.self_switches += 1;
                     if (e.cpu >= 0) {
                         const cpu: u8 = @intCast(@min(e.cpu, max_cpus - 1));
                         const next_cpu: u8 = @intCast(@min(e.cpu + 1, max_cpus - 1));
@@ -101,14 +115,24 @@ pub const Index = struct {
                             .comm = e.comm,
                         };
                     }
-                    if (e.comm.len != 0) {
+                    if (e.comm.len != 0 and !is_self) {
                         const entry = try self.comm_counts.getOrPut(e.comm);
                         if (!entry.found_existing) entry.value_ptr.* = 0;
                         entry.value_ptr.* += 1;
                     }
                 },
                 .sched_wakeup => self.wakeups += 1,
-                .sched_migrate => self.migrations += 1,
+                .sched_migrate => {
+                    self.migrations += 1;
+                    const migrating: i32 = e.pid;
+                    if (self.meta.isSelf(migrating, e.comm)) {
+                        self.self_migrations += 1;
+                    } else if (self.meta.llcOf(@intCast(@min(e.a, std.math.maxInt(i32))))) |orig| {
+                        if (self.meta.llcOf(@intCast(@min(e.b, std.math.maxInt(i32))))) |dest| {
+                            if (orig != dest) self.cross_llc_migrations += 1;
+                        }
+                    }
+                },
                 .page_fault => self.faults += 1,
                 .marker => {
                     if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
@@ -163,8 +187,8 @@ pub const Index = struct {
             .slices = self.slices.items,
             .capabilities = self.capabilities.items,
             .top_comms = top_slice,
-            .first_us = if (self.events.items.len == 0) 0 else self.first_us,
-            .last_us = if (self.events.items.len == 0) 0 else self.last_us,
+            .first_us = if (self.timed_events == 0) 0 else self.first_us,
+            .last_us = if (self.timed_events == 0) 0 else self.last_us,
             .switches = self.switches,
             .wakeups = self.wakeups,
             .migrations = self.migrations,
@@ -172,6 +196,10 @@ pub const Index = struct {
             .lost = self.lost,
             .refusals = self.refusals,
             .cpu_count = self.cpu_count,
+            .meta = self.meta,
+            .self_switches = self.self_switches,
+            .self_migrations = self.self_migrations,
+            .cross_llc_migrations = self.cross_llc_migrations,
             .metrics = try self.metrics_index.snapshot(allocator),
         };
     }
@@ -206,6 +234,13 @@ test "incremental index matches full build on the healthy fixture" {
     try std.testing.expectEqual(expected.lost, actual.lost);
     try std.testing.expectEqual(expected.refusals, actual.refusals);
     try std.testing.expectEqual(expected.cpu_count, actual.cpu_count);
+    try std.testing.expectEqual(expected.self_switches, actual.self_switches);
+    try std.testing.expectEqual(expected.self_migrations, actual.self_migrations);
+    try std.testing.expectEqual(expected.cross_llc_migrations, actual.cross_llc_migrations);
+    try std.testing.expectEqual(expected.meta.self_seen, actual.meta.self_seen);
+    try std.testing.expectEqual(expected.meta.buddy_sampled, actual.meta.buddy_sampled);
+    try std.testing.expectEqual(expected.metrics.unnecessary_wakeups, actual.metrics.unnecessary_wakeups);
+    try std.testing.expectEqual(expected.metrics.self_wakeups, actual.metrics.self_wakeups);
     try std.testing.expectEqual(expected.slices.len, actual.slices.len);
     for (expected.slices, actual.slices) |a, b| {
         try std.testing.expectEqual(a.start_us, b.start_us);
@@ -220,4 +255,29 @@ test "incremental index matches full build on the healthy fixture" {
         try std.testing.expectEqualStrings(a.comm, b.comm);
         try std.testing.expectEqual(a.count, b.count);
     }
+}
+
+test "incremental index keeps metadata, self, and churn parity" {
+    const journal = @import("journal.zig");
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const data = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
+        "fixtures/real/vm-fragmented.ndjson",
+        arena.allocator(),
+        .limited(8 * 1024 * 1024),
+    );
+    const expected = try session.Session.fromData(arena.allocator(), "fixture", data);
+    const events = try journal.parseData(arena.allocator(), data);
+    var index = Index.init(arena.allocator());
+    defer index.deinit();
+    try index.append(events);
+    const actual = try index.snapshot(arena.allocator(), "fixture");
+    try std.testing.expectEqual(expected.meta.self_pid, actual.meta.self_pid);
+    try std.testing.expectEqual(expected.self_switches, actual.self_switches);
+    try std.testing.expectEqual(expected.self_migrations, actual.self_migrations);
+    try std.testing.expectEqual(expected.cross_llc_migrations, actual.cross_llc_migrations);
+    try std.testing.expectEqual(expected.metrics.self_wakeups, actual.metrics.self_wakeups);
+    try std.testing.expectEqual(expected.metrics.unnecessary_wakeups, actual.metrics.unnecessary_wakeups);
+    try std.testing.expectApproxEqAbs(expected.meta.buddy_fragmentation, actual.meta.buddy_fragmentation, 0.000001);
 }

@@ -4,6 +4,7 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const journal = @import("journal.zig");
+const session_meta = @import("../core/session_meta.zig");
 const aggregates = @import("../analyze/aggregates.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 
@@ -43,6 +44,10 @@ pub const Session = struct {
     refusals: u32 = 0,
     cpu_count: u8 = 1,
     metrics: metrics_mod.Metrics = .{},
+    meta: session_meta.Meta = .{},
+    self_switches: u32 = 0,
+    self_migrations: u32 = 0,
+    cross_llc_migrations: u32 = 0,
 
     pub fn load(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !Session {
         const events = try journal.read(io, allocator, path);
@@ -79,8 +84,10 @@ pub const Session = struct {
             .top_comms = &.{},
         };
         if (events.len == 0) return session;
-        session.first_us = events[0].ts_ns / 1000;
-        session.last_us = session.first_us;
+        for (events) |e| session.meta.apply(e);
+        session.first_us = std.math.maxInt(u64);
+        session.last_us = 0;
+        var timed_events: usize = 0;
 
         var comm_counts = std.StringHashMap(u32).init(allocator);
         defer comm_counts.deinit();
@@ -89,24 +96,40 @@ pub const Session = struct {
         var caps: std.ArrayList(Capability) = .empty;
 
         for (events) |e| {
-            const us = e.ts_ns / 1000;
-            session.last_us = @max(session.last_us, us);
-            session.first_us = @min(session.first_us, us);
+            if (!session_meta.isMetadata(e)) {
+                const us = e.ts_ns / 1000;
+                session.last_us = @max(session.last_us, us);
+                session.first_us = @min(session.first_us, us);
+                timed_events += 1;
+            }
             switch (e.kind) {
                 .sched_switch => {
                     session.switches += 1;
+                    const incoming: i32 = @intCast(@min(e.a, std.math.maxInt(i32)));
+                    const is_self = session.meta.isSelf(incoming, e.comm);
+                    if (is_self) session.self_switches += 1;
                     if (e.cpu >= 0) {
                         const cpu: u8 = @intCast(@min(e.cpu, 255));
                         session.cpu_count = @max(session.cpu_count, cpu + 1);
                     }
-                    if (e.comm.len != 0) {
+                    if (e.comm.len != 0 and !is_self) {
                         const entry = try comm_counts.getOrPut(e.comm);
                         if (!entry.found_existing) entry.value_ptr.* = 0;
                         entry.value_ptr.* += 1;
                     }
                 },
                 .sched_wakeup => session.wakeups += 1,
-                .sched_migrate => session.migrations += 1,
+                .sched_migrate => {
+                    session.migrations += 1;
+                    const migrating: i32 = e.pid;
+                    if (session.meta.isSelf(migrating, e.comm)) {
+                        session.self_migrations += 1;
+                    } else if (session.meta.llcOf(@intCast(@min(e.a, std.math.maxInt(i32))))) |orig| {
+                        if (session.meta.llcOf(@intCast(@min(e.b, std.math.maxInt(i32))))) |dest| {
+                            if (orig != dest) session.cross_llc_migrations += 1;
+                        }
+                    }
+                },
                 .page_fault => session.faults += 1,
                 .marker => {
                     if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
@@ -128,6 +151,10 @@ pub const Session = struct {
                 },
                 else => {},
             }
+        }
+        if (timed_events == 0) {
+            session.first_us = 0;
+            session.last_us = 0;
         }
         session.capabilities = try caps.toOwnedSlice(allocator);
 
@@ -178,6 +205,7 @@ pub const Session = struct {
 
         var metrics_index = metrics_mod.Index.init(allocator);
         defer metrics_index.deinit();
+        metrics_index.setSelf(&session.meta);
         try metrics_index.append(events);
         session.metrics = try metrics_index.snapshot(allocator);
         return session;
@@ -188,13 +216,30 @@ pub const Session = struct {
     }
 
     pub fn aggregate(self: Session) aggregates.Aggregates {
+        const switches = self.switches -| self.self_switches;
+        const wakeups = self.metrics.wakeups -| self.metrics.self_wakeups;
+        const migrations = self.migrations -| self.self_migrations;
+        const topology = self.meta.topologyComplete(self.cpu_count);
         return .{
-            .migrations = self.migrations,
-            .wakeups = self.wakeups,
+            .migrations = @intCast(migrations),
+            .wakeups = @intCast(wakeups),
+            .self_wakeups = @intCast(self.metrics.self_wakeups),
+            .unnecessary_wakeups = @intCast(self.metrics.unnecessary_wakeups),
+            .unresolved_wakeups = @intCast(self.metrics.unresolved_wakeups),
             .page_faults = self.faults,
-            .llc_domains = @max(1, @as(i32, self.cpu_count)),
-            .sched_collected = self.switches > 0,
+            .cross_llc_migration = self.cross_llc_migrations > 0,
+            .llc_domains = if (topology) self.meta.llcDomainCount() else 1,
+            .buddy_fragmentation = self.meta.buddy_fragmentation,
+            .sched_collected = switches > 0,
             .pmu_collected = false,
+            .signals = .{
+                .sched_switch = switches > 0,
+                .sched_wakeup = wakeups > 0,
+                .sched_migrate = migrations > 0,
+                .page_fault = self.faults > 0,
+                .cpu_topology = topology,
+                .allocator = self.meta.buddy_sampled,
+            },
         };
     }
 };
@@ -216,7 +261,14 @@ test "healthy fixture builds slices, capabilities, and loss" {
     try std.testing.expect(session.refusals == 0);
     try std.testing.expect(session.cpu_count == 4);
     try std.testing.expect(session.top_comms.len > 0);
-    try std.testing.expect(session.aggregate().sched_collected);
+    const agg = session.aggregate();
+    try std.testing.expect(agg.sched_collected);
+    try std.testing.expectEqual(@as(i64, 329), agg.wakeups);
+    try std.testing.expectEqual(@as(i64, 0), agg.self_wakeups);
+    try std.testing.expectEqual(@as(i64, 329), agg.unnecessary_wakeups);
+    try std.testing.expect(agg.signals.sched_wakeup);
+    try std.testing.expect(!agg.signals.cpu_topology);
+    try std.testing.expect(!agg.signals.allocator);
 }
 
 test "empty fixture stays empty and fail-closed" {
@@ -266,4 +318,28 @@ test "real workload fixture builds multi-CPU slices" {
     try std.testing.expectEqual(@as(u32, 0), session.lost);
     try std.testing.expect(session.slices.len > 1000);
     try std.testing.expect(session.metrics.tasks.len > 8);
+    try std.testing.expectEqual(@as(u32, 2153), session.self_switches);
+    const agg = session.aggregate();
+    try std.testing.expectEqual(@as(i64, 133), agg.wakeups);
+    try std.testing.expectEqual(@as(i64, 73), agg.self_wakeups);
+    try std.testing.expectEqual(@as(i64, 40), agg.unnecessary_wakeups);
+    try std.testing.expectEqual(@as(i64, 7), agg.unresolved_wakeups);
+}
+
+test "real metadata fixture records buddyinfo and the recorder pid" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try Session.load(
+        std.testing.io,
+        arena.allocator(),
+        "fixtures/real/vm-fragmented.ndjson",
+    );
+    try std.testing.expectEqual(@as(usize, 12000), session.events.len);
+    try std.testing.expect(session.meta.self_seen);
+    try std.testing.expect(session.meta.self_pid > 0);
+    try std.testing.expect(session.self_switches > 0);
+    try std.testing.expect(session.meta.buddy_sampled);
+    const agg = session.aggregate();
+    try std.testing.expect(agg.signals.allocator);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.614654), agg.buddy_fragmentation, 0.000001);
 }

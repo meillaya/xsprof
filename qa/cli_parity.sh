@@ -44,6 +44,53 @@ check_contains "$TMP/capabilities" '"host_mutation":false' "capabilities"
 check_contains "$TMP/advise" '"schema":"xsprof/advisor-report/v1"' "advise"
 "$BIN" advise --md >"$TMP/advise-md"
 check_contains "$TMP/advise-md" "Performance Advisor Report" "advise-md"
+"$BIN" advise --input "$ROOT/fixtures/real/vm-fragmented.ndjson" >"$TMP/advise-input"
+check_contains "$TMP/advise-input" '"schema":"xsprof/advisor-report/v1"' "advise-input"
+check_contains "$TMP/advise-input" '"rules":' "advise-input"
+check_contains "$TMP/advise-input" '"id":"allocator-fragmentation"' "advise-input"
+check_contains "$TMP/advise-input" '"status":"finding"' "advise-input"
+check_contains "$TMP/advise-input" '"status":"skip"' "advise-input"
+check_contains "$TMP/advise-input" '"host_mutation":false' "advise-input"
+if "$BIN" advise --input "$TMP/does-not-exist.ndjson" >/dev/null 2>&1; then
+    echo "cli_parity: missing advise input exited zero" >&2
+    fail=1
+fi
+
+STATE="$TMP/state"
+mkdir -p "$STATE/segments"
+cat >"$STATE/segments/0-0.ndjson" <<'EOF'
+{"schema":"xsprof/event/v1","event":"marker","ts_ns":0,"cpu":-1,"pid":7,"tid":7,"comm":"xsprof","detail":"capture_owner","host_mutation":false}
+{"schema":"xsprof/event/v1","event":"marker","ts_ns":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.75","host_mutation":false}
+{"schema":"xsprof/event/v1","event":"sched_switch","ts_ns":61000000000,"cpu":0,"pid":7,"tid":7,"a":9,"b":0,"c":0,"comm":"worker","host_mutation":false}
+{"schema":"xsprof/event/v1","event":"sched_wakeup","ts_ns":61100000000,"cpu":0,"pid":7,"tid":7,"a":9,"comm":"worker","host_mutation":false}
+{"schema":"xsprof/event/v1","event":"sched_wakeup","ts_ns":61200000000,"cpu":0,"pid":7,"tid":7,"a":9,"comm":"worker","host_mutation":false}
+EOF
+BODY_BYTES=$(wc -c <"$STATE/segments/0-0.ndjson" | tr -d ' ')
+NOW_S=$(date +%s)
+START_S=$((NOW_S - 120))
+START_NS="${START_S}000000000"
+END_NS="${NOW_S}000000000"
+cat >"$STATE/manifest.json" <<EOF
+{"host_mutation":false,"max_age_ms":600000,"max_bytes":2147483648,"schema":"xsprof/recorder-manifest/v1","segments":[{"bytes":$BODY_BYTES,"closed":true,"end_mono_ns":70000000000,"end_wall_ns":$END_NS,"events":5,"path":"segments/0-0.ndjson","start_mono_ns":0,"start_wall_ns":$START_NS}],"session_id":"incident-smoke","started_mono_ns":0,"started_wall_ns":$START_NS,"state":"stopped","updated_wall_ns":$END_NS}
+EOF
+"$BIN" incident --last 60s --dir "$STATE" --out "$TMP/incident" >"$TMP/incident-result"
+check_contains "$TMP/incident-result" '"schema":"xsprof/incident-result/v1"' "incident-result"
+check_contains "$TMP/incident-result" '"host_mutation":false' "incident-result"
+for artifact in window.ndjson summary.json report.html trace.json; do
+    if [ ! -s "$TMP/incident/$artifact" ]; then
+        echo "cli_parity: incident missing $artifact" >&2
+        fail=1
+    fi
+done
+check_contains "$TMP/incident/summary.json" '"schema":"xsprof/incident-summary/v1"' "incident-summary"
+check_contains "$TMP/incident/summary.json" '"host_mutation":false' "incident-summary"
+check_contains "$TMP/incident/summary.json" '"status":"finding"' "incident-summary"
+check_contains "$TMP/incident/report.html" "xsprof incident" "incident-report"
+check_contains "$TMP/incident/report.html" "window.ndjson" "incident-report"
+if grep -Eq 'https?://' "$TMP/incident/report.html"; then
+    echo "cli_parity: incident report has an external URL" >&2
+    fail=1
+fi
 "$BIN" pressure --json >"$TMP/pressure" 2>/dev/null || true
 check_contains "$TMP/pressure" '"schema":"xsprof/pressure/v1"' "pressure"
 check_contains "$TMP/pressure" '"host_mutation":false' "pressure"

@@ -60,7 +60,7 @@ fn groups(
     var result = std.StringHashMap(Group).init(allocator);
     errdefer result.deinit();
     for (metrics.tasks) |task| {
-        if (task.comm.len == 0) continue;
+        if (task.comm.len == 0 or task.is_self) continue;
         const entry = try result.getOrPut(task.comm);
         if (!entry.found_existing) entry.value_ptr.* = .{};
         entry.value_ptr.p95 = @max(entry.value_ptr.p95, task.wait_p95_us);

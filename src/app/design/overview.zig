@@ -163,7 +163,14 @@ fn drawStatCard(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect, i: 
     };
     const sub_text = switch (i) {
         0 => std.fmt.bufPrint(&sub_buf, "p99 {d:.3} ms · {d} CPUs", .{ model.summary.p99 orelse 0, model.summary.cpus }) catch "",
-        1 => std.fmt.bufPrint(&sub_buf, "{d:.1} /s · {d} migrations", .{ model.summary.switchRate, model.summary.migrations }) catch "",
+        1 => if (model.summary.selfShare > 0)
+            std.fmt.bufPrint(&sub_buf, "{d:.1} /s · {d} migrations · self {d:.0}%", .{
+                model.summary.switchRate,
+                model.summary.migrations,
+                model.summary.selfShare,
+            }) catch ""
+        else
+            std.fmt.bufPrint(&sub_buf, "{d:.1} /s · {d} migrations", .{ model.summary.switchRate, model.summary.migrations }) catch "",
         2 => std.fmt.bufPrint(&sub_buf, "{d:.3} s excerpt · {s} capture", .{ model.summary.windowMs / 1000, model.meta.captureWindow }) catch "",
         3 => if (model.summary.lost > 0) "ring overflow · never zero-filled" else "no markers in this journal",
         else => if (model.summary.runqueue) |rq| std.fmt.bufPrint(&sub_buf, "runqueue {d:.1} peak", .{rq}) catch "" else "runqueue not sampled",
