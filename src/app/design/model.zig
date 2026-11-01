@@ -35,6 +35,8 @@ pub const Summary = struct {
     runqueue: ?f64 = null,
     windowMs: f64 = 0,
     switchRate: f64 = 0,
+    selfSwitches: u32 = 0,
+    selfShare: f64 = 0,
 };
 
 pub const Capability = struct {

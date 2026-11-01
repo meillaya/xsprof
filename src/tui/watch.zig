@@ -101,8 +101,11 @@ fn render(out: *Writer, manifest: manifest_mod.Manifest, metrics: metrics_mod.Me
         });
     }
     try out.writeAll("\nTASK                 p95_wait  p99_wait  offcpu95  switches\n");
-    const limit = @min(metrics.tasks.len, 12);
-    for (metrics.tasks[0..limit]) |task| {
+    var shown: usize = 0;
+    for (metrics.tasks) |task| {
+        if (task.is_self) continue;
+        if (shown == 12) break;
+        shown += 1;
         try out.print("{s:<20} {d:>8} {d:>9} {d:>9} {d:>8}\n", .{
             truncate(task.comm, 20),
             task.wait_p95_us / 1000,

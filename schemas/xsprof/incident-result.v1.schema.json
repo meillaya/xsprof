@@ -1,0 +1,35 @@
+{
+  "$id": "schemas/xsprof/xsprof incident result v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "additionalProperties": false,
+      "properties": {
+        "report": { "type": "string" },
+        "summary": { "type": "string" },
+        "trace": { "type": "string" },
+        "window": { "type": "string" }
+      },
+      "required": ["report", "summary", "trace", "window"],
+      "type": "object"
+    },
+    "clears": { "type": "integer" },
+    "findings": { "type": "integer" },
+    "host_mutation": { "const": false },
+    "schema": { "const": "xsprof/incident-result/v1" },
+    "skips": { "type": "integer" },
+    "window_events": { "type": "integer" }
+  },
+  "required": [
+    "schema",
+    "artifacts",
+    "clears",
+    "findings",
+    "host_mutation",
+    "skips",
+    "window_events"
+  ],
+  "title": "xsprof incident result v1",
+  "type": "object"
+}

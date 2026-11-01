@@ -1,0 +1,331 @@
+{
+  "$id": "schemas/xsprof/xsprof incident summary v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "additionalProperties": false,
+      "properties": {
+        "report": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "trace": {
+          "type": "string"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "report",
+        "summary",
+        "trace",
+        "window"
+      ],
+      "type": "object"
+    },
+    "capabilities": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason",
+          "state"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "events": {
+      "type": "integer"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "enum": [
+              "measured",
+              "heuristic"
+            ]
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "detail": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "detail",
+                "rationale"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "confidence",
+          "summary",
+          "evidence",
+          "recommendations"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "loss": {
+      "additionalProperties": false,
+      "properties": {
+        "lost": {
+          "type": "integer"
+        },
+        "retention_trimmed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lost",
+        "retention_trimmed"
+      ],
+      "type": "object"
+    },
+    "requested_ms": {
+      "type": "integer"
+    },
+    "rules": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "finding",
+              "clear",
+              "skip"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "xsprof/incident-summary/v1"
+    },
+    "self": {
+      "additionalProperties": false,
+      "properties": {
+        "share": {
+          "type": "number"
+        },
+        "switches": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "share",
+        "switches"
+      ],
+      "type": "object"
+    },
+    "signals": {
+      "additionalProperties": false,
+      "properties": {
+        "allocator": {
+          "type": "boolean"
+        },
+        "cpu_topology": {
+          "type": "boolean"
+        },
+        "lock_contention": {
+          "type": "boolean"
+        },
+        "numa_fault": {
+          "type": "boolean"
+        },
+        "page_fault": {
+          "type": "boolean"
+        },
+        "pmu_hitm": {
+          "type": "boolean"
+        },
+        "priority_inversion": {
+          "type": "boolean"
+        },
+        "sched_migrate": {
+          "type": "boolean"
+        },
+        "sched_switch": {
+          "type": "boolean"
+        },
+        "sched_wakeup": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "allocator",
+        "cpu_topology",
+        "lock_contention",
+        "numa_fault",
+        "page_fault",
+        "pmu_hitm",
+        "priority_inversion",
+        "sched_migrate",
+        "sched_switch",
+        "sched_wakeup"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dir",
+        "window"
+      ],
+      "type": "object"
+    },
+    "tasks": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "comm": {
+            "type": "string"
+          },
+          "migrations": {
+            "type": "integer"
+          },
+          "pid": {
+            "type": "integer"
+          },
+          "switches": {
+            "type": "integer"
+          },
+          "wait_p95_us": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "comm",
+          "migrations",
+          "pid",
+          "switches",
+          "wait_p95_us"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "window": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "type": "integer"
+        },
+        "first_us": {
+          "type": "integer"
+        },
+        "last_us": {
+          "type": "integer"
+        },
+        "retained_ms": {
+          "type": "integer"
+        },
+        "trimmed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "duration_ms",
+        "first_us",
+        "last_us",
+        "retained_ms",
+        "trimmed"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "artifacts",
+    "capabilities",
+    "events",
+    "findings",
+    "host_mutation",
+    "loss",
+    "requested_ms",
+    "rules",
+    "self",
+    "signals",
+    "source",
+    "tasks",
+    "window"
+  ],
+  "title": "xsprof incident summary v1",
+  "type": "object"
+}

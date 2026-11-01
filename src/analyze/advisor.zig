@@ -2,10 +2,8 @@
 //! suggestions only; there is no syscall or auto-apply path here.
 
 const std = @import("std");
-const json = @import("../core/json.zig");
 const aggregates = @import("aggregates.zig");
 
-const Writer = std.Io.Writer;
 const Aggregates = aggregates.Aggregates;
 
 pub const Severity = enum { info, warning, critical };
@@ -121,7 +119,8 @@ pub fn analyze(
     }
 
     // Rule 5: poor NUMA placement.
-    if (agg.remote_fault_ratio > thresholds.numa_remote_fault_ratio and
+    if (agg.signals.numa_fault and
+        agg.remote_fault_ratio > thresholds.numa_remote_fault_ratio and
         agg.dominant_node >= 0 and agg.task_cpu_node >= 0 and
         agg.dominant_node != agg.task_cpu_node)
     {
@@ -147,7 +146,8 @@ pub fn analyze(
     }
 
     // Rule 4: CPU affinity churn.
-    if (agg.sched_collected and agg.cross_llc_migration and
+    if (agg.signals.sched_migrate and agg.signals.cpu_topology and
+        agg.cross_llc_migration and
         agg.migrations > thresholds.affinity_churn_migrations_min)
     {
         try out.append(allocator, .{
@@ -172,7 +172,7 @@ pub fn analyze(
     }
 
     // Rule 3: unnecessary wakeups.
-    if (agg.sched_collected and agg.wakeups > 0 and
+    if (agg.signals.sched_switch and agg.signals.sched_wakeup and agg.wakeups > 0 and
         @as(f64, @floatFromInt(agg.unnecessary_wakeups)) /
             @as(f64, @floatFromInt(agg.wakeups)) > thresholds.unnecessary_wakeup_ratio)
     {
@@ -180,11 +180,11 @@ pub fn analyze(
             .id = "unnecessary-wakeups",
             .severity = .info,
             .confidence = .measured,
-            .summary = "A large share of wakeups are not followed by a run within the window.",
+            .summary = "A large share of wakeups found the task already runnable or did not reach a run before the window ended.",
             .evidence = try oneEvidence(
                 allocator,
-                "unnecessary_wakeups={d}/{d}",
-                .{ agg.unnecessary_wakeups, agg.wakeups },
+                "unnecessary_wakeups={d}/{d} unresolved={d} self_excluded={d}",
+                .{ agg.unnecessary_wakeups, agg.wakeups, agg.unresolved_wakeups, agg.self_wakeups },
             ),
             .recommendations = try oneRecommendation(
                 allocator,
@@ -198,7 +198,8 @@ pub fn analyze(
     }
 
     // Rule 2: excessive locking.
-    if (agg.lock_contentions >= thresholds.excessive_lock_contentions_min and
+    if (agg.signals.lock_contention and
+        agg.lock_contentions >= thresholds.excessive_lock_contentions_min and
         agg.avg_lock_wait_ms > thresholds.excessive_lock_wait_ms)
     {
         try out.append(allocator, .{
@@ -222,8 +223,8 @@ pub fn analyze(
         });
     }
 
-    // Rule 1: false sharing, with a measured path and a heuristic fallback.
-    if (agg.pmu_collected and agg.remote_hitm > thresholds.false_sharing_hitm_min) {
+    // Rule 1: false sharing. LLC misses are not evidence without HITM.
+    if (agg.signals.pmu_hitm and agg.remote_hitm > thresholds.false_sharing_hitm_min) {
         try out.append(allocator, .{
             .id = "false-sharing",
             .severity = .critical,
@@ -239,23 +240,10 @@ pub fn analyze(
                 .{},
             ),
         });
-    } else if (!agg.pmu_collected and agg.llc_misses > 0) {
-        try out.append(allocator, .{
-            .id = "false-sharing",
-            .severity = .info,
-            .confidence = .heuristic,
-            .summary = "Elevated LLC misses may indicate false sharing (PMU HITM unavailable).",
-            .evidence = try oneEvidence(
-                allocator,
-                "llc_misses={d} (heuristic; CAP_PERFMON needed for confirmation)",
-                .{agg.llc_misses},
-            ),
-            .recommendations = &.{},
-        });
     }
 
     // Rule 6: allocator fragmentation.
-    if (agg.buddy_fragmentation > thresholds.allocator_fragmentation_min) {
+    if (agg.signals.allocator and agg.buddy_fragmentation > thresholds.allocator_fragmentation_min) {
         try out.append(allocator, .{
             .id = "allocator-fragmentation",
             .severity = .info,
@@ -278,7 +266,9 @@ pub fn analyze(
     }
 
     // Rule 7: priority inversion.
-    if (thresholds.priority_inversion_enabled and agg.priority_inversion_observed) {
+    if (thresholds.priority_inversion_enabled and agg.signals.priority_inversion and
+        agg.priority_inversion_observed)
+    {
         try out.append(allocator, .{
             .id = "priority-inversion",
             .severity = .critical,
@@ -317,104 +307,6 @@ pub fn freeFindings(allocator: std.mem.Allocator, findings: []Finding) void {
     allocator.free(findings);
 }
 
-fn writeRecommendation(w: *Writer, rec: Recommendation) Writer.Error!void {
-    try json.write(w, .{ .object = &.{
-        .{ .key = "detail", .value = .{ .string = rec.detail } },
-        .{ .key = "kind", .value = .{ .string = rec.kind } },
-        .{ .key = "rationale", .value = .{ .string = rec.rationale } },
-    } });
-}
-
-fn writeFinding(w: *Writer, finding: Finding) Writer.Error!void {
-    try w.writeByte('{');
-    try w.writeAll("\"confidence\":");
-    try json.write(w, .{ .string = confidenceName(finding.confidence) });
-    try w.writeAll(",\"evidence\":[");
-    for (finding.evidence, 0..) |line, i| {
-        if (i != 0) try w.writeByte(',');
-        try json.write(w, .{ .string = line });
-    }
-    try w.writeAll("],\"id\":");
-    try json.write(w, .{ .string = finding.id });
-    try w.writeAll(",\"recommendations\":[");
-    for (finding.recommendations, 0..) |rec, i| {
-        if (i != 0) try w.writeByte(',');
-        try writeRecommendation(w, rec);
-    }
-    try w.writeAll("],\"severity\":");
-    try json.write(w, .{ .string = severityName(finding.severity) });
-    try w.writeAll(",\"summary\":");
-    try json.write(w, .{ .string = finding.summary });
-    try w.writeByte('}');
-}
-
-pub fn writeReportJson(
-    w: *Writer,
-    allocator: std.mem.Allocator,
-    agg: Aggregates,
-    thresholds: Thresholds,
-) !void {
-    const findings = try analyze(allocator, agg, thresholds);
-    defer freeFindings(allocator, findings);
-    try w.writeAll("{\"capabilities\":{\"pmu_collected\":");
-    try json.write(w, .{ .boolean = agg.pmu_collected });
-    try w.writeAll(",\"sched_collected\":");
-    try json.write(w, .{ .boolean = agg.sched_collected });
-    try w.writeAll("},\"findings\":[");
-    for (findings, 0..) |finding, i| {
-        if (i != 0) try w.writeByte(',');
-        try writeFinding(w, finding);
-    }
-    try w.writeAll("],\"host_mutation\":false,\"schema\":\"xsprof/advisor-report/v1\"}\n");
-}
-
-pub fn writeReportMarkdown(
-    w: *Writer,
-    allocator: std.mem.Allocator,
-    agg: Aggregates,
-    thresholds: Thresholds,
-) !void {
-    const findings = try analyze(allocator, agg, thresholds);
-    defer freeFindings(allocator, findings);
-    try w.writeAll("# xsprof Performance Advisor Report\n\n");
-    try w.print("- PMU collected: {s}\n", .{if (agg.pmu_collected) "yes" else "no"});
-    try w.print("- Scheduler collected: {s}\n\n", .{if (agg.sched_collected) "yes" else "no"});
-    if (findings.len == 0) {
-        try w.writeAll(
-            "No findings. Either the workload is healthy or the signals needed for " ++
-                "detection were not collected (see capabilities above; the framework " ++
-                "fails closed).\n",
-        );
-        return;
-    }
-    try w.writeAll("| # | Severity | Finding | Confidence |\n|---|----------|---------|------------|\n");
-    for (findings, 0..) |finding, i| {
-        try w.print("| {d} | {s} | {s} | {s} |\n", .{
-            i + 1,
-            severityName(finding.severity),
-            finding.id,
-            confidenceName(finding.confidence),
-        });
-    }
-    try w.writeAll("\n## Detail\n\n");
-    for (findings) |finding| {
-        try w.print("### {s} ({s}, {s})\n\n{s}\n\nEvidence:\n", .{
-            finding.id,
-            severityName(finding.severity),
-            confidenceName(finding.confidence),
-            finding.summary,
-        });
-        for (finding.evidence) |line| try w.print("- `{s}`\n", .{line});
-        if (finding.recommendations.len != 0) {
-            try w.writeAll("\nRecommendations (suggestions only — never auto-applied):\n");
-            for (finding.recommendations) |rec| {
-                try w.print("- **{s}**: `{s}` — {s}\n", .{ rec.kind, rec.detail, rec.rationale });
-            }
-        }
-        try w.writeAll("\n");
-    }
-}
-
 fn stressed() Aggregates {
     return .{
         .remote_fault_ratio = 0.5,
@@ -433,6 +325,17 @@ fn stressed() Aggregates {
         .priority_inversion_observed = true,
         .pmu_collected = true,
         .sched_collected = true,
+        .signals = .{
+            .sched_switch = true,
+            .sched_wakeup = true,
+            .sched_migrate = true,
+            .numa_fault = true,
+            .cpu_topology = true,
+            .pmu_hitm = true,
+            .lock_contention = true,
+            .allocator = true,
+            .priority_inversion = true,
+        },
     };
 }
 
@@ -469,18 +372,18 @@ test "thresholds are strict greater-than boundaries" {
         .pmu_collected = true,
         .remote_hitm = 0.05,
         .buddy_fragmentation = 0.50,
+        .signals = .{
+            .sched_switch = true,
+            .sched_wakeup = true,
+            .sched_migrate = true,
+            .numa_fault = true,
+            .cpu_topology = true,
+            .pmu_hitm = true,
+            .lock_contention = true,
+            .allocator = true,
+            .priority_inversion = true,
+        },
     };
     const findings = try analyze(arena.allocator(), boundary, .{});
     try std.testing.expectEqual(@as(usize, 0), findings.len);
-}
-
-test "advisor report carries host_mutation=false and no apply path" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    var buf: [8192]u8 = undefined;
-    var w = Writer.fixed(&buf);
-    try writeReportJson(&w, arena.allocator(), stressed(), .{});
-    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "\"host_mutation\":false") != null);
-    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "sched_setaffinity") != null);
-    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "\"schema\":\"xsprof/advisor-report/v1\"") != null);
 }

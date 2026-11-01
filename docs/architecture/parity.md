@@ -8,7 +8,10 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
 
 - `help|--help|-h`, `version|--version`; no args = help, exit 0.
 - `preflight --json`, `capabilities --json`; missing flag = stderr, exit 2.
-- `advise [--md]`; JSON unless `--md`.
+- `advise [--input F] [--md]`; host facts by default, journal aggregates with
+  `--input`; JSON unless `--md`.
+- `incident --last DUR --dir D --out D`; one offline bundle with `window.ndjson`,
+  `summary.json`, `report.html`, and `trace.json`.
 - `timeline --input F [--output F] [--window S:E] [--chunk-size N]`.
 - `record [--duration MS=1000] [--output F] [--bpf OBJ] [--allow-mutate]
   [--vm-lab] [--audit-id ID] [--rollback-id ID]`.
@@ -25,7 +28,10 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
   host_mutation (stderr).
 - `xsprof/aggregates/v1`: 21 fields + host_mutation.
 - `xsprof/advisor-report/v1`: capabilities, findings (id/severity/confidence/
-  summary/evidence/recommendations), host_mutation.
+  summary/evidence/recommendations), rules (id/reason/status), host_mutation.
+- `xsprof/incident-summary/v1`: artifacts, capabilities, counts, findings,
+  loss, requested/retained window, rules, signals, top tasks, host_mutation.
+- `xsprof/incident-result/v1`: artifact paths, status counts, window events.
 - 18 event kinds: sched_switch, sched_wakeup, sched_migrate,
   runqueue_sample, priority_inversion, lock_contention, page_fault, tlb_miss,
   cache_miss, huge_page, numa_balance, alloc_sample, malloc_hotspot, marker,
@@ -34,8 +40,9 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
 - Sorted-key compact JSON; `host_mutation=false` constantly.
 - Privacy: comm ≤15 bytes, key/value redaction, no argv/env.
 - Advisor: 7 rules, defaults `>0.20`, `>0.30`, `>100`, `>1.0 ms`, `>0.05`,
-  `>0.50`, priority inversion enabled; stable severity ordering; suggestions
-  only.
+  `>0.50`, priority inversion enabled; stable severity ordering; a rule is
+  `CLEAR` only when every required signal was collected, otherwise `SKIP`;
+  suggestions only.
 - Chrome Trace `X`/`i`/`s`/`f`/`M` shapes, windowing, chunk streaming,
   `SAMPLE_LOSS` as unsafe.
 - Journal replay: one JSON object per line; reject wrong schema,

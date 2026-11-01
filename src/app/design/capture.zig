@@ -107,8 +107,8 @@ fn drawRetention(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !v
     try canvas.fill(.{ .x = rect.x + 14, .y = rect.y + 101, .w = rect.w - 28, .h = 4 }, th.line);
     try canvas.fill(.{ .x = rect.x + 14, .y = rect.y + 101, .w = (rect.w - 28) * pct / 100.0, .h = 4 }, th.skip);
     if (ret) |r| {
-        var buf: [64]u8 = undefined;
-        try label(canvas, rect.x + 14, rect.y + 112, std.fmt.bufPrint(&buf, "{s} used · {s} old", .{ r.used, r.age }) catch "", style(common.text_10, th.faint, .regular));
+        var buf: [128]u8 = undefined;
+        try label(canvas, rect.x + 14, rect.y + 112, std.fmt.bufPrint(&buf, "{s} used · {s} covered · {s}", .{ r.used, r.age, r.excerpt }) catch "", style(common.text_10, th.faint, .regular));
     }
 }
 

@@ -26,3 +26,5 @@ boundary, and every record carries `host_mutation=false`.
 - `recorder-result.v1.schema.json` — daemon result and overhead meter.
 - `lab-scenario.v1.schema.json` — bounded GUI lab scenario.
 - `lab-run.v1.schema.json` — headless lab run result.
+- `incident-summary.v1.schema.json` — offline incident bundle summary.
+- `incident-result.v1.schema.json` — `incident` command result.

@@ -25,6 +25,26 @@
 This fixture exercises multi-process scheduler activity, page faults, and
 multi-CPU lanes in tests and snapshots.
 
+The console now identifies the recorder's own task (`xsprof`, `xsprof-*`) and
+excludes it from rankings and wakeup-churn ratios; the captured rows themselves
+are unchanged. That is why the demo no longer presents the profiler as the
+hottest workload.
+
+## VM fragmentation capture
+
+`vm-fragmented.ndjson` is the first 12,000 complete lines of a fresh
+`xsprof record --duration 500` capture from the same disposable Fedora 44
+aarch64 podman VM, taken with four busy `yes` loops. It starts with the new
+session metadata rows: `capture_owner` (the recorder pid), and
+`host_memory buddy_fragmentation=0.614654`; the VM's cache topology was not
+readable, so no `cpu_llc` rows were emitted and topology stays uncollected.
+
+The fixture exists to prove the offline path end to end: the metadata survives
+`capture --last`, the recorder task is excluded from workload churn, and
+`advise --input` produces a measured `allocator-fragmentation` finding with the
+buddyinfo evidence. It is a timestamp-ordered prefix, not an interpolated or
+downsampled stream.
+
 ## macOS Linux VM capture
 
 `macos-vm-sched.ndjson` is the full-fidelity capture used for the current

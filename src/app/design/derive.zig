@@ -6,6 +6,7 @@ const std = @import("std");
 const session_mod = @import("../../stream/session.zig");
 const metrics_mod = @import("../../analyze/metrics.zig");
 const advisor_mod = @import("../../analyze/advisor.zig");
+const rules_mod = @import("../../analyze/rules.zig");
 const event_mod = @import("../../core/event.zig");
 const model_mod = @import("model.zig");
 
@@ -24,16 +25,6 @@ pub const Context = struct {
     session_label: []const u8 = "",
     live: bool = false,
     started_at: i64 = 0,
-};
-
-const rule_ids = [_][]const u8{
-    "poor-numa-placement",
-    "cpu-affinity-churn",
-    "unnecessary-wakeups",
-    "excessive-locking",
-    "false-sharing",
-    "allocator-fragmentation",
-    "priority-inversion",
 };
 
 pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: Context) !Model {
@@ -97,6 +88,7 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
             switches = @intCast(@min(cpu.switches, std.math.maxInt(u32)));
         }
         for (session.metrics.tasks) |task| {
+            if (task.is_self) continue;
             if (task.last_cpu == index) best_p95 = @max(best_p95, task.wait_p95_us);
         }
         var slice_busy_us: u64 = 0;
@@ -142,20 +134,22 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
         };
     }
 
-    const thread_count: usize = @min(session.metrics.tasks.len, 9);
-    const threads = try allocator.alloc(model_mod.Thread, thread_count);
-    for (threads, 0..) |*thread, index| {
-        const task = session.metrics.tasks[index];
-        thread.* = .{
+    const total_switches = session.switches -| session.self_switches;
+    var thread_list: std.ArrayList(model_mod.Thread) = .empty;
+    for (session.metrics.tasks) |task| {
+        if (task.is_self) continue;
+        if (thread_list.items.len == 9) break;
+        try thread_list.append(allocator, .{
             .comm = task.comm,
             .pid = task.pid,
             .switches = @intCast(@min(task.switches, std.math.maxInt(u32))),
             .migrations = @intCast(@min(task.migrations, std.math.maxInt(u32))),
             .p95 = if (task.wait_p95_us == 0) null else @as(f64, @floatFromInt(task.wait_p95_us)) / 1000.0,
-            .lane = lanes.get(task.comm) orelse @intCast((index % 9) + 1),
-            .share = if (session.switches == 0) 0 else @as(f64, @floatFromInt(task.switches)) * 100.0 / @as(f64, @floatFromInt(session.switches)),
-        };
+            .lane = lanes.get(task.comm) orelse @intCast((thread_list.items.len % 9) + 1),
+            .share = if (total_switches == 0) 0 else @as(f64, @floatFromInt(task.switches)) * 100.0 / @as(f64, @floatFromInt(total_switches)),
+        });
     }
+    const threads = try thread_list.toOwnedSlice(allocator);
 
     var type_map = std.StringHashMap(u32).init(allocator);
     for (session.events) |e| {
@@ -208,8 +202,14 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
 
     const agg = session.aggregate();
     const findings = advisor_mod.analyze(allocator, agg, .{}) catch &.{};
-    const cards = try buildAdvisorCards(allocator, findings, agg);
+    const report_list = try rules_mod.reports(allocator, agg, findings);
+    const cards = try buildAdvisorCards(allocator, findings, report_list);
     const memory = try buildMemory(allocator, session, agg);
+    const self_share = if (session.switches == 0)
+        0
+    else
+        @as(f64, @floatFromInt(session.self_switches)) * 100.0 /
+            @as(f64, @floatFromInt(session.switches));
 
     return .{
         .schema = "xsprof/design-demo/v1",
@@ -241,6 +241,8 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
             .runqueue = null,
             .windowMs = window_ms,
             .switchRate = if (window_ms > 0) @as(f64, @floatFromInt(session.switches)) / (window_ms / 1000.0) else 0,
+            .selfSwitches = session.self_switches,
+            .selfShare = self_share,
         },
         .capabilities = try buildCapabilities(allocator, session),
         .cpuStats = cpu_stats,
@@ -274,10 +276,12 @@ fn buildCapabilities(allocator: std.mem.Allocator, session: *const Session) ![]m
 
 fn buildMemory(allocator: std.mem.Allocator, session: *const Session, agg: @import("../../analyze/aggregates.zig").Aggregates) !?model_mod.Memory {
     var numa_buf: [64]u8 = undefined;
-    const numa = if (agg.llc_domains > 1)
+    const numa = if (!agg.signals.cpu_topology)
+        "topology uncollected"
+    else if (agg.llc_domains > 1)
         try std.fmt.allocPrint(allocator, "{d} LLC domains", .{agg.llc_domains})
     else
-        std.fmt.bufPrint(&numa_buf, "{d} node", .{@max(1, agg.llc_domains)}) catch "one node";
+        std.fmt.bufPrint(&numa_buf, "{d} LLC domain", .{@max(1, agg.llc_domains)}) catch "one LLC domain";
     const mem: model_mod.Memory = .{
         .pageFaults = @intCast(@max(0, agg.page_faults)),
         .cacheMiss = 0,
@@ -285,62 +289,75 @@ fn buildMemory(allocator: std.mem.Allocator, session: *const Session, agg: @impo
         .reclaimMax = 0,
         .cross = 0,
         .numa = numa,
-        .has_llc = agg.pmu_collected,
+        .has_llc = agg.signals.pmu_hitm,
         .has_reclaim = false,
-        .has_cross = agg.pmu_collected and agg.remote_fault_ratio > 0,
+        .has_cross = agg.signals.numa_fault,
     };
     if (mem.pageFaults == 0 and !mem.has_llc and !mem.has_cross) return null;
     _ = session;
     return mem;
 }
 
-fn buildAdvisorCards(allocator: std.mem.Allocator, findings: []const advisor_mod.Finding, agg: @import("../../analyze/aggregates.zig").Aggregates) ![]model_mod.AdvisorCard {
-    const cards = try allocator.alloc(model_mod.AdvisorCard, rule_ids.len);
-    for (rule_ids, 0..) |id, index| {
+fn buildAdvisorCards(
+    allocator: std.mem.Allocator,
+    findings: []const advisor_mod.Finding,
+    report_list: []const rules_mod.Report,
+) ![]model_mod.AdvisorCard {
+    const cards = try allocator.alloc(model_mod.AdvisorCard, report_list.len);
+    for (report_list, 0..) |report, index| {
         var matched: ?advisor_mod.Finding = null;
         for (findings) |finding| {
-            if (std.mem.eql(u8, finding.id, id)) {
+            if (std.mem.eql(u8, finding.id, report.id)) {
                 matched = finding;
                 break;
             }
         }
-        if (matched) |finding| {
-            var rec_buf = std.ArrayList(u8).empty;
-            try rec_buf.appendSlice(allocator, "Suggestion only — never applied. ");
-            if (finding.recommendations.len > 0) {
-                try rec_buf.appendSlice(allocator, finding.recommendations[0].rationale);
+        if (report.status == .finding) {
+            if (matched) |finding| {
+                var rec_buf = std.ArrayList(u8).empty;
+                try rec_buf.appendSlice(allocator, "Suggestion only — never applied. ");
+                if (finding.recommendations.len > 0) {
+                    try rec_buf.appendSlice(allocator, finding.recommendations[0].rationale);
+                }
+                cards[index] = .{
+                    .id = report.id,
+                    .severity = if (finding.severity == .critical) "WARNING" else if (finding.severity == .warning) "WARNING" else "INFO",
+                    .confidence = if (finding.confidence == .measured) 0.86 else 0.61,
+                    .summary = finding.summary,
+                    .evidence = finding.evidence,
+                    .recommendation = try rec_buf.toOwnedSlice(allocator),
+                    .focus = null,
+                };
+                continue;
             }
+            // A finding without a signal is a report bug; never render it as
+            // a clean result.
             cards[index] = .{
-                .id = id,
-                .severity = if (finding.severity == .critical) "WARNING" else if (finding.severity == .warning) "WARNING" else "INFO",
-                .confidence = if (finding.confidence == .measured) 0.86 else 0.61,
-                .summary = finding.summary,
-                .evidence = finding.evidence,
-                .recommendation = try rec_buf.toOwnedSlice(allocator),
-                .focus = null,
-            };
-        } else {
-            const collected = signalCollected(id, agg);
-            cards[index] = .{
-                .id = id,
-                .severity = if (collected) "CLEAR" else "SKIP",
-                .confidence = if (collected) 0.88 else null,
-                .summary = if (collected) "No threshold breach in the collected signals for this rule." else "The signal this rule needs was not collected in this journal.",
+                .id = report.id,
+                .severity = "SKIP",
+                .confidence = null,
+                .summary = "Report inconsistency: finding had no collected evidence.",
                 .evidence = &.{},
-                .recommendation = if (collected) "Suggestion only — never applied. No action indicated by this rule." else "Suggestion only — never applied. Re-run with the required signal enabled.",
+                .recommendation = "Suggestion only — never applied. Treat this rule as uncollected.",
                 .focus = null,
             };
+            continue;
         }
+        const clear = report.status == .clear;
+        cards[index] = .{
+            .id = report.id,
+            .severity = if (clear) "CLEAR" else "SKIP",
+            .confidence = if (clear) 0.88 else null,
+            .summary = report.reason,
+            .evidence = &.{},
+            .recommendation = if (clear)
+                "Suggestion only — never applied. No action indicated by this rule."
+            else
+                "Suggestion only — never applied. Capture the missing signal to evaluate this rule.",
+            .focus = null,
+        };
     }
     return cards;
-}
-
-fn signalCollected(id: []const u8, agg: @import("../../analyze/aggregates.zig").Aggregates) bool {
-    if (std.mem.eql(u8, id, "poor-numa-placement")) return agg.dominant_node >= 0;
-    if (std.mem.eql(u8, id, "cpu-affinity-churn") or std.mem.eql(u8, id, "unnecessary-wakeups") or std.mem.eql(u8, id, "priority-inversion")) return agg.sched_collected;
-    if (std.mem.eql(u8, id, "excessive-locking") or std.mem.eql(u8, id, "false-sharing")) return agg.pmu_collected;
-    if (std.mem.eql(u8, id, "allocator-fragmentation")) return agg.small_alloc_churn > 0 or agg.buddy_fragmentation > 0;
-    return false;
 }
 
 test "healthy replay derives a populated, explicit model" {
@@ -358,15 +375,67 @@ test "healthy replay derives a populated, explicit model" {
     try std.testing.expect(model.summary.p95 != null);
     try std.testing.expect(!model.demo);
     var skip = false;
-    for (model.advisor) |card| skip = skip or std.mem.eql(u8, card.severity, "SKIP");
+    var priority_skip = false;
+    var wakeup_finding = false;
+    for (model.advisor) |card| {
+        skip = skip or std.mem.eql(u8, card.severity, "SKIP");
+        if (std.mem.eql(u8, card.id, "priority-inversion")) {
+            priority_skip = std.mem.eql(u8, card.severity, "SKIP");
+        }
+        if (std.mem.eql(u8, card.id, "unnecessary-wakeups")) {
+            wakeup_finding = !std.mem.eql(u8, card.severity, "CLEAR") and !std.mem.eql(u8, card.severity, "SKIP");
+        }
+    }
     try std.testing.expect(skip);
+    try std.testing.expect(priority_skip);
+    try std.testing.expect(wakeup_finding);
+    try std.testing.expect(model.memory != null);
+    try std.testing.expect(!model.memory.?.has_llc);
+    try std.testing.expect(!model.memory.?.has_cross);
+}
+
+test "recorder self is excluded from rankings but counted in the summary" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try Session.load(std.testing.io, arena.allocator(), "fixtures/real/scheduler-mix.ndjson");
+    const model = try fromSession(arena.allocator(), &session, .{ .fixture = "fixtures/real/scheduler-mix.ndjson" });
+    try std.testing.expectEqual(@as(u32, 2153), model.summary.selfSwitches);
+    try std.testing.expect(model.summary.selfShare > 40 and model.summary.selfShare < 50);
+    for (model.threads) |thread| {
+        try std.testing.expect(!std.mem.startsWith(u8, thread.comm, "xsprof"));
+    }
+}
+
+test "capture metadata drives a real fragmentation finding" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const session = try Session.load(std.testing.io, arena.allocator(), "fixtures/real/vm-fragmented.ndjson");
+    const model = try fromSession(arena.allocator(), &session, .{ .fixture = "fixtures/real/vm-fragmented.ndjson" });
+    try std.testing.expect(model.memory != null);
+    var found = false;
+    for (model.advisor) |card| {
+        if (std.mem.eql(u8, card.id, "allocator-fragmentation")) {
+            found = std.mem.eql(u8, card.severity, "INFO");
+        }
+    }
+    try std.testing.expect(found);
 }
 
 pub fn applyRecorder(allocator: std.mem.Allocator, model: *model_mod.Model, manifest: *const @import("../../recorder/manifest.zig").Manifest) !void {
     const segments = try allocator.alloc(model_mod.Segment, manifest.segments.len);
     var used_bytes: u64 = 0;
+    var oldest_start: u64 = std.math.maxInt(u64);
+    var newest_end: u64 = 0;
     for (manifest.segments, 0..) |segment, index| {
         used_bytes +|= segment.bytes;
+        oldest_start = @min(oldest_start, segment.start_wall_ns);
+        const end = if (segment.end_wall_ns != 0)
+            segment.end_wall_ns
+        else if (manifest.updated_wall_ns != 0)
+            manifest.updated_wall_ns
+        else
+            segment.start_wall_ns;
+        newest_end = @max(newest_end, end);
         var name: []const u8 = segment.path;
         if (std.mem.lastIndexOfScalar(u8, name, '/')) |slash| name = name[slash + 1 ..];
         segments[index] = .{
@@ -385,16 +454,27 @@ pub fn applyRecorder(allocator: std.mem.Allocator, model: *model_mod.Model, mani
     model.segments = segments;
     model.meta.manifest = "manifest.json";
     const pct: u8 = if (manifest.max_bytes == 0) 0 else @intFromFloat(@min(100.0, @as(f64, @floatFromInt(used_bytes)) * 100.0 / @as(f64, @floatFromInt(manifest.max_bytes))));
+    const covered_ms = if (newest_end > oldest_start)
+        (newest_end - oldest_start) / std.time.ns_per_ms
+    else
+        0;
     model.retention = .{
         .budget = try humanBytes(allocator, manifest.max_bytes),
         .used = try humanBytes(allocator, used_bytes),
         .usedPct = pct,
-        .age = if (manifest.max_age_ms >= 60_000)
-            try std.fmt.allocPrint(allocator, "{d} m", .{manifest.max_age_ms / 60_000})
-        else
-            try std.fmt.allocPrint(allocator, "{d} s", .{manifest.max_age_ms / 1000}),
-        .excerpt = "",
+        .age = try spanText(allocator, covered_ms),
+        .excerpt = try std.fmt.allocPrint(allocator, "cap {s}", .{try spanText(allocator, manifest.max_age_ms)}),
     };
+}
+
+fn spanText(allocator: std.mem.Allocator, ms: u64) ![]const u8 {
+    if (ms >= 60_000) {
+        return std.fmt.allocPrint(allocator, "{d:.1} m", .{@as(f64, @floatFromInt(ms)) / 60_000.0});
+    }
+    if (ms >= 1_000) {
+        return std.fmt.allocPrint(allocator, "{d:.1} s", .{@as(f64, @floatFromInt(ms)) / 1000.0});
+    }
+    return std.fmt.allocPrint(allocator, "{d} ms", .{ms});
 }
 
 fn humanBytes(allocator: std.mem.Allocator, bytes: u64) ![]const u8 {
@@ -440,4 +520,6 @@ test "live source and recorder metadata are data-driven" {
     try std.testing.expectEqual(@as(usize, 1), model.segments.len);
     try std.testing.expect(model.retention != null);
     try std.testing.expectEqualStrings("14.0 MiB", model.segments[0].bytes);
+    try std.testing.expectEqualStrings("30.0 s", model.retention.?.age);
+    try std.testing.expectEqualStrings("cap 10.0 m", model.retention.?.excerpt);
 }
