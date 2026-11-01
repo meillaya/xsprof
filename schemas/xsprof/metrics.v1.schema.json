@@ -1,23 +1,83 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://xsprof.dev/schemas/metrics.v1.schema.json",
-  "title": "xsprof scheduler metrics",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "required": ["cpus", "faults_major", "faults_minor", "first_us", "host_mutation", "last_us", "lost", "migrations", "quantiles", "schema", "switches", "tasks", "wakeups"],
   "properties": {
-    "cpus": { "type": "array" },
-    "faults_major": { "type": "integer" },
-    "faults_minor": { "type": "integer" },
-    "first_us": { "type": "integer" },
-    "host_mutation": { "const": false },
-    "last_us": { "type": "integer" },
-    "lost": { "type": "integer" },
-    "migrations": { "type": "integer" },
-    "quantiles": { "type": "object" },
-    "schema": { "const": "xsprof/metrics/v1" },
-    "switches": { "type": "integer" },
-    "tasks": { "type": "array" },
-    "wakeups": { "type": "integer" }
-  }
+    "cpus": {
+      "type": "array"
+    },
+    "events": {
+      "type": "integer"
+    },
+    "faults_major": {
+      "type": "integer"
+    },
+    "faults_minor": {
+      "type": "integer"
+    },
+    "first_us": {
+      "type": "integer"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "last_us": {
+      "type": "integer"
+    },
+    "lost": {
+      "type": "integer"
+    },
+    "migrations": {
+      "type": "integer"
+    },
+    "quantiles": {
+      "type": "object"
+    },
+    "schema": {
+      "const": "xsprof/metrics/v1"
+    },
+    "self_unnecessary_wakeups": {
+      "type": "integer"
+    },
+    "self_wakeups": {
+      "type": "integer"
+    },
+    "switches": {
+      "type": "integer"
+    },
+    "tasks": {
+      "type": "array"
+    },
+    "unnecessary_wakeups": {
+      "type": "integer"
+    },
+    "unresolved_wakeups": {
+      "type": "integer"
+    },
+    "wakeups": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "cpus",
+    "events",
+    "faults_major",
+    "faults_minor",
+    "first_us",
+    "host_mutation",
+    "last_us",
+    "lost",
+    "migrations",
+    "quantiles",
+    "schema",
+    "self_unnecessary_wakeups",
+    "self_wakeups",
+    "switches",
+    "tasks",
+    "unnecessary_wakeups",
+    "unresolved_wakeups",
+    "wakeups"
+  ],
+  "title": "xsprof scheduler metrics",
+  "type": "object"
 }

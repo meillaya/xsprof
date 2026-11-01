@@ -1,0 +1,80 @@
+{
+  "$id": "schemas/xsprof/xsprof history v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cpu_busy_us": { "type": "integer" },
+          "events": { "type": "integer" },
+          "faults": { "type": "integer" },
+          "lost": { "type": "integer" },
+          "migrations": { "type": "integer" },
+          "start_wall_ns": { "type": "integer" },
+          "switches": { "type": "integer" },
+          "unnecessary_wakeups": { "type": "integer" },
+          "unresolved_wakeups": { "type": "integer" },
+          "wakeups": { "type": "integer" }
+        },
+        "required": [
+          "cpu_busy_us",
+          "events",
+          "faults",
+          "lost",
+          "migrations",
+          "start_wall_ns",
+          "switches",
+          "unnecessary_wakeups",
+          "unresolved_wakeups",
+          "wakeups"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "first_wall_ns": { "type": "integer" },
+    "last_wall_ns": { "type": "integer" },
+    "schema": { "const": "xsprof/history/v1" },
+    "sidecars": { "type": "integer" },
+    "totals": {
+      "additionalProperties": false,
+      "properties": {
+        "cpu_busy_us": { "type": "integer" },
+        "events": { "type": "integer" },
+        "faults": { "type": "integer" },
+        "lost": { "type": "integer" },
+        "migrations": { "type": "integer" },
+        "switches": { "type": "integer" },
+        "unnecessary_wakeups": { "type": "integer" },
+        "unresolved_wakeups": { "type": "integer" },
+        "wakeups": { "type": "integer" }
+      },
+      "required": [
+        "cpu_busy_us",
+        "events",
+        "faults",
+        "lost",
+        "migrations",
+        "switches",
+        "unnecessary_wakeups",
+        "unresolved_wakeups",
+        "wakeups"
+      ],
+      "type": "object"
+    },
+    "window_ms": { "type": "integer" }
+  },
+  "required": [
+    "schema",
+    "entries",
+    "first_wall_ns",
+    "last_wall_ns",
+    "sidecars",
+    "totals",
+    "window_ms"
+  ],
+  "title": "xsprof sidecar history v1",
+  "type": "object"
+}

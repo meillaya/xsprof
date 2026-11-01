@@ -281,6 +281,22 @@
       },
       "type": "array"
     },
+    "trace": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "events",
+        "truncated"
+      ],
+      "type": "object"
+    },
     "window": {
       "additionalProperties": false,
       "properties": {
@@ -311,7 +327,6 @@
     }
   },
   "required": [
-    "schema",
     "artifacts",
     "capabilities",
     "events",
@@ -320,10 +335,12 @@
     "loss",
     "requested_ms",
     "rules",
+    "schema",
     "self",
     "signals",
     "source",
     "tasks",
+    "trace",
     "window"
   ],
   "title": "xsprof incident summary v1",

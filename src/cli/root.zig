@@ -12,6 +12,7 @@ const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
 const advise_cmd = @import("advise_cmd.zig");
 const incident_cmd = @import("incident_cmd.zig");
+const history_cmd = @import("history_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
 const recorder_cmd = @import("recorder_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
@@ -30,6 +31,7 @@ const known_commands = [_][]const u8{
     "capabilities",
     "advise",
     "incident",
+    "history",
     "timeline",
     "record",
     "serve",
@@ -371,6 +373,9 @@ pub fn runWith(
     }
     if (std.mem.eql(u8, cmd, "incident")) {
         return incident_cmd.cmdIncident(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "history")) {
+        return history_cmd.cmdHistory(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "timeline")) {
         return cmdTimeline(io, allocator, args[2..], out, err);

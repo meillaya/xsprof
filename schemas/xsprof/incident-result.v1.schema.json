@@ -6,28 +6,61 @@
     "artifacts": {
       "additionalProperties": false,
       "properties": {
-        "report": { "type": "string" },
-        "summary": { "type": "string" },
-        "trace": { "type": "string" },
-        "window": { "type": "string" }
+        "report": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "trace": {
+          "type": "string"
+        },
+        "window": {
+          "type": "string"
+        }
       },
-      "required": ["report", "summary", "trace", "window"],
+      "required": [
+        "report",
+        "summary",
+        "trace",
+        "window"
+      ],
       "type": "object"
     },
-    "clears": { "type": "integer" },
-    "findings": { "type": "integer" },
-    "host_mutation": { "const": false },
-    "schema": { "const": "xsprof/incident-result/v1" },
-    "skips": { "type": "integer" },
-    "window_events": { "type": "integer" }
+    "clears": {
+      "type": "integer"
+    },
+    "findings": {
+      "type": "integer"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "schema": {
+      "const": "xsprof/incident-result/v1"
+    },
+    "skips": {
+      "type": "integer"
+    },
+    "trace_events": {
+      "type": "integer"
+    },
+    "trace_truncated": {
+      "type": "boolean"
+    },
+    "window_events": {
+      "type": "integer"
+    }
   },
   "required": [
-    "schema",
     "artifacts",
     "clears",
     "findings",
     "host_mutation",
+    "schema",
     "skips",
+    "trace_events",
+    "trace_truncated",
     "window_events"
   ],
   "title": "xsprof incident result v1",

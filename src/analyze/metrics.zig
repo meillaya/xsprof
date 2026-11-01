@@ -65,6 +65,7 @@ pub const CpuMetric = struct {
 };
 
 pub const Metrics = struct {
+    events: u64 = 0,
     first_us: u64 = 0,
     last_us: u64 = 0,
     switches: u64 = 0,
@@ -124,6 +125,7 @@ pub const Index = struct {
     lost: u64 = 0,
     wait: Histogram = .{},
     offcpu: Histogram = .{},
+    events: u64 = 0,
     self_pid: i32 = -1,
     self_seen: bool = false,
     self_wakeups: u64 = 0,
@@ -162,6 +164,7 @@ pub const Index = struct {
     }
 
     pub fn append(self: *Index, events: []const event.RawEvent) !void {
+        self.events += events.len;
         for (events) |entry| {
             if (!session_meta.isMetadata(entry)) {
                 const us = entry.ts_ns / 1000;
@@ -322,6 +325,7 @@ pub const Index = struct {
             });
         }
         return .{
+            .events = self.events,
             .first_us = if (self.timed_events == 0) 0 else self.first_us,
             .last_us = if (self.timed_events == 0) 0 else self.last_us,
             .switches = self.switches,
@@ -517,6 +521,7 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
 
     try json.write(w, .{ .object = &.{
         .{ .key = "cpus", .value = .{ .array = cpu_values } },
+        .{ .key = "events", .value = .{ .unsigned = metrics.events } },
         .{ .key = "faults_major", .value = .{ .unsigned = metrics.faults_major } },
         .{ .key = "faults_minor", .value = .{ .unsigned = metrics.faults_minor } },
         .{ .key = "first_us", .value = .{ .unsigned = metrics.first_us } },
@@ -529,8 +534,12 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
             .{ .key = "method", .value = .{ .string = "log2_histogram_1us" } },
         } } },
         .{ .key = "schema", .value = .{ .string = "xsprof/metrics/v1" } },
+        .{ .key = "self_unnecessary_wakeups", .value = .{ .unsigned = metrics.self_unnecessary_wakeups } },
+        .{ .key = "self_wakeups", .value = .{ .unsigned = metrics.self_wakeups } },
         .{ .key = "switches", .value = .{ .unsigned = metrics.switches } },
         .{ .key = "tasks", .value = .{ .array = task_values[0..out_index] } },
+        .{ .key = "unnecessary_wakeups", .value = .{ .unsigned = metrics.unnecessary_wakeups } },
+        .{ .key = "unresolved_wakeups", .value = .{ .unsigned = metrics.unresolved_wakeups } },
         .{ .key = "wakeups", .value = .{ .unsigned = metrics.wakeups } },
     } });
 }

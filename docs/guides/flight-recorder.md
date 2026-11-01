@@ -43,9 +43,10 @@ discarding the earlier history.
 
 Each closed segment also gets a `metrics/<stem>.json` sidecar with CPU busy,
 switch, wakeup, migration, fault, and top-task p95 wait metrics. The sidecar is
-small enough to keep after raw retention drops the segment. It is written, but
-the console and advisor do not read sidecars yet; they analyze the extracted
-raw window.
+small enough to keep after raw retention drops the segment. Sidecars are
+written from the in-memory per-segment metrics snapshot, so rotation does not
+re-read the raw file. `xsprof history` queries them across raw retention; the
+console and advisor still analyze the extracted raw window.
 
 ## Extract a window
 
@@ -77,9 +78,22 @@ The output folder is self-contained and offline:
 
 The summary records both the requested and the actually retained wall window.
 If the byte budget dropped older history, `window.trimmed` is true and the
-report says so instead of implying full coverage. The command refuses a window
-above 192 MiB rather than silently truncating it; request a shorter `--last` on
-very busy systems.
+report says so instead of implying full coverage. `window.ndjson` is streamed
+to disk and the summary is computed with a bounded-memory scan over the whole
+window. `trace.json` keeps at most 200,000 events; `summary.json` and the
+report set `trace.truncated` and say so when that prefix is used.
+
+## Query sidecar history
+
+```sh
+./zig-out/bin/xsprof history --last 10m --dir /var/lib/xsprof
+./zig-out/bin/xsprof history --last 1h --dir /var/lib/xsprof --md
+```
+
+This timeline survives raw segment drops, so it can cover a longer period than
+the 2 GiB raw window. It reports switches, wakeups, unnecessary wakeups,
+migrations, faults, loss, and CPU busy time per sidecar. It does not retract
+the raw-window limit; it is the history tier next to the raw tier.
 
 ## Watch over SSH
 

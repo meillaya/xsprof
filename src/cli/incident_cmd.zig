@@ -64,10 +64,6 @@ pub fn cmdIncident(
         .last_ms = last_ms,
     }) catch |write_error| {
         switch (write_error) {
-            error.WindowTooLarge => try err.print(
-                "incident: window exceeds {d} MiB; request a shorter --last\n",
-                .{bundle.max_window_bytes / (1024 * 1024)},
-            ),
             error.NoWindow => try err.writeAll("incident: no events in the requested window\n"),
             error.NoRecorder => try err.print("incident: no recorder manifest in {s}\n", .{source_dir}),
             else => try err.print("incident: {s}\n", .{@errorName(write_error)}),
@@ -87,6 +83,8 @@ pub fn cmdIncident(
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
         .{ .key = "schema", .value = .{ .string = "xsprof/incident-result/v1" } },
         .{ .key = "skips", .value = .{ .unsigned = result.skips } },
+        .{ .key = "trace_events", .value = .{ .unsigned = result.trace_events } },
+        .{ .key = "trace_truncated", .value = .{ .boolean = result.trace_truncated } },
         .{ .key = "window_events", .value = .{ .unsigned = result.events } },
     } });
     try out.writeByte('\n');
