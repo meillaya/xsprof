@@ -28,3 +28,4 @@ boundary, and every record carries `host_mutation=false`.
 - `lab-run.v1.schema.json` — headless lab run result.
 - `incident-summary.v1.schema.json` — offline incident bundle summary.
 - `incident-result.v1.schema.json` — `incident` command result.
+- `history.v1.schema.json` — per-segment sidecar history query.

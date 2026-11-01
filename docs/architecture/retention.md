@@ -12,28 +12,34 @@ Host: macOS 27 arm64, podman `applehv`, Fedora 44 aarch64, kernel
 `CAP_PERFMON` as root.
 
 ```sh
-sudo env XSPROF_BIN=/tmp/xsprof /tmp/retention_bench.sh 120000 0 2G yes
+sudo env KEEP=1 XSPROF_BIN=/tmp/xsprof /tmp/retention_bench.sh 600000 0 2G yes
 ```
 
-The 2-minute run:
+The 10-minute run:
 
 | metric | value |
 |---|---:|
-| captured events | 17,324,079 |
-| events/s | 144,360 |
-| bytes/event | 160.5 |
-| retained bytes | 2,142,981,215 (~2.0 GiB) |
-| covered wall window | 92.36 s |
+| captured events | 83,908,179 |
+| events/s | 139,845 |
+| bytes/event | 160.27 |
+| retained bytes | 2,132,270,939 (~2.0 GiB) |
+| covered raw wall window | 94.44 s |
 | sample loss / lost events | 0 / 0 |
-| retention drops | 38 `retention_loss` markers |
-| RSS | 8,008 KiB |
-| recorder CPU | 7,532 bp of one CPU (~75.3%) |
+| retention drops | 128 `retention_loss` markers |
+| RSS | 9,668 KiB |
+| recorder CPU | 7,387 bp of one CPU (~73.9%) |
 
 The 2 GiB byte budget, not the 10-minute age cap, binds. At this host's
-baseline 144k events/s the budget retains about 92 seconds. A hypothetical
-50k events/s stream at the same 160.5 bytes/event would retain about 268
-seconds (4.5 minutes), still short of ten minutes; ten minutes at 50k/s would
-require roughly 71.6 bytes/event.
+baseline 140k events/s the raw budget retains about 94 seconds. A hypothetical
+50k events/s stream at the same 160.3 bytes/event would retain about 268
+seconds (4.5 minutes); ten minutes of raw events at 50k/s would require about
+71.6 bytes/event.
+
+The sidecar tier fills that gap. The same retained state, queried with
+`history --last 10m`, returned 774 sidecars, 81,409,933 events, 74,900,659
+switches, and 3,278 lost events out of 81.4M (0.004%). The sidecar history
+covers the full ten-minute request even though raw retention keeps only the
+last 94 seconds.
 
 ## The sidecar stall (fixed)
 
@@ -49,27 +55,31 @@ loss markers and zero lost events.
 
 ## Limit of this evidence
 
-The planned ten-minute run at 50k events/s was attempted but aborted with
-`daemon: InputOutput`. The VM kernel logged `I/O error, dev vda` because the
-host's root volume was full; this is a measurement-environment failure, not a
-recorder loss result. Only the 120-second aarch64 Fedora result is accepted
-here.
+The run was 10 minutes at the host's natural 140k events/s, not a
+rate-controlled 50k events/s run. The VM has no event-rate throttle; even an
+idle capture runs near 145k events/s. The 50k projection above is arithmetic
+from the measured bytes/event, not a separate run.
 
 The Ubuntu 24.04 and x86_64 matrix was not available. Do not generalize the
-aarch64 numbers to x86_64 without rerunning the harness there.
+aarch64 numbers to x86_64 without rerunning the harness there. This is an
+external environment limit, like the notarization credential gate, not a
+threshold decision.
 
 ## Product decision
 
-The 10-minute / 2 GiB claim is not made. Instead:
+The product is now a two-tier window:
 
 - the Capture screen shows the actual retained wall span (`X covered · cap Y`)
   from the manifest, never the configured cap;
-- `incident` records both the requested and actually retained window, sets
-  `window.trimmed` when the budget dropped history, and reports it in the
-  static HTML;
-- memory and archive behavior beyond the raw window is unchanged. Sidecars are
-  written from the in-memory per-segment snapshot, but the console and advisor
-  still analyze raw windows; sidecar history is not a query path yet.
+- the raw tier is bounded by the byte budget (~94 seconds here);
+- the sidecar tier is the 10-minute history query: `xsprof history --last 10m
+  --dir <state>` aggregates per-segment metrics across raw drops, with 0.004%
+  lost events in the measured run;
+- `incident` streams `window.ndjson` to disk, scans the whole window with a
+  bounded-memory analyzer, and keeps at most 200,000 trace events. A 613 MB,
+  4,020,874-event window was bundled on the same VM with two findings and a
+  `trace.truncated:true` caveat, so there is no 192 MiB refusal.
 
-Closing the ten-minute gap requires a compact wire form, tiered raw + sidecar
-history, or both; that is a separate design, not a threshold change.
+The raw tier still does not hold ten minutes at 50k events/s. That would need a
+compact wire form; it is a separate design, not a threshold change. The ten
+minutes are available through history, not through the raw file.

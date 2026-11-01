@@ -88,7 +88,7 @@ Commands for the productization sweep:
 XSPROF_UNIVERSAL=1 sh tools/package_macos_app.sh
 XSPROF_TARGET=aarch64-linux-gnu XSPROF_OS=linux XSPROF_ARCH=aarch64 sh tools/package.sh
 XSPROF_TARGET=x86_64-linux-gnu XSPROF_OS=linux XSPROF_ARCH=x86_64 sh tools/package.sh
-qa/retention_bench.sh 120000 0 2G yes     # Linux root, disposable VM
+qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
 ```
 
 ## Incident bundle and retention truth
@@ -97,14 +97,22 @@ qa/retention_bench.sh 120000 0 2G yes     # Linux root, disposable VM
   `qa/cli_parity.sh`: it must produce `window.ndjson`, `summary.json`,
   `report.html`, and `trace.json`; the summary must carry the finding/status
   model and `host_mutation=false`; the HTML must contain no external URL.
-- The incremental sidecar path removed the rotation stall. A 120-second Fedora
-  44 aarch64 run captured 17.3M events at 144k/s with zero sample loss and
-  retained 2.0 GiB / 92.36 seconds. The old path lost 2.38M events in 60
+  The raw window is streamed and analyzed with bounded memory; the trace is a
+  bounded prefix with an explicit `trace.truncated` caveat. A 613 MB,
+  4,020,874-event window was bundled on the VM with two findings; no 192 MiB
+  refusal remains.
+- The incremental sidecar path removed the rotation stall. A 10-minute Fedora
+  44 aarch64 run captured 83,908,179 events at 139,845/s with zero sample loss
+  and retained 2.0 GiB / 94.44 seconds. The old path lost 2.38M events in 60
   seconds. Full method and limits: `docs/architecture/retention.md`.
-- The 10-minute / 2 GiB target is **not claimed**. The Capture screen and the
-  incident summary report the actually retained wall window; the 10-minute run
-  attempted here was aborted by host-disk I/O errors, and the x86_64/Ubuntu
-  matrix remains unrun.
+- `history --last 10m` read 774 sidecars covering 81.4M events with 3,278 lost
+  events (0.004%), so the ten-minute history tier is queryable across raw
+  drops. `qa/cli_parity.sh` also exercises the sidecar reader with a synthetic
+  `metrics/` sidecar.
+- The **raw** tier still does not hold ten minutes at 50k events/s; the
+  measured host has no rate throttle, so the run was 10 minutes at its natural
+  140k/s. The x86_64 target cross-builds cleanly, but the x86_64/Ubuntu run
+  matrix remains an external environment limit.
 
 ## Known limits
 

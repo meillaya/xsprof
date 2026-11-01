@@ -5,12 +5,12 @@ const std = @import("std");
 const chrome_trace = @import("../viz/chrome_trace.zig");
 const extract = @import("../recorder/extract.zig");
 const manifest_mod = @import("../recorder/manifest.zig");
-const session_mod = @import("../stream/session.zig");
 const advisor = @import("../analyze/advisor.zig");
 const rules = @import("../analyze/rules.zig");
 const summary = @import("summary.zig");
+const analyze = @import("analyze.zig");
 
-pub const max_window_bytes = 192 * 1024 * 1024;
+pub const max_trace_events = 200_000;
 
 pub const Options = struct {
     dir: []const u8,
@@ -25,6 +25,8 @@ pub const Result = struct {
     trace_path: []const u8,
     window_path: []const u8,
     events: usize,
+    trace_events: usize,
+    trace_truncated: bool,
     findings: usize,
     clears: usize,
     skips: usize,
@@ -65,7 +67,6 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     const cutoff_wall = now_wall -| requested_ns;
     var oldest_start: u64 = std.math.maxInt(u64);
     var newest_end: u64 = 0;
-    var overlapping_bytes: u64 = 0;
     for (manifest.segments) |segment| {
         oldest_start = @min(oldest_start, segment.start_wall_ns);
         const end = if (segment.end_wall_ns != 0)
@@ -75,18 +76,8 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         else
             now_wall;
         newest_end = @max(newest_end, end);
-        if (end >= cutoff_wall) overlapping_bytes +|= segment.bytes;
     }
     if (manifest.segments.len == 0 or oldest_start == std.math.maxInt(u64)) return error.NoWindow;
-    // Refuse before reading a multi-gigabyte window into memory.
-    if (overlapping_bytes > max_window_bytes) return error.WindowTooLarge;
-
-    const data = try extract.extract(io, allocator, .{
-        .dir = opts.dir,
-        .last_ms = opts.last_ms,
-    });
-    if (data.len == 0) return error.NoWindow;
-    if (data.len > max_window_bytes) return error.WindowTooLarge;
     const covered_start = @max(oldest_start, cutoff_wall);
     const covered_end = @min(newest_end, now_wall);
     const retained_ms = @min(
@@ -94,23 +85,38 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         if (covered_end > covered_start) (covered_end - covered_start) / std.time.ns_per_ms else 0,
     );
 
-    var session = try session_mod.Session.fromData(allocator, "incident window", data);
-    const agg = session.aggregate();
-    const findings = try advisor.analyze(allocator, agg, .{});
-    const report_list = try rules.reports(allocator, agg, findings);
-
     try std.Io.Dir.cwd().createDirPath(io, opts.out);
     const window_path = try join(allocator, opts.out, "window.ndjson");
     const summary_path = try join(allocator, opts.out, "summary.json");
     const report_path = try join(allocator, opts.out, "report.html");
     const trace_path = try join(allocator, opts.out, "trace.json");
 
-    try writeBytes(io, window_path, data);
+    {
+        const file = try createFile(io, window_path);
+        defer file.close(io);
+        var buffer: [64 * 1024]u8 = undefined;
+        var writer = file.writer(io, &buffer);
+        try extract.writeTo(io, allocator, .{ .dir = opts.dir, .last_ms = opts.last_ms }, &writer.interface);
+        try writer.interface.flush();
+        if ((try file.stat(io)).size == 0) return error.NoWindow;
+    }
+
+    const analyzed = try analyze.analyzeFile(io, allocator, window_path, .{
+        .max_trace_events = max_trace_events,
+    });
+    const session = analyzed.session;
+    const agg = session.aggregate();
+    const findings = try advisor.analyze(allocator, agg, .{});
+    const report_list = try rules.reports(allocator, agg, findings);
 
     const ctx: summary.Context = .{
         .source_dir = opts.dir,
         .requested_ms = opts.last_ms,
         .retained_ms = retained_ms,
+        .events = analyzed.event_count,
+        .trace_events = analyzed.trace_events.len,
+        .trace_truncated = analyzed.trace_truncated,
+        .retention_trimmed = analyzed.retention_trimmed,
         .artifacts = .{
             .report = "report.html",
             .summary = "summary.json",
@@ -136,7 +142,7 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         defer file.close(io);
         var buffer: [64 * 1024]u8 = undefined;
         var writer = file.writer(io, &buffer);
-        try chrome_trace.writeTimeline(&writer.interface, allocator, session.events, null, null);
+        try chrome_trace.writeTimeline(&writer.interface, allocator, analyzed.trace_events, null, null);
         try writer.interface.flush();
     }
 
@@ -146,7 +152,9 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .report_path = report_path,
         .trace_path = trace_path,
         .window_path = window_path,
-        .events = session.events.len,
+        .events = analyzed.event_count,
+        .trace_events = analyzed.trace_events.len,
+        .trace_truncated = analyzed.trace_truncated,
         .findings = countStatus(report_list, .finding),
         .clears = countStatus(report_list, .clear),
         .skips = countStatus(report_list, .skip),
@@ -231,37 +239,5 @@ test "bundle writes all artifacts from a recorder window" {
     std.Io.Dir.deleteFileAbsolute(std.testing.io, manifest_path) catch {};
     std.Io.Dir.deleteDirAbsolute(std.testing.io, out) catch {};
     std.Io.Dir.deleteDirAbsolute(std.testing.io, segments) catch {};
-    std.Io.Dir.deleteDirAbsolute(std.testing.io, root) catch {};
-}
-
-test "bundle refuses an oversized window before reading segments" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-    const root = try std.fmt.allocPrint(allocator, "/tmp/xsprof-incident-large-{d}", .{std.testing.random_seed});
-    std.Io.Dir.createDirAbsolute(std.testing.io, root, .default_dir) catch {};
-    const now = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, std.testing.io).nanoseconds)));
-    const manifest_path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{root});
-    try manifest_mod.writeAtomic(std.testing.io, allocator, manifest_path, .{
-        .session_id = "too-large",
-        .state = .stopped,
-        .started_wall_ns = now - 60 * std.time.ns_per_s,
-        .started_mono_ns = 0,
-        .updated_wall_ns = now,
-        .segments = &.{.{
-            .path = "segments/missing.ndjson",
-            .start_wall_ns = now - 60 * std.time.ns_per_s,
-            .start_mono_ns = 0,
-            .end_wall_ns = now,
-            .bytes = max_window_bytes + 1,
-            .closed = true,
-        }},
-    });
-    try std.testing.expectError(error.WindowTooLarge, write(std.testing.io, allocator, .{
-        .dir = root,
-        .out = try std.fmt.allocPrint(allocator, "{s}/bundle", .{root}),
-        .last_ms = 60_000,
-    }));
-    std.Io.Dir.deleteFileAbsolute(std.testing.io, manifest_path) catch {};
     std.Io.Dir.deleteDirAbsolute(std.testing.io, root) catch {};
 }

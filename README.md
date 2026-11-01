@@ -59,6 +59,7 @@ xsprof advise --input session.ndjson --json
 xsprof advise --input session.ndjson --md
 xsprof daemon --foreground --dir /var/lib/xsprof
 xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
+xsprof history --last 10m --dir /var/lib/xsprof
 xsprof capture --last 5m --dir /var/lib/xsprof
 xsprof watch --dir /var/lib/xsprof
 xsprof serve --journal session.ndjson
@@ -108,5 +109,5 @@ Runtime samples never include argv, environment variables, secrets, or tokens.
 ./tools/zig build fuzz
 (cd lib/xsui && ../../tools/zig build test)   # package in isolation
 ./tools/zig build service-smoke               # Linux root, disposable VM
-qa/retention_bench.sh 120000 0 2G yes         # Linux root, disposable VM
+qa/retention_bench.sh 600000 0 2G yes         # Linux root, disposable VM
 ```

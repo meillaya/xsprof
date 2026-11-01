@@ -23,6 +23,10 @@ pub const Context = struct {
     source_dir: []const u8,
     requested_ms: u64,
     retained_ms: u64,
+    events: usize,
+    trace_events: usize,
+    trace_truncated: bool,
+    retention_trimmed: bool,
     artifacts: Artifacts,
 };
 
@@ -38,19 +42,6 @@ fn durationText(buf: []u8, ms: u64) []const u8 {
 
 fn actualWindowMs(session: *const Session) u64 {
     return session.durationUs() / 1000;
-}
-
-fn retentionTrimmed(session: *const Session) bool {
-    for (session.events) |entry| {
-        if (entry.kind != .marker) continue;
-        if (std.mem.indexOf(u8, entry.detail, "retention_loss") != null or
-            std.mem.indexOf(u8, entry.detail, "capture_missing_segment") != null or
-            std.mem.indexOf(u8, entry.detail, "capture_segment_too_large") != null)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 fn counts(report_list: []const rules.Report, status: rules.Status) usize {
@@ -69,7 +60,7 @@ pub fn writeJson(
     ctx: Context,
 ) Writer.Error!void {
     const duration_ms = actualWindowMs(session);
-    const trimmed = ctx.requested_ms > ctx.retained_ms + 2_000 or retentionTrimmed(session);
+    const trimmed = ctx.requested_ms > ctx.retained_ms + 2_000 or ctx.retention_trimmed;
     const self_share: f64 = if (session.switches == 0)
         0
     else
@@ -96,7 +87,7 @@ pub fn writeJson(
         try json.write(w, .{ .string = cap.state });
         try w.writeByte('}');
     }
-    try w.print("],\"events\":{d},\"findings\":[", .{session.events.len});
+    try w.print("],\"events\":{d},\"findings\":[", .{ctx.events});
     for (findings, 0..) |finding, index| {
         if (index != 0) try w.writeByte(',');
         try report.writeFinding(w, finding);
@@ -155,7 +146,9 @@ pub fn writeJson(
         });
         try w.writeByte('}');
     }
-    try w.print("],\"window\":{{\"duration_ms\":{d},\"first_us\":{d},\"last_us\":{d},\"retained_ms\":{d},\"trimmed\":", .{
+    try w.print("],\"trace\":{{\"events\":{d},\"truncated\":", .{ctx.trace_events});
+    try json.write(w, .{ .boolean = ctx.trace_truncated });
+    try w.print("}},\"window\":{{\"duration_ms\":{d},\"first_us\":{d},\"last_us\":{d},\"retained_ms\":{d},\"trimmed\":", .{
         duration_ms,
         session.first_us,
         session.last_us,
@@ -202,7 +195,7 @@ pub fn writeHtml(
     ctx: Context,
 ) !void {
     const duration_ms = actualWindowMs(session);
-    const trimmed = ctx.requested_ms > ctx.retained_ms + 2_000 or retentionTrimmed(session);
+    const trimmed = ctx.requested_ms > ctx.retained_ms + 2_000 or ctx.retention_trimmed;
     const self_share: f64 = if (session.switches == 0)
         0
     else
@@ -262,6 +255,9 @@ pub fn writeHtml(
     if (trimmed) {
         try w.writeAll("<div class=\"caveat\"><strong>Window caveat.</strong> The requested window is longer than the retained data. The report covers only the retained window and the loss section says so; it is never zero-filled.</div>");
     }
+    if (ctx.trace_truncated) {
+        try w.print("<div class=\"caveat\"><strong>Trace caveat.</strong> trace.json contains a sampled prefix of {d} events; summary/report cover all {d} events.</div>", .{ ctx.trace_events, ctx.events });
+    }
 
     try w.writeAll("<div class=\"grid\"><div class=\"card\"><div class=\"k\">Loss</div><div class=\"v");
     if (session.lost > 0) try w.writeAll(" bad");
@@ -269,7 +265,7 @@ pub fn writeHtml(
         session.lost,
         self_share,
         session.self_switches,
-        session.events.len,
+        ctx.events,
     });
 
     try w.writeAll("<h2>Rules</h2><table><thead><tr><th>Rule</th><th>Status</th><th>Why</th></tr></thead><tbody>");
@@ -405,6 +401,10 @@ test "incident summary reports the retained window and stays offline" {
         .source_dir = "/tmp/state",
         .requested_ms = 120_000,
         .retained_ms = 60_000,
+        .events = 3,
+        .trace_events = 2,
+        .trace_truncated = true,
+        .retention_trimmed = false,
         .artifacts = .{
             .report = "report.html",
             .summary = "summary.json",
@@ -421,6 +421,8 @@ test "incident summary reports the retained window and stays offline" {
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"trimmed\":true") != null);
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"schema\":\"xsprof/incident-summary/v1\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"host_mutation\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"events\":3") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"truncated\":true") != null);
 
     var html_buf: [32 * 1024]u8 = undefined;
     var html_writer = Writer.fixed(&html_buf);

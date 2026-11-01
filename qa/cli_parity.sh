@@ -91,6 +91,19 @@ if grep -Eq 'https?://' "$TMP/incident/report.html"; then
     echo "cli_parity: incident report has an external URL" >&2
     fail=1
 fi
+
+HSTATE="$TMP/history-state"
+mkdir -p "$HSTATE/metrics"
+HNS="$(date +%s)000000000"
+cat >"$HSTATE/metrics/${HNS}-0.json" <<'EOF'
+{"cpus":[],"events":10,"faults_major":0,"faults_minor":2,"first_us":0,"host_mutation":false,"last_us":1,"lost":0,"migrations":1,"quantiles":{},"schema":"xsprof/metrics/v1","switches":5,"tasks":[],"unnecessary_wakeups":1,"unresolved_wakeups":0,"wakeups":2}
+EOF
+"$BIN" history --dir "$HSTATE" --last 1h >"$TMP/history"
+check_contains "$TMP/history" '"schema":"xsprof/history/v1"' "history"
+check_contains "$TMP/history" '"switches":5' "history"
+check_contains "$TMP/history" '"sidecars":1' "history"
+"$BIN" history --dir "$HSTATE" --last 1h --md >"$TMP/history-md"
+check_contains "$TMP/history-md" "xsprof sidecar history" "history-md"
 "$BIN" pressure --json >"$TMP/pressure" 2>/dev/null || true
 check_contains "$TMP/pressure" '"schema":"xsprof/pressure/v1"' "pressure"
 check_contains "$TMP/pressure" '"host_mutation":false' "pressure"

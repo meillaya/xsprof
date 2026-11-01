@@ -12,6 +12,7 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
   `--input`; JSON unless `--md`.
 - `incident --last DUR --dir D --out D`; one offline bundle with `window.ndjson`,
   `summary.json`, `report.html`, and `trace.json`.
+- `history --dir D [--last DUR]`; sidecar timeline that survives raw retention.
 - `timeline --input F [--output F] [--window S:E] [--chunk-size N]`.
 - `record [--duration MS=1000] [--output F] [--bpf OBJ] [--allow-mutate]
   [--vm-lab] [--audit-id ID] [--rollback-id ID]`.
@@ -32,6 +33,7 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
 - `xsprof/incident-summary/v1`: artifacts, capabilities, counts, findings,
   loss, requested/retained window, rules, signals, top tasks, host_mutation.
 - `xsprof/incident-result/v1`: artifact paths, status counts, window events.
+- `xsprof/history/v1`: per-sidecar entries, totals, first/last wall ns, window ms.
 - 18 event kinds: sched_switch, sched_wakeup, sched_migrate,
   runqueue_sample, priority_inversion, lock_contention, page_fault, tlb_miss,
   cache_miss, huge_page, numa_balance, alloc_sample, malloc_hotspot, marker,

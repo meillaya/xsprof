@@ -38,6 +38,7 @@ pub const recorder_extract = @import("recorder/extract.zig");
 pub const incident_bundle = @import("incident/bundle.zig");
 pub const incident_summary = @import("incident/summary.zig");
 pub const recorder_sidecar = @import("recorder/sidecar.zig");
+pub const recorder_history = @import("recorder/history.zig");
 pub const recorder_doctor = @import("recorder/doctor.zig");
 pub const bpf = @import("capture/bpf.zig");
 pub const xsui = @import("xsui");
@@ -94,6 +95,7 @@ test {
     _ = incident_bundle;
     _ = incident_summary;
     _ = recorder_sidecar;
+    _ = recorder_history;
     _ = recorder_doctor;
     _ = demo;
     _ = gallery;
