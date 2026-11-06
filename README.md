@@ -183,7 +183,7 @@ publication require external credentials.
 qa/vm_acceptance.sh                  # KVM podman VM: live/service/retention
 ```
 
-More: [quickstart](docs/guides/quickstart.md), [top/why](docs/guides/top-why.md),
+More: [quickstart](docs/guides/quickstart.md), [recording permissions](docs/guides/capture-permissions.md), [top/why](docs/guides/top-why.md),
 [event field semantics](docs/architecture/events.md),
 [raw segment format](docs/architecture/raw-segment-v1.md),
 [retention](docs/architecture/retention.md), [audit](docs/audit/v0.5.0.md).

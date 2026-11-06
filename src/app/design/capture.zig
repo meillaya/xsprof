@@ -37,8 +37,12 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     h1.size = if (width <= 780) 18 else 20;
     h1.line_height = 1.1;
     h1.tracking = -0.4;
-    try label(canvas, x, y + 18.75, "Capture", h1);
-    const note = if (state.recorder.external) "attached recorder · read-only extraction" else "in-process read-only capture · disable/enable in Settings";
+    try label(canvas, x, y + 18.75, "Recorder", h1);
+    const note = switch (state.recorder.phase) {
+        .skipped, .refused => "capture needs root/CAP_PERFMON + tracefs read · the app never elevates",
+        .failed => "capture worker failed · see the reason below",
+        else => if (state.recorder.external) "attached recorder · read-only extraction" else "in-process read-only capture · enable it in Settings",
+    };
     try labelRight(canvas, x + w, y + 24.25, note, style(common.text_11, th.muted, .regular));
     try borderLine(canvas, x, y + 53.75, w, th.line);
     try drawControls(state, canvas, th, x, y + 62, w);
@@ -52,7 +56,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         cy += 140.0;
         try drawSegments(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 225 });
         cy += 237.0;
-        try drawCommands(model, canvas, th, .{ .x = x, .y = cy, .w = w, .h = 361 });
+        try drawActions(canvas, th, .{ .x = x, .y = cy, .w = w, .h = 361 });
         cy += 373.0;
         try drawSafety(canvas, th, .{ .x = x, .y = cy, .w = w, .h = 242 });
         return;
@@ -63,7 +67,7 @@ pub fn draw(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     try drawRecorder(model, state, canvas, th, .{ .x = x, .y = grid_y, .w = left_w, .h = 237.55 });
     try drawRetention(model, canvas, th, .{ .x = x, .y = grid_y + 249.55, .w = left_w, .h = 128 });
     try drawSegments(model, canvas, th, .{ .x = x, .y = grid_y + 389.55, .w = left_w, .h = 225 });
-    try drawCommands(model, canvas, th, .{ .x = right_x, .y = grid_y, .w = right_w, .h = 361 });
+    try drawActions(canvas, th, .{ .x = right_x, .y = grid_y, .w = right_w, .h = 361 });
     try drawSafety(canvas, th, .{ .x = right_x, .y = grid_y + 373, .w = right_w, .h = 242 });
 }
 
@@ -95,7 +99,8 @@ fn drawControls(state: *const State, canvas: *Canvas, th: Theme, x: f32, y: f32,
     const meta = std.fmt.bufPrint(&meta_buf, "{s} · {d} events · {d} lost", .{ phase.label(), state.recorder.events, state.recorder.lost }) catch phase.label();
     try labelRight(canvas, x + w, y + 9, meta, style(common.text_10, if (phase == .running) th.pass else th.dim, .regular));
     if (state.recorder.reason_len > 0) {
-        try label(canvas, x, y + 36, state.recorder.reasonSlice(), style(common.text_10, th.refuse, .regular));
+        const reason_color = if (phase == .skipped) th.skip else th.refuse;
+        try label(canvas, x, y + 36, state.recorder.reasonSlice(), style(common.text_10, reason_color, .regular));
     }
 }
 
@@ -181,29 +186,36 @@ fn drawSegments(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
     }
 }
 
-pub const commands = [_][2][]const u8{
-    .{ "record a bounded window", "xsprof record --duration <ms> --out <dir>" },
-    .{ "render a deterministic snapshot", "xsprof snapshot --replay /tmp/xsprof/journal.ndjson --out /tmp/xsprof.png" },
-    .{ "replay in the native window", "xsprof ui --replay /tmp/xsprof/journal.ndjson" },
-};
-
-fn drawCommands(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !void {
+fn drawActions(canvas: *Canvas, th: Theme, rect: Rect) !void {
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
-    try panelHead(canvas, th, rect, "04", "RUN IT YOURSELF", "copy");
-    var y = rect.y + 39;
-    for (commands, 0..) |cmd, i| {
-        try label(canvas, rect.x + 14, y, cmd[0], style(common.text_105, th.dim, .regular));
-        try canvas.rounded(.{ .x = rect.x + 14, .y = y + 17, .w = rect.w - 28, .h = 31 }, 3, th.field, th.line, 1);
-        try label(canvas, rect.x + 21, y + 24.5, cmd[1], style(common.text_11, th.text, .regular));
-        const copy_w: f32 = 54;
-        const copy_rect = Rect{ .x = rect.x + rect.w - 14 - copy_w, .y = y + 21, .w = copy_w, .h = 23 };
-        try canvas.rounded(copy_rect, 3, th.raised, th.line_strong, 1);
-        try label(canvas, copy_rect.x + 9, y + 24.5, "copy", style(common.text_10, th.muted, .regular));
-        canvas.hit(800 + @as(u32, @intCast(i)), copy_rect);
-        try borderLine(canvas, rect.x + 1, y + 58, rect.w - 2, th.line);
-        y += 81.25;
+    try panelHead(canvas, th, rect, "04", "ACTIONS", "in-app exports");
+    const actions = [_]struct { label: []const u8, detail: []const u8, id: u32 }{
+        .{ .label = "export window", .detail = "canonical NDJSON", .id = hits.recorder_export_journal },
+        .{ .label = "export trace", .detail = "Chrome Trace", .id = hits.recorder_export_trace },
+        .{ .label = "export report", .detail = "metrics JSON", .id = hits.recorder_export_report },
+        .{ .label = "export incident", .detail = "offline bundle", .id = hits.recorder_export_incident },
+        .{ .label = "verify state", .detail = "manifest + segments", .id = hits.audit_verify },
+        .{ .label = "export audit", .detail = "action log", .id = hits.audit_export },
+    };
+    var index: usize = 0;
+    while (index < actions.len) : (index += 1) {
+        const action = actions[index];
+        const row = index / 2;
+        const col = index % 2;
+        const gap: f32 = 8;
+        const bw = (rect.w - 28 - gap) / 2;
+        const bx = rect.x + 14 + @as(f32, @floatFromInt(col)) * (bw + gap);
+        const by = rect.y + 48 + @as(f32, @floatFromInt(row)) * 86;
+        const button = Rect{ .x = bx, .y = by, .w = bw, .h = 70 };
+        try canvas.rounded(button, 4, th.field, th.line, 1);
+        try label(canvas, bx + 10, by + 10, action.label, style(common.text_11, th.text, .regular));
+        var detail_style = style(common.text_95, th.dim, .regular);
+        detail_style.ellipsis = true;
+        try label(canvas, bx + 10, by + 40, action.detail, detail_style);
+        canvas.hit(action.id, button);
     }
-    _ = model;
+    try borderLine(canvas, rect.x + 1, rect.y + 310, rect.w - 2, th.line);
+    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = rect.y + 320, .w = rect.w - 28, .h = 30 }, style(common.text_10, th.dim, .regular), "Outputs are written under the configured export directory. No host mutation.");
 }
 
 fn drawSafety(canvas: *Canvas, th: Theme, rect: Rect) !void {

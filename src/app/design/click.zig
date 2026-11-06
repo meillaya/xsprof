@@ -162,9 +162,6 @@ fn routeClick(app: *App, id: u32) void {
     if (id >= hits.advisor_card_base and id < hits.advisor_card_base + hits.advisor_card_max) {
         return advisorEvidence(app, id - hits.advisor_card_base);
     }
-    if (id >= hits.capture_copy_base and id < hits.capture_copy_base + hits.capture_copy_max) {
-        return captureCopy(app, id - hits.capture_copy_base);
-    }
     if (id >= hits.settings_theme_base and id < hits.settings_theme_base + hits.settings_theme_max) {
         return app.applyAction(.{ .theme = id - hits.settings_theme_base });
     }
@@ -258,14 +255,6 @@ fn advisorEvidence(app: *App, index: u32) void {
     }
 }
 
-fn captureCopy(app: *App, index: u32) void {
-    const capture = @import("capture.zig");
-    if (index < capture.commands.len) {
-        app.requestCopy(capture.commands[index][1]);
-        app.showToast("command copied", false);
-    }
-}
-
 test "rail clicks map to routes and keep legacy ids" {
     var app = App.init(std.testing.allocator);
     defer app.deinit();
@@ -281,20 +270,6 @@ test "rail clicks map to routes and keep legacy ids" {
     canvas.hit(103, .{ .x = 0, .y = 0, .w = 10, .h = 10 });
     handle(&app, &canvas, 5, 5);
     try std.testing.expectEqual(state_mod.Route.events, app.state.screen);
-}
-
-test "capture copy hit keeps legacy behaviour" {
-    var app = App.init(std.testing.allocator);
-    defer app.deinit();
-    var frame: xsui.frame.Frame = undefined;
-    try frame.init(std.testing.allocator, 400, 400, .{});
-    defer frame.deinit();
-    var canvas = xsui.Canvas.init(&frame);
-    defer canvas.deinit();
-    canvas.hit(800, .{ .x = 0, .y = 0, .w = 10, .h = 10 });
-    handle(&app, &canvas, 5, 5);
-    const capture = @import("capture.zig");
-    try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
 }
 
 test "snapshot recorder control click is refused without mutating state" {
