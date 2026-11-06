@@ -32,20 +32,26 @@ These are release-blocking, not aspirational.
    formatting; NaN/inf serialize as `null`.
 2. Untrusted input is bounded by line size, event count, nesting depth, and
    field length.
-3. Malformed rows become explicit incidents; they never crash the process or
-   silently disappear.
+3. Malformed rows become explicit incidents or counted malformed rows; they
+   never crash the process or silently disappear.
 4. Lost samples are explicit markers, never interpolation.
-5. Replay rejects wrong schema, `host_mutation=true`, malformed/non-monotonic
-   stream sequences, and invalid required fields.
-6. `SafePath` confines daemon/state outputs; output-open failures are errors.
+5. Replay rejects wrong schema, missing/`true` `host_mutation`, malformed rows,
+   oversized lines, and deeply nested JSON. Legacy cross-ring timestamp skew is
+   tolerated and counted in `metrics.out_of_order`; new capture batches are
+   sorted before journaling.
+6. `SafePath` confines daemon/state outputs; manifests/sidecars validate
+   relative paths, schema, and `host_mutation`; output-open failures are errors.
 7. Capability SKIP/REFUSE is surfaced with the exact reason; unavailable data
    is never rendered as zero.
 
 ## Automated gates
 
 - `qa/unsafe_cli_matrix.sh` — refusal matrix and exit codes.
-- `qa/no_host_mutation.sh` — static scan and optional runtime trace.
-- `qa/privacy_scan.sh` — seeded secrets must not appear in output/snapshots.
+- `qa/no_host_mutation.sh` — static scan plus optional runtime trace.
+- `qa/privacy_scan.sh` — seeded secrets must not appear in output.
+- `qa/web_ui_smoke.mjs` — JS/wasm export parity and incremental append.
+- `qa/version_sync.sh` — package/runtime version lockstep.
 - `qa/vendor_hash.sh` — offline reference integrity.
+- `qa/live_smoke.sh` — root perf/daemon/SIGTERM gate in a disposable VM.
 - Golden bytes and UI snapshots — determinism.
 - Linux fail-closed tests; VM tests marked separately.

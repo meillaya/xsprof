@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/why.v1.schema.json",
+  "title": "xsprof why report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "cpus",
+    "events",
+    "findings",
+    "host_mutation",
+    "lost",
+    "out_of_order",
+    "pairs",
+    "rules",
+    "schema",
+    "source",
+    "tasks",
+    "window_ms",
+    "malformed"
+  ],
+  "properties": {
+    "cpus": {
+      "type": "array"
+    },
+    "events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "findings": {
+      "type": "array"
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "lost": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "out_of_order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pairs": {
+      "type": "array"
+    },
+    "rules": {
+      "type": "array"
+    },
+    "schema": {
+      "const": "xsprof/why/v1"
+    },
+    "source": {
+      "type": "string"
+    },
+    "tasks": {
+      "type": "array"
+    },
+    "window_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "malformed": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

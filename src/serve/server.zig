@@ -88,13 +88,58 @@ fn respond(
     body: []const u8,
     content_type: []const u8,
 ) !void {
-    try request.respond(body, .{
+    const is_head = request.head.method == .HEAD;
+    try request.respond(if (is_head) "" else body, .{
         .status = status,
         .keep_alive = false,
         .extra_headers = &.{
             .{ .name = "content-type", .value = content_type },
             .{ .name = "cache-control", .value = "no-store" },
             .{ .name = "x-content-type-options", .value = "nosniff" },
+            .{ .name = "x-frame-options", .value = "DENY" },
+            .{ .name = "referrer-policy", .value = "no-referrer" },
+            .{
+                .name = "content-security-policy",
+                .value = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " ++
+                    "style-src 'self'; img-src 'self' data:; connect-src 'self'; " ++
+                    "font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            },
+        },
+    });
+}
+
+fn tokensEqual(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    var diff: u8 = 0;
+    for (a, b) |left, right| diff |= left ^ right;
+    return diff == 0;
+}
+
+fn respondWithOffset(
+    request: *std.http.Server.Request,
+    body: []const u8,
+    content_type: []const u8,
+    offset: u64,
+) !void {
+    var offset_buf: [32]u8 = undefined;
+    const offset_text = try std.fmt.bufPrint(&offset_buf, "{d}", .{offset});
+    const is_head = request.head.method == .HEAD;
+    try request.respond(if (is_head) "" else body, .{
+        .status = .ok,
+        .keep_alive = false,
+        .extra_headers = &.{
+            .{ .name = "content-type", .value = content_type },
+            .{ .name = "cache-control", .value = "no-store" },
+            .{ .name = "x-content-type-options", .value = "nosniff" },
+            .{ .name = "x-frame-options", .value = "DENY" },
+            .{ .name = "referrer-policy", .value = "no-referrer" },
+            .{ .name = "x-xsprof-offset", .value = offset_text },
+            .{
+                .name = "content-security-policy",
+                .value = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " ++
+                    "style-src 'self'; img-src 'self' data:; connect-src 'self'; " ++
+                    "font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            },
         },
     });
 }
@@ -189,21 +234,6 @@ fn worker(io: std.Io, store: *Store, stride: u32) void {
             pending_dropped = 0;
             last_loss_marker = now_ns;
         }
-        if (batch.lost != 0) {
-            var detail_buf: [96]u8 = undefined;
-            const detail = std.fmt.bufPrint(
-                &detail_buf,
-                "sample_loss perf_ring lost={d}",
-                .{batch.lost},
-            ) catch "sample_loss perf_ring";
-            event.writeJson(&allocating.writer, .{
-                .kind = .marker,
-                .ts_ns = last_ts,
-                .cpu = -1,
-                .detail = detail,
-            }) catch {};
-            allocating.writer.writeByte('\n') catch {};
-        }
         const data = allocating.toOwnedSlice() catch {
             std.Io.sleep(io, .fromMilliseconds(100), .awake) catch {};
             continue;
@@ -265,7 +295,7 @@ fn handle(
             try respond(&request, .unauthorized, "missing token\n", "text/plain");
             return;
         };
-        if (!std.mem.eql(u8, token, opts.token)) {
+        if (!tokensEqual(token, opts.token)) {
             try respond(&request, .unauthorized, "invalid token\n", "text/plain");
             return;
         }
@@ -283,17 +313,22 @@ fn handle(
             return;
         }
         if (std.mem.eql(u8, path, "/api/journal")) {
-            const body = if (opts.live) try store.snapshot(allocator) else journal;
-            try respond(&request, .ok, body, "application/x-ndjson");
+            if (opts.live) {
+                const body = try store.snapshot(allocator);
+                try respondWithOffset(&request, body, "application/x-ndjson", store.endOffset());
+            } else {
+                try respond(&request, .ok, journal, "application/x-ndjson");
+            }
             return;
         }
         if (std.mem.eql(u8, path, "/api/meta")) {
             const body = if (opts.live) try store.snapshot(allocator) else journal;
             const rows = std.mem.count(u8, body, "\n");
+            const offset = if (opts.live) store.endOffset() else 0;
             const doc = try std.fmt.allocPrint(
                 allocator,
-                "{{\"event_count\":{d},\"host_mutation\":false,\"schema\":\"xsprof/ui-session/v1\",\"source\":\"{s}\"}}",
-                .{ rows, if (opts.live) "live" else "replay" },
+                "{{\"event_count\":{d},\"host_mutation\":false,\"offset\":{d},\"schema\":\"xsprof/ui-session/v1\",\"source\":\"{s}\"}}",
+                .{ rows, offset, if (opts.live) "live" else "replay" },
             );
             try respond(&request, .ok, doc, "application/json");
             return;

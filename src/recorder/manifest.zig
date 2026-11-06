@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const json = @import("../core/json.zig");
+const safety = @import("../core/safety.zig");
 
 pub const schema = "xsprof/recorder-manifest/v1";
 
@@ -22,12 +23,16 @@ pub const Segment = struct {
 pub const Manifest = struct {
     session_id: []const u8,
     state: State = .recording,
+    schema: []const u8 = "",
+    host_mutation: bool = false,
     started_wall_ns: u64,
     started_mono_ns: u64,
     updated_wall_ns: u64 = 0,
     segments: []const Segment = &.{},
     max_bytes: u64 = 2 * 1024 * 1024 * 1024,
     max_age_ms: u64 = 10 * 60 * 1000,
+    history_interval_ms: u64 = 60 * 1000,
+    history_retain_ms: u64 = 24 * 60 * 60 * 1000,
 };
 
 pub fn writeJson(w: *std.Io.Writer, manifest: Manifest) !void {
@@ -53,6 +58,8 @@ pub fn writeJson(w: *std.Io.Writer, manifest: Manifest) !void {
         segment_values[index] = .{ .object = entries };
     }
     try json.write(w, .{ .object = &.{
+        .{ .key = "history_interval_ms", .value = .{ .unsigned = manifest.history_interval_ms } },
+        .{ .key = "history_retain_ms", .value = .{ .unsigned = manifest.history_retain_ms } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
         .{ .key = "max_age_ms", .value = .{ .unsigned = manifest.max_age_ms } },
         .{ .key = "max_bytes", .value = .{ .unsigned = manifest.max_bytes } },
@@ -74,7 +81,14 @@ pub fn parse(allocator: std.mem.Allocator, data: []const u8) !Manifest {
         else => return error.InvalidManifest,
     };
     const manifest = parsed.value;
-    if (manifest.session_id.len == 0) return error.InvalidManifest;
+    if (manifest.session_id.len == 0 or manifest.session_id.len > 128) return error.InvalidManifest;
+    if (!std.mem.eql(u8, manifest.schema, schema)) return error.InvalidManifest;
+    if (manifest.host_mutation) return error.InvalidManifest;
+    if (manifest.segments.len > 10_000) return error.InvalidManifest;
+    for (manifest.segments) |segment| {
+        if (segment.path.len == 0 or segment.path.len > 512) return error.InvalidManifest;
+        if (!safety.isSafeRelative(segment.path)) return error.InvalidManifest;
+    }
     return manifest;
 }
 
@@ -146,7 +160,7 @@ test "manifest round-trips" {
     var writer = std.Io.Writer.fixed(&buffer);
     try writeJson(&writer, manifest);
     const text = writer.buffered();
-    try std.testing.expect(std.mem.startsWith(u8, text, "{\"host_mutation\":false,"));
+    try std.testing.expect(std.mem.startsWith(u8, text, "{\"history_interval_ms\":"));
     const parsed = try parse(arena.allocator(), text);
     try std.testing.expectEqualStrings("abc", parsed.session_id);
     try std.testing.expectEqual(@as(usize, 1), parsed.segments.len);
@@ -164,4 +178,24 @@ test "reads a relative recorder manifest" {
     );
     try std.testing.expect(manifest != null);
     try std.testing.expect(manifest.?.segments.len == 1);
+}
+
+test "manifest rejects traversal and mutation" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const base =
+        "{\"history_interval_ms\":60000,\"history_retain_ms\":86400000," ++
+        "\"host_mutation\":false,\"max_age_ms\":600000,\"max_bytes\":1," ++
+        "\"schema\":\"xsprof/recorder-manifest/v1\",\"segments\":[" ++
+        "{\"bytes\":1,\"closed\":true,\"end_mono_ns\":0,\"end_wall_ns\":0," ++
+        "\"events\":1,\"path\":\"../escape.ndjson\",\"start_mono_ns\":0," ++
+        "\"start_wall_ns\":0}],\"session_id\":\"s\",\"started_mono_ns\":0," ++
+        "\"started_wall_ns\":0,\"state\":\"stopped\",\"updated_wall_ns\":0}";
+    try std.testing.expectError(error.InvalidManifest, parse(arena.allocator(), base));
+    const mutated = "{\"history_interval_ms\":60000,\"history_retain_ms\":86400000," ++
+        "\"host_mutation\":true,\"max_age_ms\":600000,\"max_bytes\":1," ++
+        "\"schema\":\"xsprof/recorder-manifest/v1\",\"segments\":[]," ++
+        "\"session_id\":\"s\",\"started_mono_ns\":0,\"started_wall_ns\":0," ++
+        "\"state\":\"stopped\",\"updated_wall_ns\":0}";
+    try std.testing.expectError(error.InvalidManifest, parse(arena.allocator(), mutated));
 }

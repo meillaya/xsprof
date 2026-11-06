@@ -44,6 +44,26 @@ pub fn kindName(kind: Kind) []const u8 {
     return @tagName(kind);
 }
 
+/// The task the row is about. Perf's sample TID is the CPU-current task, which
+/// is the previous task for a switch and the waker for a wakeup; `comm` always
+/// names the subject. Presentation must use this, not the raw sample pid.
+pub fn subjectPid(entry: RawEvent) i32 {
+    return switch (entry.kind) {
+        .sched_switch, .sched_wakeup => @intCast(@min(entry.a, std.math.maxInt(i32))),
+        else => entry.pid,
+    };
+}
+
+/// The other participant when a row correlates two tasks (switch prev, wakeup
+/// waker); -1 when there is no actor field.
+pub fn actorPid(entry: RawEvent) i32 {
+    return switch (entry.kind) {
+        .sched_switch => @intCast(@min(entry.b, std.math.maxInt(i32))),
+        .sched_wakeup => entry.pid,
+        else => -1,
+    };
+}
+
 /// Loss markers carry either `dropped=N` or `lost=N`. Return the magnitude so
 /// the UI can report events, not marker rows.
 pub fn lossMagnitude(detail: []const u8) u32 {
@@ -155,11 +175,10 @@ pub fn fromValue(value: std.json.Value) ParseError!RawEvent {
     };
     const schema = try stringField(object, "schema") orelse return error.InvalidEvent;
     if (!std.mem.eql(u8, schema, "xsprof/event/v1")) return error.InvalidEvent;
-    if (object.get("host_mutation")) |mutation| {
-        switch (mutation) {
-            .bool => |v| if (v) return error.UnsafeHostMutation,
-            else => return error.InvalidEvent,
-        }
+    const mutation = object.get("host_mutation") orelse return error.InvalidEvent;
+    switch (mutation) {
+        .bool => |v| if (v) return error.UnsafeHostMutation,
+        else => return error.InvalidEvent,
     }
     const event_name = try stringField(object, "event") orelse return error.InvalidEvent;
     const kind = kindFromName(event_name) orelse return error.InvalidEvent;
@@ -182,7 +201,11 @@ pub fn fromValue(value: std.json.Value) ParseError!RawEvent {
 
 /// Parse one JSON object into an event. Strings may point into `line`; callers
 /// must keep the line alive (arena-based journal readers do).
+pub const max_line_bytes = 64 * 1024;
+pub const max_json_depth = 64;
+
 pub fn parseJson(allocator: std.mem.Allocator, line: []const u8) ParseError!RawEvent {
+    if (line.len > max_line_bytes or !json.depthOk(line, max_json_depth)) return error.InvalidEvent;
     const value = std.json.parseFromSliceLeaky(
         std.json.Value,
         allocator,
@@ -265,4 +288,13 @@ test "privacy is enforced by the serializer" {
     try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "abcdefghijklmno") != null);
     try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "supersecret") == null);
     try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "[REDACTED]") != null);
+}
+
+test "missing host_mutation is refused" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.expectError(
+        error.InvalidEvent,
+        parseJson(arena.allocator(), "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\"}"),
+    );
 }

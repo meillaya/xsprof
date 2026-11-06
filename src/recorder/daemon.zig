@@ -11,12 +11,15 @@ const segment_mod = @import("segment.zig");
 const sidecar = @import("sidecar.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 const overhead = @import("../os/linux/overhead.zig");
+const signal = @import("signal.zig");
 
 const segment_bytes = 16 * 1024 * 1024;
 const segment_age_ms = 30 * 1000;
 const manifest_interval_ms = 1000;
 const default_max_bytes = 2 * 1024 * 1024 * 1024;
 const default_max_age_ms = 10 * 60 * 1000;
+const default_history_interval_ms = 60 * 1000;
+const default_history_retain_ms = 24 * 60 * 60 * 1000;
 const max_seq = 999_999;
 const poll_ms = 100;
 const idle_sleep_ms = 5;
@@ -25,6 +28,8 @@ pub const Options = struct {
     dir: ?[]const u8 = null,
     max_bytes: u64 = default_max_bytes,
     max_age_ms: u64 = default_max_age_ms,
+    history_interval_ms: u64 = default_history_interval_ms,
+    history_retain_ms: u64 = default_history_retain_ms,
     duration_ms: ?u32 = null,
     live_options: live.Options = .{},
 };
@@ -36,6 +41,9 @@ pub const Result = struct {
     session_id: []const u8 = "",
     events: u64 = 0,
     bytes: u64 = 0,
+    history_sidecars: u64 = 0,
+    history_dropped: u64 = 0,
+    sidecar_errors: u64 = 0,
     overhead: overhead.Report = .{},
 };
 
@@ -44,6 +52,8 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         return .{ .state = .SKIP, .reason = "recorder daemon is Linux-only" };
     }
     const meter = overhead.Meter.start(io, allocator);
+    var signal_guard = signal.install();
+    defer signal_guard.deinit();
     // The daemon is long-lived: capture batches and sidecars must return
     // memory to a freeing allocator, not the CLI's per-process arena.
     const runtime_allocator = std.heap.smp_allocator;
@@ -112,6 +122,8 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .segments = segments.items,
         .max_bytes = opts.max_bytes,
         .max_age_ms = opts.max_age_ms,
+        .history_interval_ms = opts.history_interval_ms,
+        .history_retain_ms = opts.history_retain_ms,
     };
     try writeManifest(io, allocator, manifest_path, manifest);
 
@@ -155,13 +167,17 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
 
     var last_manifest = now_mono;
     var segment_started = now_mono;
+    var history_started = now_mono;
     const deadline: i96 = if (opts.duration_ms) |duration|
         @as(i96, @intCast(now_mono)) + @as(i96, duration) * std.time.ns_per_ms
     else
         std.math.maxInt(i96);
     var total_events: u64 = 0;
+    var history_sidecars: u64 = 0;
+    var history_dropped: u64 = 0;
+    var sidecar_errors: u64 = 0;
 
-    while (std.Io.Clock.now(.awake, io).nanoseconds < deadline) {
+    while (std.Io.Clock.now(.awake, io).nanoseconds < deadline and !signal.requested()) {
         const poll_result = capture.poll(poll_ms) catch {
             break;
         };
@@ -173,22 +189,6 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
                 try segment.writeEvent(entry);
                 total_events += 1;
             }
-            if (batch.lost != 0) {
-                var detail_buf: [96]u8 = undefined;
-                const detail = std.fmt.bufPrint(
-                    &detail_buf,
-                    "sample_loss perf_ring lost={d}",
-                    .{batch.lost},
-                ) catch "sample_loss perf_ring";
-                const loss_event = event.RawEvent{
-                    .kind = .marker,
-                    .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
-                    .cpu = -1,
-                    .detail = detail,
-                };
-                try segment.writeEvent(loss_event);
-                try segment_metrics.append(&.{loss_event});
-            }
         } else {
             std.Io.sleep(io, .fromMilliseconds(idle_sleep_ms), .awake) catch {};
         }
@@ -197,11 +197,24 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         const size = segment.sizeBytes();
         if (size >= segment_bytes or now - segment_started >= segment_age_ms * std.time.ns_per_ms) {
             try segment.close();
-            writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena);
-            segment_metrics.deinit();
-            segment_arena.deinit();
-            segment_arena = std.heap.ArenaAllocator.init(runtime_allocator);
-            segment_metrics = metrics_mod.Index.init(segment_arena.allocator());
+            if (now - history_started >= opts.history_interval_ms * std.time.ns_per_ms) {
+                if (writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena)) {
+                    history_sidecars += 1;
+                } else {
+                    sidecar_errors += 1;
+                }
+                history_dropped += sidecar.prune(
+                    io,
+                    dir,
+                    opts.history_retain_ms,
+                    @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds))),
+                ) catch 0;
+                segment_metrics.deinit();
+                segment_arena.deinit();
+                segment_arena = std.heap.ArenaAllocator.init(runtime_allocator);
+                segment_metrics = metrics_mod.Index.init(segment_arena.allocator());
+                history_started = now;
+            }
             segment.deinit();
             segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
             segments.items[current].end_mono_ns = now;
@@ -259,14 +272,30 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         }
     }
 
+    const stopped_by_signal = signal.requested();
+    var stop_buf: [96]u8 = undefined;
+    const stop_detail = if (stopped_by_signal)
+        std.fmt.bufPrint(&stop_buf, "capture_stop signal=terminated", .{}) catch "capture_stop"
+    else
+        "capture_stop";
     try segment.writeEvent(.{
         .kind = .marker,
         .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
         .cpu = -1,
-        .detail = "capture_stop",
+        .detail = stop_detail,
     });
     try segment.close();
-    writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena);
+    if (writeSidecar(io, dir, segments.items[current].path, &segment_metrics, &segment_arena)) {
+        history_sidecars += 1;
+    } else {
+        sidecar_errors += 1;
+    }
+    history_dropped += sidecar.prune(
+        io,
+        dir,
+        opts.history_retain_ms,
+        @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds))),
+    ) catch 0;
     segments.items[current].end_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
     segments.items[current].end_mono_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds);
     segments.items[current].bytes = segment.stats.bytes;
@@ -280,11 +309,14 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     const bytes = totalBytes(segments.items);
     return .{
         .state = .READY,
-        .reason = "recording stopped",
+        .reason = if (stopped_by_signal) "stopped by signal" else "recording stopped",
         .dir = dir,
         .session_id = manifest.session_id,
         .events = total_events,
         .bytes = bytes,
+        .history_sidecars = history_sidecars,
+        .history_dropped = history_dropped,
+        .sidecar_errors = sidecar_errors,
         .overhead = meter.finish(io, allocator, total_events, bytes),
     };
 }
@@ -306,9 +338,10 @@ fn writeSidecar(
     segment_path: []const u8,
     index: *metrics_mod.Index,
     arena: *std.heap.ArenaAllocator,
-) void {
-    const metrics = index.snapshot(arena.allocator()) catch return;
-    sidecar.writeMetrics(io, arena.allocator(), dir, segment_path, metrics) catch {};
+) bool {
+    const metrics = index.snapshot(arena.allocator()) catch return false;
+    sidecar.writeMetrics(io, arena.allocator(), dir, segment_path, metrics) catch return false;
+    return true;
 }
 
 fn totalBytes(segments: []const manifest_mod.Segment) u64 {

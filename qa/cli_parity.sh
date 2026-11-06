@@ -15,10 +15,20 @@ check_contains() { # file needle label
     fi
 }
 
+"$BIN" >"$TMP/quickstart"
+check_contains "$TMP/quickstart" "xsprof" "quickstart"
 "$BIN" help >"$TMP/help"
 check_contains "$TMP/help" "xsprof" "help"
+"$BIN" help top >"$TMP/help-top"
+check_contains "$TMP/help-top" "top" "help-top"
+"$BIN" top --help >/dev/null
+"$BIN" why --help >/dev/null
+"$BIN" completions bash >"$TMP/completions"
+check_contains "$TMP/completions" "top" "completions"
+"$BIN" doctor >"$TMP/doctor"
+check_contains "$TMP/doctor" "status=" "doctor-human"
 "$BIN" version >"$TMP/version"
-check_contains "$TMP/version" "xsprof 0.2.0" "version"
+check_contains "$TMP/version" "xsprof 0.3.0" "version"
 
 for verb in load attach enable mutate apply sched-ext-attach setaffinity setpriority bind; do
     if "$BIN" "$verb" >"$TMP/refusal" 2>/dev/null; then
@@ -44,6 +54,10 @@ check_contains "$TMP/capabilities" '"host_mutation":false' "capabilities"
 check_contains "$TMP/advise" '"schema":"xsprof/advisor-report/v1"' "advise"
 "$BIN" advise --md >"$TMP/advise-md"
 check_contains "$TMP/advise-md" "Performance Advisor Report" "advise-md"
+"$BIN" why --input "$ROOT/fixtures/real/macos-vm-sched.ndjson" --json >"$TMP/why"
+check_contains "$TMP/why" '"schema":"xsprof/why/v1"' "why"
+check_contains "$TMP/why" '"pairs":\[' "why-pairs"
+check_contains "$TMP/why" '"out_of_order":88' "why-order"
 "$BIN" advise --input "$ROOT/fixtures/real/vm-fragmented.ndjson" >"$TMP/advise-input"
 check_contains "$TMP/advise-input" '"schema":"xsprof/advisor-report/v1"' "advise-input"
 check_contains "$TMP/advise-input" '"rules":' "advise-input"
@@ -101,6 +115,7 @@ EOF
 "$BIN" history --dir "$HSTATE" --last 1h >"$TMP/history"
 check_contains "$TMP/history" '"schema":"xsprof/history/v1"' "history"
 check_contains "$TMP/history" '"switches":5' "history"
+check_contains "$TMP/history" '"host_mutation":false' "history-safety"
 check_contains "$TMP/history" '"sidecars":1' "history"
 "$BIN" history --dir "$HSTATE" --last 1h --md >"$TMP/history-md"
 check_contains "$TMP/history-md" "xsprof sidecar history" "history-md"
@@ -136,6 +151,11 @@ if "$BIN" preflight >/dev/null 2>&1; then
     echo "cli_parity: preflight without --json exited zero" >&2
     fail=1
 fi
+if "$BIN" top --duration 1 --json >"$TMP/top" 2>/dev/null; then
+    echo "cli_parity: top unexpectedly succeeded on this host" >&2
+    fail=1
+fi
+check_contains "$TMP/top" '"host_mutation":false' "top-refusal"
 if "$BIN" record --duration 1 >"$TMP/record" 2>/dev/null; then
     echo "cli_parity: record unexpectedly succeeded on this host" >&2
     fail=1

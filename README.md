@@ -44,54 +44,83 @@ at runtime. The shipped binary has no third-party runtime dependencies.
 ## Build
 
 ```sh
-./tools/zig build                # zig-out/bin/xsprof
-./tools/zig build check          # formatting, line limit, vendor hashes, tests
-./tools/zig build xsui-package   # standalone lib/xsui package gate
-./tools/zig build web            # wasm UI and browser assets
+./tools/zig build                # binary plus web assets in zig-out
+./tools/zig build check          # fmt, line limit, vendor, tests, QA gates
+./tools/zig build web            # wasm/browser assets only
 ./tools/zig build run -- help
 ```
 
-## Use
+`./tools/zig build` includes the web console assets, so a clean checkout can run
+`./zig-out/bin/xsprof demo` immediately.
+
+## Use: three workflows
+
+### 1. Try it with no privileges
 
 ```sh
-xsprof record --duration 2000 --output session.ndjson
-xsprof advise --input session.ndjson --json
-xsprof advise --input session.ndjson --md
-xsprof daemon --foreground --dir /var/lib/xsprof
-xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
+./zig-out/bin/xsprof demo
+# opens a loopback URL; the token is in the fragment (#token=…)
+```
+
+### 2. Live view and root-cause in one command
+
+```sh
+sudo xsprof top                          # live 5s ranked view
+sudo xsprof top --duration 10s --json    # scriptable snapshot
+sudo xsprof why --last 10m --dir /var/lib/xsprof
+sudo xsprof why --input session.ndjson --json
+```
+
+`top` and `why` fail closed with `SKIP`/`REFUSE` and a reason when perf is
+unavailable. `why` reports the top wait tasks, waker→woken chains, faults, and
+advisor rule status.
+
+### 3. Flight recorder and incident bundle
+
+```sh
+sudo xsprof daemon --foreground --dir /var/lib/xsprof \
+  --retain 10m --max-bytes 2G --history-interval 60s --history-retain 24h
+sudo xsprof incident --last 10m --dir /var/lib/xsprof   # defaults to ./xsprof-incident-<timestamp>
 xsprof history --last 10m --dir /var/lib/xsprof
-xsprof capture --last 5m --dir /var/lib/xsprof
+xsprof capture --last 5m --dir /var/lib/xsprof --out window.ndjson
 xsprof watch --dir /var/lib/xsprof
+```
+
+`incident` writes `window.ndjson`, `summary.json`, `report.html`, and
+`trace.json` into a self-contained folder. `report` is an alias. Raw segments
+are bounded by `--max-bytes`; history sidecars are written on the interval and
+retained for the history horizon. SIGTERM stops the daemon cleanly.
+
+### Other commands
+
+```sh
+xsprof record --duration 2s                 # session-<timestamp>.ndjson
+xsprof record --duration 2s --output -      # NDJSON to stdout
+xsprof advise --input session.ndjson --json
+xsprof metrics --input session.ndjson
+xsprof compare --base before.ndjson --candidate after.ndjson --fail-on wait.p95=10%
 xsprof serve --journal session.ndjson
-xsprof serve --journal session.ndjson --recorder-dir /var/lib/xsprof
-xsprof serve --live                     # Linux live capture
-xsprof ui --replay session.ndjson --recorder-dir /var/lib/xsprof
-xsprof snapshot --replay session.ndjson --view timeline --theme mocha --backend cpu
-xsprof demo
+xsprof ui --replay session.ndjson
+xsprof snapshot --replay session.ndjson --view timeline --theme mocha
 xsprof lab --scenario scenarios/healthy.json --out /tmp/lab --json
 ```
 
 CPU is the canonical renderer; Metal, OpenGL, and WebGL2 consume the same draw
-list and browser-generated text atlas, and the formal cross-surface gate checks
-them against CPU. The HTML prototype is the design source, not a pixel oracle.
-The web, native, and snapshot surfaces share one console model. The web console
-is at `http://127.0.0.1:<port>/?token=…`; it reads `/api/journal`,
-`/api/meta`, `/api/recorder`, and the live SSE stream. `?demo=1` loads the
-extracted prototype fixture only for design comparison; production replay and
-live sessions use the journal and recorder APIs. `snapshot --demo-model` is
-the corresponding developer flag.
+list and browser-generated text atlas. The web console reads `/api/journal`,
+`/api/meta`, `/api/recorder`, and the live SSE stream. Replay and live sessions
+use the journal/recorder APIs; `?demo=1` is only for design comparison.
+`snapshot --demo-model` is the corresponding developer flag.
 
 `record` needs perf tracepoints and `CAP_PERFMON`; without them it reports
 `SKIP` and exits non-zero. `daemon` keeps one capture open, rotates segments,
-and writes an atomic manifest. `watch` is the SSH view. `serve`
-exposes a loopback replay or live view behind a random token. `ui` opens the
-native profiler. Unknown verbs fail closed.
+and writes an atomic manifest. `serve` is loopback-only and token-gated. Unknown
+verbs fail closed.
 
 ## Safety
 
 Every record carries `host_mutation=false`. The profiler does not write
 `/proc` or `/sys`, elevate privileges, enable BPF on a host, or auto-apply
-advisor recommendations. `load`, `attach`, `enable`, `mutate`, `apply`,
+advisor recommendations. The BPF gate remains VM-marker-gated and host-refused. `load`, `attach`, `enable`, `mutate`, `apply`,
 `sched-ext-attach`, `setaffinity`, `setpriority`, and `bind` are refused.
 Runtime samples never include argv, environment variables, secrets, or tokens.
 
@@ -105,9 +134,20 @@ Runtime samples never include argv, environment variables, secrets, or tokens.
 ## Development
 
 ```sh
-./tools/zig build test
+./tools/zig build check
 ./tools/zig build fuzz
+./tools/zig build web-ui-smoke
+./tools/zig build web-smoke
 (cd lib/xsui && ../../tools/zig build test)   # package in isolation
 ./tools/zig build service-smoke               # Linux root, disposable VM
+sudo ./tools/zig build live-smoke             # Linux root, disposable VM
 qa/retention_bench.sh 600000 0 2G yes         # Linux root, disposable VM
 ```
+
+More: [quickstart](docs/guides/quickstart.md), [top/why](docs/guides/top-why.md),
+[event field semantics](docs/architecture/events.md), [audit](docs/audit/v0.3.0.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE). The bundled JetBrains Mono font is OFL; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -9,10 +9,11 @@ const metrics_mod = @import("../analyze/metrics.zig");
 
 const Writer = std.Io.Writer;
 const max_segment_bytes = 32 * 1024 * 1024;
+const max_scan_bytes: u64 = 64 * 1024 * 1024;
 
 pub const Options = struct {
     dir: []const u8,
-    window_ms: u64 = 30_000,
+    window_ms: u64 = 10_000,
     duration_ms: ?u64 = null,
     once: bool = false,
 };
@@ -20,7 +21,7 @@ pub const Options = struct {
 pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer) !void {
     const manifest_path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{opts.dir});
     defer allocator.free(manifest_path);
-    const manifest = (try manifest_mod.read(io, allocator, manifest_path)) orelse
+    _ = (try manifest_mod.read(io, allocator, manifest_path)) orelse
         return error.NoRecorder;
 
     const started = std.Io.Clock.now(.awake, io).nanoseconds;
@@ -28,6 +29,10 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
         var frame_arena = std.heap.ArenaAllocator.init(allocator);
         defer frame_arena.deinit();
         const frame_allocator = frame_arena.allocator();
+        const manifest = (try manifest_mod.read(io, frame_allocator, manifest_path)) orelse {
+            std.Io.sleep(io, .fromMilliseconds(1000), .awake) catch return;
+            continue;
+        };
         const now_wall = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
         const window_ns = std.math.mul(u64, opts.window_ms, std.time.ns_per_ms) catch std.math.maxInt(u64);
         const cutoff = now_wall -| window_ns;
@@ -36,7 +41,13 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
         // name, so a 16 MiB segment does not stay resident after it is read.
         var index = metrics_mod.Index.init(frame_allocator);
         defer index.deinit();
+        var scanned: u64 = 0;
+        var truncated = false;
         for (manifest.segments) |segment| {
+            if (scanned >= max_scan_bytes) {
+                truncated = true;
+                break;
+            }
             const end = if (segment.end_wall_ns == 0) now_wall else segment.end_wall_ns;
             if (end < cutoff) continue;
             const full = try std.fmt.allocPrint(frame_allocator, "{s}/{s}", .{ opts.dir, segment.path });
@@ -50,6 +61,8 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
                 file_arena.allocator(),
                 .limited(max_segment_bytes),
             ) catch continue;
+            scanned += data.len;
+            if (scanned > max_scan_bytes) truncated = true;
             var line_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
             defer line_arena.deinit();
             var lines = std.mem.splitScalar(u8, data, '\n');
@@ -64,7 +77,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
             }
         }
         const metrics = try index.snapshot(frame_allocator);
-        try render(out, manifest, metrics, opts.window_ms);
+        try render(out, manifest, metrics, opts.window_ms, truncated);
         try out.flush();
 
         if (opts.once) return;
@@ -76,12 +89,13 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
     }
 }
 
-fn render(out: *Writer, manifest: manifest_mod.Manifest, metrics: metrics_mod.Metrics, window_ms: u64) !void {
+fn render(out: *Writer, manifest: manifest_mod.Manifest, metrics: metrics_mod.Metrics, window_ms: u64, truncated: bool) !void {
     try out.writeAll("\x1b[2J\x1b[H");
-    try out.print("xsprof watch  state={s}  window={d}ms  session={s}\n", .{
+    try out.print("xsprof watch  state={s}  window={d}ms  session={s}  scan_cap=64MiB{s}\n", .{
         @tagName(manifest.state),
         window_ms,
         manifest.session_id,
+        if (truncated) "  TRUNCATED" else "",
     });
     try out.print("switches={d} wakeups={d} migrations={d} faults={d}/{d} lost={d}\n", .{
         metrics.switches,

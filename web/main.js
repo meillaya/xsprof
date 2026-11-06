@@ -5,7 +5,8 @@ const errorBox = document.getElementById("boot-error");
 const status = document.getElementById("status");
 const fileInput = document.getElementById("file");
 const params = new URLSearchParams(location.search);
-const token = params.get("token") || "";
+const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+const token = params.get("token") || hashParams.get("token") || "";
 const encoder = new TextEncoder();
 const screens = { overview: 0, timeline: 1, advisor: 2, events: 3, capture: 4 };
 const themes = { dark: 0, graphite: 0, paper: 1, light: 1, latte: 2, frappe: 3, macchiato: 4, mocha: 5 };
@@ -17,6 +18,8 @@ let last = performance.now();
 let raf = 0;
 let busy = false;
 let loadGeneration = 0;
+let liveOffset = 0;
+let lastStatus = "";
 
 function fail(error) {
   errorBox.hidden = false;
@@ -54,7 +57,15 @@ function drawFrame() {
   if (count && ip && ap) {
     renderer.draw(ip, count, stride, exports.memory, canvas.width, canvas.height, ap, as, av);
   }
-  setStatus(`console · ${count} instances · host_mutation=false`);
+  const screenId = exports.web_ui_screen?.() ?? 0;
+  const events = exports.web_ui_event_count?.() ?? 0;
+  const label = ["overview", "timeline", "advisor", "events", "capture"][screenId] || "overview";
+  const summary = `${label} · ${events} events · host_mutation=false`;
+  if (summary !== lastStatus) {
+    lastStatus = summary;
+    setStatus(summary);
+    canvas.setAttribute("aria-label", `xsprof read-only console, ${label} screen, ${events} events`);
+  }
 
   if (exports.web_ui_take_open()) fileInput.click();
   if (exports.web_ui_take_reload()) reloadSource();
@@ -131,6 +142,8 @@ async function reloadSource() {
   }
   const response = await fetch(api("/api/journal"));
   if (!response.ok) throw new Error(`journal: HTTP ${response.status}`);
+  const offset = response.headers.get("x-xsprof-offset");
+  if (offset) liveOffset = Number(offset);
   loadJournalText(await response.text(), live ? "live journal" : "journal");
   await loadRecorderMetadata();
   drawFrame();
@@ -180,6 +193,8 @@ async function boot() {
   } else {
     const journal = await fetch(api("/api/journal"));
     if (!journal.ok) throw new Error(`journal: HTTP ${journal.status}`);
+    const offset = journal.headers.get("x-xsprof-offset");
+    if (offset) liveOffset = Number(offset);
     loadJournalText(await journal.text(), live ? "live journal" : "journal");
   }
 
@@ -199,30 +214,68 @@ function loop(now) {
   drawFrame();
 }
 
+function appendLive(text) {
+  const data = encoder.encode(text);
+  const ptr = data.length ? exports.web_alloc(data.length) : 0;
+  if (data.length && !ptr) return false;
+  if (data.length) new Uint8Array(exports.memory.buffer, ptr, data.length).set(data);
+  const ok = exports.web_ui_append_journal(ptr, data.length);
+  if (ptr) exports.web_free(ptr, data.length);
+  return !!ok;
+}
+
 function startLive() {
   if (!live || typeof EventSource === "undefined") return;
+  let lines = [];
   let timer = 0;
-  let pending = false;
-  const events = new EventSource(api("/api/events"));
+  let restarting = false;
   const schedule = () => {
-    pending = true;
     if (timer) return;
     timer = setTimeout(async () => {
       timer = 0;
-      if (!pending || busy) return;
-      pending = false;
+      if (!lines.length || busy || restarting) return;
+      const text = lines.join("");
+      lines = [];
       busy = true;
       try {
-        await reloadSource();
+        if (!appendLive(text)) {
+          restarting = true;
+          events.close();
+          await reloadSource();
+          busy = false;
+          restarting = false;
+          startLive();
+          return;
+        }
+        drawFrame();
       } catch (error) {
-        console.warn(error);
+        console.warn("live append failed", error);
       } finally {
         busy = false;
       }
-    }, 300);
+    }, 250);
   };
-  events.onmessage = schedule;
-  events.addEventListener("reset", schedule);
+  const events = new EventSource(api(liveOffset ? `/api/events?since=${liveOffset}` : "/api/events"));
+  events.onmessage = (event) => {
+    if (!event.data) return;
+    lines.push(event.data + "\n");
+    if (event.lastEventId) liveOffset = Number(event.lastEventId);
+    schedule();
+  };
+  events.addEventListener("reset", async () => {
+    if (restarting) return;
+    restarting = true;
+    events.close();
+    lines = [];
+    try {
+      await reloadSource();
+    } catch (error) {
+      fail(error);
+    }
+    restarting = false;
+    busy = false;
+    startLive();
+  });
   events.onerror = () => setStatus("live stream reconnecting…");
   window.addEventListener("pagehide", () => events.close(), { once: true });
 }

@@ -21,8 +21,15 @@ software page-fault counter. It never writes scheduler state.
   `xsprof/capture-summary/v1` line to stderr.
 - Perf header sizes are read at byte 6 (type:u32, misc:u16, size:u16); sample
   fields are TID/TIME/CPU/RAW in kernel order.
-- `PERF_RECORD_LOST` becomes an explicit `sample_loss` marker; it is never
-  interpolated.
+- `PERF_RECORD_LOST` becomes one explicit `sample_loss` marker; it is never
+  interpolated or counted twice.
+- `PERF_COUNT_SW_PAGE_FAULTS_MIN` and `MAJ` are separate rings; `page_fault.b`
+  is `1` for major and `0` for minor. A combined-counter fallback is explicit.
+- `Capture.take()` sorts each drained batch by timestamp/CPU/kind/pid before
+  returning it. Perf rings are independent, so ring order alone is not time
+  order. Legacy journals may still report `out_of_order` on replay.
+- SIGTERM/SIGINT is a cooperative stop: the daemon flushes the active segment,
+  writes `capture_stop signal=terminated`, and marks the manifest stopped.
 
 ## VM validation (2026-10-31)
 

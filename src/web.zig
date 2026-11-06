@@ -494,3 +494,15 @@ export fn web_ui_take_reload() u32 {
 export fn web_ui_loaded() u32 {
     return console.isLoaded();
 }
+
+export fn web_ui_append_journal(addr: usize, len: usize) u32 {
+    return console.appendJournal(addr, len);
+}
+
+export fn web_ui_event_count() u32 {
+    return console.eventCount();
+}
+
+export fn web_ui_screen() u32 {
+    return console.screenIndex();
+}

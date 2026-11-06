@@ -8,6 +8,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const privacy = @import("../core/privacy.zig");
 
 const Writer = std.Io.Writer;
 
@@ -75,13 +76,17 @@ fn writeArgs(w: *Writer, args: Args) Writer.Error!void {
         ),
         .count => |count| try w.print("\"args\":{{\"count\":{d}}}", .{count}),
         .loss => |reason| {
+            var redact_buf: [1024]u8 = undefined;
+            const redacted = privacy.redactDetail(reason, &redact_buf);
             try w.writeAll("\"args\":{\"reason\":");
-            try @import("../core/json.zig").write(w, .{ .string = reason });
+            try @import("../core/json.zig").write(w, .{ .string = redacted });
             try w.writeAll(",\"unsafe\":true}");
         },
         .text => |detail| {
+            var redact_buf: [1024]u8 = undefined;
+            const redacted = privacy.redactDetail(detail, &redact_buf);
             try w.writeAll("\"args\":{\"detail\":");
-            try @import("../core/json.zig").write(w, .{ .string = detail });
+            try @import("../core/json.zig").write(w, .{ .string = redacted });
             try w.writeByte('}');
         },
         .bp_end => try w.writeAll("\"args\":{\"bp\":\"e\"}"),

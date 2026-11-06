@@ -3,8 +3,10 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const json = @import("../core/json.zig");
 
 pub const max_file_bytes = 256 * 1024 * 1024;
+pub const max_wrapper_depth = 256;
 
 pub const Error = error{
     InvalidJournal,
@@ -12,6 +14,7 @@ pub const Error = error{
 };
 
 fn parseWrapper(allocator: std.mem.Allocator, data: []const u8) ![]event.RawEvent {
+    if (!json.depthOk(data, max_wrapper_depth)) return error.InvalidJournal;
     const value = std.json.parseFromSliceLeaky(
         std.json.Value,
         allocator,
@@ -44,6 +47,32 @@ fn parseWrapper(allocator: std.mem.Allocator, data: []const u8) ![]event.RawEven
     return out.toOwnedSlice(allocator);
 }
 
+/// Streaming validation for a server or long-lived command. It never retains
+/// the journal, so a malformed 256 MB file is rejected before the port binds.
+pub fn validateFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !void {
+    const file = if (path.len != 0 and path[0] == '/')
+        std.Io.Dir.openFileAbsolute(io, path, .{}) catch return error.JournalUnreadable
+    else
+        std.Io.Dir.cwd().openFile(io, path, .{}) catch return error.JournalUnreadable;
+    defer file.close(io);
+    var buffer: [64 * 1024]u8 = undefined;
+    var reader = file.readerStreaming(io, &buffer);
+    var line_arena = std.heap.ArenaAllocator.init(allocator);
+    defer line_arena.deinit();
+    while (try reader.interface.takeDelimiter('\n')) |raw_line| {
+        const line = std.mem.trim(u8, raw_line, " \t\r");
+        if (line.len == 0) continue;
+        if (line.len > event.max_line_bytes or !json.depthOk(line, event.max_json_depth)) {
+            return error.InvalidJournal;
+        }
+        _ = line_arena.reset(.retain_capacity);
+        _ = event.parseJson(line_arena.allocator(), line) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => return error.InvalidJournal,
+        };
+    }
+}
+
 /// Parse journal bytes. The returned events may reference strings in `data`
 /// or in allocations made through `allocator`; keep both alive.
 pub fn parseData(allocator: std.mem.Allocator, data: []const u8) ![]event.RawEvent {
@@ -59,6 +88,9 @@ pub fn parseData(allocator: std.mem.Allocator, data: []const u8) ![]event.RawEve
     while (lines.next()) |raw_line| {
         const line = std.mem.trim(u8, raw_line, " \t\r");
         if (line.len == 0) continue;
+        if (line.len > event.max_line_bytes or !json.depthOk(line, event.max_json_depth)) {
+            return error.InvalidJournal;
+        }
         const parsed = event.parseJson(allocator, line) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             else => return error.InvalidJournal,

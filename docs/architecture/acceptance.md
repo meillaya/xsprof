@@ -107,9 +107,9 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   for the full 10 minutes lost 3,278 of 81.4M events (0.004%), under the 0.1%
   target. The old path lost 2.38M events in 60 seconds. Full method and limits:
   `docs/architecture/retention.md`.
-- `history --last 10m` read 774 sidecars covering 81.4M events with 3,278 lost
-  events (0.004%), so the ten-minute history tier is queryable across raw
-  drops. `qa/cli_parity.sh` also exercises the sidecar reader with a synthetic
+- `history --last 10m` read 774 per-segment sidecars covering 81.4M events with
+  3,278 lost events (0.004%) in the historical per-segment profile. Current
+  0.3.0 uses 60-second buckets; see the v0.3.0 note at the end. `qa/cli_parity.sh` also exercises the sidecar reader with a synthetic
   `metrics/` sidecar.
 - The **raw** tier still does not hold ten minutes at 50k events/s; the
   measured host has no rate throttle, so the run was 10 minutes at its natural
@@ -129,3 +129,31 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   release run also needs available GitHub Actions minutes.
 - cgroup attribution is a bounded live `/proc` snapshot; it is not historical
   event attribution for an old journal.
+
+
+## v0.3.0 polish
+
+- `xsprof top` (live ranked view, fail-closed SKIP) and `xsprof why`
+  (streaming root-cause report with wakeup pairs) landed.
+- Capture batches are timestamp-sorted; legacy replay reports `out_of_order`
+  instead of claiming rejection. `PERF_RECORD_LOST` is journaled once.
+- Page faults split into `SW_PAGE_FAULTS_MIN`/`MAJ`; major/minor are observable.
+- `record`/`capture` stream; daemon SIGTERM flushes and marks the manifest
+  stopped; history sidecars use a bounded interval/retention.
+- `serve` validates journals, prints the token in the fragment, and adds
+  CSP/referrer/frame headers. Live web appends preserve the view.
+- MIT LICENSE, version 0.3.0, default web install, Deb web assets, release
+  check gate and checksum upload.
+- New gates: `unsafe_cli_matrix`, `no_host_mutation`, `privacy_scan`,
+  `web_ui_smoke`, `version_sync`, and root `live_smoke`.
+- VM evidence (Fedora 44 x86_64): `live_smoke` PASS, `service_smoke` PASS
+  (6 segments, 334,064 extracted lines), `bpf-gate` READY.
+
+Residual limits: native live streaming/accessibility tree/notarization/AUR and
+a compact raw 10-minute tier remain future work. The raw 94-second/10-minute
+figures above were measured before the 60-second sidecar cadence change.
+
+Current gate: `zig build check` passes the full suite (unit tests, fuzz,
+CLI parity, web UI/bridge smoke, privacy/no-mutation/unsafe-verb gates,
+xsui package, lab smoke) plus the new version-sync gate. `live_smoke` and
+`service_smoke` pass in the disposable Fedora 44 x86_64 VM.

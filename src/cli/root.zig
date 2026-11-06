@@ -6,8 +6,6 @@ const safety = @import("../core/safety.zig");
 const proc = @import("../os/linux/proc.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
-const live = @import("../capture/live.zig");
-const recording = @import("../capture/recording.zig");
 const render_cmd = @import("render.zig");
 const serve_cmd = @import("serve_cmd.zig");
 const advise_cmd = @import("advise_cmd.zig");
@@ -15,6 +13,10 @@ const incident_cmd = @import("incident_cmd.zig");
 const history_cmd = @import("history_cmd.zig");
 const bpf_cmd = @import("bpf_cmd.zig");
 const recorder_cmd = @import("recorder_cmd.zig");
+const record_cmd = @import("record_cmd.zig");
+const top_cmd = @import("top_cmd.zig");
+const why_cmd = @import("why_cmd.zig");
+const completions_cmd = @import("completions_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
 const watch_cmd = @import("watch_cmd.zig");
 const analysis_cmd = @import("analysis_cmd.zig");
@@ -43,6 +45,10 @@ const known_commands = [_][]const u8{
     "doctor",
     "demo",
     "watch",
+    "top",
+    "why",
+    "report",
+    "completions",
     "metrics",
     "compare",
     "pressure",
@@ -216,120 +222,6 @@ fn cmdTimeline(
     return 0;
 }
 
-fn stateName(state: live.State) []const u8 {
-    return switch (state) {
-        .READY => "READY",
-        .DEGRADED => "DEGRADED",
-        .SKIP => "SKIP",
-        .REFUSE => "REFUSE",
-    };
-}
-
-fn writeCapabilityEvent(
-    out: *Writer,
-    name: []const u8,
-    state: []const u8,
-    reason: []const u8,
-) !void {
-    try json.write(out, .{ .object = &.{
-        .{ .key = "event", .value = .{ .string = "capability" } },
-        .{ .key = "host_mutation", .value = .{ .boolean = false } },
-        .{ .key = "name", .value = .{ .string = name } },
-        .{ .key = "reason", .value = .{ .string = reason } },
-        .{ .key = "schema", .value = .{ .string = "xsprof/event/v1" } },
-        .{ .key = "state", .value = .{ .string = state } },
-    } });
-    try out.writeByte('\n');
-}
-
-fn cmdRecord(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    args: []const []const u8,
-    out: *Writer,
-    err: *Writer,
-) !u8 {
-    var duration_ms: u32 = 1000;
-    var output: ?[]const u8 = null;
-    var bpf = false;
-    var i: usize = 0;
-    while (i < args.len) : (i += 1) {
-        const arg = args[i];
-        if (std.mem.eql(u8, arg, "--duration") and i + 1 < args.len) {
-            i += 1;
-            duration_ms = std.fmt.parseInt(u32, args[i], 10) catch {
-                try err.writeAll("record: invalid --duration\n");
-                return 2;
-            };
-        } else if (std.mem.eql(u8, arg, "--output") and i + 1 < args.len) {
-            i += 1;
-            output = args[i];
-        } else if (std.mem.eql(u8, arg, "--bpf")) {
-            bpf = true;
-        }
-    }
-    if (bpf) {
-        try writeCapabilityEvent(out, "bpf_capture", "SKIP", "BPF lane is VM-marker-gated and lands in P7");
-        return 1;
-    }
-    const result = recording.record(io, allocator, duration_ms) catch |record_error| {
-        try writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(record_error));
-        return 1;
-    };
-    if (result.state != .READY) {
-        try writeCapabilityEvent(out, "live_capture", stateName(result.state), result.reason);
-        return 1;
-    }
-
-    var switches: u64 = 0;
-    var wakeups: u64 = 0;
-    var migrations: u64 = 0;
-    var faults: u64 = 0;
-    for (result.events) |e| {
-        switch (e.kind) {
-            .sched_switch => switches += 1,
-            .sched_wakeup => wakeups += 1,
-            .sched_migrate => migrations += 1,
-            .page_fault => faults += 1,
-            else => {},
-        }
-    }
-
-    if (output) |path| {
-        const file = if (path.len != 0 and path[0] == '/')
-            std.Io.Dir.createFileAbsolute(io, path, .{}) catch {
-                try err.print("record: cannot open output {s}\n", .{path});
-                return 1;
-            }
-        else
-            std.Io.Dir.cwd().createFile(io, path, .{}) catch {
-                try err.print("record: cannot open output {s}\n", .{path});
-                return 1;
-            };
-        defer file.close(io);
-        var buffer: [64 * 1024]u8 = undefined;
-        var writer = file.writer(io, &buffer);
-        for (result.events) |e| {
-            try event.writeJson(&writer.interface, e);
-            try writer.interface.writeByte('\n');
-        }
-        try writer.interface.flush();
-    } else {
-        for (result.events) |e| {
-            try event.writeJson(out, e);
-            try out.writeByte('\n');
-        }
-    }
-
-    try err.writeAll("{\"capability\":\"READY\",\"duration_ms\":");
-    try err.print("{d}", .{duration_ms});
-    try err.print(",\"events_captured\":{d},\"host_mutation\":false,", .{result.events.len});
-    try err.print("\"page_faults\":{d},\"sched_migrations\":{d},\"sched_switches\":{d},", .{ faults, migrations, switches });
-    try err.print("\"sched_wakeups\":{d},\"schema\":\"xsprof/capture-summary/v1\",", .{wakeups});
-    try err.writeAll("\"source\":\"perf_tracepoint\"}\n");
-    return 0;
-}
-
 pub fn runWith(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -343,15 +235,21 @@ pub fn runWith(
         if (std.c.getenv("XSPROF_APP_MODE") != null) {
             return render_cmd.cmdUi(io, allocator, &.{}, out, err);
         }
-        try help.writeHelp(out);
+        try help.writeQuickstart(out);
         return 0;
     }
 
     const cmd = args[1];
-    if (std.mem.eql(u8, cmd, "help") or std.mem.eql(u8, cmd, "--help") or
-        std.mem.eql(u8, cmd, "-h"))
-    {
+    if (std.mem.eql(u8, cmd, "help")) {
+        if (args.len > 2) try help.writeCommand(out, args[2]) else try help.writeHelp(out);
+        return 0;
+    }
+    if (std.mem.eql(u8, cmd, "--help") or std.mem.eql(u8, cmd, "-h")) {
         try help.writeHelp(out);
+        return 0;
+    }
+    if (args.len > 2 and (std.mem.eql(u8, args[2], "--help") or std.mem.eql(u8, args[2], "-h"))) {
+        try help.writeCommand(out, cmd);
         return 0;
     }
     if (std.mem.eql(u8, cmd, "version") or std.mem.eql(u8, cmd, "--version")) {
@@ -371,7 +269,7 @@ pub fn runWith(
     if (std.mem.eql(u8, cmd, "advise")) {
         return advise_cmd.cmdAdvise(io, allocator, args[2..], out, err);
     }
-    if (std.mem.eql(u8, cmd, "incident")) {
+    if (std.mem.eql(u8, cmd, "incident") or std.mem.eql(u8, cmd, "report")) {
         return incident_cmd.cmdIncident(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "history")) {
@@ -387,7 +285,16 @@ pub fn runWith(
         return serve_cmd.cmdServe(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "record")) {
-        return cmdRecord(io, allocator, args[2..], out, err);
+        return record_cmd.cmdRecord(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "top")) {
+        return top_cmd.cmdTop(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "why")) {
+        return why_cmd.cmdWhy(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "completions")) {
+        return completions_cmd.cmdCompletions(args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "ui")) {
         return render_cmd.cmdUi(io, allocator, args[2..], out, err);
@@ -471,7 +378,7 @@ test "version is stable" {
         @as(u8, 0),
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.2.0\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.3.0\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {

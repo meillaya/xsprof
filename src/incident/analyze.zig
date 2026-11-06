@@ -15,6 +15,7 @@ pub const Options = struct {
 pub const Result = struct {
     session: session_mod.Session,
     event_count: usize,
+    malformed: usize,
     trace_events: []const event.RawEvent,
     trace_truncated: bool,
     retention_trimmed: bool,
@@ -66,6 +67,7 @@ pub fn analyzeFile(
     defer line_arena.deinit();
 
     var event_count: usize = 0;
+    var malformed: usize = 0;
     var switches: u32 = 0;
     var wakeups: u32 = 0;
     var migrations: u32 = 0;
@@ -84,7 +86,10 @@ pub fn analyzeFile(
         const line = std.mem.trim(u8, raw_line, " \t\r");
         if (line.len == 0) continue;
         _ = line_arena.reset(.retain_capacity);
-        const entry = event.parseJson(line_arena.allocator(), line) catch continue;
+        const entry = event.parseJson(line_arena.allocator(), line) catch {
+            malformed += 1;
+            continue;
+        };
         event_count += 1;
         if (trace.items.len < opts.max_trace_events) {
             try trace.append(allocator, try copyEvent(allocator, entry));
@@ -103,7 +108,7 @@ pub fn analyzeFile(
                 switches += 1;
                 if (entry.cpu >= 0) {
                     const cpu: u8 = @intCast(@min(entry.cpu, 255));
-                    cpu_count = @max(cpu_count, cpu + 1);
+                    cpu_count = @max(cpu_count, cpu +| 1);
                 }
                 const incoming: i32 = @intCast(@min(entry.a, std.math.maxInt(i32)));
                 if (meta.isSelf(incoming, entry.comm)) self_switches += 1;
@@ -171,6 +176,7 @@ pub fn analyzeFile(
     return .{
         .session = session,
         .event_count = event_count,
+        .malformed = malformed,
         .trace_events = try trace.toOwnedSlice(allocator),
         .trace_truncated = event_count > trace_count,
         .retention_trimmed = retention_trimmed,

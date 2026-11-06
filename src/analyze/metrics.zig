@@ -3,7 +3,6 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
-const json = @import("../core/json.zig");
 const session_meta = @import("../core/session_meta.zig");
 
 const max_cpus = 256;
@@ -36,6 +35,15 @@ pub const Histogram = struct {
         }
         return self.max_us;
     }
+};
+
+pub const WakeupPair = struct {
+    waker_pid: i32,
+    woken_pid: i32,
+    waker_comm: []const u8 = "",
+    woken_comm: []const u8 = "",
+    count: u64 = 0,
+    p95_wait_us: u64 = 0,
 };
 
 pub const TaskMetric = struct {
@@ -78,10 +86,13 @@ pub const Metrics = struct {
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
     lost: u64 = 0,
+    out_of_order: u64 = 0,
+    pairs_truncated: bool = false,
     wait: Histogram = .{},
     offcpu: Histogram = .{},
     cpus: []const CpuMetric = &.{},
     tasks: []const TaskMetric = &.{},
+    wakeup_pairs: []const WakeupPair = &.{},
 };
 
 const Task = struct {
@@ -99,6 +110,18 @@ const Task = struct {
     sleep_since_ns: ?u64 = null,
     wakeup_pending: bool = false,
     running: bool = false,
+    last_waker_pid: i32 = -1,
+};
+
+const PairKey = struct {
+    waker: i32,
+    woken: i32,
+};
+
+const PairAgg = struct {
+    count: u64 = 0,
+    wait: Histogram = .{},
+    woken_comm: []const u8 = "",
 };
 
 const Cpu = struct {
@@ -132,6 +155,10 @@ pub const Index = struct {
     redundant_wakeups: u64 = 0,
     self_redundant_wakeups: u64 = 0,
     timed_events: usize = 0,
+    pairs: std.AutoHashMap(PairKey, PairAgg),
+    pair_overflow: u64 = 0,
+    out_of_order: u64 = 0,
+    last_timed_ns: ?u64 = null,
 
     pub fn setSelf(self: *Index, meta: *const session_meta.Meta) void {
         if (!meta.self_seen) return;
@@ -149,11 +176,13 @@ pub const Index = struct {
             .allocator = allocator,
             .tasks = std.AutoHashMap(i32, Task).init(allocator),
             .names = std.heap.ArenaAllocator.init(allocator),
+            .pairs = std.AutoHashMap(PairKey, PairAgg).init(allocator),
         };
     }
 
     pub fn deinit(self: *Index) void {
         self.tasks.deinit();
+        self.pairs.deinit();
         self.names.deinit();
     }
 
@@ -168,6 +197,10 @@ pub const Index = struct {
         for (events) |entry| {
             if (!session_meta.isMetadata(entry)) {
                 const us = entry.ts_ns / 1000;
+                if (self.last_timed_ns) |last_ns| {
+                    if (entry.ts_ns < last_ns) self.out_of_order += 1;
+                }
+                self.last_timed_ns = entry.ts_ns;
                 self.first_us = @min(self.first_us, us);
                 self.last_us = @max(self.last_us, us);
                 self.timed_events += 1;
@@ -191,6 +224,22 @@ pub const Index = struct {
                         self.self_redundant_wakeups += 1;
                     } else {
                         self.redundant_wakeups += 1;
+                    }
+                    const waker: i32 = entry.pid;
+                    if (!is_self and waker > 0 and pid > 0 and !self.isSelf(waker, "")) {
+                        task.last_waker_pid = waker;
+                        const key: PairKey = .{ .waker = waker, .woken = pid };
+                        if (self.pairs.getPtr(key)) |pair| {
+                            pair.count += 1;
+                        } else if (self.pairs.count() < 4096) {
+                            var pair: PairAgg = .{ .count = 1 };
+                            if (entry.comm.len != 0) {
+                                pair.woken_comm = try self.names.allocator().dupe(u8, entry.comm);
+                            }
+                            try self.pairs.put(key, pair);
+                        } else {
+                            self.pair_overflow += 1;
+                        }
                     }
                 },
                 .sched_migrate => {
@@ -263,6 +312,15 @@ pub const Index = struct {
                 const wait_us = (now -| started) / 1000;
                 incoming.wait.observe(wait_us);
                 self.wait.observe(wait_us);
+                if (incoming.last_waker_pid > 0) {
+                    if (self.pairs.getPtr(.{
+                        .waker = incoming.last_waker_pid,
+                        .woken = incoming.pid,
+                    })) |pair| {
+                        pair.wait.observe(wait_us);
+                    }
+                    incoming.last_waker_pid = -1;
+                }
                 incoming.runnable_since_ns = null;
             }
             if (incoming.sleep_since_ns) |started| {
@@ -324,6 +382,40 @@ pub const Index = struct {
                 .faults = cpu.faults,
             });
         }
+        var pair_list: std.ArrayList(WakeupPair) = .empty;
+        errdefer pair_list.deinit(allocator);
+        var pair_it = self.pairs.iterator();
+        while (pair_it.next()) |item| {
+            const key = item.key_ptr.*;
+            const pair = item.value_ptr.*;
+            const waker_comm = if (self.tasks.get(key.waker)) |waker| waker.comm else "";
+            const woken_comm = if (pair.woken_comm.len != 0)
+                pair.woken_comm
+            else if (self.tasks.get(key.woken)) |woken| woken.comm else "";
+            try pair_list.append(allocator, .{
+                .waker_pid = key.waker,
+                .woken_pid = key.woken,
+                .waker_comm = try allocator.dupe(u8, waker_comm),
+                .woken_comm = try allocator.dupe(u8, woken_comm),
+                .count = pair.count,
+                .p95_wait_us = pair.wait.quantileUpper(950),
+            });
+        }
+        std.mem.sortUnstable(WakeupPair, pair_list.items, {}, struct {
+            fn less(_: void, a: WakeupPair, b: WakeupPair) bool {
+                if (a.count != b.count) return a.count > b.count;
+                if (a.p95_wait_us != b.p95_wait_us) return a.p95_wait_us > b.p95_wait_us;
+                if (!std.mem.eql(u8, a.woken_comm, b.woken_comm)) {
+                    return std.mem.order(u8, a.woken_comm, b.woken_comm) == .lt;
+                }
+                if (a.waker_pid != b.waker_pid) return a.waker_pid < b.waker_pid;
+                return a.woken_pid < b.woken_pid;
+            }
+        }.less);
+        const pair_total = pair_list.items.len;
+        const pair_cap = @min(pair_total, 32);
+        const pairs_truncated = pair_total > pair_cap or self.pair_overflow != 0;
+
         return .{
             .events = self.events,
             .first_us = if (self.timed_events == 0) 0 else self.first_us,
@@ -338,10 +430,13 @@ pub const Index = struct {
             .faults_minor = self.faults_minor,
             .faults_major = self.faults_major,
             .lost = self.lost,
+            .out_of_order = self.out_of_order,
+            .pairs_truncated = pairs_truncated,
             .wait = self.wait,
             .offcpu = self.offcpu,
             .cpus = try cpu_list.toOwnedSlice(allocator),
             .tasks = try task_list.toOwnedSlice(allocator),
+            .wakeup_pairs = try pair_list.toOwnedSlice(allocator),
         };
     }
 };
@@ -377,6 +472,29 @@ test "metrics measure waits and preemption" {
     try std.testing.expect(found_b);
     try std.testing.expect(metrics.cpus.len == 1);
     try std.testing.expect(metrics.cpus[0].busy_us >= 50);
+}
+
+test "wakeup pairs attribute wait and expose ordering skew" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var index = Index.init(arena.allocator());
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_wakeup, .ts_ns = 10_000, .cpu = 0, .pid = 9, .a = 1, .comm = "worker" },
+        .{ .kind = .sched_switch, .ts_ns = 20_000, .cpu = 0, .a = 1, .b = 0, .c = 1, .comm = "worker" },
+        .{ .kind = .sched_wakeup, .ts_ns = 15_000, .cpu = 0, .a = 2, .pid = 9, .comm = "worker" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(arena.allocator());
+    try std.testing.expectEqual(@as(u64, 1), metrics.out_of_order);
+    var found = false;
+    for (metrics.wakeup_pairs) |pair| {
+        if (pair.waker_pid == 9 and pair.woken_pid == 1) {
+            found = true;
+            try std.testing.expectEqualStrings("worker", pair.woken_comm);
+            try std.testing.expect(pair.p95_wait_us > 0);
+        }
+    }
+    try std.testing.expect(found);
 }
 
 test "unnecessary wakeups count redundant and unresolved, not followed runs" {
@@ -445,101 +563,4 @@ test "metrics own comm strings" {
         }
     }
     try std.testing.expect(found);
-}
-
-test "metrics json drops the recorder from top tasks" {
-    const metrics: Metrics = .{ .tasks = &.{
-        .{ .pid = 1, .comm = "xsprof", .is_self = true },
-        .{ .pid = 2, .comm = "worker", .switches = 1 },
-    } };
-    var buf: [4096]u8 = undefined;
-    var w = std.Io.Writer.fixed(&buf);
-    try writeJson(&w, metrics, 10);
-    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "\"comm\":\"xsprof\"") == null);
-    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "worker") != null);
-}
-
-pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
-    const allocator = std.heap.smp_allocator;
-    const task_count = blk: {
-        var count: usize = 0;
-        for (metrics.tasks) |task| {
-            if (task.is_self) continue;
-            if (count == top) break;
-            count += 1;
-        }
-        break :blk count;
-    };
-    var task_values = try allocator.alloc(json.Value, task_count);
-    defer allocator.free(task_values);
-    var task_entries = try allocator.alloc([]json.Entry, task_count);
-    defer {
-        for (task_entries) |entries| allocator.free(entries);
-        allocator.free(task_entries);
-    }
-    var out_index: usize = 0;
-    for (metrics.tasks) |task| {
-        if (task.is_self) continue;
-        if (out_index == task_count) break;
-        const entries = try allocator.alloc(json.Entry, 14);
-        entries[0] = .{ .key = "comm", .value = .{ .string = task.comm } };
-        entries[1] = .{ .key = "faults_major", .value = .{ .unsigned = task.faults_major } };
-        entries[2] = .{ .key = "faults_minor", .value = .{ .unsigned = task.faults_minor } };
-        entries[3] = .{ .key = "last_cpu", .value = .{ .integer = task.last_cpu } };
-        entries[4] = .{ .key = "migrations", .value = .{ .unsigned = task.migrations } };
-        entries[5] = .{ .key = "offcpu_p95_us", .value = .{ .unsigned = task.offcpu_p95_us } };
-        entries[6] = .{ .key = "pid", .value = .{ .integer = task.pid } };
-        entries[7] = .{ .key = "switches", .value = .{ .unsigned = task.switches } };
-        entries[8] = .{ .key = "wait_max_us", .value = .{ .unsigned = task.wait_max_us } };
-        entries[9] = .{ .key = "wait_p50_us", .value = .{ .unsigned = task.wait_p50_us } };
-        entries[10] = .{ .key = "wait_p95_us", .value = .{ .unsigned = task.wait_p95_us } };
-        entries[11] = .{ .key = "wait_p99_us", .value = .{ .unsigned = task.wait_p99_us } };
-        entries[12] = .{ .key = "wait_samples", .value = .{ .unsigned = task.wait_samples } };
-        entries[13] = .{ .key = "wakeups", .value = .{ .unsigned = task.wakeups } };
-        task_entries[out_index] = entries;
-        task_values[out_index] = .{ .object = entries };
-        out_index += 1;
-    }
-
-    var cpu_values = try allocator.alloc(json.Value, metrics.cpus.len);
-    defer allocator.free(cpu_values);
-    var cpu_entries = try allocator.alloc([]json.Entry, metrics.cpus.len);
-    defer {
-        for (cpu_entries) |entries| allocator.free(entries);
-        allocator.free(cpu_entries);
-    }
-    for (metrics.cpus, 0..) |cpu, index| {
-        const entries = try allocator.alloc(json.Entry, 5);
-        entries[0] = .{ .key = "busy_us", .value = .{ .unsigned = cpu.busy_us } };
-        entries[1] = .{ .key = "cpu", .value = .{ .unsigned = cpu.cpu } };
-        entries[2] = .{ .key = "faults", .value = .{ .unsigned = cpu.faults } };
-        entries[3] = .{ .key = "idle_us", .value = .{ .unsigned = cpu.idle_us } };
-        entries[4] = .{ .key = "switches", .value = .{ .unsigned = cpu.switches } };
-        cpu_entries[index] = entries;
-        cpu_values[index] = .{ .object = entries };
-    }
-
-    try json.write(w, .{ .object = &.{
-        .{ .key = "cpus", .value = .{ .array = cpu_values } },
-        .{ .key = "events", .value = .{ .unsigned = metrics.events } },
-        .{ .key = "faults_major", .value = .{ .unsigned = metrics.faults_major } },
-        .{ .key = "faults_minor", .value = .{ .unsigned = metrics.faults_minor } },
-        .{ .key = "first_us", .value = .{ .unsigned = metrics.first_us } },
-        .{ .key = "host_mutation", .value = .{ .boolean = false } },
-        .{ .key = "last_us", .value = .{ .unsigned = metrics.last_us } },
-        .{ .key = "lost", .value = .{ .unsigned = metrics.lost } },
-        .{ .key = "migrations", .value = .{ .unsigned = metrics.migrations } },
-        .{ .key = "quantiles", .value = .{ .object = &.{
-            .{ .key = "approximate", .value = .{ .boolean = true } },
-            .{ .key = "method", .value = .{ .string = "log2_histogram_1us" } },
-        } } },
-        .{ .key = "schema", .value = .{ .string = "xsprof/metrics/v1" } },
-        .{ .key = "self_unnecessary_wakeups", .value = .{ .unsigned = metrics.self_unnecessary_wakeups } },
-        .{ .key = "self_wakeups", .value = .{ .unsigned = metrics.self_wakeups } },
-        .{ .key = "switches", .value = .{ .unsigned = metrics.switches } },
-        .{ .key = "tasks", .value = .{ .array = task_values[0..out_index] } },
-        .{ .key = "unnecessary_wakeups", .value = .{ .unsigned = metrics.unnecessary_wakeups } },
-        .{ .key = "unresolved_wakeups", .value = .{ .unsigned = metrics.unresolved_wakeups } },
-        .{ .key = "wakeups", .value = .{ .unsigned = metrics.wakeups } },
-    } });
 }

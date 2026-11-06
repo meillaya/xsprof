@@ -25,9 +25,13 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 [ "$(code "http://127.0.0.1:$PORT/")" = 200 ] || { echo "web_smoke: index failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/assets/xsprof-web.wasm")" = 200 ] || { echo "web_smoke: wasm failed" >&2; fail=1; }
 for sym in web_ui_pointer_down web_ui_pointer_move web_ui_pointer_up web_ui_copy_ptr web_ui_copy_len web_ui_copy_clear web_ui_focus_rail; do
-    strings "$WASM" | grep -q "$sym" || { echo "web_smoke: missing $sym" >&2; fail=1; }
+    grep -aq "$sym" "$WASM" || { echo "web_smoke: missing $sym" >&2; fail=1; }
 done
 [ "$(code "http://127.0.0.1:$PORT/scenarios/healthy.json")" = 200 ] || { echo "web_smoke: scenario failed" >&2; fail=1; }
+HEADERS=$(curl -s -D - -o /dev/null "http://127.0.0.1:$PORT/")
+printf '%s' "$HEADERS" | grep -qi '^content-security-policy:' || { echo "web_smoke: missing CSP" >&2; fail=1; }
+printf '%s' "$HEADERS" | grep -qi '^referrer-policy: no-referrer' || { echo "web_smoke: missing referrer policy" >&2; fail=1; }
+[ "$(code -I "http://127.0.0.1:$PORT/")" = 200 ] || { echo "web_smoke: HEAD failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/api/meta?token=$TOKEN")" = 200 ] || { echo "web_smoke: meta failed" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/api/meta")" = 401 ] || { echo "web_smoke: missing token accepted" >&2; fail=1; }
 [ "$(code "http://127.0.0.1:$PORT/api/meta?token=deadbeef")" = 401 ] || { echo "web_smoke: bad token accepted" >&2; fail=1; }

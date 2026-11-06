@@ -4,34 +4,112 @@
   "title": "xsprof recorder manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["host_mutation", "max_age_ms", "max_bytes", "schema", "segments", "session_id", "started_mono_ns", "started_wall_ns", "state", "updated_wall_ns"],
+  "required": [
+    "host_mutation",
+    "max_age_ms",
+    "max_bytes",
+    "schema",
+    "segments",
+    "session_id",
+    "started_mono_ns",
+    "started_wall_ns",
+    "state",
+    "updated_wall_ns"
+  ],
   "properties": {
-    "host_mutation": { "const": false },
-    "max_age_ms": { "type": "integer", "minimum": 1 },
-    "max_bytes": { "type": "integer", "minimum": 1 },
-    "schema": { "const": "xsprof/recorder-manifest/v1" },
+    "host_mutation": {
+      "const": false
+    },
+    "max_age_ms": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "max_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema": {
+      "const": "xsprof/recorder-manifest/v1"
+    },
     "segments": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["bytes", "closed", "end_mono_ns", "end_wall_ns", "events", "path", "start_mono_ns", "start_wall_ns"],
+        "required": [
+          "bytes",
+          "closed",
+          "end_mono_ns",
+          "end_wall_ns",
+          "events",
+          "path",
+          "start_mono_ns",
+          "start_wall_ns"
+        ],
         "properties": {
-          "bytes": { "type": "integer", "minimum": 0 },
-          "closed": { "type": "boolean" },
-          "end_mono_ns": { "type": "integer", "minimum": 0 },
-          "end_wall_ns": { "type": "integer", "minimum": 0 },
-          "events": { "type": "integer", "minimum": 0 },
-          "path": { "type": "string" },
-          "start_mono_ns": { "type": "integer", "minimum": 0 },
-          "start_wall_ns": { "type": "integer", "minimum": 0 }
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "end_mono_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_wall_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
+          },
+          "start_mono_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "start_wall_ns": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
-    "session_id": { "type": "string", "minLength": 1 },
-    "started_mono_ns": { "type": "integer", "minimum": 0 },
-    "started_wall_ns": { "type": "integer", "minimum": 0 },
-    "state": { "enum": ["recording", "stopped", "failed"] },
-    "updated_wall_ns": { "type": "integer", "minimum": 0 }
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_mono_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "started_wall_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "state": {
+      "enum": [
+        "recording",
+        "stopped",
+        "failed"
+      ]
+    },
+    "updated_wall_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "history_interval_ms": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "history_retain_ms": {
+      "type": "integer",
+      "minimum": 1
+    }
   }
 }

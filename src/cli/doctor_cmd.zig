@@ -10,8 +10,11 @@ pub fn cmdDoctor(
     out: *Writer,
     err: *Writer,
 ) !u8 {
+    var json_output = false;
     for (args) |arg| {
-        if (!std.mem.eql(u8, arg, "--json")) {
+        if (std.mem.eql(u8, arg, "--json")) {
+            json_output = true;
+        } else {
             try err.print("doctor: unknown option {s}\n", .{arg});
             return 2;
         }
@@ -20,7 +23,17 @@ pub fn cmdDoctor(
         try err.print("doctor: {s}\n", .{@errorName(run_error)});
         return 1;
     };
-    try doctor.writeJson(out, result);
-    try out.writeByte('\n');
+    if (json_output) {
+        try doctor.writeJson(out, result);
+        try out.writeByte('\n');
+    } else {
+        try out.print("xsprof doctor  status={s}\n", .{result.status});
+        for (result.checks) |check| {
+            try out.print("  {s:<5} {s:<20} {s}\n", .{ check.state, check.name, check.reason });
+        }
+        try out.writeAll(
+            "\nThis host remains read-only. Fixes are not executed; see docs/guides/flight-recorder.md.\n",
+        );
+    }
     return if (std.mem.eql(u8, result.status, "REFUSE")) 1 else 0;
 }
