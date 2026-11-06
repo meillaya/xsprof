@@ -130,6 +130,9 @@ pub fn cmdCapture(
     var last_text: ?[]const u8 = null;
     var output: ?[]const u8 = null;
     var force = false;
+    var markers_only = false;
+    var max_events: u64 = 0;
+    var max_window_bytes: u64 = 0;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -144,6 +147,28 @@ pub fn cmdCapture(
             output = args[i];
         } else if (std.mem.eql(u8, arg, "--force")) {
             force = true;
+        } else if (std.mem.eql(u8, arg, "--markers-only")) {
+            markers_only = true;
+        } else if (std.mem.eql(u8, arg, "--max-events")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("capture: --max-events requires a number\n");
+                return 2;
+            }
+            i += 1;
+            max_events = std.fmt.parseInt(u64, args[i], 10) catch {
+                try err.writeAll("capture: invalid --max-events\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--max-window-bytes")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("capture: --max-window-bytes requires a size\n");
+                return 2;
+            }
+            i += 1;
+            max_window_bytes = parseSize(args[i]) catch {
+                try err.writeAll("capture: invalid --max-window-bytes\n");
+                return 2;
+            };
         } else {
             try err.print("capture: unknown option {s}\n", .{arg});
             return 2;
@@ -187,6 +212,9 @@ pub fn cmdCapture(
     extract.writeTo(io, allocator, .{
         .dir = resolved_dir,
         .last_ms = last_ms,
+        .markers_only = markers_only,
+        .max_events = max_events,
+        .max_bytes = max_window_bytes,
     }, writer) catch |extract_error| {
         try err.print("capture: {s}\n", .{@errorName(extract_error)});
         return 1;

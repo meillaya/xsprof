@@ -18,6 +18,7 @@ boundary, and every record carries `host_mutation=false`.
 | `capture-summary.v1.schema.json` | `record` stderr summary |
 | `recorder-manifest.v1.schema.json` | Recorder session/segment index |
 | `recorder-result.v1.schema.json` | Daemon result and overhead |
+| `recorder-verify.v1.schema.json` | Read-only segment/state verification |
 | `incident-summary.v1.schema.json` | Incident bundle summary |
 | `incident-result.v1.schema.json` | Incident command result |
 | `doctor.v1.schema.json` | Read-only environment diagnostics |
@@ -31,6 +32,7 @@ boundary, and every record carries `host_mutation=false`.
 | `compare.v1.schema.json` | Baseline/candidate comparison |
 
 `metrics.v1` adds `out_of_order`, `pairs_truncated`, and `wakeup_pairs`.
-`recorder-manifest.v1` adds `history_interval_ms`/`history_retain_ms`.
+`recorder-manifest.v1` adds `history_interval_ms`/`history_retain_ms`, and the
+additive `raw_codec`/segment `codec` fields (`ndjson` or `compact_v1`).
 `capture-summary.v1` adds split `faults_major`/`faults_minor`, `lost`, and
 `output`. Existing manifests without the history fields remain parseable.

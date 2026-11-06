@@ -124,3 +124,11 @@ See the [perf_event_open(2) man page](https://man7.org/linux/man-pages/man2/perf
 for `PERF_SAMPLE_TID`/`PERF_SAMPLE_CPU` and tracepoint raw layouts, and the
 [kernel perf ring-buffer documentation](https://docs.kernel.org/userspace-api/perf_ring_buffer.html)
 for record wrapping and `PERF_RECORD_LOST`.
+## Segment storage vs wire format
+
+The canonical wire form stays `xsprof/event/v1` NDJSON. The recorder's raw
+segments are a separate internal storage format (compact v1, `.xsraw`) that
+stores the same event fields plus a per-block comm table and checksums.
+Extraction decodes .xsraw and re-serializes canonical NDJSON byte for byte;
+legacy .ndjson segments remain readable. Format, recovery, and privacy details
+live in [raw-segment-v1.md](raw-segment-v1.md).

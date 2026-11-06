@@ -18,6 +18,9 @@ pub const Segment = struct {
     bytes: u64 = 0,
     events: u64 = 0,
     closed: bool = false,
+    /// "ndjson" legacy segment or "compact_v1" .xsraw segment; empty in 0.3
+    /// manifests, where the path suffix is authoritative.
+    codec: []const u8 = "",
 };
 
 pub const Manifest = struct {
@@ -31,6 +34,7 @@ pub const Manifest = struct {
     segments: []const Segment = &.{},
     max_bytes: u64 = 2 * 1024 * 1024 * 1024,
     max_age_ms: u64 = 10 * 60 * 1000,
+    raw_codec: []const u8 = "",
     history_interval_ms: u64 = 60 * 1000,
     history_retain_ms: u64 = 24 * 60 * 60 * 1000,
 };
@@ -45,32 +49,68 @@ pub fn writeJson(w: *std.Io.Writer, manifest: Manifest) !void {
         allocator.free(segment_entries);
     }
     for (manifest.segments, 0..) |segment, index| {
-        const entries = try allocator.alloc(json.Entry, 8);
-        entries[0] = .{ .key = "bytes", .value = .{ .unsigned = segment.bytes } };
-        entries[1] = .{ .key = "closed", .value = .{ .boolean = segment.closed } };
-        entries[2] = .{ .key = "end_mono_ns", .value = .{ .unsigned = segment.end_mono_ns } };
-        entries[3] = .{ .key = "end_wall_ns", .value = .{ .unsigned = segment.end_wall_ns } };
-        entries[4] = .{ .key = "events", .value = .{ .unsigned = segment.events } };
-        entries[5] = .{ .key = "path", .value = .{ .string = segment.path } };
-        entries[6] = .{ .key = "start_mono_ns", .value = .{ .unsigned = segment.start_mono_ns } };
-        entries[7] = .{ .key = "start_wall_ns", .value = .{ .unsigned = segment.start_wall_ns } };
-        segment_entries[index] = entries;
-        segment_values[index] = .{ .object = entries };
+        const entries = try allocator.alloc(json.Entry, 9);
+        var n: usize = 0;
+        entries[n] = .{ .key = "bytes", .value = .{ .unsigned = segment.bytes } };
+        n += 1;
+        entries[n] = .{ .key = "closed", .value = .{ .boolean = segment.closed } };
+        n += 1;
+        if (segment.codec.len != 0) {
+            entries[n] = .{ .key = "codec", .value = .{ .string = segment.codec } };
+            n += 1;
+        }
+        entries[n] = .{ .key = "end_mono_ns", .value = .{ .unsigned = segment.end_mono_ns } };
+        n += 1;
+        entries[n] = .{ .key = "end_wall_ns", .value = .{ .unsigned = segment.end_wall_ns } };
+        n += 1;
+        entries[n] = .{ .key = "events", .value = .{ .unsigned = segment.events } };
+        n += 1;
+        entries[n] = .{ .key = "path", .value = .{ .string = segment.path } };
+        n += 1;
+        entries[n] = .{ .key = "start_mono_ns", .value = .{ .unsigned = segment.start_mono_ns } };
+        n += 1;
+        entries[n] = .{ .key = "start_wall_ns", .value = .{ .unsigned = segment.start_wall_ns } };
+        n += 1;
+        segment_entries[index] = entries[0..n];
+        segment_values[index] = .{ .object = entries[0..n] };
     }
-    try json.write(w, .{ .object = &.{
-        .{ .key = "history_interval_ms", .value = .{ .unsigned = manifest.history_interval_ms } },
-        .{ .key = "history_retain_ms", .value = .{ .unsigned = manifest.history_retain_ms } },
-        .{ .key = "host_mutation", .value = .{ .boolean = false } },
-        .{ .key = "max_age_ms", .value = .{ .unsigned = manifest.max_age_ms } },
-        .{ .key = "max_bytes", .value = .{ .unsigned = manifest.max_bytes } },
-        .{ .key = "schema", .value = .{ .string = schema } },
-        .{ .key = "segments", .value = .{ .array = segment_values } },
-        .{ .key = "session_id", .value = .{ .string = manifest.session_id } },
-        .{ .key = "started_mono_ns", .value = .{ .unsigned = manifest.started_mono_ns } },
-        .{ .key = "started_wall_ns", .value = .{ .unsigned = manifest.started_wall_ns } },
-        .{ .key = "state", .value = .{ .string = @tagName(manifest.state) } },
-        .{ .key = "updated_wall_ns", .value = .{ .unsigned = manifest.updated_wall_ns } },
-    } });
+    var entries: [13]json.Entry = undefined;
+    var n: usize = 0;
+    entries[n] = .{ .key = "history_interval_ms", .value = .{ .unsigned = manifest.history_interval_ms } };
+    n += 1;
+    entries[n] = .{ .key = "history_retain_ms", .value = .{ .unsigned = manifest.history_retain_ms } };
+    n += 1;
+    entries[n] = .{ .key = "host_mutation", .value = .{ .boolean = false } };
+    n += 1;
+    entries[n] = .{ .key = "max_age_ms", .value = .{ .unsigned = manifest.max_age_ms } };
+    n += 1;
+    entries[n] = .{ .key = "max_bytes", .value = .{ .unsigned = manifest.max_bytes } };
+    n += 1;
+    if (manifest.raw_codec.len != 0) {
+        entries[n] = .{ .key = "raw_codec", .value = .{ .string = manifest.raw_codec } };
+        n += 1;
+    }
+    entries[n] = .{ .key = "schema", .value = .{ .string = schema } };
+    n += 1;
+    entries[n] = .{ .key = "segments", .value = .{ .array = segment_values } };
+    n += 1;
+    entries[n] = .{ .key = "session_id", .value = .{ .string = manifest.session_id } };
+    n += 1;
+    entries[n] = .{ .key = "started_mono_ns", .value = .{ .unsigned = manifest.started_mono_ns } };
+    n += 1;
+    entries[n] = .{ .key = "started_wall_ns", .value = .{ .unsigned = manifest.started_wall_ns } };
+    n += 1;
+    entries[n] = .{ .key = "state", .value = .{ .string = @tagName(manifest.state) } };
+    n += 1;
+    entries[n] = .{ .key = "updated_wall_ns", .value = .{ .unsigned = manifest.updated_wall_ns } };
+    n += 1;
+    try json.write(w, .{ .object = entries[0..n] });
+}
+
+fn validCodec(codec: []const u8) bool {
+    return codec.len == 0 or
+        std.mem.eql(u8, codec, "ndjson") or
+        std.mem.eql(u8, codec, "compact_v1");
 }
 
 pub fn parse(allocator: std.mem.Allocator, data: []const u8) !Manifest {
@@ -84,10 +124,12 @@ pub fn parse(allocator: std.mem.Allocator, data: []const u8) !Manifest {
     if (manifest.session_id.len == 0 or manifest.session_id.len > 128) return error.InvalidManifest;
     if (!std.mem.eql(u8, manifest.schema, schema)) return error.InvalidManifest;
     if (manifest.host_mutation) return error.InvalidManifest;
+    if (!validCodec(manifest.raw_codec)) return error.InvalidManifest;
     if (manifest.segments.len > 10_000) return error.InvalidManifest;
     for (manifest.segments) |segment| {
         if (segment.path.len == 0 or segment.path.len > 512) return error.InvalidManifest;
         if (!safety.isSafeRelative(segment.path)) return error.InvalidManifest;
+        if (!validCodec(segment.codec)) return error.InvalidManifest;
     }
     return manifest;
 }
@@ -166,6 +208,44 @@ test "manifest round-trips" {
     try std.testing.expectEqual(@as(usize, 1), parsed.segments.len);
     try std.testing.expectEqualStrings("segments/one.ndjson", parsed.segments[0].path);
     try std.testing.expect(parsed.segments[0].closed);
+    try std.testing.expectEqualStrings("", parsed.raw_codec);
+    try std.testing.expectEqualStrings("", parsed.segments[0].codec);
+}
+
+test "manifest codecs are additive and validated" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const manifest = Manifest{
+        .session_id = "codec",
+        .raw_codec = "compact_v1",
+        .started_wall_ns = 10,
+        .started_mono_ns = 20,
+        .segments = &.{.{
+            .path = "segments/one.xsraw",
+            .start_wall_ns = 10,
+            .start_mono_ns = 20,
+            .bytes = 100,
+            .events = 3,
+            .closed = true,
+            .codec = "compact_v1",
+        }},
+    };
+    var buffer: [2048]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buffer);
+    try writeJson(&writer, manifest);
+    const text = writer.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"raw_codec\":\"compact_v1\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"codec\":\"compact_v1\"") != null);
+    const parsed = try parse(allocator, text);
+    try std.testing.expectEqualStrings("compact_v1", parsed.raw_codec);
+    try std.testing.expectEqualStrings("compact_v1", parsed.segments[0].codec);
+
+    const bad = "{\"history_interval_ms\":60000,\"history_retain_ms\":86400000," ++
+        "\"host_mutation\":false,\"max_age_ms\":600000,\"max_bytes\":1," ++
+        "\"raw_codec\":\"lz4\",\"schema\":\"xsprof/recorder-manifest/v1\",\"segments\":[]," ++
+        "\"session_id\":\"s\",\"started_mono_ns\":0,\"started_wall_ns\":0,\"state\":\"stopped\",\"updated_wall_ns\":0}";
+    try std.testing.expectError(error.InvalidManifest, parse(allocator, bad));
 }
 
 test "reads a relative recorder manifest" {

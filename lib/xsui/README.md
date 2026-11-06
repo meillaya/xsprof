@@ -140,6 +140,7 @@ _ = try gpu.drawFrame(&frame.list, .{ .width = width, .height = height }, frame.
 | `xsui.Frame`, `FontSet`, `FrameOptions` | offscreen frame + injectable fonts |
 | `xsui.raster`, `xsui.png`, `xsui.font` | CPU reference, PNG, TrueType |
 | `xsui.Tester`, `ViewFn` | deterministic headless frames and scripted input |
+| `xsui.a11y`, `Canvas.node`, `Canvas.pushGroup` | bounded accessibility tree from the same draw/hit pass |
 | `xsui.themes` | `dark`, `light`, `high_contrast`, `named`, `derive` |
 | `xsui.gpu` | `Backend`, `Status`, `Capability`, `Target`, `Renderer` |
 | `xsui.webgl` | instance stride/attributes/atlas/served shader paths |
@@ -223,6 +224,18 @@ const pixels = try tester.renderPixels(null, myView); // caller frees
 Scripted input is copied into each frame; transient click/wheel/key events are
 consumed after the render while the pointer position persists. PNG snapshots
 use `tester.snapshot(io, path, user, view)`.
+
+## Accessibility tree
+
+`Canvas.node(.{ .id, .rect, .role, .label, .value, .flags, .data })` registers a
+semantic hit; `pushGroup`/`popGroup` nest controls under panels/dialogs.
+`xsui.a11y.Tree.build(allocator, canvas, focused_id)` produces a bounded
+(512-node) tree with roles, labels, values, focus flags, parents, and clip
+rects. `focusOrder()` mirrors keyboard traversal, `hitTest()` mirrors pointer
+hit testing, and `writeJson()` emits canonical `xsprof/a11y-tree/v1`. The tree
+never imports an OS; platform bridges copy labels before the next frame. Legacy
+pointer-only hits have role `.none` and are hidden by bridges. This package
+does not implement OS screen-reader AppKit/D-Bus calls; consumers do.
 
 ## Draw and atlas ABI
 

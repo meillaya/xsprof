@@ -19,6 +19,28 @@ Status is updated only when a phase gate actually passes.
 | M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
 | M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **complete** |
+| R1 | UI-first console: 8 routes, onboarding, GPU picker/settings/audit, native live/resize, a11y tree, compact raw tier, simplified CLI, Nix/release tooling | **complete locally; VM/macOS/credential lanes external** |
+
+## v0.4.0 UI-first console (local gates passed)
+
+- Eight routes (Home/Overview/Timeline/Advisor/Events/Recorder/Audit/Settings)
+  with first-run onboarding, GPU picker/text entry, settings/recents/audit,
+  Recorder management/exports, and action/effect dispatch on native/web.
+- Native live and resize: Linux in-process compact recorder + recorder tail,
+  macOS/any follow-recorder, bounded live index, AppKit/Metal and X11/GLX
+  resize/input, hidden smokes.
+- Accessibility: bounded `xsprof/a11y-tree/v1` from the draw/hit pass, web
+  DOM/ARIA, macOS NSAccessibility, Linux JSON + DEGRADED AT-SPI.
+- Compact raw storage (`.xsraw`, `xsprof/raw-segment/v1`), streaming reader,
+  bounded window loader, `verify`, and legacy NDJSON compatibility.
+- CLI v0.4.0 (bare console on graphical TTY; six visible verbs; hidden
+  automation aliases), Nix flake/devShell/NixOS recorder module, Linux
+  packaging, and fail-closed notarization/tap tooling.
+- Local evidence: `zig build check` (245 tests, fmt/lines/vendor, CLI parity,
+  compact round-trip, release tooling, web/UI smokes, xsui package),
+  `zig build fuzz`, deterministic route/a11y snapshots. Root VM tests,
+  Xvfb/macOS smokes, VoiceOver, and real notarization/tap publication remain
+  external/credential-gated and are not claimed.
 
 ## P7 gate (passed)
 

@@ -48,6 +48,7 @@ Every host without the VM marker refuses before any BPF syscall.
 | M4 | Recorder-spool `serve --live-dir`, incremental WASM index, line-aligned bounded store. |
 | M5 | Universal arm64+x86_64 app bundle and hidden smoke; release workflow linted; notarization/tap tooling exercised locally. External Developer ID credentials and available Actions minutes are absent, so public notarization/tap publication is not claimed. |
 | M6 | PSI and cgroup v2 probes exercised in the VM; daemon overhead result showed ~2.7 MB RSS after 305k events; deterministic fuzz step; real 12,000-event multi-process fixture. |
+| v0.4.0 UI-first | `zig build check` green locally (245 tests, fmt/lines/vendor, CLI parity, compact round-trip, release tooling, web/UI smokes, xsui package); snapshots deterministic for Home/Recorder/Audit/Settings/onboarding/picker/a11y; `zig build fuzz` green. Root-only live/service/retention and macOS Xvfb/VoiceOver lanes remain external/VM-executed. |
 
 The full gate also passed natively in the disposable Fedora 44 aarch64 VM:
 `zig build check` completed 23/23 steps with 90/90 unit tests, plus CLI parity
@@ -111,16 +112,52 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   3,278 lost events (0.004%) in the historical per-segment profile. Current
   0.3.0 uses 60-second buckets; see the v0.3.0 note at the end. `qa/cli_parity.sh` also exercises the sidecar reader with a synthetic
   `metrics/` sidecar.
-- The **raw** tier still does not hold ten minutes at 50k events/s; the
-  measured host has no rate throttle, so the run was 10 minutes at its natural
-  140k/s. The x86_64 target cross-builds cleanly, but the x86_64/Ubuntu run
-  matrix remains an external environment limit.
+- The compact raw tier supersedes the historical NDJSON measurements in
+  0.4.0. The 2 GiB budget now covers the ten-minute age cap at the measured
+  rate; `qa/retention_bench.sh 600000 0 2G yes` enforces the current
+  bytes/event, covered-span, and loss thresholds and must be rerun in the VM.
+  Historical 0.3.0 NDJSON numbers below are retained as pre-0.4 evidence only.
+
+## v0.4.0 UI-first evidence
+
+- The native console is the product: eight routes, first-run onboarding,
+  GPU picker/text entry, settings/recents/audit persistence, Recorder
+  management, exports, and self-managed read-only capture.
+- Native resize/input are implemented on AppKit/Metal and X11/GLX; hidden
+  resize smokes are wired. A11y tree: web DOM/ARIA and macOS NSAccessibility
+  bridges; Linux emits canonical tree JSON and DEGRADED AT-SPI state.
+- Compact `.xsraw` segments replace NDJSON raw storage while
+  capture/incident/UI outputs stay canonical NDJSON. The reader is streaming
+  and bounded; torn/corrupt tails are explicit markers. `verify` and the
+  retention bench enforce bytes/event, covered span, and loss.
+- Local evidence (this host): `./tools/zig build check` PASS,
+  `./tools/zig build fuzz` PASS, `qa/compact_roundtrip.sh` PASS,
+  `qa/release_tooling.sh` PASS, deterministic Home/Recorder/Audit/Settings
+  snapshots, and a deterministic `snapshot --a11y` tree.
+- Nix evidence: `nix flake check --all-systems --no-build --no-update-lock-file`
+  PASS and an offline package build from a clean source snapshot (the clean
+  snapshot reports its own HEAD version; current tree reports 0.4.0). The
+  session's Nix cache was writable for this lane; rerun in a normal shell/CI.
+- Not run here (must run externally): root `live_smoke`, `service_smoke`,
+  `retention_bench.sh 600000 0 2G yes`; Xvfb/macOS hidden smokes and a human
+  VoiceOver audit; real Developer ID notarization, Gatekeeper, and tap push.
 
 ## Known limits
 
-- Native windows are fixed-size; pointer and scroll input exist, but there is
-  no accessibility tree yet.
-- Native live streaming is web-only; native surfaces consume replay/gallery.
+- Native windows are resizable at 1x; Retina 2x crispness, X11 IME/paste
+  parity, and browser-native recorder control remain follow-ups.
+- Linux AT-SPI2 screen-reader bridging is DEGRADED/JSON-only; the tree,
+  keyboard focus, web ARIA, and macOS NSAccessibility bridge are implemented.
+- Native live capture is Linux-only (perf); macOS follows a recorder directory.
+  The recording daemon path needs a Linux host with CAP_PERFMON/readable
+  tracefs and is exercised by the VM gates, not by unit tests.
+- Native web surfaces are viewers: capture/recorder control and host directory
+  browsing fail closed with explicit reasons.
+- Developer ID notarization, Gatekeeper acceptance, and public tap publication
+  require external credentials; the repository ships fail-closed attestation
+  tooling and local dry-runs, not credentials.
+- The 10-minute raw tier is workload/budget dependent; the UI and verify report
+  the actual covered span.
 - The BPF lane is a no-op load/attach gate; perf remains the event data path.
 - PNG output currently uses stored deflate blocks (large but valid).
 - Web screenshots use developer Playwright; it is not a shipped dependency.
@@ -149,11 +186,15 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
 - VM evidence (Fedora 44 x86_64): `live_smoke` PASS, `service_smoke` PASS
   (6 segments, 334,064 extracted lines), `bpf-gate` READY.
 
-Residual limits: native live streaming/accessibility tree/notarization/AUR and
-a compact raw 10-minute tier remain future work. The raw 94-second/10-minute
-figures above were measured before the 60-second sidecar cadence change.
+The 0.3.0 residual list is superseded by the v0.4.0 section above: native
+live/resize, the accessibility tree, compact raw storage, and fail-closed
+notarization/tap tooling landed; Linux AT-SPI2, real Apple/tap credentials,
+Retina 2x, and web recorder control remain explicit limits. The historical
+94-second/10-minute figures were measured before the 60-second sidecar cadence
+and before compact segments; do not mix them with 0.4 retention numbers.
 
-Current gate: `zig build check` passes the full suite (unit tests, fuzz,
-CLI parity, web UI/bridge smoke, privacy/no-mutation/unsafe-verb gates,
-xsui package, lab smoke) plus the new version-sync gate. `live_smoke` and
-`service_smoke` pass in the disposable Fedora 44 x86_64 VM.
+Current gate: `zig build check` passes the full local suite (unit/fuzz tests,
+CLI parity, compact round-trip, a11y smoke, release tooling, web UI/bridge
+smokes, privacy/no-mutation/unsafe-verb gates, xsui package, lab smoke).
+Root-only `live_smoke`/`service_smoke`/retention and macOS Xvfb/VoiceOver/
+notarization lanes are external/VM-executed.

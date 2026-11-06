@@ -54,6 +54,8 @@ pub const tester = @import("tester.zig");
 pub const themes = @import("theme.zig");
 /// Renderer extension contract and capability vocabulary.
 pub const canvas = @import("canvas.zig");
+/// Platform-neutral accessibility tree built from the canvas draw/hit pass.
+pub const a11y = @import("a11y.zig");
 pub const gpu = @import("gpu/renderer.zig");
 /// Zig side of the WebGL2 instance/attribute/atlas ABI.
 pub const webgl = gpu.webgl;
@@ -125,6 +127,14 @@ pub const Glyph = font.Glyph;
 
 /// Headless tester: build, render, hash, snapshot, and script input.
 pub const Canvas = canvas.Canvas;
+/// Semantic role for an accessible hit node.
+pub const Role = a11y.Role;
+/// Static state flags for an accessible hit node.
+pub const NodeFlags = a11y.Flags;
+/// One accessible node derived from the canvas hit pass.
+pub const A11yNode = a11y.Node;
+/// Bounded accessibility tree: focus order, hit test, canonical JSON.
+pub const A11yTree = a11y.Tree;
 pub const TextStyle = canvas.TextStyle;
 pub const TextLayout = canvas.TextLayout;
 pub const TextAlign = canvas.HorizontalAlign;
@@ -145,5 +155,6 @@ test {
     _ = tester;
     _ = themes;
     _ = canvas;
+    _ = a11y;
     _ = gpu;
 }

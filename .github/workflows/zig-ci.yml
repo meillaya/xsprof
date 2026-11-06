@@ -70,3 +70,11 @@ jobs:
         run: sh tools/bootstrap.sh
       - name: Check
         run: ./tools/zig build check --summary all
+
+  release-tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline release tooling gate (attestation, tap, layouts)
+        run: sh qa/release_tooling.sh

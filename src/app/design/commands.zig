@@ -1,19 +1,11 @@
 //! The command palette catalog. Kept separate from rendering/input so the
-//! palette, key handling, and tests agree on one list.
+//! palette, key handling, and tests agree on one list. Every entry dispatches
+//! through action.Action -> dispatch.zig (one code path for keys/clicks/palette).
 
 const std = @import("std");
-const state_mod = @import("state.zig");
+const action_mod = @import("action.zig");
 
-pub const Action = union(enum) {
-    screen: state_mod.Screen,
-    open_journal,
-    reload,
-    fit,
-    appearance,
-    theme: usize,
-    filter_events,
-    help,
-};
+pub const Action = action_mod.Action;
 
 pub const Command = struct {
     group: []const u8,
@@ -23,23 +15,46 @@ pub const Command = struct {
 };
 
 pub const all = [_]Command{
-    .{ .group = "screen", .label = "Overview", .key = "1", .action = .{ .screen = .overview } },
-    .{ .group = "screen", .label = "Timeline", .key = "2", .action = .{ .screen = .timeline } },
-    .{ .group = "screen", .label = "Advisor", .key = "3", .action = .{ .screen = .advisor } },
-    .{ .group = "screen", .label = "Events", .key = "4", .action = .{ .screen = .events } },
-    .{ .group = "screen", .label = "Capture status", .key = "5", .action = .{ .screen = .capture } },
-    .{ .group = "action", .label = "Open journal…", .action = .open_journal },
-    .{ .group = "action", .label = "Reload healthy fixture", .action = .reload },
+    // Navigation (analysis ids/keys stay 1..5; 0/6/7 are v2 extensions).
+    .{ .group = "go", .label = "Overview", .key = "1", .action = .{ .nav = .overview } },
+    .{ .group = "go", .label = "Timeline", .key = "2", .action = .{ .nav = .timeline } },
+    .{ .group = "go", .label = "Advisor", .key = "3", .action = .{ .nav = .advisor } },
+    .{ .group = "go", .label = "Events", .key = "4", .action = .{ .nav = .events } },
+    .{ .group = "go", .label = "Recorder", .key = "5", .action = .{ .nav = .capture } },
+    .{ .group = "go", .label = "Home / sources", .key = "0", .action = .{ .nav = .home } },
+    .{ .group = "go", .label = "Audit", .key = "6", .action = .{ .nav = .audit } },
+    .{ .group = "go", .label = "Settings", .key = "7", .action = .{ .nav = .settings } },
+    // Source selection.
+    .{ .group = "source", .label = "Open replay journal…", .action = .{ .source_select = .replay } },
+    .{ .group = "source", .label = "Open recorder window…", .action = .{ .source_select = .recorder_window } },
+    .{ .group = "source", .label = "Load bundled capture", .action = .{ .source_select = .demo } },
+    .{ .group = "source", .label = "Start live capture", .action = .{ .source_select = .live } },
+    .{ .group = "source", .label = "Reload current source", .action = .reload_source },
+    // Recorder management.
+    .{ .group = "recorder", .label = "Start capture", .action = .{ .recorder = .start } },
+    .{ .group = "recorder", .label = "Stop capture", .action = .{ .recorder = .stop } },
+    .{ .group = "recorder", .label = "Restart capture", .action = .{ .recorder = .restart } },
+    .{ .group = "recorder", .label = "Extract window", .action = .{ .recorder = .extract } },
+    .{ .group = "recorder", .label = "Export journal", .action = .{ .export_file = .journal } },
+    .{ .group = "recorder", .label = "Export Chrome trace", .action = .{ .export_file = .trace } },
+    .{ .group = "recorder", .label = "Export report", .action = .{ .export_file = .report } },
+    .{ .group = "recorder", .label = "Bundle incident", .action = .{ .export_file = .incident } },
+    // Appearance / settings.
+    .{ .group = "action", .label = "Open appearance menu", .key = "w", .action = .open_appearance },
+    .{ .group = "action", .label = "Toggle reduced motion", .action = .{ .settings_toggle = .reduced_motion } },
+    .{ .group = "action", .label = "Toggle capture controls", .action = .{ .settings_toggle = .capture_enabled } },
     .{ .group = "action", .label = "Fit timeline to excerpt", .key = "f", .action = .fit },
-    .{ .group = "action", .label = "Open appearance menu", .key = "w", .action = .appearance },
+    .{ .group = "action", .label = "Filter events by task", .key = "/", .action = .filter_events },
+    .{ .group = "action", .label = "Copy selection summary", .key = "c", .action = .copy_selection },
+    .{ .group = "action", .label = "Keyboard help", .key = "?", .action = .open_help },
+    .{ .group = "action", .label = "Show onboarding", .action = .onboarding_next },
+    // Themes (exactly six, matching the token contract).
     .{ .group = "theme", .label = "Theme: Graphite (default)", .action = .{ .theme = 0 } },
     .{ .group = "theme", .label = "Theme: Paper", .action = .{ .theme = 1 } },
     .{ .group = "theme", .label = "Theme: Catppuccin Latte", .action = .{ .theme = 2 } },
     .{ .group = "theme", .label = "Theme: Catppuccin Frappe", .action = .{ .theme = 3 } },
     .{ .group = "theme", .label = "Theme: Catppuccin Macchiato", .action = .{ .theme = 4 } },
     .{ .group = "theme", .label = "Theme: Catppuccin Mocha", .action = .{ .theme = 5 } },
-    .{ .group = "action", .label = "Filter events by task", .key = "/", .action = .filter_events },
-    .{ .group = "action", .label = "Keyboard help", .key = "?", .action = .help },
 };
 
 pub fn matches(command: Command, query: []const u8) bool {
@@ -81,4 +96,6 @@ test "palette filters and selects deterministically" {
     try std.testing.expect(count("theme") == 6);
     try std.testing.expectEqualStrings("Overview", nth("", 0).?.label);
     try std.testing.expectEqualStrings("Keyboard help", nth("keyb", 0).?.label);
+    try std.testing.expectEqual(@as(usize, 8), count("go"));
+    try std.testing.expect(all.len <= 40);
 }

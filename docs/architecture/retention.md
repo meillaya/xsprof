@@ -85,6 +85,19 @@ The product is now a two-tier window:
   4,020,874-event window was bundled on the same VM with two findings and a
   `trace.truncated:true` caveat, so there is no 192 MiB refusal.
 
-The raw tier still does not hold ten minutes at 50k events/s. That would need a
-compact wire form; it is a separate design, not a threshold change. The ten
-minutes are available through history, not through the raw file.
+## Compact raw tier (0.4)
+
+0.4 replaces NDJSON raw segments with compact .xsraw segments
+([raw-segment-v1.md](raw-segment-v1.md)). The format is projected at roughly
+12.75 bytes/event against the measured 159-160 bytes/event canonical form, so
+the default 2 GiB budget holds roughly 168M events (about 20 minutes at the
+measured 140k events/s) and the 10-minute `--retain` age cap binds first.
+The age cap makes the raw tier the 10-minute window; the byte budget remains
+the safety backstop for higher rates or larger event text. The sidecar tier is
+unchanged (one bucket every 60 s, 24 h retention, pruned).
+
+Acceptance is measured, not projected: `qa/retention_bench.sh 600000 0 2G yes`
+must report compact bytes/event <= 25.6 (hard), covered_s >= 590, no retained
+loss events, and a canonical/compact ratio >= 4x. The historical NDJSON
+numbers above stay as pre-0.4 evidence and must not be mixed with the compact
+gate.

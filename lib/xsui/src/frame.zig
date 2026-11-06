@@ -88,6 +88,16 @@ pub const Frame = struct {
         self.atlas.deinit();
     }
 
+    /// Updates the logical viewport. Atlas, fonts, and the draw list are kept;
+    /// callers must also `Canvas.resetViewport()` so the base clip follows.
+    /// Zero dimensions are ignored (a minimized/hidden surface keeps the last
+    /// valid size instead of producing a degenerate clip).
+    pub fn resize(self: *Frame, width: u32, height: u32) void {
+        if (width == 0 or height == 0) return;
+        self.width = width;
+        self.height = height;
+    }
+
     pub fn clip(self: *const Frame) [4]f32 {
         return .{ 0, 0, @floatFromInt(self.width), @floatFromInt(self.height) };
     }

@@ -8,7 +8,7 @@
   "palette": {
     "title": "Command palette",
     "opening": "Meta+K, Control+K, or the palette button",
-    "placeholder": "Jump to screen, switch theme, open journal…",
+    "placeholder": "Jump to screen, switch theme, open journal\u2026",
     "search": "case-insensitive substring over label + group",
     "groups": {
       "go": "screen",
@@ -18,7 +18,7 @@
     "activeStyle": "raised-2 background with 2px live inset at the leading edge",
     "footer": [
       {
-        "keys": "↑ ↓",
+        "keys": "\u2191 \u2193",
         "label": "move"
       },
       {
@@ -75,7 +75,7 @@
     {
       "index": 4,
       "group": "go",
-      "label": "Capture status",
+      "label": "Recorder",
       "keys": "5",
       "action": {
         "type": "screen",
@@ -84,40 +84,166 @@
     },
     {
       "index": 5,
-      "group": "act",
-      "label": "Open journal…",
-      "keys": "",
-      "immediate": true,
+      "group": "go",
+      "label": "Home / sources",
+      "keys": "0",
       "action": {
-        "type": "file-picker",
-        "accept": [
-          ".ndjson",
-          ".jsonl",
-          ".json"
-        ]
+        "type": "screen",
+        "value": "home"
       }
     },
     {
       "index": 6,
-      "group": "act",
-      "label": "Reload healthy fixture",
-      "keys": "",
+      "group": "go",
+      "label": "Audit",
+      "keys": "6",
       "action": {
-        "type": "reload-fixture"
+        "type": "screen",
+        "value": "audit"
       }
     },
     {
       "index": 7,
-      "group": "act",
-      "label": "Fit timeline to excerpt",
-      "keys": "f",
+      "group": "go",
+      "label": "Settings",
+      "keys": "7",
       "action": {
-        "type": "fit-timeline"
+        "type": "screen",
+        "value": "settings"
       }
     },
     {
       "index": 8,
-      "group": "act",
+      "group": "source",
+      "label": "Open replay journal\u2026",
+      "keys": "",
+      "action": {
+        "type": "source",
+        "value": "replay"
+      }
+    },
+    {
+      "index": 9,
+      "group": "source",
+      "label": "Open recorder window\u2026",
+      "keys": "",
+      "action": {
+        "type": "source",
+        "value": "recorder_window"
+      }
+    },
+    {
+      "index": 10,
+      "group": "source",
+      "label": "Load bundled capture",
+      "keys": "",
+      "action": {
+        "type": "source",
+        "value": "demo"
+      }
+    },
+    {
+      "index": 11,
+      "group": "source",
+      "label": "Start live capture",
+      "keys": "",
+      "action": {
+        "type": "source",
+        "value": "live"
+      }
+    },
+    {
+      "index": 12,
+      "group": "source",
+      "label": "Reload current source",
+      "keys": "",
+      "action": {
+        "type": "reload-source"
+      }
+    },
+    {
+      "index": 13,
+      "group": "recorder",
+      "label": "Start capture",
+      "keys": "",
+      "action": {
+        "type": "recorder",
+        "value": "start"
+      }
+    },
+    {
+      "index": 14,
+      "group": "recorder",
+      "label": "Stop capture",
+      "keys": "",
+      "action": {
+        "type": "recorder",
+        "value": "stop"
+      }
+    },
+    {
+      "index": 15,
+      "group": "recorder",
+      "label": "Restart capture",
+      "keys": "",
+      "action": {
+        "type": "recorder",
+        "value": "restart"
+      }
+    },
+    {
+      "index": 16,
+      "group": "recorder",
+      "label": "Extract window",
+      "keys": "",
+      "action": {
+        "type": "recorder",
+        "value": "extract"
+      }
+    },
+    {
+      "index": 17,
+      "group": "recorder",
+      "label": "Export journal",
+      "keys": "",
+      "action": {
+        "type": "export",
+        "value": "journal"
+      }
+    },
+    {
+      "index": 18,
+      "group": "recorder",
+      "label": "Export Chrome trace",
+      "keys": "",
+      "action": {
+        "type": "export",
+        "value": "trace"
+      }
+    },
+    {
+      "index": 19,
+      "group": "recorder",
+      "label": "Export report",
+      "keys": "",
+      "action": {
+        "type": "export",
+        "value": "report"
+      }
+    },
+    {
+      "index": 20,
+      "group": "recorder",
+      "label": "Bundle incident",
+      "keys": "",
+      "action": {
+        "type": "export",
+        "value": "incident"
+      }
+    },
+    {
+      "index": 21,
+      "group": "action",
       "label": "Open appearance menu",
       "keys": "w",
       "action": {
@@ -125,7 +251,73 @@
       }
     },
     {
-      "index": 9,
+      "index": 22,
+      "group": "action",
+      "label": "Toggle reduced motion",
+      "keys": "",
+      "action": {
+        "type": "settings-toggle",
+        "value": "reduced_motion"
+      }
+    },
+    {
+      "index": 23,
+      "group": "action",
+      "label": "Toggle capture controls",
+      "keys": "",
+      "action": {
+        "type": "settings-toggle",
+        "value": "capture_enabled"
+      }
+    },
+    {
+      "index": 24,
+      "group": "action",
+      "label": "Fit timeline to excerpt",
+      "keys": "f",
+      "action": {
+        "type": "fit-timeline"
+      }
+    },
+    {
+      "index": 25,
+      "group": "action",
+      "label": "Filter events by task",
+      "keys": "/",
+      "action": {
+        "type": "events-filter"
+      }
+    },
+    {
+      "index": 26,
+      "group": "action",
+      "label": "Copy selection summary",
+      "keys": "c",
+      "action": {
+        "type": "copy-selection"
+      }
+    },
+    {
+      "index": 27,
+      "group": "action",
+      "label": "Keyboard help",
+      "keys": "?",
+      "action": {
+        "type": "help"
+      }
+    },
+    {
+      "index": 28,
+      "group": "action",
+      "label": "Show onboarding",
+      "keys": "",
+      "action": {
+        "type": "onboarding",
+        "value": "show"
+      }
+    },
+    {
+      "index": 29,
       "group": "theme",
       "label": "Theme: Graphite (default)",
       "keys": "",
@@ -135,7 +327,7 @@
       }
     },
     {
-      "index": 10,
+      "index": 30,
       "group": "theme",
       "label": "Theme: Paper",
       "keys": "",
@@ -145,7 +337,7 @@
       }
     },
     {
-      "index": 11,
+      "index": 31,
       "group": "theme",
       "label": "Theme: Catppuccin Latte",
       "keys": "",
@@ -155,7 +347,7 @@
       }
     },
     {
-      "index": 12,
+      "index": 32,
       "group": "theme",
       "label": "Theme: Catppuccin Frappe",
       "keys": "",
@@ -165,7 +357,7 @@
       }
     },
     {
-      "index": 13,
+      "index": 33,
       "group": "theme",
       "label": "Theme: Catppuccin Macchiato",
       "keys": "",
@@ -175,7 +367,7 @@
       }
     },
     {
-      "index": 14,
+      "index": 34,
       "group": "theme",
       "label": "Theme: Catppuccin Mocha",
       "keys": "",
@@ -183,29 +375,11 @@
         "type": "theme",
         "value": "mocha"
       }
-    },
-    {
-      "index": 15,
-      "group": "act",
-      "label": "Filter events by task",
-      "keys": "/",
-      "action": {
-        "type": "events-filter"
-      }
-    },
-    {
-      "index": 16,
-      "group": "act",
-      "label": "Keyboard help",
-      "keys": "?",
-      "action": {
-        "type": "help"
-      }
     }
   ],
   "appearance": {
     "title": "Appearance",
-    "intro": "Graphite and Paper are the console defaults. Catppuccin flavours remap the same semantic tokens — state is still carried by labels, not colour alone.",
+    "intro": "Graphite and Paper are the console defaults. Catppuccin flavours remap the same semantic tokens \u2014 state is still carried by labels, not colour alone.",
     "core": [
       {
         "id": "dark",
@@ -286,7 +460,7 @@
     "title": "Keyboard",
     "rows": [
       {
-        "keys": "1 – 5",
+        "keys": "1 \u2013 5",
         "action": "Switch screen: Overview, Timeline, Advisor, Events, Capture"
       },
       {
@@ -302,7 +476,7 @@
         "action": "Fit the timeline to the full excerpt"
       },
       {
-        "keys": "+ −",
+        "keys": "+ \u2212",
         "action": "Zoom the timeline around the playhead"
       },
       {
@@ -314,7 +488,7 @@
         "action": "Open the appearance menu"
       },
       {
-        "keys": "⌘K / Ctrl K",
+        "keys": "\u2318K / Ctrl K",
         "action": "Command palette"
       },
       {
@@ -327,5 +501,17 @@
       }
     ],
     "footer": "Every pointer action has a key, and every key has a visible control."
+  },
+  "groups": {
+    "go": "route",
+    "act": "action",
+    "source": "source",
+    "recorder": "recorder",
+    "theme": "theme"
+  },
+  "extension": {
+    "status": "proposed",
+    "count": 35,
+    "note": "Palette rows are modal (ids 700..739); theme option ids 720..725 are only live inside the appearance dialog."
   }
 }

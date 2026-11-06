@@ -1,0 +1,20 @@
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"macos_vm:READY:podman applehv Linux VM ?? 4 vCPU ?? macOS 27 arm64 host","event":"capability","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48468178314}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"ui_host=localhost.localdomain","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48468178314}
+{"a":16,"b":1,"c":0,"comm":"rcu_preempt","cpu":0,"event":"sched_wakeup","host_mutation":false,"pid":1745,"schema":"xsprof/event/v1","tid":1745,"ts_ns":48472180231}
+{"a":16,"b":1768,"c":0,"comm":"rcu_preempt","cpu":1,"event":"sched_switch","host_mutation":false,"pid":1768,"schema":"xsprof/event/v1","tid":1768,"ts_ns":48470191606}
+{"a":1,"b":0,"c":0,"cpu":1,"event":"page_fault","host_mutation":false,"pid":1768,"schema":"xsprof/event/v1","tid":1768,"ts_ns":48472429023}
+{"a":1,"b":3,"c":0,"comm":"?","cpu":3,"event":"sched_migrate","host_mutation":false,"pid":1747,"schema":"xsprof/event/v1","tid":1747,"ts_ns":48603176980}
+{"a":3,"b":4,"c":0,"comm":"yes","cpu":3,"event":"runqueue_sample","host_mutation":false,"pid":1003,"schema":"xsprof/event/v1","tid":1003,"ts_ns":1700000000000001000}
+{"a":4,"b":5,"c":0,"comm":"worker","cpu":0,"event":"priority_inversion","host_mutation":false,"pid":1004,"schema":"xsprof/event/v1","tid":1004,"ts_ns":1700000000000002000}
+{"a":5,"b":6,"c":0,"comm":"yes","cpu":1,"event":"lock_contention","host_mutation":false,"pid":1005,"schema":"xsprof/event/v1","tid":1005,"ts_ns":1700000000000003000}
+{"a":7,"b":8,"c":0,"comm":"yes","cpu":3,"event":"tlb_miss","host_mutation":false,"pid":1007,"schema":"xsprof/event/v1","tid":1007,"ts_ns":1700000000000004000}
+{"a":8,"b":9,"c":0,"comm":"worker","cpu":0,"event":"cache_miss","host_mutation":false,"pid":1008,"schema":"xsprof/event/v1","tid":1008,"ts_ns":1700000000000005000}
+{"a":9,"b":10,"c":0,"comm":"yes","cpu":1,"event":"huge_page","host_mutation":false,"pid":1009,"schema":"xsprof/event/v1","tid":1009,"ts_ns":1700000000000006000}
+{"a":10,"b":11,"c":0,"comm":"worker","cpu":2,"event":"numa_balance","host_mutation":false,"pid":1010,"schema":"xsprof/event/v1","tid":1010,"ts_ns":1700000000000007000}
+{"a":11,"b":12,"c":0,"comm":"yes","cpu":3,"event":"alloc_sample","host_mutation":false,"pid":1011,"schema":"xsprof/event/v1","tid":1011,"ts_ns":1700000000000008000}
+{"a":12,"b":13,"c":0,"comm":"worker","cpu":0,"event":"malloc_hotspot","host_mutation":false,"pid":1012,"schema":"xsprof/event/v1","tid":1012,"ts_ns":1700000000000009000}
+{"a":15,"b":16,"c":0,"comm":"yes","cpu":3,"event":"refusal","host_mutation":false,"pid":1015,"schema":"xsprof/event/v1","tid":1015,"ts_ns":1700000000000010000}
+{"a":16,"b":17,"c":0,"comm":"worker","cpu":0,"event":"incident","host_mutation":false,"pid":1016,"schema":"xsprof/event/v1","tid":1016,"ts_ns":1700000000000011000}
+{"a":17,"b":18,"c":0,"comm":"yes","cpu":1,"event":"runtime_sample","host_mutation":false,"pid":1017,"schema":"xsprof/event/v1","tid":1017,"ts_ns":1700000000000012000}
+{"a":43,"b":42,"c":1,"comm":"worker","cpu":0,"event":"sched_switch","host_mutation":false,"pid":42,"schema":"xsprof/event/v1","tid":42,"ts_ns":1700000000000011500}
+{"a":42,"b":43,"c":2,"comm":"worker","cpu":1,"event":"sched_switch","host_mutation":false,"pid":42,"schema":"xsprof/event/v1","tid":42,"ts_ns":1700000000000013000}

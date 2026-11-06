@@ -155,7 +155,17 @@ fn findAssets(io: std.Io) ?[]const u8 {
     return null;
 }
 
-fn findFixture(io: std.Io) ?[]const u8 {
+var fixture_buffer: [1024]u8 = undefined;
+
+fn fixtureCandidate(io: std.Io, env_dir: ?[]const u8) ?[]const u8 {
+    if (env_dir) |dir| {
+        if (dir.len != 0) {
+            const joined = std.fmt.bufPrint(&fixture_buffer, "{s}/healthy.ndjson", .{dir}) catch null;
+            if (joined) |candidate| {
+                if (exists(io, candidate)) return candidate;
+            }
+        }
+    }
     inline for ([_][]const u8{
         "fixtures/ui/healthy.ndjson",
         "share/xsprof/fixtures/healthy.ndjson",
@@ -165,4 +175,29 @@ fn findFixture(io: std.Io) ?[]const u8 {
         if (exists(io, candidate)) return candidate;
     }
     return null;
+}
+
+/// Locate the demo fixture. XSPROF_FIXTURES_DIR wins for packaged runtimes;
+/// repo-relative and install prefixes remain as fallbacks.
+fn findFixture(io: std.Io) ?[]const u8 {
+    const env_dir = if (std.c.getenv("XSPROF_FIXTURES_DIR")) |value| std.mem.span(value) else null;
+    return fixtureCandidate(io, env_dir);
+}
+
+// Checks XSPROF_FIXTURES_DIR candidate lookup with an explicit temp directory.
+test "fixture env directory wins over repo candidates" {
+    const allocator = std.testing.allocator;
+    const root = try std.fmt.allocPrint(allocator, "/tmp/xsprof-fixtures-{d}", .{std.testing.random_seed});
+    defer allocator.free(root);
+    std.Io.Dir.createDirAbsolute(std.testing.io, root, .default_dir) catch {};
+    defer std.Io.Dir.deleteDirAbsolute(std.testing.io, root) catch {};
+    const file_path = try std.fmt.allocPrint(allocator, "{s}/healthy.ndjson", .{root});
+    defer allocator.free(file_path);
+    {
+        const file = try std.Io.Dir.createFileAbsolute(std.testing.io, file_path, .{});
+        defer file.close(std.testing.io);
+        try file.writeStreamingAll(std.testing.io, "{}\n");
+    }
+    const found = fixtureCandidate(std.testing.io, root) orelse return error.FixtureNotFound;
+    try std.testing.expectEqualStrings(file_path, found);
 }

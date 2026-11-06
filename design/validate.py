@@ -23,12 +23,15 @@ COLOR_KEYS = [
 ]
 THEME_IDS = ["dark", "paper", "latte", "frappe", "macchiato", "mocha"]
 SCREEN_IDS = ["overview", "timeline", "advisor", "events", "capture"]
+ROUTE_IDS = ["home", "overview", "timeline", "advisor", "events", "capture", "audit", "settings"]
 FLOW_IDS = [
     "boot", "screen-navigation", "command-palette", "appearance-theme",
     "keyboard-help", "open-journal", "reload-fixture", "timeline-playback",
     "timeline-zoom-fit", "timeline-brush", "timeline-select",
     "advisor-filter-evidence", "events-filter", "events-detail",
     "capture-copy", "toast-feedback", "responsive-relayout",
+    "home-source-select", "source-loading", "onboarding", "recorder-lifecycle",
+    "extract-window", "export", "audit-verify", "settings-persist", "a11y-focus",
 ]
 
 errors: list[str] = []
@@ -162,16 +165,20 @@ for theme in themes:
 
 # Screen/flow/keymap/command coverage.
 screen_ids = [s.get("id") for s in screens.get("screens", [])]
-check(screen_ids == SCREEN_IDS, "screens.json: five screen ids")
-check(len(screens.get("overlays", [])) >= 4, "screens.json: overlays")
+check(screen_ids == ROUTE_IDS, "screens.json: product routes")
+check(len(screens.get("overlays", [])) >= 7, "screens.json: overlays")
+route_ids = [s.get("id") for s in screens.get("screens", [])]
+for route_id in ROUTE_IDS:
+    check(route_id in route_ids, f"screens.json: missing route {route_id}")
 flow_ids = [f.get("id") for f in flows.get("flows", [])]
 for flow_id in FLOW_IDS:
     check(flow_id in flow_ids, f"flows.json: missing {flow_id}")
 for context_id in ["global", "dialog-open", "palette-input", "events-filter-input", "rail-tablist", "timeline-pointer", "native-port"]:
     check(context_id in [c.get("id") for c in keys.get("contexts", [])], f"keybindings.json: missing {context_id}")
 cmds = commands.get("commands", [])
-check(len(cmds) == 17, "command-palette.json: 17 commands")
+check(len(cmds) == 35, "command-palette.json: 35 commands")
 check([c.get("group") for c in cmds].count("theme") == 6, "command-palette.json: six theme commands")
+check([c.get("group") for c in cmds].count("go") == 8, "command-palette.json: eight routes")
 check(commands.get("palette", {}).get("focusReturn") == "palette button", "command-palette.json: focus return")
 
 # Component/layout sanity anchors used by the GPU map.
@@ -190,13 +197,15 @@ spec_path = DESIGN / "ui-spec.json"
 check(spec_path.exists(), "ui-spec.json: missing")
 spec = json.loads(spec_path.read_text()) if spec_path.exists() else {}
 check(spec.get("$schema") == "xsprof/ui-spec/v1", "ui-spec.json: schema")
-check(spec.get("version") == 1, "ui-spec.json: version")
+check(spec.get("version") == 2, "ui-spec.json: version")
 check(spec.get("render", {}).get("platform_fonts") is False, "ui-spec.json: platform_fonts must be false")
 check(spec.get("canvas", {}).get("reference", {}).get("width") == 1440, "ui-spec.json: reference width")
 check(spec.get("canvas", {}).get("reference", {}).get("height") == 900, "ui-spec.json: reference height")
 check([s.get("max_width") for s in spec.get("breakpoints", []) if "max_width" in s] == [1320, 1140, 1024, 780, 420],
       "ui-spec.json: breakpoints")
-check(spec.get("screens") == SCREEN_IDS, "ui-spec.json: screens")
+check(spec.get("screens") == ROUTE_IDS, "ui-spec.json: screens")
+check(spec.get("extension", {}).get("status") == "proposed", "ui-spec.json: extension marked proposed")
+check(len(spec.get("overlays", [])) >= 7, "ui-spec.json: overlays")
 atlas_meta = spec.get("render", {}).get("text_atlas", {})
 atlas_path = ROOT / atlas_meta.get("file", "")
 check(atlas_path.exists(), "ui-spec.json: text atlas missing")

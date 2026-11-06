@@ -28,6 +28,12 @@
       "type": "integer",
       "minimum": 1
     },
+    "raw_codec": {
+      "enum": [
+        "ndjson",
+        "compact_v1"
+      ]
+    },
     "schema": {
       "const": "xsprof/recorder-manifest/v1"
     },
@@ -53,6 +59,12 @@
           },
           "closed": {
             "type": "boolean"
+          },
+          "codec": {
+            "enum": [
+              "ndjson",
+              "compact_v1"
+            ]
           },
           "end_mono_ns": {
             "type": "integer",

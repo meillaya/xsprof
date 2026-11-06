@@ -20,7 +20,7 @@ evidence, exact reason codes, and state colors that carry meaning.
 - Wordmark: `▚ xsprof`
 - Context line: `read-only scheduler & memory profiler`
 - Persistent safety chip: `read-only · host_mutation=false`
-- Source chip: `LIVE` or `REPLAY`
+- Source chip: `LIVE`, `REPLAY`, `WINDOW`, `DEMO`, or `EMPTY`
 - Tone: terse, evidence-led. No celebratory language for gate results.
 
 ## Color tokens
@@ -61,13 +61,14 @@ styling.
 - Persistent header: wordmark, source, host/kernel, safety chip, loss counter,
   theme/help.
 - Footer key map: visible shortcuts; every action has a pointer equivalent.
-- Screens: Overview, Timeline, Advisor, Events, Capture status.
+- Routes: Home, Overview, Timeline, Advisor, Events, Recorder, Audit, Settings.
 - Panes use hairline borders and dense ledgers. Overlays (palette, tooltip)
   are separate layers and never hide the safety/loss banner.
 - Responsive/narrow: stack in workflow order; never hide refusal/loss rows.
 
-## Screens
+## Routes
 
+0. **Home** — onboarding entry, source choice (live / replay / recorder window / demo), time frame, recent sources, capability strip, recorder status, and the safety contract.
 1. **Overview** — host facts, capability matrix with reasons, per-CPU
    utilization/runqueue, migrations/wakeups/faults/cache/memory/NUMA, top
    threads, advisor summary, alerts.
@@ -79,8 +80,9 @@ styling.
    applied.” Empty, uncollected, and healthy are distinct.
 4. **Events** — append-only ledger; filter/search; follow-tail; loss/gap rows;
    detail pane; sanitized, privacy-redacted text.
-5. **Capture** — read-only status/instructions: capability, SKIP reason,
-   duration/output guidance, BPF VM-only explanation. No mutation controls.
+5. **Recorder** — start/stop/restart the owned read-only capture, compact retention, segments, verify, window extraction, incident/trace/report/snapshot/audit exports, and sidecar history. External recorders are attach-only.
+6. **Audit** — provenance, manifest lifecycle, verify result, capability/gate evidence, bounded operator action log, and audit export.
+7. **Settings** — appearance, capture defaults, storage/retention, accessibility toggles and bridge state, diagnostics, and reset. Settings persist atomically; snapshot mode ignores them.
 
 ## Motion
 
@@ -90,10 +92,22 @@ Never animate loss/refusal/unsafe states into normal progress.
 
 ## Keyboard
 
-`1..5` screens, `/` filter, `Space` pause, `f` fit, `+/-` zoom, `t` now,
-`w` theme, `?` help, `q` quit, `Cmd/Ctrl+K` palette, `c` copy, `Esc` close
-overlay. Focus ring always visible. No IME composition or screen-reader bridge
-in v1.
+`0` Home, `1..5` analysis/Recorder, `6` Audit, `7` Settings,
+`Cmd/Ctrl+,` Settings, `/` filter, `Space` pause, `f` fit, `+/-` zoom,
+`t` now, `w` theme, `?` help, `Cmd/Ctrl+K` palette, `c` copy, `Esc` close
+overlay. Focus ring always visible and follows the accessibility tree.
+Dialogs trap focus and restore it to the trigger. Native pickers and text
+fields are GPU-drawn; there is no OS file dialog. IME composition remains a
+follow-up.
+
+## Accessibility
+
+Every route builds a bounded `xsprof/a11y-tree/v1` tree from the same
+hit/draw pass: roles, labels, values, selected/focus flags, and focus order.
+Web mirrors it into a hidden DOM/ARIA tree; macOS exposes it through
+NSAccessibility; Linux emits canonical JSON and reports the AT-SPI2 bridge as
+DEGRADED with a reason. Loss, refusal, and SKIP states are exposed as state,
+not colour alone. `snapshot --a11y FILE` is the deterministic golden.
 
 ## Rendering
 

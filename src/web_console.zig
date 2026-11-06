@@ -89,6 +89,7 @@ fn rebuildLive() bool {
 fn ensure() bool {
     if (ready) return true;
     app = console_app.App.init(gpa);
+    app.setSurface(.web);
     ready = true;
     return createFrame();
 }
@@ -297,8 +298,8 @@ pub fn tick(delta_ms: u32) void {
 
 pub fn setScreen(index: u32) void {
     if (!ensure()) return;
-    const screens = [_]state_mod.Screen{ .overview, .timeline, .advisor, .events, .capture };
-    app.state.screen = screens[@min(index, 4)];
+    const screens = [_]state_mod.Screen{ .overview, .timeline, .advisor, .events, .capture, .home, .audit, .settings };
+    app.state.screen = screens[@min(index, screens.len - 1)];
 }
 
 pub fn setLive(value: u32) void {
@@ -336,4 +337,56 @@ pub fn widthValue() u32 {
 
 pub fn heightValue() u32 {
     return height;
+}
+
+var a11y_json: ?[]u8 = null;
+var a11y_version: u32 = 0;
+
+/// Rebuild the canonical a11y JSON for the last frame. Called by the JS mirror
+/// after web_ui_frame; the buffer stays valid until the next call.
+fn refreshA11yJson() void {
+    const next = app.accessibilityJson(gpa) catch return;
+    if (a11y_json) |old| gpa.free(old);
+    a11y_json = next;
+    a11y_version +%= 1;
+}
+
+pub fn a11yPtr() usize {
+    refreshA11yJson();
+    return if (a11y_json) |bytes| @intFromPtr(bytes.ptr) else 0;
+}
+
+pub fn a11yLen() u32 {
+    return if (a11y_json) |bytes| @intCast(bytes.len) else 0;
+}
+
+pub fn a11yVersion() u32 {
+    return a11y_version;
+}
+
+pub fn a11yFocus(id: u32) void {
+    if (!ready) return;
+    app.state.focus_id = id;
+    app.state.focus_visible = true;
+}
+
+pub fn a11yActivate(id: u32) void {
+    if (!ready) return;
+    const canvas = canvas_ptr orelse return;
+    if (canvas.hitRect(id)) |rect| {
+        app.click(canvas, rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
+    }
+}
+
+pub fn takeDemoRequest() u32 {
+    if (!ready) return 0;
+    var requested = false;
+    while (app.takeEffect()) |item| {
+        switch (item) {
+            .load_demo => requested = true,
+            .save_settings => {},
+            else => {},
+        }
+    }
+    return if (requested) 1 else 0;
 }

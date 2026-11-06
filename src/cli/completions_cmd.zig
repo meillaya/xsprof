@@ -1,16 +1,28 @@
-//! Static shell completions. No generated files or runtime dependencies.
+//! Static shell completions. No generated files or runtime dependencies. The
+//! default set is the UI-first primary surface; --all adds automation verbs.
 
 const std = @import("std");
 
 const Writer = std.Io.Writer;
 
-const commands =
+const primary_commands =
+    "ui record top why incident doctor help version";
+
+const all_commands =
     "preflight capabilities advise incident report history timeline record serve " ++
     "snapshot ui bpf-gate daemon capture doctor demo watch top why metrics compare " ++
-    "pressure cgroup lab completions version help";
+    "pressure cgroup lab verify completions version help";
+
+fn commandList(args: []const []const u8) []const u8 {
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--all")) return all_commands;
+    }
+    return primary_commands;
+}
 
 pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !u8 {
     const shell = if (args.len == 0) "bash" else args[0];
+    const commands = commandList(args);
     if (std.mem.eql(u8, shell, "bash")) {
         try out.print(
             \\_xsprof() {{
@@ -48,12 +60,23 @@ pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !u8 
     return 2;
 }
 
-test "completions include top and why" {
+// Checks the primary set leads with ui and that --all exposes automation verbs.
+test "completions primary set is UI-first and --all is complete" {
     var buffer: [2048]u8 = undefined;
     var writer = Writer.fixed(&buffer);
     var err_buffer: [128]u8 = undefined;
     var err = Writer.fixed(&err_buffer);
     try std.testing.expectEqual(@as(u8, 0), try cmdCompletions(&.{"bash"}, &writer, &err));
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "ui") != null);
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "top") != null);
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "why") != null);
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "advise") == null);
+
+    var all_buffer: [2048]u8 = undefined;
+    var all_writer = Writer.fixed(&all_buffer);
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try cmdCompletions(&.{ "bash", "--all" }, &all_writer, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, all_writer.buffered(), "advise") != null);
+    try std.testing.expect(std.mem.indexOf(u8, all_writer.buffered(), "verify") != null);
 }

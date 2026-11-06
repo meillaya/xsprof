@@ -37,6 +37,12 @@ pub fn class(name: [:0]const u8) Class {
     return objc_getClass(name) orelse std.debug.panic("objc: no class {s}", .{name});
 }
 
+/// Non-panicking class lookup for fail-closed capability probes (for example
+/// `NSAccessibilityElement` on older macOS versions).
+pub fn findClass(name: [:0]const u8) ?Class {
+    return objc_getClass(name);
+}
+
 pub fn sel(name: [:0]const u8) SEL {
     return sel_registerName(name);
 }

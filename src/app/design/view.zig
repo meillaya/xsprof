@@ -12,6 +12,9 @@ const timeline = @import("timeline.zig");
 const advisor = @import("advisor.zig");
 const events = @import("events.zig");
 const capture = @import("capture.zig");
+const home = @import("home.zig");
+const audit_view = @import("audit_view.zig");
+const settings_view = @import("settings_view.zig");
 const overlays = @import("overlays.zig");
 const ui_spec = @import("ui_spec.zig");
 
@@ -56,6 +59,9 @@ pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
         .advisor => try advisor.draw(model, state, canvas, th, active_rail, shell_top, width),
         .events => try events.draw(model, state, canvas, th, active_rail, shell_top, width),
         .capture => try capture.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .home => try home.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .audit => try audit_view.draw(model, state, canvas, th, active_rail, shell_top, width),
+        .settings => try settings_view.draw(model, state, canvas, th, active_rail, shell_top, width),
     }
     canvas.popClip();
     if (bottom_rail) {
@@ -197,11 +203,14 @@ fn drawRail(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     try canvas.fill(.{ .x = 0, .y = shell_top, .w = rail_width, .h = height - shell_top - shell_bottom }, th.panel);
     try borderLine(canvas, rail_width - 1, shell_top, 1, th.line);
     const screens = [_]struct { screen: state_mod.Screen, icon: icons.Kind, key: []const u8 }{
+        .{ .screen = .home, .icon = .home, .key = "0" },
         .{ .screen = .overview, .icon = .overview, .key = "1" },
         .{ .screen = .timeline, .icon = .timeline, .key = "2" },
         .{ .screen = .advisor, .icon = .advisor, .key = "3" },
         .{ .screen = .events, .icon = .events, .key = "4" },
         .{ .screen = .capture, .icon = .capture, .key = "5" },
+        .{ .screen = .audit, .icon = .audit, .key = "6" },
+        .{ .screen = .settings, .icon = .settings, .key = "7" },
     };
     var y: f32 = shell_top;
     for (screens, 0..) |item, index| {
@@ -231,13 +240,16 @@ fn drawBottomRail(model: *const Model, state: *const State, canvas: *Canvas, th:
     try canvas.fill(.{ .x = 0, .y = y, .w = width, .h = bar_h }, th.panel);
     try borderLine(canvas, 0, y, width, th.line_strong);
     const screens = [_]struct { screen: state_mod.Screen, icon: icons.Kind, label: []const u8 }{
+        .{ .screen = .home, .icon = .home, .label = "Home" },
         .{ .screen = .overview, .icon = .overview, .label = "Overview" },
         .{ .screen = .timeline, .icon = .timeline, .label = "Timeline" },
         .{ .screen = .advisor, .icon = .advisor, .label = "Advisor" },
         .{ .screen = .events, .icon = .events, .label = "Events" },
-        .{ .screen = .capture, .icon = .capture, .label = "Capture" },
+        .{ .screen = .capture, .icon = .capture, .label = "Recorder" },
+        .{ .screen = .audit, .icon = .audit, .label = "Audit" },
+        .{ .screen = .settings, .icon = .settings, .label = "Settings" },
     };
-    const item_w = width / 5;
+    const item_w = width / 8;
     for (screens, 0..) |item, index| {
         const active = state.screen == item.screen;
         const x = @as(f32, @floatFromInt(index)) * item_w;
@@ -258,7 +270,7 @@ fn drawKeybar(model: *const Model, canvas: *Canvas, th: Theme, width: f32, heigh
     try canvas.fill(.{ .x = 0, .y = y, .w = width, .h = shell_bottom }, th.panel);
     try borderLine(canvas, 0, y, width, th.line);
     const keys = [_][2][]const u8{
-        .{ "1–5", "screens" },
+        .{ "0–7", "routes" },
         .{ "/", "filter" },
         .{ "space", "playhead" },
         .{ "f", "fit" },
@@ -309,7 +321,7 @@ test "renders all screens, themes, and reference viewports" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const model = try model_mod.loadDemo(std.testing.io, arena.allocator(), "fixtures/ui/design/demo.json");
-    const screens = [_]state_mod.Screen{ .overview, .timeline, .advisor, .events, .capture };
+    const screens = [_]state_mod.Screen{ .home, .overview, .timeline, .advisor, .events, .capture, .audit, .settings };
     const viewports = [_]struct { w: u32, h: u32 }{ .{ .w = 1440, .h = 900 }, .{ .w = 1280, .h = 720 }, .{ .w = 320, .h = 200 } };
     for (viewports) |viewport| {
         var frame: xsui.frame.Frame = undefined;

@@ -7,6 +7,7 @@
 //! the CPU, Metal, GL, and WebGL2 backends consume.
 
 const std = @import("std");
+const a11y = @import("a11y.zig");
 const draw = @import("draw.zig");
 const frame_mod = @import("frame.zig");
 const layout = @import("layout.zig");
@@ -49,9 +50,49 @@ pub const TextLayout = struct {
     }
 };
 
+/// One entry in the draw/hit pass. Pointer input, keyboard focus, and the
+/// accessibility tree all derive from this single list, so they cannot drift.
 pub const Hit = struct {
     rect: Rect,
     id: u32,
+    /// Semantic role; `.none` is a legacy pointer-only hit with no AX content.
+    role: a11y.Role = .none,
+    label: []const u8 = "",
+    value: []const u8 = "",
+    /// Short usage hint, e.g. "⌘K" or "Enter to activate".
+    hint: []const u8 = "",
+    /// Opaque caller data (for example a row index); ids stay stable.
+    data: u32 = 0,
+    /// Static state; dynamic focus is resolved from `App.state.focus_id`.
+    flags: a11y.Flags = .{},
+    /// Clip region [x0,y0,x1,y1] captured when the node was registered.
+    /// Pointer hit-testing and accessibility frames obey it.
+    clip: [4]f32 = .{ 0, 0, 0, 0 },
+    /// Immediate semantic parent id; 0 means the root.
+    parent: u32 = 0,
+};
+
+/// Registers a semantic hit node in the current group.
+pub const NodeSpec = struct {
+    id: u32,
+    rect: Rect,
+    role: a11y.Role,
+    label: []const u8 = "",
+    value: []const u8 = "",
+    hint: []const u8 = "",
+    data: u32 = 0,
+    flags: a11y.Flags = .{ .interactive = true, .focusable = true },
+};
+
+/// Registers a structural group so following nodes nest under `id`.
+pub const GroupSpec = struct {
+    id: u32,
+    rect: Rect,
+    role: a11y.Role = .group,
+    label: []const u8 = "",
+    hint: []const u8 = "",
+    /// Structural groups are not pointer-hittable or focusable by default.
+    flags: a11y.Flags = .{},
 };
 
 pub const Icon = struct {
@@ -105,6 +146,11 @@ pub const Canvas = struct {
     clip_depth: usize = 0,
     hits: std.ArrayList(Hit) = .empty,
     max_hits: usize = 512,
+    /// Semantic nesting for the current frame (region -> control groups).
+    group_stack: [16]u32 = undefined,
+    group_depth: usize = 0,
+    /// Set when the bounded hit list overflowed; surfaced as DEGRADED.
+    truncated: bool = false,
 
     pub fn init(frame: *frame_mod.Frame) Canvas {
         return .{
@@ -125,6 +171,19 @@ pub const Canvas = struct {
 
     pub fn resetHits(self: *Canvas) void {
         self.hits.clearRetainingCapacity();
+        self.group_depth = 0;
+        self.truncated = false;
+    }
+
+    /// Recomputes the base clip from the frame after a resize.
+    pub fn resetViewport(self: *Canvas) void {
+        self.clip_rect = .{
+            .x = 0,
+            .y = 0,
+            .w = @floatFromInt(self.frame.width),
+            .h = @floatFromInt(self.frame.height),
+        };
+        self.clip_depth = 0;
     }
 
     fn clipArray(self: *const Canvas) [4]f32 {
@@ -380,9 +439,67 @@ pub const Canvas = struct {
         return block_h;
     }
 
+    /// Registers one semantic hit node in the current group. Returns its id,
+    /// or 0 when the bounded hit list is full (`truncated` is set).
+    pub fn node(self: *Canvas, spec: NodeSpec) u32 {
+        if (self.hits.items.len >= self.max_hits) {
+            self.truncated = true;
+            return 0;
+        }
+        const parent = if (self.group_depth > 0) self.group_stack[self.group_depth - 1] else 0;
+        self.hits.append(self.allocator, .{
+            .rect = spec.rect,
+            .id = spec.id,
+            .role = spec.role,
+            .label = spec.label,
+            .value = spec.value,
+            .hint = spec.hint,
+            .data = spec.data,
+            .flags = spec.flags,
+            .clip = self.clipArray(),
+            .parent = parent,
+        }) catch {
+            self.truncated = true;
+            return 0;
+        };
+        return spec.id;
+    }
+
+    /// Legacy pointer-only hit. Prefer `node` so accessibility content is kept.
     pub fn hit(self: *Canvas, id: u32, rect: Rect) void {
-        if (self.hits.items.len >= self.max_hits) return;
-        self.hits.append(self.allocator, .{ .id = id, .rect = rect }) catch {};
+        _ = self.node(.{ .id = id, .rect = rect, .role = .none });
+    }
+
+    /// Starts a semantic group; following `node` calls nest under `spec.id`.
+    pub fn pushGroup(self: *Canvas, spec: GroupSpec) void {
+        _ = self.node(.{
+            .id = spec.id,
+            .rect = spec.rect,
+            .role = spec.role,
+            .label = spec.label,
+            .hint = spec.hint,
+            .flags = spec.flags,
+        });
+        if (self.group_depth < self.group_stack.len) {
+            self.group_stack[self.group_depth] = spec.id;
+            self.group_depth += 1;
+        }
+    }
+
+    pub fn popGroup(self: *Canvas) void {
+        if (self.group_depth > 0) self.group_depth -= 1;
+    }
+
+    pub fn hitIndex(self: *const Canvas, id: u32) ?usize {
+        for (self.hits.items, 0..) |item, index| {
+            if (item.id == id) return index;
+        }
+        return null;
+    }
+
+    pub fn hitData(self: *const Canvas, id: u32) ?u32 {
+        const index = self.hitIndex(id) orelse return null;
+        return self.hits.items[index].data;
     }
 
     pub fn hitRect(self: *const Canvas, id: u32) ?Rect {
@@ -395,16 +512,19 @@ pub const Canvas = struct {
         return null;
     }
 
+    /// Pointer hit test: last drawn wins; clipped, structural (non-interactive)
+    /// and disabled nodes are skipped. Invariant: equals `a11y.Tree.hitTest`.
     pub fn hitAt(self: *const Canvas, x: f32, y: f32) ?u32 {
         var index = self.hits.items.len;
         while (index > 0) {
             index -= 1;
             const item = self.hits.items[index];
-            if (x >= item.rect.x and x < item.rect.x + item.rect.w and
-                y >= item.rect.y and y < item.rect.y + item.rect.h)
-            {
-                return item.id;
-            }
+            if (!item.flags.interactive or item.flags.disabled) continue;
+            if (x < item.rect.x or y < item.rect.y) continue;
+            if (x >= item.rect.x + item.rect.w or y >= item.rect.y + item.rect.h) continue;
+            if (x < item.clip[0] or y < item.clip[1]) continue;
+            if (x > item.clip[2] or y > item.clip[3]) continue;
+            return item.id;
         }
         return null;
     }

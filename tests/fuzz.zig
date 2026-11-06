@@ -24,7 +24,7 @@ fn mutate(random: std.Random, seed: []const u8, buffer: []u8) []u8 {
     return buffer[0..copy_len];
 }
 
-test "fuzz event JSON, journal, manifest, pressure, cgroup, and duration" {
+test "fuzz event JSON, journal, manifest, compact segment, pressure, cgroup, and duration" {
     var prng = std.Random.DefaultPrng.init(0x585350524f46);
     const random = prng.random();
     var buffer: [4096]u8 = undefined;
@@ -43,6 +43,11 @@ test "fuzz event JSON, journal, manifest, pressure, cgroup, and duration" {
         "some avg10=1.23 avg60=4.56 avg300=7.89 total=123456\n" ++
         "full avg10=0.25 avg60=0.50 avg300=0.75 total=9000\n";
     const cgroup_seed = "0::/user.slice/user-1000.slice/session-2.scope\n";
+    var compact_header_seed: [64]u8 = @splat(0);
+    @memcpy(compact_header_seed[0..8], "XSPRAWS1");
+    compact_header_seed[8] = 1;
+    compact_header_seed[10] = 64;
+    const compact_block_seed = [_]u8{ 1, 0, 8, 0, 0, 0, 0, 0, 0, 8, 1, 0, 0, 0, 0, 0 };
 
     var case_index: usize = 0;
     while (case_index < cases) : (case_index += 1) {
@@ -73,5 +78,23 @@ test "fuzz event JSON, journal, manifest, pressure, cgroup, and duration" {
 
         const duration_bytes = mutate(random, "10m", buffer[0..64]);
         _ = xsprof.recorder_extract.parseDuration(duration_bytes) catch {};
+
+        const header_bytes = mutate(random, &compact_header_seed, buffer[0..64]);
+        var fixed_header: [64]u8 = @splat(0);
+        const header_len = @min(header_bytes.len, fixed_header.len);
+        @memcpy(fixed_header[0..header_len], header_bytes[0..header_len]);
+        _ = xsprof.recorder_compact.Header.parse(&fixed_header) catch {};
+        const block_bytes = mutate(random, &compact_block_seed, buffer[0..16]);
+        var fixed_block: [8]u8 = @splat(0);
+        const block_len = @min(block_bytes.len, fixed_block.len);
+        @memcpy(fixed_block[0..block_len], block_bytes[0..block_len]);
+        _ = xsprof.recorder_compact.parseBlockHeader(&fixed_block) catch {};
+        const payload_bytes = mutate(random, &compact_block_seed, buffer[0..256]);
+        var decoder = xsprof.recorder_compact.Decoder.init(payload_bytes);
+        var decoded: usize = 0;
+        while (decoded < 64) : (decoded += 1) {
+            const maybe = decoder.next() catch break;
+            if (maybe == null) break;
+        }
     }
 }

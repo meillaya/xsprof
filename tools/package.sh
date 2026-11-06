@@ -2,6 +2,17 @@
 # Build a release binary and a self-contained tarball. Does not publish.
 # Cross packaging: XSPROF_TARGET=aarch64-linux-gnu XSPROF_OS=linux
 # XSPROF_ARCH=aarch64.
+#
+# Layout (also asserted by qa/package_layout.sh):
+#   bin/xsprof
+#   share/xsprof/web/
+#   share/xsprof/fixtures/healthy.ndjson
+#   share/applications/xsprof.desktop
+#   share/icons/hicolor/scalable/apps/xsprof.svg
+#   share/bash-completion/completions/xsprof, zsh, fish
+#   lib/systemd/system/xsprof-recorder.service
+#   lib/sysusers.d/xsprof.conf
+#   share/doc/xsprof/
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
@@ -20,29 +31,52 @@ case "$DIST" in
 esac
 
 PREFIX="$ROOT/zig-out/package"
-rm -rf "$PREFIX"
-./tools/zig build web -Doptimize=ReleaseSafe
-if [ -n "$TARGET" ]; then
-    ./tools/zig build -Doptimize=ReleaseSafe -Dtarget="$TARGET" --prefix "$PREFIX"
+HOST_PREFIX="$ROOT/zig-out/package-host"
+rm -rf "$PREFIX" "$HOST_PREFIX"
+# One build installs the binary and the wasm/web assets together. For cross
+# packaging, completions are arch-independent and are generated from a
+# host-native build of the same revision. A target equal to the host target is
+# treated as native so CI does not compile twice.
+NATIVE=0
+if [ -z "$TARGET" ]; then
+    NATIVE=1
 else
-    ./tools/zig build -Doptimize=ReleaseSafe --prefix "$PREFIX"
+    case "$(uname -s)/$(uname -m)/$TARGET" in
+        Linux/x86_64/x86_64-linux-gnu|Linux/aarch64/aarch64-linux-gnu) NATIVE=1 ;;
+    esac
 fi
-[ -f zig-out/web/index.html ] || {
+if [ "$NATIVE" = 1 ]; then
+    ./tools/zig build -Doptimize=ReleaseSafe --prefix "$PREFIX"
+    COMPLETIONS_BIN="$PREFIX/bin/xsprof"
+else
+    ./tools/zig build -Doptimize=ReleaseSafe --prefix "$HOST_PREFIX"
+    ./tools/zig build -Doptimize=ReleaseSafe -Dtarget="$TARGET" --prefix "$PREFIX"
+    COMPLETIONS_BIN="$HOST_PREFIX/bin/xsprof"
+fi
+[ -x "$PREFIX/bin/xsprof" ] || {
+    echo "package: binary missing after build" >&2
+    exit 1
+}
+[ -f "$PREFIX/web/index.html" ] || {
     echo "package: web assets missing after build" >&2
     exit 1
 }
+
 rm -rf "$DIST"
 mkdir -p "$DIST/bin" "$DIST/share/xsprof/web" "$DIST/share/xsprof/fixtures"
-mkdir -p "$DIST/share/doc/xsprof"
+mkdir -p "$DIST/share/doc/xsprof" "$DIST/share/applications"
+mkdir -p "$DIST/share/icons/hicolor/scalable/apps" "$DIST/lib/sysusers.d"
 cp "$PREFIX/bin/xsprof" "$DIST/bin/xsprof"
-cp -R zig-out/web/. "$DIST/share/xsprof/web/"
+cp -R "$PREFIX/web/." "$DIST/share/xsprof/web/"
 cp fixtures/ui/healthy.ndjson "$DIST/share/xsprof/fixtures/healthy.ndjson"
+cp packaging/linux/xsprof.desktop "$DIST/share/applications/xsprof.desktop"
+cp packaging/linux/xsprof.svg "$DIST/share/icons/hicolor/scalable/apps/xsprof.svg"
+cp packaging/sysusers/xsprof.conf "$DIST/lib/sysusers.d/xsprof.conf"
+sh tools/gen_completions.sh "$COMPLETIONS_BIN" "$DIST/share"
 cp README.md THIRD_PARTY_NOTICES.md LICENSE CHANGELOG.md "$DIST/share/doc/xsprof/"
-cp docs/guides/flight-recorder.md "$DIST/share/doc/xsprof/"
-cp docs/guides/compare-ci.md "$DIST/share/doc/xsprof/"
-cp docs/guides/host-probes.md "$DIST/share/doc/xsprof/"
-cp docs/guides/quickstart.md "$DIST/share/doc/xsprof/"
-cp docs/guides/top-why.md "$DIST/share/doc/xsprof/"
+for guide in flight-recorder compare-ci host-probes quickstart top-why install; do
+    cp "docs/guides/$guide.md" "$DIST/share/doc/xsprof/"
+done
 if [ "$OS" = linux ]; then
     mkdir -p "$DIST/lib/systemd/system"
     cp packaging/systemd/xsprof-recorder.service "$DIST/lib/systemd/system/"
@@ -50,5 +84,19 @@ fi
 chmod 755 "$DIST/bin/xsprof"
 
 mkdir -p "$ROOT/dist"
-tar -C "$ROOT/dist" -czf "$ROOT/dist/$NAME.tar.gz" "$NAME"
-echo "$ROOT/dist/$NAME.tar.gz"
+: "${SOURCE_DATE_EPOCH:=$(git log -1 --format=%ct 2>/dev/null || date +%s)}"
+export SOURCE_DATE_EPOCH
+TARBALL="$ROOT/dist/$NAME.tar.gz"
+if tar --version 2>/dev/null | grep -q 'GNU tar'; then
+    tar -C "$ROOT/dist" --sort=name --mtime="@$SOURCE_DATE_EPOCH" \
+        --owner=0 --group=0 --numeric-owner -czf "$TARBALL" "$NAME"
+else
+    # bsdtar on macOS: keep the fallback simple; release tarballs are built on Linux.
+    tar -C "$ROOT/dist" -czf "$TARBALL" "$NAME"
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+    ( cd "$ROOT/dist" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256" )
+else
+    ( cd "$ROOT/dist" && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256" )
+fi
+echo "$TARBALL"

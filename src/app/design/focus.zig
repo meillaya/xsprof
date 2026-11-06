@@ -5,21 +5,33 @@ const std = @import("std");
 const xsui = @import("xsui");
 const app_mod = @import("app.zig");
 const commands = @import("commands.zig");
+const route = @import("route.zig");
+const hits = @import("hits.zig");
 const mod = @import("state.zig");
 
 const App = app_mod.App;
 
-fn inDialog(id: u32, dialog: mod.Dialog, query: []const u8) bool {
-    return switch (dialog) {
+fn inRange(id: u32, base: u32, span: u32) bool {
+    return id >= base and id < base + span;
+}
+
+fn inDialog(id: u32, app: *const App) bool {
+    const state = &app.state;
+    return switch (state.dialog) {
         .none => true,
-        .palette => id == 742 or id == 743 or (id >= 700 and id < 700 + commands.count(query)),
-        .appearance => id == 740 or (id >= 720 and id < 726),
-        .help => id == 741,
+        .palette => id == hits.palette_input or id == hits.palette_esc or
+            (id >= hits.palette_row_base and id < hits.palette_row_base + @as(u32, @intCast(commands.count(state.paletteQuery())))),
+        .appearance => id == hits.dialog_close or inRange(id, hits.theme_option_base, 6),
+        .help => id == hits.help_close,
+        .picker => inRange(id, hits.picker_row_base, @as(u32, @intCast(state.picker.len))) or
+            (id >= hits.picker_up and id <= hits.picker_filter),
+        .confirm => id == hits.confirm_yes or id == hits.confirm_no,
+        .onboarding => inRange(id, hits.onboarding_next, 4),
     };
 }
 
 fn validHit(id: u32, app: *const App) bool {
-    return inDialog(id, app.state.dialog, app.state.paletteQuery());
+    return inDialog(id, app);
 }
 
 pub fn step(app: *App, canvas: *xsui.Canvas, backwards: bool) void {
@@ -47,7 +59,6 @@ pub fn step(app: *App, canvas: *xsui.Canvas, backwards: bool) void {
             return;
         }
         if (current_index == null and guard == 0) {
-            // Start at the first valid target, including index zero.
             if (validHit(canvas.hits.items[0].id, app)) {
                 app.state.focus_id = canvas.hits.items[0].id;
                 app.state.focus_visible = true;
@@ -69,22 +80,24 @@ pub fn key(app: *App, canvas: *xsui.Canvas, codepoint: u21, shift: bool) bool {
         step(app, canvas, shift);
         return true;
     }
-    const text_focus = app.state.focus_id != null and (app.state.focus_id.? == 742 or app.state.focus_id.? == 520);
-    if (!text_focus and (codepoint == '\n' or codepoint == '\r' or codepoint == ' ') and app.state.focus_visible and app.state.focus_id != null) {
+    if (app.state.text_focus != null) return false;
+    if ((codepoint == '\n' or codepoint == '\r' or codepoint == ' ') and app.state.focus_visible and app.state.focus_id != null) {
         activate(app, canvas);
         return true;
     }
     if (app.state.dialog == .none and app.state.focus_visible and app.state.focus_id != null) {
         const id = app.state.focus_id.?;
-        if (id >= 100 and id < 105 and (codepoint == 0x11 or codepoint == 0x12 or codepoint == 0x13 or codepoint == 0x14)) {
-            const screens = [_]mod.Screen{ .overview, .timeline, .advisor, .events, .capture };
-            const delta: i32 = if (codepoint == 0x11) -1 else 1;
-            const current: i32 = @intCast(id - 100);
-            const next: usize = @intCast(@mod(current + delta, 5));
-            app.state.screen = screens[next];
-            app.state.scroll_y = 0;
-            app.state.focus_id = 100 + @as(u32, @intCast(next));
-            return true;
+        if (route.fromRailId(id)) |current_route| {
+            if (codepoint == 0x11 or codepoint == 0x12 or codepoint == 0x13 or codepoint == 0x14) {
+                const current = route.indexInOrder(current_route);
+                const delta: i32 = if (codepoint == 0x11 or codepoint == 0x13) -1 else 1;
+                const count: i32 = @intCast(route.order.len);
+                const next: usize = @intCast(@mod(@as(i32, @intCast(current)) + delta, count));
+                app.state.screen = route.order[next];
+                app.state.scroll_y = 0;
+                app.state.focus_id = route.order[next].railId();
+                return true;
+            }
         }
     }
     return false;
@@ -114,10 +127,10 @@ test "palette focus returns to its trigger" {
     defer app.deinit();
     app.handleKey('k', .{ .meta = true });
     try std.testing.expectEqual(mod.Dialog.palette, app.state.dialog);
-    try std.testing.expectEqual(@as(?u32, 742), app.state.focus_id);
+    try std.testing.expectEqual(@as(?u32, hits.palette_input), app.state.focus_id);
     app.handleKey(0x1b, .{});
     try std.testing.expectEqual(mod.Dialog.none, app.state.dialog);
-    try std.testing.expectEqual(@as(?u32, 200), app.state.focus_id);
+    try std.testing.expectEqual(@as(?u32, hits.topbar_palette), app.state.focus_id);
 }
 
 test "dialog focus traps and returns to the trigger" {
@@ -126,17 +139,16 @@ test "dialog focus traps and returns to the trigger" {
     try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
     app.handleKey('w', .{});
     try std.testing.expectEqual(mod.Dialog.appearance, app.state.dialog);
-    try std.testing.expectEqual(@as(?u32, 201), app.state.focus_return);
-    try std.testing.expectEqual(@as(?u32, 720), app.state.focus_id);
+    try std.testing.expectEqual(@as(?u32, hits.topbar_theme), app.state.focus_return);
     app.handleKey(0x1b, .{});
     try std.testing.expectEqual(mod.Dialog.none, app.state.dialog);
-    try std.testing.expectEqual(@as(?u32, 201), app.state.focus_id);
+    try std.testing.expectEqual(@as(?u32, hits.topbar_theme), app.state.focus_id);
 }
 
-test "rail focus arrows change screens" {
+test "rail focus arrows change screens in display order" {
     var app = App.init(std.testing.allocator);
     defer app.deinit();
-    app.state.focus_id = 100;
+    app.state.focus_id = hits.railId(0);
     app.state.focus_visible = true;
     var frame: xsui.frame.Frame = undefined;
     try frame.init(std.testing.allocator, 320, 200, .{});
@@ -144,6 +156,8 @@ test "rail focus arrows change screens" {
     var canvas = xsui.Canvas.init(&frame);
     defer canvas.deinit();
     _ = key(&app, &canvas, 0x12, false);
-    try std.testing.expectEqual(mod.Screen.timeline, app.state.screen);
-    try std.testing.expectEqual(@as(?u32, 101), app.state.focus_id);
+    // order: home, overview, timeline, ... -> from overview arrows to timeline.
+    try std.testing.expectEqual(@as(?u32, hits.railId(1)), app.state.focus_id);
+    _ = key(&app, &canvas, 0x12, false);
+    try std.testing.expectEqual(@as(?u32, hits.railId(2)), app.state.focus_id);
 }

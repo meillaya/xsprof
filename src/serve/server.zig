@@ -7,6 +7,8 @@ const event = @import("../core/event.zig");
 const live = @import("../capture/live.zig");
 const Store = @import("../stream/live_feed.zig").Store;
 const spool = @import("spool.zig");
+const window_load = @import("../recorder/window.zig");
+const extract_mod = @import("../recorder/extract.zig");
 
 const Writer = std.Io.Writer;
 
@@ -268,6 +270,12 @@ fn buildSse(allocator: std.mem.Allocator, snap: anytype) ![]u8 {
     return allocating.toOwnedSlice();
 }
 
+fn windowLastMs(target: []const u8) u64 {
+    const text = queryParam(target, "last") orelse return 10 * 60 * 1000;
+    const parsed = extract_mod.parseDuration(text) catch return 10 * 60 * 1000;
+    return @min(parsed, 24 * 60 * 60 * 1000);
+}
+
 fn handle(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -310,6 +318,28 @@ fn handle(
                 return;
             }
             try respond(&request, .not_found, "recorder not attached\n", "text/plain");
+            return;
+        }
+        if (std.mem.eql(u8, path, "/api/window")) {
+            const dir = opts.recorder_dir orelse {
+                try respond(&request, .not_found, "recorder not attached\n", "text/plain");
+                return;
+            };
+            var result = window_load.load(io, allocator, .{
+                .dir = dir,
+                .last_ms = windowLastMs(target),
+                .max_events = 500_000,
+                .max_bytes = 32 * 1024 * 1024,
+            }) catch |window_error| {
+                const status: std.http.Status = switch (window_error) {
+                    error.NoRecorder, error.NoData => .not_found,
+                    else => .internal_server_error,
+                };
+                try respond(&request, status, "window unavailable\n", "text/plain");
+                return;
+            };
+            defer result.deinit(allocator);
+            try respond(&request, .ok, result.data, "application/x-ndjson");
             return;
         }
         if (std.mem.eql(u8, path, "/api/journal")) {
@@ -380,7 +410,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !void {
     defer store.deinit();
     if (opts.live) {
         if (opts.live_dir) |dir| {
-            _ = std.Thread.spawn(.{}, spool.run, .{ io, dir, &store }) catch return error.CaptureThreadFailed;
+            _ = std.Thread.spawn(.{}, spool.run, .{ io, dir, &store, opts.live_stride }) catch return error.CaptureThreadFailed;
         } else {
             _ = std.Thread.spawn(.{}, worker, .{ io, &store, opts.live_stride }) catch return error.CaptureThreadFailed;
         }
@@ -406,4 +436,6 @@ test "loopback guard and routes" {
     try std.testing.expectEqualStrings("main.js", assetPath("/main.js").?);
     try std.testing.expect(assetPath("/../etc/passwd") == null);
     try std.testing.expectEqualStrings("abc", queryParam("/x?token=abc", "token").?);
+    try std.testing.expectEqual(@as(u64, 60_000), windowLastMs("/api/window?token=x&last=1m"));
+    try std.testing.expectEqual(@as(u64, 600_000), windowLastMs("/api/window?token=x"));
 }

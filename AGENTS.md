@@ -48,6 +48,11 @@ restore it to `main`.
 ./tools/zig build lines
 ./tools/zig build vendor-check
 ./tools/zig build fuzz            # deterministic parser fuzz tests
+./tools/zig build compact-roundtrip # compact segment decode/verify gate
+./tools/zig build a11y-smoke      # deterministic accessibility tree gate
+./tools/zig build native-live-smoke # hidden live/recorder-tail smoke (Xvfb)
+./tools/zig build xvfb-smoke      # hidden resize/a11y X11/GLX smoke (Xvfb)
+./tools/zig build release-tooling # attestation/tap dry-run gate
 ./tools/zig build live-smoke      # root perf/daemon/SIGTERM, disposable VM only
 ./tools/zig build xsui-package    # standalone GPU UI package gate
 ./tools/zig build service-smoke   # Linux root, disposable VM only
@@ -89,23 +94,30 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 and M0–M4/M6/M7 are complete. v0.3.0 added `top`, `why`, incremental live
-web updates, recorder SIGTERM cleanup, split page faults, bounded history
-sidecars, a license, and the missing QA gates. M5 release tooling is complete, while
-Developer ID notarization and public tap publication need external Apple/tap
-credentials. Keep the read-only safety invariants, P0–P7 gates, and the
-600-line limit green. Native windows are
-human-run; automated work uses snapshots, Metal offscreen parity, Xvfb, hidden
-window smoke, and the gated systemd service smoke in a disposable Linux VM.
-The design console (`src/app/design/`, `lib/xsui/src/canvas.zig`, `web/`) is the
-product surface on web, macOS, Linux, and `snapshot`. The visible lab rail is
-retired; `xsprof lab` remains a headless scenario/QA tool. Re-run
-`zig build check` and `qa/cli_parity.sh` after any behavior change. Visual
-evidence is developer-only under `design/evidence/` (`qa/ui_evidence.sh`).
-`design/ui-spec.json` is the formal runtime contract; CPU is canonical and
-`qa/ui_cross_surface.py` gates Metal/WebGL2 against it. Reference diffs are
-advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
-covered by `qa/ui_interactions.cjs`. The committed real capture
-`fixtures/real/macos-vm-sched.ndjson` comes from the podman Linux VM (macOS has
-no perf/tracepoint capture); live screenshots and video replay it, marked
-`REPLAY` and `host_mutation=false`.
+P0–P7 and M0–M4/M6/M7 are complete. v0.4.0 makes the GPU console the
+product surface: Home/Recorder/Audit/Settings routes, first-run onboarding,
+GPU picker/text entry, in-process native live capture plus recorder tail,
+native window resize/input, a platform-neutral accessibility tree with web and
+macOS bridges, compact `.xsraw` raw segments (ten-minute age cap under the byte
+budget), a simplified CLI, and Nix/Linux/macOS packaging with fail-closed
+notarization/tap tooling. The recorder module normalizes its own state and
+never mutates host policy. Developer ID notarization, public tap publication,
+and Linux AT-SPI2 remain external/known limits; the UI shows DEGRADED/SKIP with
+the exact reason and does not claim them.
+
+Keep the read-only safety invariants and the 600-line limit green. Native
+windows are human-run; automated work uses CPU snapshots, Metal offscreen
+parity, Xvfb/hidden-window smokes, and the gated service/live/retention smokes
+in a disposable Linux VM. The design console (`src/app/design/`,
+`lib/xsui/src/canvas.zig`, `web/`) is the product surface on web, macOS,
+Linux, and `snapshot`. The visible lab rail is retired; `xsprof lab` remains a
+headless scenario/QA tool. Re-run `zig build check`, `qa/cli_parity.sh`,
+`qa/compact_roundtrip.sh`, and `qa/release_tooling.sh` after any behavior
+change. Visual evidence is developer-only under `design/evidence/`
+(`qa/ui_evidence.sh`). `design/ui-spec.json` is the formal runtime contract; CPU
+is canonical and `qa/ui_cross_surface.py` gates Metal/WebGL2 against it.
+Reference diffs are advisory, not acceptance criteria. Keyboard focus,
+clipboard, brush, and the hidden a11y DOM mirror are covered by the Playwright
+scripts. The committed real capture `fixtures/real/macos-vm-sched.ndjson` comes
+from the podman Linux VM (macOS has no perf/tracepoint capture); live screenshots
+and video replay it, marked `REPLAY` and `host_mutation=false`.

@@ -7,6 +7,8 @@ const session_mod = @import("../stream/session.zig");
 const design_model = @import("../app/design/model.zig");
 const design_state = @import("../app/design/state.zig");
 const design_view = @import("../app/design/view.zig");
+const design_a11y = @import("../app/design/a11y.zig");
+const native_options = @import("../platform/options.zig");
 
 const design_derive = @import("../app/design/derive.zig");
 
@@ -30,6 +32,9 @@ pub fn cmdSnapshot(
     var overlay_name: []const u8 = "none";
     var backend_name: []const u8 = "cpu";
     var playhead_s: f64 = 0;
+    var a11y_path: ?[]const u8 = null;
+    var settings_mode: []const u8 = "none";
+    var now_ms: u64 = 0;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -72,7 +77,23 @@ pub fn cmdSnapshot(
         } else if (std.mem.eql(u8, arg, "--backend") and i + 1 < args.len) {
             i += 1;
             backend_name = args[i];
+        } else if (std.mem.eql(u8, arg, "--a11y") and i + 1 < args.len) {
+            i += 1;
+            a11y_path = args[i];
+        } else if (std.mem.eql(u8, arg, "--settings") and i + 1 < args.len) {
+            i += 1;
+            settings_mode = args[i];
+        } else if (std.mem.eql(u8, arg, "--now") and i + 1 < args.len) {
+            i += 1;
+            now_ms = std.fmt.parseInt(u64, args[i], 10) catch {
+                try err.writeAll("snapshot: invalid --now\n");
+                return 2;
+            };
         }
+    }
+    if (!std.mem.eql(u8, settings_mode, "none")) {
+        try err.writeAll("snapshot: never reads user settings; only --settings none is accepted\n");
+        return 2;
     }
     if (width < 64 or height < 64 or width > 4096 or height > 4096) {
         try err.writeAll("snapshot: width/height must be 64..4096\n");
@@ -95,13 +116,23 @@ pub fn cmdSnapshot(
             return 2;
         };
         var state = design_state.State{ .screen = screen, .theme_index = theme_index, .timeline_playhead = playhead_s * 1000.0 };
-        state.dialog = parseOverlay(overlay_name);
+        state.now_ms = now_ms;
+        if (!applyOverlay(&state, overlay_name)) {
+            try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
+            return 2;
+        }
         var canvas = xsui.Canvas.init(&frame);
         defer canvas.deinit();
         design_view.view(&model, &state, &canvas) catch {
             try err.writeAll("snapshot: cannot build console view\n");
             return 1;
         };
+        if (a11y_path) |a11y_file| {
+            writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
+                try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
+                return 1;
+            };
+        }
         saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
             try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
             return 1;
@@ -114,7 +145,11 @@ pub fn cmdSnapshot(
         return 2;
     };
     var state = design_state.State{ .screen = screen, .theme_index = theme_index, .timeline_playhead = playhead_s * 1000.0 };
-    state.dialog = parseOverlay(overlay_name);
+    state.now_ms = now_ms;
+    if (!applyOverlay(&state, overlay_name)) {
+        try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
+        return 2;
+    }
     var model: design_model.Model = undefined;
     if (replay) |journal_path| {
         const session = session_mod.Session.load(io, allocator, journal_path) catch |load_error| {
@@ -151,6 +186,12 @@ pub fn cmdSnapshot(
         try err.writeAll("snapshot: cannot build console view\n");
         return 1;
     };
+    if (a11y_path) |a11y_file| {
+        writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
+            try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
+            return 1;
+        };
+    }
     saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
         try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
         return 1;
@@ -206,9 +247,17 @@ pub fn cmdUi(
     var replay: ?[]const u8 = null;
     var demo_model: ?[]const u8 = null;
     var recorder_dir: ?[]const u8 = null;
-    var screen_name: []const u8 = "overview";
+    var screen_name: []const u8 = "home";
     var theme_name: []const u8 = "dark";
     var smoke = false;
+    var width: u32 = native_options.default_width;
+    var height: u32 = native_options.default_height;
+    var resize: ?native_options.Size = null;
+    var a11y = false;
+    var live = false;
+    var duration_ms: u32 = 0;
+    var preset_name: []const u8 = "scheduler";
+    var follow_recorder: ?[]const u8 = null;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         if (std.mem.eql(u8, args[i], "--replay") and i + 1 < args.len) {
@@ -228,16 +277,80 @@ pub fn cmdUi(
             theme_name = args[i];
         } else if (std.mem.eql(u8, args[i], "--smoke")) {
             smoke = true;
+        } else if (std.mem.eql(u8, args[i], "--width") and i + 1 < args.len) {
+            i += 1;
+            width = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("ui: invalid --width\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, args[i], "--height") and i + 1 < args.len) {
+            i += 1;
+            height = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("ui: invalid --height\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, args[i], "--resize") and i + 1 < args.len) {
+            i += 1;
+            resize = native_options.parseSize(args[i]) orelse {
+                try err.writeAll("ui: invalid --resize (expected WxH, e.g. 900x600)\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, args[i], "--a11y")) {
+            a11y = true;
+        } else if (std.mem.eql(u8, args[i], "--live")) {
+            live = true;
+        } else if (std.mem.eql(u8, args[i], "--duration") and i + 1 < args.len) {
+            i += 1;
+            duration_ms = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("ui: invalid --duration\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, args[i], "--preset") and i + 1 < args.len) {
+            i += 1;
+            preset_name = args[i];
+        } else if (std.mem.eql(u8, args[i], "--follow-recorder") and i + 1 < args.len) {
+            i += 1;
+            follow_recorder = args[i];
+        } else {
+            try err.print("ui: unknown option {s}\n", .{args[i]});
+            return 2;
         }
+    }
+    if (width < native_options.min_width or height < native_options.min_height) {
+        try err.print("ui: window must be at least {d}x{d}\n", .{
+            native_options.min_width,
+            native_options.min_height,
+        });
+        return 2;
+    }
+    if (live and follow_recorder != null) {
+        try err.writeAll("ui: --live and --follow-recorder are mutually exclusive\n");
+        return 2;
     }
     const screen = design_state.parseScreen(screen_name) orelse {
         try err.writeAll("ui: unknown view\n");
         return 2;
     };
     const theme_index = xsui.themes.indexOf(theme_name) orelse 0;
+    const native_opts = native_options.Options{
+        .replay = replay,
+        .demo_model = demo_model,
+        .recorder_dir = recorder_dir,
+        .screen = @backingInt(screen),
+        .theme_index = theme_index,
+        .smoke = smoke,
+        .width = width,
+        .height = height,
+        .resize = resize,
+        .a11y = a11y,
+        .live = live,
+        .duration_ms = duration_ms,
+        .preset = preset_name,
+        .follow_recorder = follow_recorder,
+    };
     if (comptime builtin.os.tag == .linux) {
         const native = @import("../platform/linux/x11.zig");
-        native.run(io, allocator, replay, demo_model, recorder_dir, @backingInt(screen), theme_index, smoke) catch |run_error| {
+        native.run(io, allocator, native_opts) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
             return 1;
         };
@@ -245,7 +358,7 @@ pub fn cmdUi(
     }
     if (comptime builtin.os.tag == .macos) {
         const native = @import("../platform/macos/window.zig");
-        native.run(io, allocator, replay, demo_model, recorder_dir, @backingInt(screen), theme_index, smoke) catch |run_error| {
+        native.run(io, allocator, native_opts) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
             return 1;
         };
@@ -255,9 +368,65 @@ pub fn cmdUi(
     return 2;
 }
 
-fn parseOverlay(name: []const u8) design_state.Dialog {
-    if (std.mem.eql(u8, name, "palette")) return .palette;
-    if (std.mem.eql(u8, name, "appearance") or std.mem.eql(u8, name, "theme")) return .appearance;
-    if (std.mem.eql(u8, name, "help")) return .help;
-    return .none;
+/// Applies a deterministic snapshot overlay. The state is built directly from
+/// flags here: snapshots never read user settings or persisted onboarding state.
+fn applyOverlay(state: *design_state.State, name: []const u8) bool {
+    if (std.mem.eql(u8, name, "none")) return true;
+    if (std.mem.eql(u8, name, "palette")) {
+        state.dialog = .palette;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "appearance") or std.mem.eql(u8, name, "theme")) {
+        state.dialog = .appearance;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "help")) {
+        state.dialog = .help;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "onboarding")) {
+        state.dialog = .onboarding;
+        state.onboarding.active = true;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "picker")) {
+        state.dialog = .picker;
+        state.picker.open(.file, .replay_file);
+        state.picker.phase = .browsing;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "confirm")) {
+        state.dialog = .confirm;
+        state.confirm_pending = .stop_capture;
+        return true;
+    }
+    return false;
+}
+
+/// Canonical design a11y tree for `--a11y FILE`; the same schema the web DOM
+/// mirror and macOS bridge consume.
+fn writeA11y(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    model: *const design_model.Model,
+    state: *const design_state.State,
+    canvas: *const xsui.Canvas,
+) !void {
+    var tree = design_a11y.Tree{};
+    design_a11y.build(model, state, canvas, &tree);
+    var out = std.Io.Writer.Allocating.init(allocator);
+    defer out.deinit();
+    try design_a11y.writeJson(&out.writer, &tree);
+    const data = try out.toOwnedSlice();
+    defer allocator.free(data);
+    const file = if (path.len != 0 and path[0] == '/')
+        try std.Io.Dir.createFileAbsolute(io, path, .{})
+    else
+        try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer file.close(io);
+    var buffer: [16 * 1024]u8 = undefined;
+    var writer = file.writer(io, &buffer);
+    try writer.interface.writeAll(data);
+    try writer.interface.flush();
 }

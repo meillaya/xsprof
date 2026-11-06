@@ -26,10 +26,11 @@ prototype rather than approximating it.
 | [`tokens.json`](tokens.json) | canonical shared tokens: meta, typography, spacing, radii, borders, focus, layout, components, motion, GPU ABI |
 | [`palettes.json`](palettes.json) | canonical color source: six palettes, semantic roles, state contract, color-mix recipes, per-theme derived colors |
 | [`tokens.css`](tokens.css) | generated CSS custom properties for Graphite, Paper, and four Catppuccin flavours |
-| [`screens.json`](screens.json) | shell, five screens, overlays, regions, content contracts, states, responsive behavior |
+| [`screens.json`](screens.json) | shell, eight routes (five analysis screens plus product shell), overlays, regions, content contracts, states, responsive behavior |
 | [`flows.json`](flows.json) | lifecycle, navigation, overlays, journal, timeline, advisor, events, capture, feedback, and responsive flows |
 | [`keybindings.json`](keybindings.json) | global, dialog, palette, rail, timeline-pointer, and native-port key/gesture maps |
-| [`command-palette.json`](command-palette.json) | 17 exact palette commands, appearance options, help sheet, grouping and search rules |
+| [`command-palette.json`](command-palette.json) | 35 exact palette commands (product shell v2), appearance options, help sheet, grouping and search rules |
+| [`product-shell.md`](product-shell.md) | product shell v2 extension: Home/Audit/Settings routes, picker/confirm/onboarding overlays, hit-id policy, persistence/audit/a11y contract, fail-closed matrix and integration hooks |
 | [`gpu-mapping.md`](gpu-mapping.md) | token-to-instance mapping, color/text/layout requirements, parity harness, known gaps |
 | [`index.html`](index.html) | the console prototype itself; self-contained, source of truth for all tokens |
 | [`validate.py`](validate.py) | checks source hash, JSON validity, palette coverage, CSS parity, screens/flows presence, atlas hash, and the formal spec |
@@ -64,16 +65,23 @@ Loss rows are `LOSS` + `■` with a `tint-refuse` background.
 
 | id | title | key | purpose |
 |---|---|---|---|
+| `home` | Home | `0` | onboarding CTA, source choice (live/replay/recorder/demo), time frame, recents, capabilities, recorder strip |
 | `overview` | Overview | `1` | brief, capability matrix, per-CPU lanes, advisor preview, top threads, event mix, memory/NUMA, loss ledger |
 | `timeline` | Timeline | `2` | CPU/thread lanes, playback, zoom/brush, loss bands, minimap, inspector |
 | `advisor` | Advisor | `3` | seven rules, severity filters, evidence jumps, suggestion-only copy |
 | `events` | Events | `4` | sanitized ledger, text/type filtering, detail pane |
-| `capture` | Capture | `5` | recorder status, retention, segments, exact commands, refused verbs |
+| `capture` | Recorder | `5` | recorder start/stop/restart, compact retention, segments, verify, exports, history, compare |
+| `audit` | Audit | `6` | provenance, manifest lifecycle, verify, capability/gate evidence, operator action log, compare/export |
+| `settings` | Settings | `7` / Cmd+, | appearance, capture/storage defaults, accessibility, diagnostics, advanced headless equivalents, reset/onboarding |
 
-Shared shell: skip link, topbar (brand, current screen, session meta, source/
-loss/safety chips, palette/theme/help buttons), vertical screen rail, stage,
-keybar with status. Overlays: command palette, appearance, keyboard help,
-toast. The file input is a hidden utility, not a visible surface.
+Shared shell: skip link, topbar (brand, current route, session meta, source/
+loss/safety chips, palette/theme/help buttons), vertical route rail or bottom
+route bar, stage, keybar with status. Overlays: command palette, appearance,
+keyboard help, onboarding, GPU picker, confirm, toast. The file input is a
+hidden web utility, not a visible surface. Home/Recorder/Audit/Settings and
+their overlays are the product-shell extension documented in
+[`product-shell.md`](product-shell.md); the pinned prototype remains the
+visual source for the five analysis screens.
 
 `design/index.html` is responsive at 1320, 1140, 1024, 780, and 420 CSS px. The
 1024px breakpoint turns the rail into a bottom bar and hides the keybar.

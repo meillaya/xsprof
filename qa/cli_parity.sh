@@ -1,5 +1,6 @@
 #!/bin/sh
-# Process-level CLI gate: read-only commands, canonical refusal, timeline shape.
+# Process-level CLI gate: read-only commands, canonical refusal, timeline shape,
+# UI-first surface, and compact/legacy recorder extraction.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN="$ROOT/zig-out/bin/xsprof"
@@ -14,21 +15,40 @@ check_contains() { # file needle label
         fail=1
     fi
 }
+check_not_contains() { # file needle label
+    if grep -q -- "$2" "$1"; then
+        echo "cli_parity: $3: unexpected '$2'" >&2
+        fail=1
+    fi
+}
 
 "$BIN" >"$TMP/quickstart"
 check_contains "$TMP/quickstart" "xsprof" "quickstart"
+check_contains "$TMP/quickstart" "help --all" "quickstart-all"
 "$BIN" help >"$TMP/help"
 check_contains "$TMP/help" "xsprof" "help"
+check_contains "$TMP/help" "PRIMARY COMMANDS" "help-primary"
+check_not_contains "$TMP/help" "advise" "help-hides-automation"
+"$BIN" help --all >"$TMP/help-all"
+check_contains "$TMP/help-all" "advise" "help-all"
+check_contains "$TMP/help-all" "capture" "help-all-capture"
+check_contains "$TMP/help-all" "verify" "help-all-verify"
 "$BIN" help top >"$TMP/help-top"
 check_contains "$TMP/help-top" "top" "help-top"
 "$BIN" top --help >/dev/null
 "$BIN" why --help >/dev/null
 "$BIN" completions bash >"$TMP/completions"
 check_contains "$TMP/completions" "top" "completions"
+check_contains "$TMP/completions" "ui" "completions-ui"
+check_not_contains "$TMP/completions" "advise" "completions-primary"
+"$BIN" completions bash --all >"$TMP/completions-all"
+check_contains "$TMP/completions-all" "advise" "completions-all"
 "$BIN" doctor >"$TMP/doctor"
 check_contains "$TMP/doctor" "status=" "doctor-human"
 "$BIN" version >"$TMP/version"
-check_contains "$TMP/version" "xsprof 0.3.0" "version"
+check_contains "$TMP/version" "xsprof 0.4.0" "version"
+XSPROF_NO_UI=1 "$BIN" >"$TMP/no-ui"
+check_contains "$TMP/no-ui" "xsprof" "no-ui-quickstart"
 
 for verb in load attach enable mutate apply sched-ext-attach setaffinity setpriority bind; do
     if "$BIN" "$verb" >"$TMP/refusal" 2>/dev/null; then
@@ -70,6 +90,7 @@ if "$BIN" advise --input "$TMP/does-not-exist.ndjson" >/dev/null 2>&1; then
     fail=1
 fi
 
+# Legacy NDJSON state (pre-0.4) must stay readable.
 STATE="$TMP/state"
 mkdir -p "$STATE/segments"
 cat >"$STATE/segments/0-0.ndjson" <<'EOF'
@@ -85,9 +106,9 @@ START_S=$((NOW_S - 120))
 START_NS="${START_S}000000000"
 END_NS="${NOW_S}000000000"
 cat >"$STATE/manifest.json" <<EOF
-{"host_mutation":false,"max_age_ms":600000,"max_bytes":2147483648,"schema":"xsprof/recorder-manifest/v1","segments":[{"bytes":$BODY_BYTES,"closed":true,"end_mono_ns":70000000000,"end_wall_ns":$END_NS,"events":5,"path":"segments/0-0.ndjson","start_mono_ns":0,"start_wall_ns":$START_NS}],"session_id":"incident-smoke","started_mono_ns":0,"started_wall_ns":$START_NS,"state":"stopped","updated_wall_ns":$END_NS}
+{"host_mutation":false,"max_age_ms":600000,"max_bytes":2147483648,"schema":"xsprof/recorder-manifest/v1","segments":[{"bytes":$BODY_BYTES,"closed":true,"codec":"ndjson","end_mono_ns":70000000000,"end_wall_ns":$END_NS,"events":5,"path":"segments/0-0.ndjson","start_mono_ns":0,"start_wall_ns":$START_NS}],"session_id":"incident-smoke","started_mono_ns":0,"started_wall_ns":$START_NS,"state":"stopped","updated_wall_ns":$END_NS}
 EOF
-"$BIN" incident --last 60s --dir "$STATE" --out "$TMP/incident" >"$TMP/incident-result"
+"$BIN" incident --last 60s --dir "$STATE" --out "$TMP/incident" --max-window-bytes 1M >"$TMP/incident-result"
 check_contains "$TMP/incident-result" '"schema":"xsprof/incident-result/v1"' "incident-result"
 check_contains "$TMP/incident-result" '"host_mutation":false' "incident-result"
 for artifact in window.ndjson summary.json report.html trace.json; do
@@ -105,6 +126,34 @@ if grep -Eq 'https?://' "$TMP/incident/report.html"; then
     echo "cli_parity: incident report has an external URL" >&2
     fail=1
 fi
+
+# Compact v1 golden segment: decode must match the committed canonical extract.
+GSTATE="$TMP/golden-state"
+mkdir -p "$GSTATE/segments"
+cp "$ROOT/tests/golden/recorder/segments/segment_v1_golden.xsraw" "$GSTATE/segments/"
+GBYTES=$(wc -c <"$GSTATE/segments/segment_v1_golden.xsraw" | tr -d ' ')
+GEVENTS=$(wc -l <"$ROOT/tests/golden/recorder/segment_v1_golden.ndjson" | tr -d ' ')
+cat >"$GSTATE/manifest.json" <<EOF
+{"host_mutation":false,"max_age_ms":600000,"max_bytes":2147483648,"raw_codec":"compact_v1","schema":"xsprof/recorder-manifest/v1","segments":[{"bytes":$GBYTES,"closed":true,"codec":"compact_v1","end_mono_ns":70000000000,"end_wall_ns":$END_NS,"events":$GEVENTS,"path":"segments/segment_v1_golden.xsraw","start_mono_ns":0,"start_wall_ns":$START_NS}],"session_id":"golden-compact","started_mono_ns":0,"started_wall_ns":$START_NS,"state":"stopped","updated_wall_ns":$END_NS}
+EOF
+"$BIN" capture --last 1h --dir "$GSTATE" --out "$TMP/golden.ndjson"
+if ! cmp -s "$TMP/golden.ndjson" "$ROOT/tests/golden/recorder/segment_v1_golden.ndjson"; then
+    echo "cli_parity: compact golden extraction differs from the canonical extract" >&2
+    fail=1
+fi
+check_contains "$TMP/golden.ndjson" '"host_mutation":false' "golden-extract"
+check_contains "$TMP/golden.ndjson" '"event":"sched_switch"' "golden-switch"
+if grep -q 'capture_corrupt\|capture_truncated' "$TMP/golden.ndjson"; then
+    echo "cli_parity: clean golden extraction emitted a gap marker" >&2
+    fail=1
+fi
+if ! "$BIN" verify --dir "$GSTATE" --json >"$TMP/verify"; then
+    echo "cli_parity: verify did not exit zero on the clean golden state" >&2
+    fail=1
+fi
+check_contains "$TMP/verify" '"schema":"xsprof/recorder-verify/v1"' "verify-schema"
+check_contains "$TMP/verify" '"state":"READY"' "verify-clean"
+check_contains "$TMP/verify" '"host_mutation":false' "verify-safety"
 
 HSTATE="$TMP/history-state"
 mkdir -p "$HSTATE/metrics"
@@ -143,7 +192,7 @@ fi
     --out "$TMP/timeline.png" --width 640 --height 360 >/dev/null
 SIG=$(od -An -tx1 -N8 "$TMP/timeline.png" | tr -d ' \n')
 if [ "$SIG" != "89504e470d0a1a0a" ]; then
-    echo "snapshot replay: bad PNG signature ($SIG)" >&2
+    echo "cli_parity: snapshot replay bad PNG signature ($SIG)" >&2
     fail=1
 fi
 

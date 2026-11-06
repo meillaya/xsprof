@@ -506,3 +506,27 @@ export fn web_ui_event_count() u32 {
 export fn web_ui_screen() u32 {
     return console.screenIndex();
 }
+
+export fn web_ui_a11y_ptr() usize {
+    return console.a11yPtr();
+}
+
+export fn web_ui_a11y_len() u32 {
+    return console.a11yLen();
+}
+
+export fn web_ui_a11y_version() u32 {
+    return console.a11yVersion();
+}
+
+export fn web_ui_a11y_focus(id: u32) void {
+    console.a11yFocus(id);
+}
+
+export fn web_ui_a11y_activate(id: u32) void {
+    console.a11yActivate(id);
+}
+
+export fn web_ui_take_demo() u32 {
+    return console.takeDemoRequest();
+}
