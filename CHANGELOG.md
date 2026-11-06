@@ -7,6 +7,7 @@
 - Live tail stop no longer stalls when the bounded feed fills up. The feed now
   trims to half capacity in one step; trimming only the exact overflow copied
   the whole store for every appended event once full (a catch-up/stop stall).
+  See [docs/audit/live-feed-stall.md](docs/audit/live-feed-stall.md).
 - Recorder probe SKIP/REFUSE is no longer displayed as FAILED; the reason is
   shown with the capture permission requirement and the Recorder screen keeps
   in-app export/verify actions instead of shell snippets.
