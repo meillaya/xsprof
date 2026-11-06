@@ -1,6 +1,6 @@
 {
   "$schema": "xsprof/ui-spec/v1",
-  "version": 1,
+  "version": 2,
   "status": "canonical",
   "meaning": "The single deterministic rendering and interaction contract for every xsprof surface. The HTML prototype is the design source; reference pixel diffs are advisory. CPU is the canonical raster; Metal, OpenGL, WebGL2, and CPU must consume the same draw list and text atlas.",
   "design_source": {
@@ -119,16 +119,22 @@
     "radius": 5
   },
   "screens": [
+    "home",
     "overview",
     "timeline",
     "advisor",
     "events",
-    "capture"
+    "capture",
+    "audit",
+    "settings"
   ],
   "overlays": [
     "palette",
     "appearance",
     "help",
+    "picker",
+    "confirm",
+    "onboarding",
     "toast"
   ],
   "text_roles": [
@@ -223,7 +229,7 @@
   },
   "interaction": {
     "state_machine": "src/app/design/state.zig",
-    "screens_switch": "1..5",
+    "screens_switch": "0 home, 1..5 analysis, 6 audit, 7 settings",
     "palette": "meta/ctrl+k",
     "appearance": "w",
     "help": "?",
@@ -249,7 +255,8 @@
       "1024": "bottom rail; no keybar; single capture/advisor; full-width grid",
       "780": "compact topbar; one-column overview; mobile thread/ledger rows",
       "420": "hidden source chip; single-column theme grid; 22/28px stat values"
-    }
+    },
+    "settings": "meta/ctrl+,"
   },
   "data": {
     "source": "journal, live SSE, recorder manifest",
@@ -280,5 +287,17 @@
       "text_origin_tolerance_px": 0.01,
       "box_edge_tolerance_px": 1.0
     }
+  },
+  "extension": {
+    "status": "proposed",
+    "prototypeUpdated": false,
+    "analysisScreens": [
+      "overview",
+      "timeline",
+      "advisor",
+      "events",
+      "capture"
+    ],
+    "reason": "Product shell v2 adds Home/Audit/Settings routes and picker/confirm/onboarding overlays. The pinned design/index.html prototype remains the source for the five analysis screens; the extension is specified in design/product-shell.md and screens.json/flows.json until the prototype is updated."
   }
 }

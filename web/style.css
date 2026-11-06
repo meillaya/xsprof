@@ -18,6 +18,11 @@ body { font: 11px/1.5 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, mon
   border-radius: 4px; font: 11px "JetBrains Mono", monospace; text-decoration: none;
 }
 #skip:focus { top: 8px; }
+#a11y {
+  position: absolute; left: -10000px; top: 0; width: 1px; height: 1px;
+  overflow: hidden;
+}
+#a11y button { font: inherit; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;

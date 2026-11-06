@@ -1,7 +1,17 @@
 #!/bin/sh
 # Use the pinned Zig 0.17.0 toolchain, bootstrapping it on first use.
+#
+# XSPROF_ZIG overrides the toolchain path for hermetic builds (Nix, CI
+# package jobs). When it is set no download and no bootstrap is attempted.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ -n "${XSPROF_ZIG:-}" ]; then
+    if [ ! -x "$XSPROF_ZIG" ]; then
+        echo "tools/zig: XSPROF_ZIG is not executable: $XSPROF_ZIG" >&2
+        exit 127
+    fi
+    exec "$XSPROF_ZIG" "$@"
+fi
 ZIG="$ROOT/.tools/zig-0.17.0/zig"
 if [ ! -x "$ZIG" ]; then
     "$ROOT/tools/bootstrap.sh"

@@ -3,13 +3,17 @@
 The recorder keeps one perf capture open, writes bounded append-only segments,
 and lets you extract the recent window after an incident.
 
-`--retain` is an upper age bound, not the retained duration: `--max-bytes` binds
-first. The real 1.2 s macOS-VM capture is 17.5 MB, or about 15 MB/s, so the
-default 2 GiB budget holds roughly 2–3 minutes at that rate. Raise
-`--max-bytes` or reduce the event mask for a longer window. The Capture screen
-shows the actual retained wall span (`X covered · cap Y`) from the manifest,
-not the configured cap; an extract older than the retained data carries a
-`retention_loss` marker instead of being zero-filled.
+`--retain` is an upper age bound, not the retained duration: `--max-bytes` can bind
+first. 0.4 raw segments are compact .xsraw (roughly 12-13 bytes/event in the
+projection, versus 159-160 bytes/event canonical), so the default 2 GiB budget
+holds well beyond the 10-minute age cap at the measured 140k events/s. The age
+cap therefore defines the raw window, and the byte budget is the safety
+backstop for higher rates. Raise `--max-bytes` only if the rate or event text
+grows. The Capture screen shows the actual retained wall span
+(`X covered · cap Y`) from the manifest, not the configured cap; an extract
+older than the retained data carries a `retention_loss` marker instead of
+being zero-filled.
+
 
 ## Prerequisites
 
@@ -32,16 +36,21 @@ kernel policy through your normal provisioning.
 
 `--preset scheduler|memory|deep` selects an event mask and ring budget.
 `--duration <ms>` stops after a bounded test run. The daemon writes
-`manifest.json`, `lock`, and `segments/*.ndjson` under the state directory.
-Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest closed
-segments when the byte or age budget is exceeded and writes a
-`retention_loss` marker.
+`manifest.json`, `lock`, and compact `segments/*.xsraw` under the state
+directory. Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest
+closed segments when the byte or age budget is exceeded and writes a
+`retention_loss` marker. The manifest records `"raw_codec":"compact_v1"` and a
+per-segment codec; 0.3 .ndjson segments in the same directory stay readable.
 
-SIGTERM/SIGINT is a cooperative stop: the daemon flushes the active segment,
+
+SIGTERM/SIGINT is a cooperative stop: the daemon writes the segment footer,
 writes `capture_stop signal=terminated`, flushes the history bucket, and marks
 the manifest `stopped`. If the process is killed, the next start marks the stale
-segment closed, adds `capture_interrupted previous_session=<id>`, and starts a
-new segment without discarding the earlier history.
+segment closed, adds `capture_interrupted previous_session=<id>`, and checks
+the final footer. A missing footer or torn block adds an explicit
+`capture_truncated_tail missing_footer=1 dropped=1` marker to the new segment;
+the complete prefix is kept and never zero-filled.
+
 
 History sidecars are written from an in-memory metrics accumulator every
 `--history-interval` (default 60 s) and retained for `--history-retain` (default
@@ -60,10 +69,15 @@ window.
 ```
 
 The extractor converts the wall-clock cutoff using each segment's wall and
-monotonic anchors, keeps only complete lines, and emits explicit markers for
-missing, corrupt, or trimmed history. It never fills gaps with zeroes. Session
-metadata (recorder identity, CPU LLC topology, and the buddyinfo snapshot) is
-kept even when its capture-start timestamp is older than the window.
+monotonic anchors, decodes compact blocks (or legacy lines), and emits explicit
+markers for missing, corrupt, torn-tail, unsupported, or trimmed history. It
+never fills gaps with zeroes. `--markers-only` emits just the loss/gap rows for
+bounded audits, `--max-events` and `--max-window-bytes` bound huge windows with
+a `capture_truncated` marker, and `incident --max-window-bytes` bounds the
+canonical window artifact. Session metadata (recorder identity, CPU LLC
+topology, and the buddyinfo snapshot) is kept even when its capture-start
+timestamp is older than the window.
+
 
 ## Bundle the incident
 
@@ -135,6 +149,17 @@ assets. It reports the reason and never executes a fix.
 ## State and privacy
 
 The recorder stores scheduler events and comm names, not argv or environment.
-Keep the state directory private. `host_mutation` is false in every segment,
-summary, and manifest. `capture --last` output remains canonical
-`xsprof/event/v1` NDJSON.
+The compact format stores strings after the same privacy redaction as the
+canonical serializer, so the state directory never holds secrets. Keep the
+state directory private. `host_mutation=false` is in every manifest, summary,
+and extracted row (the binary segment format has no mutation field at all).
+`capture --last` output remains canonical `xsprof/event/v1` NDJSON.
+
+Verify a state directory without starting capture:
+
+```sh
+./zig-out/bin/xsprof verify --dir /var/lib/xsprof --json
+```
+
+It exits 0 only when every segment is clean; dirty/corrupt/missing segments are
+reported as data, never repaired.

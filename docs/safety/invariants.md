@@ -13,7 +13,11 @@ These are release-blocking, not aspirational.
    audit/rollback identity, and SKIPs when BTF/libbpf is absent.
 6. Advisor recommendations are printed/copied only; no syscall path applies
    them.
-7. The UI and web server expose no mutation endpoint.
+7. The web server exposes no mutation endpoint (GET/HEAD only). The native
+   UI may start/stop its own read-only capture/recorder after the perf probe is
+   READY and the Settings opt-in is set; it writes only its own state, export,
+   audit, and settings directories and never changes host policy. External
+   recorders are attach-only.
 
 ## Privacy
 
@@ -25,6 +29,10 @@ These are release-blocking, not aspirational.
 5. The UI renders already-sanitized text; it does not fetch or reveal paths,
    command lines, or secrets.
 6. No telemetry, external fonts/CDNs, or external network requests.
+7. The accessibility tree contains only labels/values already rendered by the
+   console; no raw event detail, argv, environment, or secrets.
+8. Settings and the audit ring are bounded canonical records and store no
+   argv, environment, tokens, or raw event detail.
 
 ## Data integrity
 
@@ -53,5 +61,11 @@ These are release-blocking, not aspirational.
 - `qa/version_sync.sh` — package/runtime version lockstep.
 - `qa/vendor_hash.sh` — offline reference integrity.
 - `qa/live_smoke.sh` — root perf/daemon/SIGTERM gate in a disposable VM.
+- `qa/compact_roundtrip.sh` — compact segment decode/verify, corruption,
+  truncation, mixed legacy state, and bounded HTTP window.
+- `qa/release_tooling.sh` — notarization attestation, tap gating, unsigned
+  labeling, and local publication dry-runs.
+- `qa/a11y_smoke.sh` and the web a11y smoke — canonical tree, focus order, and
+  DOM/ARIA mirror determinism.
 - Golden bytes and UI snapshots — determinism.
 - Linux fail-closed tests; VM tests marked separately.

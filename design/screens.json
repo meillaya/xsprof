@@ -74,9 +74,9 @@
             "id": "session-meta",
             "content": [
               "vm-lab-04",
-              "·",
+              "\u00b7",
               "6.8.0-40-generic",
-              "·",
+              "\u00b7",
               "x86_64"
             ],
             "type": "11px dim/muted"
@@ -99,7 +99,7 @@
               {
                 "id": "safety-chip",
                 "component": "chip",
-                "content": "read-only · host_mutation=false",
+                "content": "read-only \u00b7 host_mutation=false",
                 "icon": "lock",
                 "title": "Every record carries host_mutation=false"
               },
@@ -107,7 +107,7 @@
                 "id": "palette-button",
                 "component": "iconButton",
                 "icon": "menu",
-                "content": "⌘K",
+                "content": "\u2318K",
                 "aria": "Command palette",
                 "aria-keyshortcuts": "Meta+K Control+K"
               },
@@ -178,7 +178,7 @@
         "component": "keybar",
         "items": [
           {
-            "keys": "1–5",
+            "keys": "1\u20135",
             "action": "screens"
           },
           {
@@ -194,7 +194,7 @@
             "action": "fit"
           },
           {
-            "keys": "+ −",
+            "keys": "+ \u2212",
             "action": "zoom"
           },
           {
@@ -202,7 +202,7 @@
             "action": "theme"
           },
           {
-            "keys": "⌘K",
+            "keys": "\u2318K",
             "action": "palette"
           },
           {
@@ -211,15 +211,15 @@
           }
         ],
         "status": [
-          "▚",
+          "\u259a",
           "replay|journal",
-          "·",
+          "\u00b7",
           "fixture/journal name",
-          "·",
+          "\u00b7",
           "switches",
-          "·",
+          "\u00b7",
           "lost",
-          "·",
+          "\u00b7",
           "host_mutation=false"
         ]
       }
@@ -240,15 +240,41 @@
   },
   "screens": [
     {
+      "id": "home",
+      "title": "Home",
+      "route": "#home",
+      "navKey": "0",
+      "purpose": "Startup and onboarding: source choice (live/replay/recorder-window/demo), requested time frame, capability strip, recorder strip, recents.",
+      "regions": [
+        "home-onboarding",
+        "home-sources",
+        "home-window",
+        "home-recorder",
+        "home-capabilities",
+        "home-recents"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "ready",
+        "skip",
+        "refuse",
+        "loss",
+        "stale",
+        "malformed"
+      ],
+      "extension": true
+    },
+    {
       "id": "overview",
       "title": "Overview",
       "route": "#overview",
       "navKey": "1",
       "purpose": "Capture summary, capability posture, per-CPU load, advisor preview, top threads, event mix, memory/NUMA, loss ledger.",
       "head": {
-        "eyebrow": "Session 04 · healthy fixture",
+        "eyebrow": "Session 04 \u00b7 healthy fixture",
         "title": "Overview",
-        "note": "Capture window 14:02:11 → 14:07:11 · excerpt 13.970 s",
+        "note": "Capture window 14:02:11 \u2192 14:07:11 \u00b7 excerpt 13.970 s",
         "actions": [
           "Open journal",
           "Reload fixture"
@@ -260,25 +286,25 @@
           "component": "brief",
           "stats": [
             {
-              "label": "p95 wake→run",
+              "label": "p95 wake\u2192run",
               "primary": true,
               "valueExample": "0.900 ms",
-              "sub": "p99 1.977 ms · 4 CPUs"
+              "sub": "p99 1.977 ms \u00b7 4 CPUs"
             },
             {
               "label": "Switches",
               "valueExample": "1,040",
-              "sub": "74.4 /s · 182 migrations"
+              "sub": "74.4 /s \u00b7 182 migrations"
             },
             {
               "label": "Events",
               "valueExample": "1,444",
-              "sub": "13.970 s excerpt · 5 m 00 s capture"
+              "sub": "13.970 s excerpt \u00b7 5 m 00 s capture"
             },
             {
               "label": "Lost",
               "valueExample": "3",
-              "sub": "ring overflow · never zero-filled",
+              "sub": "ring overflow \u00b7 never zero-filled",
               "refuseWhenNonZero": true
             },
             {
@@ -301,15 +327,15 @@
             {
               "index": "02",
               "title": "Per-CPU lanes",
-              "meta": "busy · rq · p95",
+              "meta": "busy \u00b7 rq \u00b7 p95",
               "content": "4 cpuRow entries: cpuN, busy %, 120x18 strip, rq, p95 (warn when >2ms), switches",
-              "note": "48 buckets across the excerpt. Idle spans stay dark — never counted as load."
+              "note": "48 buckets across the excerpt. Idle spans stay dark \u2014 never counted as load."
             },
             {
               "index": "03",
               "title": "Advisor",
-              "metaLink": "all 7 rules →",
-              "note": "Suggestion only — never applied.",
+              "metaLink": "all 7 rules \u2192",
+              "note": "Suggestion only \u2014 never applied.",
               "content": "advisorMini x7: severity dot, rule id, severity label"
             }
           ]
@@ -321,7 +347,7 @@
             {
               "index": "04",
               "title": "Top threads",
-              "meta": "by p95 wake→run",
+              "meta": "by p95 wake\u2192run",
               "content": "threadTable: 7 rows; columns thread, pid, sw, mig, p95, share; swatch uses lane color; p95 hot when >2ms"
             },
             {
@@ -344,8 +370,8 @@
           "component": "panel loss-panel",
           "index": "07",
           "title": "Loss ledger",
-          "meta": "3 events · never zero-filled",
-          "content": "lossRow: LOSS chip, timestamp, detail, absolute time · not zero-filled; tint-refuse background"
+          "meta": "3 events \u00b7 never zero-filled",
+          "content": "lossRow: LOSS chip, timestamp, detail, absolute time \u00b7 not zero-filled; tint-refuse background"
         }
       ],
       "states": [
@@ -392,10 +418,10 @@
       "navKey": "2",
       "purpose": "CPU and thread lanes over the capture window with playback, brush/zoom, loss bands, minimap, and slice inspector.",
       "head": {
-        "eyebrow": "window 0.000 s – 13.970 s · 1,040 switches",
+        "eyebrow": "window 0.000 s \u2013 13.970 s \u00b7 1,040 switches",
         "title": "Timeline",
         "actions": [
-          "Zoom out (−)",
+          "Zoom out (\u2212)",
           "Zoom in (+)",
           "Fit",
           "Play/Pause",
@@ -424,7 +450,7 @@
                 "minWidth": 320
               },
               "content": [
-                "ruler ticks, 1/2/5×10 step targeting visible/6",
+                "ruler ticks, 1/2/5\u00d710 step targeting visible/6",
                 "4 CPU lanes with slice rects",
                 "up to 4 thread lanes",
                 "loss bands + LOSS labels",
@@ -441,7 +467,7 @@
                 },
                 {
                   "id": "slice",
-                  "content": "inspector heading, cpu tag, task swatch, pid/start, duration, p95 wake→run, off-CPU p95, switches, migrations, Focus ±150ms, Events for task, read-only note"
+                  "content": "inspector heading, cpu tag, task swatch, pid/start, duration, p95 wake\u2192run, off-CPU p95, switches, migrations, Focus \u00b1150ms, Events for task, read-only note"
                 },
                 {
                   "id": "event",
@@ -468,11 +494,11 @@
             },
             {
               "id": "tl-hint",
-              "content": "drag brush to zoom · click inspect slice · space playhead"
+              "content": "drag brush to zoom \u00b7 click inspect slice \u00b7 space playhead"
             },
             {
               "id": "tl-state",
-              "content": "REPLAY · no live tail"
+              "content": "REPLAY \u00b7 no live tail"
             }
           ]
         }
@@ -518,7 +544,7 @@
         "hover tooltip",
         "double-click fit",
         "minimap click center",
-        "±/f/space/t keys"
+        "\u00b1/f/space/t keys"
       ]
     },
     {
@@ -528,7 +554,7 @@
       "navKey": "3",
       "purpose": "Seven rules with severity, confidence, evidence chips, suggestion-only recommendations, and evidence focus.",
       "head": {
-        "eyebrow": "Seven rules · evidence-linked",
+        "eyebrow": "Seven rules \u00b7 evidence-linked",
         "title": "Advisor",
         "note": "Suggestion only. xsprof never applies, loads, or attaches anything.",
         "filters": [
@@ -608,14 +634,14 @@
             "confidence bar when collected",
             "summary",
             "evidence chips",
-            "Suggestion only — never applied. recommendation",
-            "Show evidence → when focus exists"
+            "Suggestion only \u2014 never applied. recommendation",
+            "Show evidence \u2192 when focus exists"
           ]
         },
         {
           "id": "advisor-empty",
           "component": "empty-inline",
-          "content": "No rules match this filter. Choose “All 7” to see the full set.",
+          "content": "No rules match this filter. Choose \u201cAll 7\u201d to see the full set.",
           "visibleWhen": "filtered set empty"
         }
       ],
@@ -650,10 +676,10 @@
       "navKey": "4",
       "purpose": "Append-only sanitized ledger with text + type filtering, detail pane, and loss rows.",
       "head": {
-        "eyebrow": "Append-only ledger · sanitized",
+        "eyebrow": "Append-only ledger \u00b7 sanitized",
         "title": "Events",
         "filter": {
-          "placeholder": "comm, pid, type…",
+          "placeholder": "comm, pid, type\u2026",
           "label": "Filter",
           "key": "/"
         }
@@ -669,7 +695,7 @@
             },
             {
               "id": "event-count",
-              "content": "N events · showing M (or N of Total · showing M)"
+              "content": "N events \u00b7 showing M (or N of Total \u00b7 showing M)"
             }
           ]
         },
@@ -693,7 +719,7 @@
                 "normal",
                 "hover",
                 "selected (inset 2px live)",
-                "loss (tint refuse + ■)",
+                "loss (tint refuse + \u25a0)",
                 "empty result"
               ]
             },
@@ -723,7 +749,7 @@
         },
         {
           "id": "empty",
-          "behavior": "empty state: No events match “query”. Clear the filter or choose another type."
+          "behavior": "empty state: No events match \u201cquery\u201d. Clear the filter or choose another type."
         },
         {
           "id": "loss",
@@ -750,7 +776,7 @@
       "navKey": "5",
       "purpose": "Read-only recorder status, retention budget, segments, exact CLI commands, and refused verbs.",
       "head": {
-        "eyebrow": "Read-only status · no mutation controls",
+        "eyebrow": "Read-only status \u00b7 no mutation controls",
         "title": "Capture",
         "note": "Attach a recorder in a terminal. This view cannot start, stop, or alter a capture."
       },
@@ -766,9 +792,9 @@
               "rows": [
                 "Source REPLAY",
                 "Recorder not attached",
-                "Manifest manifest.json · replay fixture",
-                "Window 5 m 00 s · excerpt 13.970 s",
-                "Host vm-lab-04 · 6.8.0-40-generic",
+                "Manifest manifest.json \u00b7 replay fixture",
+                "Window 5 m 00 s \u00b7 excerpt 13.970 s",
+                "Host vm-lab-04 \u00b7 6.8.0-40-generic",
                 "host_mutation false (pass)"
               ]
             },
@@ -777,8 +803,8 @@
               "index": "02",
               "title": "Retention budget",
               "meta": "412 MiB / 2 GiB",
-              "content": "6px meter at 20%, 0 → 2 GiB scale, oldest closed segments drop first, retention_loss marker",
-              "note": "Each drop writes an explicit retention_loss marker — never a silent gap."
+              "content": "6px meter at 20%, 0 \u2192 2 GiB scale, oldest closed segments drop first, retention_loss marker",
+              "note": "Each drop writes an explicit retention_loss marker \u2014 never a silent gap."
             },
             {
               "id": "segments",
@@ -837,7 +863,7 @@
         },
         {
           "id": "no-retention",
-          "behavior": "meta not available; scale reads —; meter 0%"
+          "behavior": "meta not available; scale reads \u2014; meter 0%"
         },
         {
           "id": "no-segments",
@@ -852,6 +878,51 @@
         "Copy command buttons",
         "no capture-control controls by design"
       ]
+    },
+    {
+      "id": "audit",
+      "title": "Audit",
+      "route": "#audit",
+      "navKey": "6",
+      "purpose": "Read-only provenance: session manifest, lifecycle markers, segments/loss, retention coverage, capability gates, and the bounded UI action log.",
+      "regions": [
+        "audit-session",
+        "audit-lifecycle",
+        "audit-retention",
+        "audit-actions",
+        "audit-gates"
+      ],
+      "states": [
+        "empty",
+        "ready",
+        "skip",
+        "refuse",
+        "loss",
+        "stale"
+      ],
+      "extension": true
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "route": "#settings",
+      "navKey": "7",
+      "purpose": "Persisted UI settings: appearance, accessibility, capture defaults, storage/retention, diagnostics, about and reset.",
+      "regions": [
+        "settings-appearance",
+        "settings-a11y",
+        "settings-capture",
+        "settings-storage",
+        "settings-diagnostics",
+        "settings-about"
+      ],
+      "states": [
+        "empty",
+        "ready",
+        "skip",
+        "refuse"
+      ],
+      "extension": true
     }
   ],
   "overlays": [
@@ -859,15 +930,15 @@
       "id": "command-palette",
       "component": "dialog.palette",
       "trigger": [
-        "⌘K/Ctrl K",
+        "\u2318K/Ctrl K",
         "palette button"
       ],
       "width": 560,
       "marginTop": "14vh",
       "content": [
-        "input placeholder Jump to screen, switch theme, open journal…",
+        "input placeholder Jump to screen, switch theme, open journal\u2026",
         "list of 17 commands grouped screen/action/theme",
-        "footer ↑↓ move · enter run"
+        "footer \u2191\u2193 move \u00b7 enter run"
       ],
       "states": [
         "open",
@@ -964,8 +1035,54 @@
       "id": "file-input",
       "component": "hidden utility",
       "accept": ".ndjson,.jsonl,.json",
-      "trigger": "Open journal button, drag-drop, palette Open journal…",
+      "trigger": "Open journal button, drag-drop, palette Open journal\u2026",
       "notVisual": true
+    },
+    {
+      "id": "picker",
+      "component": "dialog.picker",
+      "trigger": [
+        "Load replay journal",
+        "Load recorder window",
+        "palette source commands"
+      ],
+      "width": 640,
+      "content": [
+        "breadcrumb cwd",
+        "filter field",
+        "directory/file rows",
+        "loading/empty/error-with-reason states"
+      ]
+    },
+    {
+      "id": "confirm",
+      "component": "dialog.confirm",
+      "trigger": [
+        "Stop capture",
+        "Restart capture",
+        "Reset settings"
+      ],
+      "width": 460,
+      "content": [
+        "title",
+        "consequence body",
+        "cancel/confirm"
+      ]
+    },
+    {
+      "id": "onboarding",
+      "component": "dialog.onboarding",
+      "trigger": [
+        "first run",
+        "palette Show onboarding"
+      ],
+      "width": 620,
+      "content": [
+        "welcome",
+        "read-only contract",
+        "host capabilities",
+        "choose a source"
+      ]
     }
   ],
   "stateMatrix": {
@@ -987,8 +1104,17 @@
       "loss": true,
       "malformed": "partial (toast + skipped lines)",
       "loading": false,
-      "stale": "represented only as REPLAY · no live tail"
+      "stale": "represented only as REPLAY \u00b7 no live tail"
     },
     "policy": "A missing signal is never displayed as zero. Loss and refusal rows are explicit. READY is scoped to the gate that produced it."
+  },
+  "extension": {
+    "status": "proposed",
+    "prototypeUpdated": false,
+    "routes": [
+      "home",
+      "audit",
+      "settings"
+    ]
   }
 }

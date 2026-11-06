@@ -49,7 +49,16 @@ STATE="$TMP/state"
 "$BIN" daemon --foreground --dir "$STATE" --duration 3s --history-interval 1s --history-retain 1h \
     >"$TMP/daemon.json" 2>"$TMP/daemon.err" || fail "daemon failed: $(cat "$TMP/daemon.err")"
 grep -q '"state":"stopped"' "$STATE/manifest.json" || fail "manifest not stopped"
-grep -q '"capture_stop"' "$STATE"/segments/*.ndjson || fail "capture_stop missing"
+grep -q '"raw_codec":"compact_v1"' "$STATE/manifest.json" || fail "manifest raw_codec is not compact_v1"
+"$BIN" capture --last 10m --dir "$STATE" --out "$TMP/daemon-window.ndjson" ||
+    fail "capture --last failed on compact segments"
+grep -q '"capture_stop"' "$TMP/daemon-window.ndjson" || fail "capture_stop missing from extraction"
+grep -q '"host_mutation":false' "$TMP/daemon-window.ndjson" || fail "compact extraction omitted host_mutation=false"
+if grep -q 'capture_corrupt\|capture_truncated_tail' "$TMP/daemon-window.ndjson"; then
+    fail "clean daemon extraction emitted a gap marker"
+fi
+"$BIN" verify --dir "$STATE" --json >"$TMP/verify.json" || fail "verify failed on a clean state"
+grep -q '"state":"READY"' "$TMP/verify.json" || fail "verify state is not READY"
 SIDECARS=$(find "$STATE/metrics" -name '*.json' | wc -l | tr -d ' ')
 [ "$SIDECARS" -ge 1 ] || fail "no history sidecars"
 "$BIN" history --last 10m --dir "$STATE" >"$TMP/history.json" ||
@@ -74,7 +83,9 @@ kill -TERM "$DAEMON_PID"
 wait "$DAEMON_PID" 2>/dev/null || true
 DAEMON_PID=
 grep -q '"state":"stopped"' "$SIG_STATE/manifest.json" || fail "SIGTERM did not stop manifest"
-grep -q '"capture_stop signal=terminated"' "$SIG_STATE"/segments/*.ndjson ||
+"$BIN" capture --last 1m --dir "$SIG_STATE" --out "$TMP/sigterm-window.ndjson" ||
+    fail "SIGTERM extraction failed"
+grep -q '"capture_stop signal=terminated"' "$TMP/sigterm-window.ndjson" ||
     fail "SIGTERM marker missing"
 say "SIGTERM: clean"
 

@@ -15,6 +15,9 @@ pub const Kind = enum {
     advisor,
     events,
     capture,
+    home,
+    audit,
+    settings,
     menu,
     sun,
     help,
@@ -68,6 +71,23 @@ pub fn draw(canvas: *Canvas, kind: Kind, rect: Rect, color: Color) !void {
             try canvas.stroke(.{ .x = x + 3 * scale, .y = y + 4 * scale, .w = 14 * scale, .h = 12 * scale }, 1, color, 1);
             try canvas.line(x + 7 * scale, y + 10 * scale, x + 12 * scale, y + 10 * scale, 1, color);
             try canvas.line(x + 9.5 * scale, y + 7.5 * scale, x + 9.5 * scale, y + 12.5 * scale, 1, color);
+        },
+        .home => {
+            try canvas.line(x + 3 * scale, y + 10 * scale, x + 10 * scale, y + 3 * scale, 1, color);
+            try canvas.line(x + 10 * scale, y + 3 * scale, x + 17 * scale, y + 10 * scale, 1, color);
+            try canvas.line(x + 5 * scale, y + 9 * scale, x + 5 * scale, y + 17 * scale, 1, color);
+            try canvas.line(x + 5 * scale, y + 17 * scale, x + 15 * scale, y + 17 * scale, 1, color);
+            try canvas.line(x + 15 * scale, y + 9 * scale, x + 15 * scale, y + 17 * scale, 1, color);
+        },
+        .audit => {
+            try canvas.stroke(.{ .x = x + 3 * scale, .y = y + 3 * scale, .w = 14 * scale, .h = 15 * scale }, 1, color, 1);
+            try canvas.line(x + 6 * scale, y + 7 * scale, x + 14 * scale, y + 7 * scale, 1, color);
+            try canvas.line(x + 6 * scale, y + 10 * scale, x + 14 * scale, y + 10 * scale, 1, color);
+            try canvas.line(x + 6 * scale, y + 13 * scale, x + 11 * scale, y + 13 * scale, 1, color);
+        },
+        .settings => {
+            try canvas.stroke(.{ .x = x + 4 * scale, .y = y + 4 * scale, .w = 12 * scale, .h = 12 * scale }, 4, color, 1);
+            try canvas.fill(.{ .x = x + 8.5 * scale, .y = y + 8.5 * scale, .w = 3 * scale, .h = 3 * scale }, color);
         },
         .menu => {
             try canvas.line(x + 3 * scale, y + 6 * scale, x + 17 * scale, y + 6 * scale, 1.2, color);

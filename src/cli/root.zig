@@ -22,6 +22,7 @@ const watch_cmd = @import("watch_cmd.zig");
 const analysis_cmd = @import("analysis_cmd.zig");
 const observe_cmd = @import("observe_cmd.zig");
 const lab_cmd = @import("lab_cmd.zig");
+const verify_cmd = @import("verify_cmd.zig");
 const help = @import("help.zig");
 
 const Writer = std.Io.Writer;
@@ -54,6 +55,7 @@ const known_commands = [_][]const u8{
     "pressure",
     "cgroup",
     "lab",
+    "verify",
 };
 
 const refusal_reason =
@@ -79,6 +81,21 @@ fn isKnownCommand(cmd: []const u8) bool {
     return false;
 }
 
+/// Whether bare xsprof may open a native window. Unit tests pass .never so a
+/// developer terminal can never open a window during zig build test.
+pub const UiPolicy = enum { interactive, never };
+
+pub fn uiAllowed(io: std.Io, policy: UiPolicy) bool {
+    if (policy == .never) return false;
+    if (std.c.getenv("XSPROF_NO_UI") != null) return false;
+    const tty = std.Io.File.stdout().isTty(io) catch false;
+    if (!tty) return false;
+    if (comptime @import("builtin").os.tag == .linux) {
+        if (std.c.getenv("DISPLAY") == null and std.c.getenv("WAYLAND_DISPLAY") == null) return false;
+    }
+    return true;
+}
+
 pub fn run(init: std.process.Init) !u8 {
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
@@ -88,7 +105,7 @@ pub fn run(init: std.process.Init) !u8 {
     var err_buffer: [4096]u8 = undefined;
     var err_file: std.Io.File.Writer = .init(.stderr(), init.io, &err_buffer);
 
-    const code = try runWith(init.io, arena, args, &out_file.interface, &err_file.interface);
+    const code = try runWith(init.io, arena, args, &out_file.interface, &err_file.interface, .interactive);
     try out_file.interface.flush();
     try err_file.interface.flush();
     return code;
@@ -228,11 +245,15 @@ pub fn runWith(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
+    ui_policy: UiPolicy,
 ) !u8 {
     if (args.len < 2) {
         // The signed app bundle launches the binary directly and asks for the
         // native UI through LSEnvironment instead of a shell wrapper.
         if (std.c.getenv("XSPROF_APP_MODE") != null) {
+            return render_cmd.cmdUi(io, allocator, &.{}, out, err);
+        }
+        if (uiAllowed(io, ui_policy)) {
             return render_cmd.cmdUi(io, allocator, &.{}, out, err);
         }
         try help.writeQuickstart(out);
@@ -241,7 +262,13 @@ pub fn runWith(
 
     const cmd = args[1];
     if (std.mem.eql(u8, cmd, "help")) {
-        if (args.len > 2) try help.writeCommand(out, args[2]) else try help.writeHelp(out);
+        if (args.len > 2 and std.mem.eql(u8, args[2], "--all")) {
+            try help.writeAllHelp(out);
+        } else if (args.len > 2) {
+            try help.writeCommand(out, args[2]);
+        } else {
+            try help.writeHelp(out);
+        }
         return 0;
     }
     if (std.mem.eql(u8, cmd, "--help") or std.mem.eql(u8, cmd, "-h")) {
@@ -332,6 +359,9 @@ pub fn runWith(
     if (std.mem.eql(u8, cmd, "lab")) {
         return lab_cmd.cmdLab(io, allocator, args[2..], out, err);
     }
+    if (std.mem.eql(u8, cmd, "verify")) {
+        return verify_cmd.cmdVerify(io, allocator, args[2..], out, err);
+    }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});
         return 2;
@@ -352,7 +382,7 @@ fn testRun(
     defer arena.deinit();
     out.* = Writer.fixed(out_buffer);
     err.* = Writer.fixed(err_buffer);
-    return runWith(std.testing.io, arena.allocator(), args, out, err);
+    return runWith(std.testing.io, arena.allocator(), args, out, err, .never);
 }
 
 test "help exits zero and names the tool" {
@@ -368,6 +398,53 @@ test "help exits zero and names the tool" {
     try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "xsprof") != null);
 }
 
+test "bare invocation without a UI policy prints the quickstart" {
+    var out_buffer: [4096]u8 = undefined;
+    var err_buffer: [256]u8 = undefined;
+    var out: Writer = undefined;
+    var err: Writer = undefined;
+    const args = [_][]const u8{"xsprof"};
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testRun(&args, &out_buffer, &err_buffer, &out, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "xsprof") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "help --all") != null);
+    try std.testing.expect(!uiAllowed(std.testing.io, .never));
+}
+
+test "help --all lists hidden automation verbs" {
+    var out_buffer: [8192]u8 = undefined;
+    var err_buffer: [256]u8 = undefined;
+    var out: Writer = undefined;
+    var err: Writer = undefined;
+    const args = [_][]const u8{ "xsprof", "help", "--all" };
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testRun(&args, &out_buffer, &err_buffer, &out, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "advise") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "capture") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "verify") != null);
+}
+
+test "help lists the primary verbs and hides automation" {
+    var out_buffer: [8192]u8 = undefined;
+    var err_buffer: [256]u8 = undefined;
+    var out: Writer = undefined;
+    var err: Writer = undefined;
+    const args = [_][]const u8{ "xsprof", "help" };
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testRun(&args, &out_buffer, &err_buffer, &out, &err),
+    );
+    for (help.primary_verbs) |verb| {
+        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), verb) != null);
+    }
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "advise") == null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "help --all") != null);
+}
+
 test "version is stable" {
     var out_buffer: [128]u8 = undefined;
     var err_buffer: [64]u8 = undefined;
@@ -378,7 +455,7 @@ test "version is stable" {
         @as(u8, 0),
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.3.0\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.4.0\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {

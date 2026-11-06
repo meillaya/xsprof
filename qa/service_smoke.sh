@@ -122,9 +122,18 @@ fi
 
 wait_inactive 120 || fail "service did not stop after --duration"
 wait_state stopped 40 || fail "manifest did not reach stopped"
-grep -q 'capture_stop' "$STATE_DIR"/segments/*.ndjson || fail "capture_stop marker missing"
+grep -q '"raw_codec":"compact_v1"' "$STATE_DIR/manifest.json" || fail "manifest raw_codec missing"
+"$BIN" capture --last 10m --dir "$STATE_DIR" --out "$STATE_DIR/phase1.ndjson" ||
+    fail "capture failed after the service stopped"
+grep -q 'capture_stop' "$STATE_DIR/phase1.ndjson" || fail "capture_stop marker missing"
+if grep -q 'capture_corrupt\|capture_truncated_tail' "$STATE_DIR/phase1.ndjson"; then
+    fail "clean service extraction emitted a gap marker"
+fi
+"$BIN" verify --dir "$STATE_DIR" --json >"$STATE_DIR/verify.json" ||
+    fail "verify failed on the clean service state"
+grep -q '"state":"READY"' "$STATE_DIR/verify.json" || fail "verify state is not READY"
 ls "$STATE_DIR"/metrics/*.json >/dev/null 2>&1 || fail "metrics sidecar missing"
-SEGMENTS=$(ls "$STATE_DIR"/segments/*.ndjson | wc -l)
+SEGMENTS=$(ls "$STATE_DIR"/segments/*.xsraw | wc -l)
 [ "$SEGMENTS" -ge 1 ] || fail "no segments written"
 
 # Extraction stays canonical and read-only.
@@ -154,6 +163,8 @@ RECOVERED=$STATE_DIR/recovered.ndjson
 "$BIN" capture --last 10m --dir "$STATE_DIR" --out "$RECOVERED"
 grep -q 'capture_interrupted previous_session=' "$RECOVERED" ||
     fail "recovery marker missing after SIGKILL"
-SEGMENTS=$(ls "$STATE_DIR"/segments/*.ndjson | wc -l)
+SEGMENTS=$(ls "$STATE_DIR"/segments/*.xsraw | wc -l)
 [ "$SEGMENTS" -ge 2 ] || fail "recovery discarded earlier segments"
+grep -q 'capture_interrupted\|capture_truncated_tail' "$RECOVERED" ||
+    fail "recovery gap marker missing"
 say "PASS (${SEGMENTS} segments, ${LINES} extracted lines)"

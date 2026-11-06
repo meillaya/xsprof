@@ -21,4 +21,12 @@ issue. Include the command, kernel, and a minimal sanitized input.
 - Privacy redaction runs at serialization and on replay detail before display.
 - The unsafe verb matrix refuses before dispatch; BPF remains VM-marker-gated
   and host-refused.
+- The native UI may start/stop its own read-only capture/recorder, gated on the
+  perf probe and an explicit Settings opt-in. It writes only its own state,
+  export, audit, and settings paths; it never escalates privileges or alters
+  host policy. External recorders are attach-only.
+- Settings/audit records contain no argv, environment, tokens, or raw event
+  detail. The accessibility tree contains only already-rendered labels.
+- Accessibility bridges are local: NSAccessibility on macOS and canonical
+  tree JSON on Linux; the web mirror is same-origin DOM only.
 - No telemetry, external fonts/CDNs, or external network requests.

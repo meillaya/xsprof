@@ -15,3 +15,14 @@ P1 ports the event/aggregate assertions first. Timeline goldens will be
 regenerated with corrected switch durations, paired flows, and consistent
 ns/µs units; do not “fix” the new implementation to match the known-broken
 trace output.
+## Compact recorder goldens (v0.4)
+
+- `recorder/segments/segment_v1_golden.xsraw` — one compact raw
+  segment (xsprof/raw-segment/v1) covering every event kind, boundary
+  integers, a negative timestamp delta, and block-local comm table reuse.
+- `recorder/segment_v1_golden.ndjson` — the canonical extraction that
+  the decoder must reproduce byte for byte (tested by `segment_reader.zig`,
+  `qa/cli_parity.sh`, and `qa/compact_roundtrip.sh`).
+
+Regenerate only with a deliberate format change: encode the same event list with
+`src/recorder/segment.zig` and commit both files together.

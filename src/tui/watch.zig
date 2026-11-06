@@ -5,6 +5,7 @@ const std = @import("std");
 const event = @import("../core/event.zig");
 const manifest_mod = @import("../recorder/manifest.zig");
 const extract = @import("../recorder/extract.zig");
+const reader_mod = @import("../recorder/segment_reader.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 
 const Writer = std.Io.Writer;
@@ -51,29 +52,46 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options, out: *Writer
             const end = if (segment.end_wall_ns == 0) now_wall else segment.end_wall_ns;
             if (end < cutoff) continue;
             const full = try std.fmt.allocPrint(frame_allocator, "{s}/{s}", .{ opts.dir, segment.path });
-            const file = std.Io.Dir.openFileAbsolute(io, full, .{}) catch continue;
-            defer file.close(io);
-            var buffer: [64 * 1024]u8 = undefined;
-            var reader = file.readerStreaming(io, &buffer);
-            var file_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
-            defer file_arena.deinit();
-            const data = reader.interface.allocRemaining(
-                file_arena.allocator(),
-                .limited(max_segment_bytes),
-            ) catch continue;
-            scanned += data.len;
-            if (scanned > max_scan_bytes) truncated = true;
-            var line_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
-            defer line_arena.deinit();
-            var lines = std.mem.splitScalar(u8, data, '\n');
-            while (lines.next()) |raw_line| {
-                const line = std.mem.trim(u8, raw_line, " \t\r");
-                if (line.len == 0) continue;
-                _ = line_arena.reset(.retain_capacity);
-                const parsed = event.parseJson(line_arena.allocator(), line) catch
-                    return error.InvalidJournal;
-                var one = [_]event.RawEvent{parsed};
-                try index.append(&one);
+            switch (reader_mod.codecForPath(segment.path)) {
+                .compact_v1 => {
+                    scanned += segment.bytes;
+                    if (scanned > max_scan_bytes) truncated = true;
+                    var segment_reader = reader_mod.Reader.open(io, full) catch continue;
+                    defer segment_reader.close();
+                    while (true) {
+                        const maybe = segment_reader.next() catch break;
+                        const parsed = maybe orelse break;
+                        var one = [_]event.RawEvent{parsed};
+                        try index.append(&one);
+                    }
+                },
+                .ndjson => {
+                    const file = std.Io.Dir.openFileAbsolute(io, full, .{}) catch continue;
+                    defer file.close(io);
+                    var buffer: [64 * 1024]u8 = undefined;
+                    var reader = file.readerStreaming(io, &buffer);
+                    var file_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+                    defer file_arena.deinit();
+                    const data = reader.interface.allocRemaining(
+                        file_arena.allocator(),
+                        .limited(max_segment_bytes),
+                    ) catch continue;
+                    scanned += data.len;
+                    if (scanned > max_scan_bytes) truncated = true;
+                    var line_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+                    defer line_arena.deinit();
+                    var lines = std.mem.splitScalar(u8, data, '\n');
+                    while (lines.next()) |raw_line| {
+                        const line = std.mem.trim(u8, raw_line, " \t\r");
+                        if (line.len == 0) continue;
+                        _ = line_arena.reset(.retain_capacity);
+                        const parsed = event.parseJson(line_arena.allocator(), line) catch
+                            return error.InvalidJournal;
+                        var one = [_]event.RawEvent{parsed};
+                        try index.append(&one);
+                    }
+                },
+                .unknown => continue,
             }
         }
         const metrics = try index.snapshot(frame_allocator);

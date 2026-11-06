@@ -1,4 +1,5 @@
 import { Renderer } from "/gl.js";
+import { syncA11y, announce } from "/a11y.js";
 
 const canvas = document.getElementById("ui");
 const errorBox = document.getElementById("boot-error");
@@ -8,7 +9,8 @@ const params = new URLSearchParams(location.search);
 const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
 const token = params.get("token") || hashParams.get("token") || "";
 const encoder = new TextEncoder();
-const screens = { overview: 0, timeline: 1, advisor: 2, events: 3, capture: 4 };
+const screens = { overview: 0, timeline: 1, advisor: 2, events: 3, capture: 4, recorder: 4, home: 5, audit: 6, settings: 7 };
+const screenLabels = ["overview", "timeline", "advisor", "events", "recorder", "home", "audit", "settings"];
 const themes = { dark: 0, graphite: 0, paper: 1, light: 1, latte: 2, frappe: 3, macchiato: 4, mocha: 5 };
 let exports = null;
 let renderer = null;
@@ -59,7 +61,8 @@ function drawFrame() {
   }
   const screenId = exports.web_ui_screen?.() ?? 0;
   const events = exports.web_ui_event_count?.() ?? 0;
-  const label = ["overview", "timeline", "advisor", "events", "capture"][screenId] || "overview";
+  const label = screenLabels[screenId] || "overview";
+  syncA11y(exports, document.getElementById("a11y"));
   const summary = `${label} · ${events} events · host_mutation=false`;
   if (summary !== lastStatus) {
     lastStatus = summary;
@@ -69,6 +72,9 @@ function drawFrame() {
 
   if (exports.web_ui_take_open()) fileInput.click();
   if (exports.web_ui_take_reload()) reloadSource();
+  if (exports.web_ui_take_demo?.()) {
+    loadWebDemo();
+  }
   flushCopy();
 }
 
@@ -130,6 +136,19 @@ function loadDemoText(text) {
   const ok = exports.web_ui_load_demo(ptr, data.length);
   if (ptr) exports.web_free(ptr, data.length);
   if (!ok) throw new Error("demo model parse failed");
+}
+
+async function loadWebDemo() {
+  try {
+    const response = await fetch("/assets/design-demo.json");
+    if (!response.ok) throw new Error(`demo: HTTP ${response.status}`);
+    exports.web_ui_set_live(0);
+    loadDemoText(await response.text());
+    source = "demo";
+    drawFrame();
+  } catch (error) {
+    fail(error);
+  }
 }
 
 async function reloadSource() {

@@ -1,5 +1,84 @@
 # Changelog
 
+## 0.4.0 — 2026-11-06
+
+### Added
+
+- UI-first product console: Home, Recorder, Audit, and Settings routes plus
+  first-run onboarding, GPU picker/text entry, settings/recents/audit
+  persistence, and action/effect dispatch on native and web surfaces.
+- Native live capture: Linux in-process compact recorder (cooperative stop,
+  no signal-handler theft), recorder tail for live view, macOS/any-OS
+  follow-recorder, bounded feed/index, 4 Hz model rebuild, stable selection
+  remap, explicit sample/feed loss, and fail-closed READY/SKIP/REFUSE states.
+- Native window resize and pointer work on macOS (AppKit/Metal) and Linux
+  (X11/GLX), including size hints, ConfigureNotify, motion/drag/release,
+  dirty ticking, and hidden resize smokes.
+- Platform-neutral `xsprof/a11y-tree/v1` accessibility tree from the same
+  draw/hit pass; web DOM/ARIA mirror and macOS NSAccessibility proxies. Linux
+  emits canonical tree JSON and reports AT-SPI2 as DEGRADED with a reason.
+- Compact raw segments (`.xsraw`, `xsprof/raw-segment/v1`): 64-byte header,
+  CRC-32C 32 KiB blocks, footer clean-close proof, varint/zigzag records,
+  block-local string tables, privacy-at-rest, streaming reader, bounded window
+  loader, `verify`, and legacy NDJSON compatibility. The 2 GiB budget now
+  covers the ten-minute age cap instead of about 94 seconds of canonical JSON.
+- Bounded recorder-window sampling and `capture --markers-only`/
+  `--max-events`/`--max-window-bytes`; `incident` refuses oversized windows
+  rather than silently truncating.
+- Simplified CLI: bare `xsprof` opens the console only on an interactive
+  graphical TTY; visible help/completions are ui/record/top/why/incident/
+  doctor; every automation verb remains a hidden working alias; `help --all`
+  and `completions <shell> --all` list everything.
+- Nix flake for Linux x86_64/aarch64 and macOS arm64/x86_64, hash-pinned Zig
+  0.17.0, Linux runtime wrapper, Darwin SDK/sign hook, opt-in NixOS recorder
+  module, checks, and devShell.
+- Fail-closed macOS release tooling: notarization result capture, canonical
+  `xsprof/macos-notarization/v1` attestation verifier, artifact/Gatekeeper/
+  staple/arch checks, attestation-gated Homebrew cask, unsigned preview names,
+  and local tap dry-run tests.
+- Linux packaging polish: desktop entry/icon, sysusers, completions,
+  reproducible tarball, hardened .deb fields/arch, layout and checksum gates.
+
+### Changed
+
+- Recorder raw segments are compact by default; `capture`, `incident`,
+  `why`, and the UI still emit canonical `xsprof/event/v1` NDJSON.
+- The design contract is v2 with eight routes and new overlays; the pinned
+  prototype remains the visual source for the five analysis screens and the
+  new routes are documented as the console extension.
+- Settings are canonical `xsprof/ui-settings/v1`; audit is
+  `xsprof/ui-audit/v1`; the accessibility tree is `xsprof/a11y-tree/v1`.
+- The macOS file open panel is gone; native pickers are GPU-drawn.
+- Version 0.4.0 across the package manifest, runtime, CLI parity, release
+  workflow, and docs.
+- Nix uses a second locked nixpkgs input for Intel macOS because current
+  nixos-unstable dropped x86_64-darwin.
+
+### Fixed
+
+- The UI can no longer leak frame-arena labels into accessibility bridges.
+- Event/slice row ids are no longer capped by the legacy 1000-1999 data range.
+- Recorder restart after a stop queues the new capture effect instead of
+  dropping the decision.
+- Compact tails, corrupt/truncated blocks, rotation gaps, and retention drops
+  are explicit markers/messages rather than corrupt rows or silent loss.
+- Packaged `demo`/`doctor` locate web assets and fixtures through
+  `XSPROF_WEB_DIR`/`XSPROF_FIXTURES_DIR` and standard share paths.
+- Stale "native live hook not attached" and fixed-size-window documentation.
+
+### Known limits
+
+- Real Developer ID notarization, Gatekeeper acceptance, and public tap
+  publication require external Apple/tap credentials; only fail-closed tooling
+  and local dry-runs are in the repository.
+- Linux AT-SPI2 screen-reader bridging is not built; tree JSON, keyboard focus,
+  and a visible DEGRADED state are provided. macOS VoiceOver needs a human-run
+  audit.
+- 1x native rendering; Retina 2x crispness, X11 IME/paste parity, and web
+  recorder control remain follow-ups.
+- The root-only live/service/retention gates must be run in a disposable Linux
+  VM with readable tracefs/CAP_PERFMON.
+
 ## 0.3.0 — 2026-11-06
 
 ### Added

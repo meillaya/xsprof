@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=xsprof
+GenericName=Scheduler and memory profiler
+Comment=Read-only scheduler and memory profiler with a native GPU console
+Exec=xsprof ui
+TryExec=xsprof
+Icon=xsprof
+Terminal=false
+Categories=System;Monitor;Development;
+Keywords=profiler;scheduler;perf;trace;memory;latency;
+StartupNotify=true

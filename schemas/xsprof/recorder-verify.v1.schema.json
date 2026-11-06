@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/recorder-verify.v1.schema.json",
+  "title": "xsprof recorder state verification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bytes",
+    "clean",
+    "corrupt",
+    "decoded_events",
+    "dirty",
+    "events",
+    "host_mutation",
+    "missing",
+    "schema",
+    "segments",
+    "state",
+    "unsupported"
+  ],
+  "properties": {
+    "bytes": { "type": "integer", "minimum": 0 },
+    "clean": { "type": "integer", "minimum": 0 },
+    "corrupt": { "type": "integer", "minimum": 0 },
+    "decoded_events": { "type": "integer", "minimum": 0 },
+    "dirty": { "type": "integer", "minimum": 0 },
+    "events": { "type": "integer", "minimum": 0 },
+    "host_mutation": { "const": false },
+    "missing": { "type": "integer", "minimum": 0 },
+    "schema": { "const": "xsprof/recorder-verify/v1" },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bytes", "codec", "events", "offset", "path", "status"],
+        "properties": {
+          "bytes": { "type": "integer", "minimum": 0 },
+          "codec": { "enum": ["ndjson", "compact_v1", "unknown"] },
+          "events": { "type": "integer", "minimum": 0 },
+          "offset": { "type": "integer", "minimum": 0 },
+          "path": { "type": "string" },
+          "status": { "enum": ["clean", "dirty", "corrupt", "missing", "unsupported"] }
+        }
+      }
+    },
+    "state": { "enum": ["READY", "DEGRADED", "REFUSE"] },
+    "unsupported": { "type": "integer", "minimum": 0 }
+  }
+}

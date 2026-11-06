@@ -8,6 +8,7 @@ const live = @import("../capture/live.zig");
 const capture_meta = @import("../capture/session_meta.zig");
 const manifest_mod = @import("manifest.zig");
 const segment_mod = @import("segment.zig");
+const reader_mod = @import("segment_reader.zig");
 const sidecar = @import("sidecar.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 const overhead = @import("../os/linux/overhead.zig");
@@ -31,6 +32,9 @@ pub const Options = struct {
     history_interval_ms: u64 = default_history_interval_ms,
     history_retain_ms: u64 = default_history_retain_ms,
     duration_ms: ?u32 = null,
+    /// Optional cooperative stop owned by an in-process UI worker. When set,
+    /// the daemon does not install process signal handlers.
+    stop: ?*std.atomic.Value(bool) = null,
     live_options: live.Options = .{},
 };
 
@@ -52,8 +56,16 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         return .{ .state = .SKIP, .reason = "recorder daemon is Linux-only" };
     }
     const meter = overhead.Meter.start(io, allocator);
-    var signal_guard = signal.install();
-    defer signal_guard.deinit();
+    var signal_guard: ?signal.Guard = null;
+    if (opts.stop == null) signal_guard = signal.install();
+    defer if (signal_guard) |*guard| guard.deinit();
+    const stopped = struct {
+        fn requested(opts_in: Options) bool {
+            if (signal.requested()) return true;
+            if (opts_in.stop) |flag| return flag.load(.acquire);
+            return false;
+        }
+    };
     // The daemon is long-lived: capture batches and sidecars must return
     // memory to a freeing allocator, not the CLI's per-process arena.
     const runtime_allocator = std.heap.smp_allocator;
@@ -85,6 +97,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     var segments: std.ArrayList(manifest_mod.Segment) = .empty;
     defer segments.deinit(allocator);
     var previous_session: ?[]const u8 = null;
+    var previous_tail: ?reader_mod.Status = null;
     if (try manifest_mod.read(io, allocator, manifest_path)) |existing| {
         if (existing.state == .recording) {
             previous_session = existing.session_id;
@@ -94,6 +107,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
                 last.closed = true;
                 last.end_wall_ns = now_wall;
                 last.end_mono_ns = now_mono;
+                previous_tail = tailStatusFor(io, allocator, dir, last.*) catch .dirty;
             }
         }
     }
@@ -112,6 +126,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .path = segment_path,
         .start_wall_ns = now_wall,
         .start_mono_ns = now_mono,
+        .codec = "compact_v1",
     });
     var current: usize = segments.items.len - 1;
 
@@ -122,6 +137,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .segments = segments.items,
         .max_bytes = opts.max_bytes,
         .max_age_ms = opts.max_age_ms,
+        .raw_codec = "compact_v1",
         .history_interval_ms = opts.history_interval_ms,
         .history_retain_ms = opts.history_retain_ms,
     };
@@ -157,6 +173,29 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             .detail = detail,
         });
     }
+    if (previous_tail) |status| {
+        switch (status) {
+            .clean => {},
+            .dirty => try segment.writeEvent(.{
+                .kind = .marker,
+                .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+                .cpu = -1,
+                .detail = "capture_truncated_tail missing_footer=1 dropped=1",
+            }),
+            .corrupt => try segment.writeEvent(.{
+                .kind = .marker,
+                .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+                .cpu = -1,
+                .detail = "capture_corrupt_segment dropped=1",
+            }),
+            .unsupported => try segment.writeEvent(.{
+                .kind = .marker,
+                .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+                .cpu = -1,
+                .detail = "capture_unsupported_segment dropped=1",
+            }),
+        }
+    }
     try writeMeta(&segment, &segment_metrics, meta_events);
     try segment.writeEvent(.{
         .kind = .marker,
@@ -177,7 +216,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     var history_dropped: u64 = 0;
     var sidecar_errors: u64 = 0;
 
-    while (std.Io.Clock.now(.awake, io).nanoseconds < deadline and !signal.requested()) {
+    while (std.Io.Clock.now(.awake, io).nanoseconds < deadline and !stopped.requested(opts)) {
         const poll_result = capture.poll(poll_ms) catch {
             break;
         };
@@ -225,12 +264,15 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             sequence += 1;
             if (sequence > max_seq) sequence = 0;
             const wall = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds)));
-            segment = try segment_mod.Writer.create(io, allocator, dir, sequence, wall, now);
+            // Long-lived rotation must use the freeing allocator; the CLI arena
+            // would accumulate one 16 KiB encoder table per segment.
+            segment = try segment_mod.Writer.create(io, runtime_allocator, dir, sequence, wall, now);
             try writeMeta(&segment, &segment_metrics, meta_events);
             try segments.append(allocator, .{
                 .path = try allocator.dupe(u8, segment.path),
                 .start_wall_ns = wall,
                 .start_mono_ns = now,
+                .codec = "compact_v1",
             });
             current = segments.items.len - 1;
             segment_started = now;
@@ -272,7 +314,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         }
     }
 
-    const stopped_by_signal = signal.requested();
+    const stopped_by_signal = signal.requested() and opts.stop == null;
     var stop_buf: [96]u8 = undefined;
     const stop_detail = if (stopped_by_signal)
         std.fmt.bufPrint(&stop_buf, "capture_stop signal=terminated", .{}) catch "capture_stop"
@@ -319,6 +361,23 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .sidecar_errors = sidecar_errors,
         .overhead = meter.finish(io, allocator, total_events, bytes),
     };
+}
+
+fn tailStatusFor(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    dir: []const u8,
+    segment: manifest_mod.Segment,
+) !reader_mod.Status {
+    const full = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, segment.path });
+    defer allocator.free(full);
+    if (segment.codec.len != 0 and std.mem.eql(u8, segment.codec, "ndjson")) {
+        return reader_mod.tailStatusNdjson(io, full);
+    }
+    if (std.mem.endsWith(u8, segment.path, ".ndjson")) {
+        return reader_mod.tailStatusNdjson(io, full);
+    }
+    return reader_mod.tailStatus(io, full);
 }
 
 fn writeMeta(

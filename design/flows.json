@@ -48,7 +48,7 @@
       "title": "Switch profiler screens",
       "trigger": [
         "rail item click",
-        "global 1–5",
+        "global 1\u20135",
         "palette screen command",
         "[data-goto] link",
         "hash on boot",
@@ -134,7 +134,7 @@
         "w",
         "theme button",
         "palette Open appearance menu",
-        "palette Theme: … command"
+        "palette Theme: \u2026 command"
       ],
       "preconditions": [
         "theme id is one of dark, paper, latte, frappe, macchiato, mocha"
@@ -196,7 +196,7 @@
       "title": "Open a journal file",
       "trigger": [
         "Open journal button",
-        "palette Open journal…",
+        "palette Open journal\u2026",
         "file picker",
         "drag-and-drop a file"
       ],
@@ -293,9 +293,9 @@
       "title": "Zoom and fit the timeline",
       "trigger": [
         "+ / =",
-        "− / _",
+        "\u2212 / _",
         "Zoom in (+)",
-        "Zoom out (−)",
+        "Zoom out (\u2212)",
         "Fit",
         "f",
         "double-click plot",
@@ -318,7 +318,7 @@
       "keys": [
         "+",
         "=",
-        "−",
+        "\u2212",
         "_",
         "f",
         "dblclick"
@@ -374,7 +374,7 @@
         "Click slice: set selected slice, clear selected event, draw 1.5px text stroke, render inspector slice view.",
         "Click tick: set selected event, draw 8px marker plus dashed guide, render inspector event view.",
         "Escape or Clear clears both and returns inspector to idle.",
-        "Focus ±150ms zooms around the selected slice; Events for task opens the ledger filtered by comm.",
+        "Focus \u00b1150ms zooms around the selected slice; Events for task opens the ledger filtered by comm.",
         "Hover shows a tooltip with task, pid, cpu, time/duration."
       ],
       "outcomes": [
@@ -398,7 +398,7 @@
       "title": "Filter advisor rules and jump to evidence",
       "trigger": [
         "advisor filter chip",
-        "Show evidence →"
+        "Show evidence \u2192"
       ],
       "preconditions": [
         "advisor rules are collected"
@@ -472,7 +472,7 @@
       ],
       "steps": [
         "Mark the row aria-selected=true and render detail: absolute timestamp, type badge, field table, privacy note.",
-        "Open in timeline: if the event is outside the current window, focus ±800ms around it; otherwise switch to timeline.",
+        "Open in timeline: if the event is outside the current window, focus \u00b1800ms around it; otherwise switch to timeline.",
         "Select the matching slice when the journal is interval-based; otherwise select the event and show its tick marker.",
         "Filter comm sets the event query to the task and clears the type filter."
       ],
@@ -580,6 +580,214 @@
         "skip-link markup",
         "#main tabindex=-1",
         "focus styles"
+      ]
+    },
+    {
+      "id": "home-source-select",
+      "kind": "data",
+      "title": "Choose a source and time frame",
+      "trigger": [
+        "Home source card click",
+        "palette source commands"
+      ],
+      "preconditions": [
+        "Home route visible"
+      ],
+      "steps": [
+        "Select source kind",
+        "Select time-frame preset",
+        "Dispatch source_select/source_window"
+      ],
+      "outcomes": [
+        "Source phase loading or SKIP/REFUSE with reason"
+      ],
+      "failures": [
+        "Unsupported surface fails closed with a stable reason"
+      ]
+    },
+    {
+      "id": "source-loading",
+      "kind": "state",
+      "title": "Loading/ready/skip/refuse source states",
+      "trigger": [
+        "source effect completion"
+      ],
+      "preconditions": [
+        "A source request was dispatched"
+      ],
+      "steps": [
+        "loading state",
+        "host completion",
+        "ready or explicit failure"
+      ],
+      "outcomes": [
+        "Analysis screens show the new source; failures keep the previous model intact"
+      ],
+      "failures": [
+        "Malformed journal shows an explicit reason, never zero-filled data"
+      ]
+    },
+    {
+      "id": "onboarding",
+      "kind": "lifecycle",
+      "title": "First-run onboarding",
+      "trigger": [
+        "first launch with incomplete onboarding version",
+        "palette Show onboarding"
+      ],
+      "preconditions": [
+        "None"
+      ],
+      "steps": [
+        "welcome",
+        "read-only contract",
+        "capabilities",
+        "choose source"
+      ],
+      "outcomes": [
+        "Onboarding version persisted; Home shown"
+      ],
+      "failures": [
+        "Skip persists the same version without claiming completion"
+      ]
+    },
+    {
+      "id": "recorder-lifecycle",
+      "kind": "data",
+      "title": "Start/stop/restart the read-only capture",
+      "trigger": [
+        "Recorder controls",
+        "palette recorder commands"
+      ],
+      "preconditions": [
+        "native Linux surface and READY live probe",
+        "capture controls enabled in Settings"
+      ],
+      "steps": [
+        "start",
+        "progress",
+        "stop or confirm restart"
+      ],
+      "outcomes": [
+        "Running state with events/lost/window; restart issues a new session label"
+      ],
+      "failures": [
+        "Web and non-Linux fail closed; externally owned recorder is attach-only"
+      ]
+    },
+    {
+      "id": "extract-window",
+      "kind": "data",
+      "title": "Extract a recorder window",
+      "trigger": [
+        "Recorder extract control"
+      ],
+      "preconditions": [
+        "not capturing"
+      ],
+      "steps": [
+        "request last-N window",
+        "host extract",
+        "derive console model"
+      ],
+      "outcomes": [
+        "WINDOW source shown; retention_loss explicit when older than retained"
+      ],
+      "failures": [
+        "Missing manifest shows SKIP reason"
+      ]
+    },
+    {
+      "id": "export",
+      "kind": "data",
+      "title": "Export artifacts",
+      "trigger": [
+        "Recorder export controls",
+        "palette export commands"
+      ],
+      "preconditions": [
+        "not capturing",
+        "writable surface"
+      ],
+      "steps": [
+        "queue export effect",
+        "host writes artifact"
+      ],
+      "outcomes": [
+        "journal/trace/report/incident written to the state directory"
+      ],
+      "failures": [
+        "Web fails closed; failures surface as error toast + audit entry"
+      ]
+    },
+    {
+      "id": "audit-verify",
+      "kind": "data",
+      "title": "Audit provenance and action log",
+      "trigger": [
+        "Audit route",
+        "verify/copy/export controls"
+      ],
+      "preconditions": [
+        "None"
+      ],
+      "steps": [
+        "render manifest provenance",
+        "render lifecycle markers",
+        "render action ring"
+      ],
+      "outcomes": [
+        "Read-only provenance and canonical action summary"
+      ],
+      "failures": [
+        "Missing manifest/retention renders SKIP/unavailable, never zeros"
+      ]
+    },
+    {
+      "id": "settings-persist",
+      "kind": "data",
+      "title": "Persist UI settings",
+      "trigger": [
+        "Settings toggles",
+        "theme change",
+        "recorder directory selection"
+      ],
+      "preconditions": [
+        "None"
+      ],
+      "steps": [
+        "mutate settings",
+        "queue save_settings effect",
+        "host writes xsprof/ui-settings/v1"
+      ],
+      "outcomes": [
+        "Settings survive restart; corrupt file resets to defaults with a reason"
+      ],
+      "failures": [
+        "Unwritable surface applies session-only and reports the setting"
+      ]
+    },
+    {
+      "id": "a11y-focus",
+      "kind": "accessibility",
+      "title": "Accessibility tree and focus",
+      "trigger": [
+        "Tab traversal",
+        "screen reader navigation",
+        "web DOM mirror"
+      ],
+      "preconditions": [
+        "rendered frame"
+      ],
+      "steps": [
+        "build platform-neutral nodes from Canvas hits",
+        "mirror to hidden DOM/ARIA or NSAccessibility"
+      ],
+      "outcomes": [
+        "Every focusable control has a role and label; dialog focus trapped"
+      ],
+      "failures": [
+        "Linux AT-SPI reports an explicit SKIP reason"
       ]
     }
   ]

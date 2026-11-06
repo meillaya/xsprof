@@ -142,6 +142,20 @@ pub fn build(b: *std.Build) void {
     const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
     cli_parity_step.dependOn(&cli_parity.step);
 
+    const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
+    compact_roundtrip.step.dependOn(b.getInstallStep());
+    const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
+    compact_roundtrip_step.dependOn(&compact_roundtrip.step);
+
+    const a11y_smoke = b.addSystemCommand(&.{ "sh", "qa/a11y_smoke.sh" });
+    a11y_smoke.step.dependOn(b.getInstallStep());
+    const a11y_smoke_step = b.step("a11y-smoke", "Deterministic accessibility tree gate");
+    a11y_smoke_step.dependOn(&a11y_smoke.step);
+
+    const release_tooling = b.addSystemCommand(&.{ "sh", "qa/release_tooling.sh" });
+    const release_tooling_step = b.step("release-tooling", "Release attestation/tap dry-run gate");
+    release_tooling_step.dependOn(&release_tooling.step);
+
     const xsui_package = b.addSystemCommand(&.{ "sh", "qa/xsui_package.sh" });
     const xsui_package_step = b.step("xsui-package", "Test the standalone xsui package");
     xsui_package_step.dependOn(&xsui_package.step);
@@ -178,13 +192,15 @@ pub fn build(b: *std.Build) void {
         "web_ui_set_live",         "web_ui_take_open",        "web_ui_take_reload",
         "web_ui_loaded",           "web_ui_scroll",           "web_ui_pointer_leave",
         "web_ui_append_journal",   "web_ui_event_count",      "web_ui_screen",
+        "web_ui_a11y_ptr",         "web_ui_a11y_len",         "web_ui_a11y_version",
+        "web_ui_a11y_focus",       "web_ui_a11y_activate",    "web_ui_take_demo",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;
     const web_step = b.step("web", "Build the WebAssembly frontend into zig-out/web");
     const wasm_install = b.addInstallFile(web_exe.getEmittedBin(), "web/assets/xsprof-web.wasm");
     web_step.dependOn(&wasm_install.step);
-    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "style.css" };
+    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "a11y.js", "style.css" };
     inline for (web_assets) |asset| {
         const install = b.addInstallFile(b.path("web/" ++ asset), "web/" ++ asset);
         web_step.dependOn(&install.step);
@@ -232,6 +248,9 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&no_mutation.step);
     check.dependOn(&unsafe_matrix.step);
     check.dependOn(&cli_parity.step);
+    check.dependOn(&compact_roundtrip.step);
+    check.dependOn(&a11y_smoke.step);
+    check.dependOn(&release_tooling.step);
     check.dependOn(&xsui_package.step);
     check.dependOn(web_step);
     check.dependOn(&web_ui_smoke.step);
@@ -241,6 +260,18 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&run_xsui_api_tests.step);
     check.dependOn(&run_fuzz_tests.step);
     if (target.result.os.tag == .linux) {
+        const xvfb_smoke = b.addSystemCommand(&.{ "sh", "qa/xvfb_smoke.sh" });
+        xvfb_smoke.step.dependOn(b.getInstallStep());
+        const xvfb_smoke_step = b.step("xvfb-smoke", "Hidden X11/GLX native smoke under Xvfb when available");
+        xvfb_smoke_step.dependOn(&xvfb_smoke.step);
+        check.dependOn(&xvfb_smoke.step);
+
+        const native_live = b.addSystemCommand(&.{ "sh", "qa/native_live_smoke.sh" });
+        native_live.step.dependOn(b.getInstallStep());
+        const native_live_step = b.step("native-live-smoke", "Hidden live/recorder-tail smoke under Xvfb when available");
+        native_live_step.dependOn(&native_live.step);
+        check.dependOn(&native_live.step);
+
         const lab_smoke = b.addSystemCommand(&.{ "sh", "qa/lab_smoke.sh" });
         lab_smoke.step.dependOn(b.getInstallStep());
         const lab_smoke_step = b.step("lab-smoke", "Headless GUI lab scenarios and snapshots");

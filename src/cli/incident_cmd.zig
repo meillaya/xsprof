@@ -18,6 +18,7 @@ pub fn cmdIncident(
     var out_dir: ?[]const u8 = null;
     var last_text: []const u8 = "10m";
     var force = false;
+    var max_window_bytes: u64 = 0;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -44,6 +45,16 @@ pub fn cmdIncident(
             last_text = args[i];
         } else if (std.mem.eql(u8, arg, "--force")) {
             force = true;
+        } else if (std.mem.eql(u8, arg, "--max-window-bytes")) {
+            if (i + 1 >= args.len) {
+                try err.writeAll("incident: --max-window-bytes requires a size\n");
+                return 2;
+            }
+            i += 1;
+            max_window_bytes = parseSize(args[i]) catch {
+                try err.writeAll("incident: invalid --max-window-bytes\n");
+                return 2;
+            };
         } else if (std.mem.eql(u8, arg, "--json")) {
             continue;
         } else {
@@ -76,6 +87,7 @@ pub fn cmdIncident(
         .dir = source_dir,
         .out = destination,
         .last_ms = last_ms,
+        .max_window_bytes = max_window_bytes,
     }) catch |write_error| {
         switch (write_error) {
             error.NoWindow => try err.writeAll("incident: no events in the requested window\n"),
@@ -103,6 +115,25 @@ pub fn cmdIncident(
     } });
     try out.writeByte('\n');
     return 0;
+}
+
+fn parseSize(text: []const u8) !u64 {
+    const trimmed = std.mem.trim(u8, text, " \t");
+    if (trimmed.len == 0) return error.InvalidSize;
+    var unit: u64 = 1;
+    var number = trimmed;
+    if (std.mem.endsWith(u8, trimmed, "G")) {
+        unit = 1024 * 1024 * 1024;
+        number = trimmed[0 .. trimmed.len - 1];
+    } else if (std.mem.endsWith(u8, trimmed, "M")) {
+        unit = 1024 * 1024;
+        number = trimmed[0 .. trimmed.len - 1];
+    } else if (std.mem.endsWith(u8, trimmed, "K")) {
+        unit = 1024;
+        number = trimmed[0 .. trimmed.len - 1];
+    }
+    const value = std.fmt.parseInt(u64, number, 10) catch return error.InvalidSize;
+    return std.math.mul(u64, value, unit) catch error.InvalidSize;
 }
 
 fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {

@@ -1,0 +1,91 @@
+name: nix
+
+on:
+  push:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "tools/**"
+      - "packaging/**"
+      - "qa/release_tooling.sh"
+      - "qa/homebrew_dry_run.sh"
+      - "qa/package_layout.sh"
+      - "build.zig"
+      - "build.zig.zon"
+      - "src/**"
+      - "fixtures/**"
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "tools/**"
+      - "packaging/**"
+      - "qa/release_tooling.sh"
+      - "qa/homebrew_dry_run.sh"
+      - "qa/package_layout.sh"
+      - "build.zig"
+      - "build.zig.zon"
+      - "src/**"
+      - "fixtures/**"
+  workflow_dispatch:
+    inputs:
+      darwin:
+        description: "Also run the macOS Nix check (slow; needs macOS runner minutes)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Flake check
+        run: |
+          set -eu
+          if [ -f flake.lock ]; then flags="--no-update-lock-file"; else flags=""; fi
+          nix flake check $flags --print-build-logs
+      - name: Package smoke
+        run: |
+          set -eu
+          if [ -f flake.lock ]; then flags="--no-update-lock-file"; else flags=""; fi
+          nix build .#xsprof $flags --no-link --print-out-paths > "$RUNNER_TEMP/xsprof-store-path"
+          out=$(tail -1 "$RUNNER_TEMP/xsprof-store-path")
+          "$out/bin/xsprof" version
+          "$out/bin/xsprof" help > /dev/null
+      - name: Pinned Zig in the devShell
+        run: |
+          set -eu
+          if [ -f flake.lock ]; then flags="--no-update-lock-file"; else flags=""; fi
+          nix develop $flags -c ./tools/zig version
+
+  darwin:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.darwin == 'true'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Flake check (Linux-style checks are skipped by design)
+        run: |
+          set -eu
+          if [ -f flake.lock ]; then flags="--no-update-lock-file"; else flags=""; fi
+          nix flake check $flags --print-build-logs

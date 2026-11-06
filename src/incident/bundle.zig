@@ -16,6 +16,8 @@ pub const Options = struct {
     dir: []const u8,
     out: []const u8,
     last_ms: u64 = 10 * 60 * 1000,
+    /// Bound the canonical window artifact; explicit marker on truncation.
+    max_window_bytes: u64 = 0,
 };
 
 pub const Result = struct {
@@ -96,7 +98,11 @@ pub fn write(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         defer file.close(io);
         var buffer: [64 * 1024]u8 = undefined;
         var writer = file.writer(io, &buffer);
-        try extract.writeTo(io, allocator, .{ .dir = opts.dir, .last_ms = opts.last_ms }, &writer.interface);
+        try extract.writeTo(io, allocator, .{
+            .dir = opts.dir,
+            .last_ms = opts.last_ms,
+            .max_bytes = opts.max_window_bytes,
+        }, &writer.interface);
         try writer.interface.flush();
         if ((try file.stat(io)).size == 0) return error.NoWindow;
     }

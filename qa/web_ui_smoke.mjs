@@ -40,6 +40,17 @@ if (!e.web_ui_frame()) throw new Error("frame after append failed");
 e.web_ui_scroll(12);
 e.web_ui_pointer_leave();
 if (typeof e.web_ui_screen !== "function") throw new Error("screen export missing");
+for (const name of ["web_ui_a11y_ptr", "web_ui_a11y_len", "web_ui_a11y_version", "web_ui_a11y_focus", "web_ui_a11y_activate"]) {
+  if (typeof e[name] !== "function") throw new Error(`${name} export missing`);
+}
+if (!e.web_ui_frame()) throw new Error("frame with a11y enrichment failed");
+const a11yPtr = e.web_ui_a11y_ptr();
+const a11yLen = e.web_ui_a11y_len();
+if (!a11yPtr || !a11yLen) throw new Error("a11y json is empty");
+const a11yText = new TextDecoder().decode(new Uint8Array(e.memory.buffer, a11yPtr, a11yLen));
+if (!a11yText.includes("\"schema\":\"xsprof/a11y-tree/v1\"")) throw new Error("a11y schema missing");
+const a11yJs = fs.readFileSync("web/a11y.js", "utf8");
+if (!a11yJs.includes("syncA11y") || !a11yJs.includes("web_ui_a11y_focus")) throw new Error("a11y mirror missing");
 
 e.web_ui_set_live(0);
 {

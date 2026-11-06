@@ -4,7 +4,7 @@
 const std = @import("std");
 
 pub const schema = "xsprof/ui-spec/v1";
-pub const version: u32 = 1;
+pub const version: u32 = 2;
 pub const prototype_sha256 = "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62";
 pub const reference_width: f32 = 1440.0;
 pub const reference_height: f32 = 900.0;

@@ -18,13 +18,16 @@
       "bindings": [
         {
           "keys": [
+            "0",
             "1",
             "2",
             "3",
             "4",
-            "5"
+            "5",
+            "6",
+            "7"
           ],
-          "action": "switch screen",
+          "action": "switch route (0 home, 1-5 analysis, 6 audit, 7 settings)",
           "targets": [
             "overview",
             "timeline",
@@ -118,6 +121,13 @@
           "action": "clear slice/event selection",
           "requires": "a selection exists",
           "preventDefault": false
+        },
+        {
+          "keys": [
+            "Meta+Comma",
+            "Control+Comma"
+          ],
+          "action": "open settings"
         }
       ]
     },
@@ -321,11 +331,114 @@
           "preventDefault": false
         }
       ]
+    },
+    {
+      "id": "picker-input",
+      "when": "the GPU picker overlay is open",
+      "bindings": [
+        {
+          "keys": [
+            "ArrowDown",
+            "ArrowUp"
+          ],
+          "action": "move selection"
+        },
+        {
+          "keys": [
+            "Enter"
+          ],
+          "action": "open selected directory or file"
+        },
+        {
+          "keys": [
+            "Backspace"
+          ],
+          "action": "parent directory when the filter is empty"
+        },
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "close picker"
+        },
+        {
+          "keys": [
+            "typing"
+          ],
+          "action": "filter current listing"
+        }
+      ]
+    },
+    {
+      "id": "text-input",
+      "when": "a canvas text field (palette, events filter, recorder directory) has focus",
+      "bindings": [
+        {
+          "keys": [
+            "ArrowLeft",
+            "ArrowRight",
+            "Home",
+            "End"
+          ],
+          "action": "move caret"
+        },
+        {
+          "keys": [
+            "Backspace",
+            "Delete"
+          ],
+          "action": "edit text"
+        },
+        {
+          "keys": [
+            "Ctrl+W",
+            "Ctrl+U"
+          ],
+          "action": "kill word / kill line"
+        },
+        {
+          "keys": [
+            "Enter"
+          ],
+          "action": "commit and leave the field"
+        },
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "clear and blur"
+        }
+      ]
+    },
+    {
+      "id": "onboarding-dialog",
+      "when": "the onboarding overlay is open",
+      "bindings": [
+        {
+          "keys": [
+            "Enter",
+            "ArrowRight"
+          ],
+          "action": "next step or finish"
+        },
+        {
+          "keys": [
+            "ArrowLeft"
+          ],
+          "action": "previous step"
+        },
+        {
+          "keys": [
+            "Escape"
+          ],
+          "action": "skip (persists the version)"
+        }
+      ]
     }
   ],
   "footerKeybar": [
     {
-      "keys": "1–5",
+      "keys": "1\u20135",
       "label": "screens"
     },
     {
@@ -341,7 +454,7 @@
       "label": "fit"
     },
     {
-      "keys": "+ −",
+      "keys": "+ \u2212",
       "label": "zoom"
     },
     {
@@ -349,7 +462,7 @@
       "label": "theme"
     },
     {
-      "keys": "⌘K",
+      "keys": "\u2318K",
       "label": "palette"
     },
     {
@@ -359,7 +472,7 @@
   ],
   "helpSheet": [
     {
-      "keys": "1 – 5",
+      "keys": "1 \u2013 5",
       "action": "Switch screen: Overview, Timeline, Advisor, Events, Capture"
     },
     {
@@ -375,7 +488,7 @@
       "action": "Fit the timeline to the full excerpt"
     },
     {
-      "keys": "+ −",
+      "keys": "+ \u2212",
       "action": "Zoom the timeline around the playhead"
     },
     {
@@ -387,7 +500,7 @@
       "action": "Open the appearance menu"
     },
     {
-      "keys": "⌘K / Ctrl K",
+      "keys": "\u2318K / Ctrl K",
       "action": "Command palette"
     },
     {
