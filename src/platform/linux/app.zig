@@ -324,7 +324,10 @@ pub const App = struct {
 
     fn startController(self: *App, source: live_mod.Source, label: []const u8) bool {
         self.stopLive();
-        self.live_controller = live_mod.Controller.init(self.allocator, self.io, .{});
+        // The live tail and the UI both use this allocator; it must be
+        // thread-safe and freeing. The process arena used by the CLI is
+        // neither, so a shared arena races under live catch-up/stop.
+        self.live_controller = live_mod.Controller.init(std.heap.smp_allocator, self.io, .{});
         const controller = if (self.live_controller) |*value| value else return false;
         controller.attach(source, .{
             .duration_ms = self.live_duration_ms,

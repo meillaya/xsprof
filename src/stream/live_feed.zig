@@ -1,5 +1,5 @@
 //! Thread-safe bounded NDJSON store for live capture. The capture worker
-//! appends; HTTP handlers read snapshots. The store never mutates the host.
+//! appends; the console drains snapshots. The store never mutates the host.
 
 const std = @import("std");
 
@@ -43,14 +43,20 @@ pub const Store = struct {
             self.bytes.appendSlice(std.heap.smp_allocator, keep) catch return;
             return;
         }
-        while (self.bytes.items.len + data.len > self.max_bytes) {
-            const wanted = @min(self.bytes.items.len, self.bytes.items.len + data.len - self.max_bytes);
-            const newline = std.mem.indexOfScalarPos(u8, self.bytes.items, wanted, '\n');
-            const drop = if (newline) |at| at + 1 else self.bytes.items.len;
-            const keep = self.bytes.items.len - drop;
-            std.mem.copyForwards(u8, self.bytes.items[0..keep], self.bytes.items[drop..]);
-            self.bytes.shrinkRetainingCapacity(keep);
-            self.base += drop;
+        // Trim in one coarse step to half full. Dropping only the exact
+        // overflow per event is O(store bytes) per append once the store is
+        // full; during a tail catch-up that stalls stop for many seconds.
+        if (self.bytes.items.len + data.len > self.max_bytes) {
+            const target_keep = self.max_bytes / 2;
+            if (self.bytes.items.len > target_keep) {
+                const cut = self.bytes.items.len - target_keep;
+                const newline = std.mem.indexOfScalarPos(u8, self.bytes.items, cut, '\n');
+                const drop = if (newline) |at| at + 1 else self.bytes.items.len;
+                const keep = self.bytes.items.len - drop;
+                std.mem.copyForwards(u8, self.bytes.items[0..keep], self.bytes.items[drop..]);
+                self.bytes.shrinkRetainingCapacity(keep);
+                self.base += drop;
+            }
         }
         self.bytes.appendSlice(std.heap.smp_allocator, data) catch {};
     }
@@ -113,4 +119,17 @@ test "oversized append keeps a complete trailing line" {
     defer std.testing.allocator.free(snap);
     try std.testing.expectEqualStrings("cc\n", snap);
     try std.testing.expectEqual(@as(u64, 9), store.endOffset());
+}
+
+test "full store trims in a coarse step instead of per event" {
+    var store = Store.init();
+    defer store.deinit();
+    store.max_bytes = 100;
+    var index: usize = 0;
+    while (index < 60) : (index += 1) store.append("line\n");
+    const snap = try store.snapshot(std.testing.allocator);
+    defer std.testing.allocator.free(snap);
+    try std.testing.expect(snap.len <= store.max_bytes);
+    try std.testing.expect(std.mem.endsWith(u8, snap, "\n"));
+    try std.testing.expect(store.endOffset() == 300);
 }
