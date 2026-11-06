@@ -1,0 +1,31 @@
+# podman machine cleanup
+date=2026-11-06T16:27:31-05:00
+command: podman machine rm -f xsprof-vm
+----------------------------------------
+Waiting for VM to exit...
+RM_EXIT=0
+----------------------------------------
+podman machine list:
+NAME        VM TYPE     CREATED     LAST UP     CPUS        MEMORY      DISK SIZE
+machine count: 0
+remaining qemu/gvproxy/virtiofsd processes:
+185445 bash -c  set -u WS=/home/mei/Documents/xsprof RUN=$WS/.cache/vm-run EVD=$WS/docs/evidence/v0.5.0-vm export PATH=/nix/store/bp9li432ba8adp47dr9z9y0hx56wn8v2-qemu-11.1.2/bin:/nix/store/qj0wcnj9kk404b1hmgwb323s7k7aqlaq-gvproxy-0.9.0/bin:/nix/store/8m9bi1ykhh1yjq86a6wkrkk0n9w7b1ny-virtiofsd-1.14.0/bin:$PATH export XDG_RUNTIME_DIR=$RUN/runtime export TMPDIR=$RUN/tmp {   echo "# podman machine cleanup"   echo "date=$(date -Is)"   echo "command: podman machine rm -f xsprof-vm"   echo "----------------------------------------"   podman machine rm -f xsprof-vm 2>&1   echo "RM_EXIT=$?"   echo "----------------------------------------"   echo "podman machine list:"   podman machine list 2>&1   echo "machine count: $(podman machine list --format '{{.Name}}' 2>/dev/null | wc -l)"   echo "remaining qemu/gvproxy/virtiofsd processes:"   pgrep -af 'qemu-system.*xsprof|gvproxy.*xsprof|virtiofsd.*vm-run' 2>/dev/null || echo "none" } > "$EVD/08-cleanup.log" 2>&1 echo "CLEANUP_RC=$?" cat "$EVD/08-cleanup.log" echo '--- machine dirs ---' ls -la /home/mei/.local/share/containers/podman/machine/qemu/ 2>/dev/null 
+
+===== post-removal verification (fresh check) =====
+date=2026-11-06T16:27:41-05:00
+machine_config_dir_contents:
+total 0
+drwxr-xr-x 1 mei mei 100 Nov  6 16:27 .
+drwxr-xr-x 1 mei mei   8 Nov  5 22:41 ..
+-rw-r--r-- 1 mei mei   0 Nov  5 22:41 ebpf-sandbox.lock
+-rw-r--r-- 1 mei mei   0 Nov  6 02:26 xsprof-sandbox.lock
+-rw-r--r-- 1 mei mei   0 Nov  6 16:09 xsprof-vm.lock
+machine_image_dir_contents:
+total 0
+drwxr-xr-x 1 mei mei  10 Nov  6 16:27 .
+drwxr-xr-x 1 mei mei 136 Nov  6 16:27 ..
+drwxr-xr-x 1 mei mei 148 Nov  6 00:46 cache
+process check (comm-based; excludes this shell):
+none
+machine_count=0
+note: the earlier pgrep line in the run block matched that wrapper shell's own command text (pid reported was the shell, not a VM process); this comm-based check is authoritative.

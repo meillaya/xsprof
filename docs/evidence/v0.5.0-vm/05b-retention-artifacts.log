@@ -1,0 +1,17 @@
+state=/var/tmp/xsprof-retention.0FQ2Tp
+segment_files=38
+--- history totals ---
+{"schema": "xsprof/history/v1", "sidecars": 10, "totals": {"cpu_busy_us": 412339521, "events": 51912222, "faults": 114726, "lost": 0, "migrations": 4080, "switches": 51710196, "unnecessary_wakeups": 227, "unresolved_wakeups": 0, "wakeups": 82992}}
+--- manifest tail summary ---
+{"history_interval_ms": 60000, "history_retain_ms": 86400000, "host_mutation": false, "max_age_ms": 600000, "max_bytes": 2147483648, "raw_codec": "compact_v1"}
+segments 38 stopped stopped
+--- canonical record measurement ---
+   87817 14060020 /tmp/canon-record-2.ndjson
+--- canonical markers count in fresh record ---
+6
+--- create artifact tarball ---
+5e7562aa738e90fb18d483a9bf70713105a776ba07be84f1026ab0dc9bf9e530  /tmp/xsprof-retention-artifacts.tar
+-rw-r--r--. 1 root root 61440 Nov  6 16:23 /tmp/xsprof-retention-artifacts.tar
+--- record sample sha ---
+dd5e897e4aa59463bd3cba18afef12ca8e963cfbefb7f374a45d101b0fea4d4b  /tmp/canon-record-2.ndjson
+--- done ---

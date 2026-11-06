@@ -1,0 +1,103 @@
+# KVM podman machine provisioning — exact captured output
+date=2026-11-06T16:11:42-05:00
+host=massive
+kernel=7.3.1-1-cachyos
+user=1000(mei) groups=mei sys network nopasswdlogin rfkill users video storage lp audio wheel
+podman=podman version 5.8.7
+qemu=QEMU emulator version 11.1.2
+gvproxy=/nix/store/qj0wcnj9kk404b1hmgwb323s7k7aqlaq-gvproxy-0.9.0/bin/gvproxy
+virtiofsd=/nix/store/8m9bi1ykhh1yjq86a6wkrkk0n9w7b1ny-virtiofsd-1.14.0/bin/virtiofsd
+kvm=crw-rw-rw- 1 root kvm 10, 232 Nov  6 16:09 /dev/kvm
+XDG_RUNTIME_DIR=/home/mei/Documents/xsprof/.cache/vm-run/runtime (mode 700)
+TMPDIR=/home/mei/Documents/xsprof/.cache/vm-run/tmp
+cached_fcos_image=-rw-r--r-- 1 mei mei 1001535337 Nov  6 00:46 /home/mei/.local/share/containers/podman/machine/qemu/cache/f819a25d185ceb24642f91b29fc3d36a707129ead9731de0718b26eac50210f7.qcow2.zst
+
+===== probe: exact command from task WITH --provider qemu =====
+Error: unknown flag: --provider
+See 'podman machine init --help'
+
+===== podman machine init (without --provider: unknown flag in podman 5.8.7) =====
+date=2026-11-06T16:09:08-05:00
+podman=podman version 5.8.7
+qemu=QEMU emulator version 11.1.2
+user=1000
+XDG_RUNTIME_DIR=/home/mei/Documents/xsprof/.cache/vm-run/runtime
+TMPDIR=/home/mei/Documents/xsprof/.cache/vm-run/tmp
+=== podman machine init xsprof-vm --cpus 4 --memory 4096 --disk-size 24 ===
+Looking up Podman Machine image at quay.io/podman/machine-os:5.8 to create VM
+Image resized.
+Machine init complete
+To start your machine run:
+
+	podman machine start xsprof-vm
+
+INIT_EXIT=0
+=== podman machine list ===
+NAME        VM TYPE     CREATED        LAST UP     CPUS        MEMORY      DISK SIZE
+xsprof-vm*  qemu        3 seconds ago  Never       4           4GiB        24GiB
+
+===== podman machine start =====
+date=2026-11-06T16:09:37-05:00
+=== podman machine start xsprof-vm ===
+Starting machine "xsprof-vm"
+
+This machine is currently configured in rootless mode. If your containers
+require root permissions (e.g. ports < 1024), or if you run into compatibility
+issues with non-podman clients, you can switch using the following command:
+
+	podman machine set --rootful xsprof-vm
+
+Mounting volume... /home/mei:/home/mei
+API forwarding listening on: /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-api.sock
+You can connect Docker API clients by setting DOCKER_HOST using the
+following command in your terminal session:
+
+        export DOCKER_HOST='unix:///home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-api.sock'
+
+Machine "xsprof-vm" started successfully
+START_EXIT=0
+=== podman machine list ===
+NAME        VM TYPE     CREATED         LAST UP            CPUS        MEMORY      DISK SIZE
+xsprof-vm*  qemu        46 seconds ago  Currently running  4           4GiB        24GiB
+=== inspect state ===
+running 32969 true
+
+===== podman machine inspect xsprof-vm =====
+[
+     {
+          "ConfigDir": {
+               "Path": "/home/mei/.config/containers/podman/machine/qemu"
+          },
+          "ConnectionInfo": {
+               "PodmanSocket": {
+                    "Path": "/home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-api.sock"
+               },
+               "PodmanPipe": null
+          },
+          "Created": "2026-11-06T16:09:08.698382563-05:00",
+          "LastUp": "0001-01-01T00:00:00Z",
+          "Name": "xsprof-vm",
+          "Resources": {
+               "CPUs": 4,
+               "DiskSize": 24,
+               "Memory": 4096,
+               "USBs": []
+          },
+          "SSHConfig": {
+               "IdentityPath": "/home/mei/.local/share/containers/podman/machine/machine",
+               "Port": 32969,
+               "RemoteUsername": "core"
+          },
+          "State": "running",
+          "UserModeNetworking": true,
+          "Rootful": false,
+          "Rosetta": false
+     }
+]
+
+===== host process table (qemu/gvproxy/virtiofsd) =====
+134935 /nix/store/qj0wcnj9kk404b1hmgwb323s7k7aqlaq-gvproxy-0.9.0/bin/gvproxy -mtu 1500 -ssh-port 32969 -listen-qemu unix:///home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-gvproxy.sock -forward-identity /home/mei/.local/share/containers/podman/machine/machine -forward-sock /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-api.sock -forward-dest /run/user/1000/podman/podman.sock -forward-user core -pid-file /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/gvproxy.pid -log-file /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/gvproxy.log
+134949 /nix/store/8m9bi1ykhh1yjq86a6wkrkk0n9w7b1ny-virtiofsd-1.14.0/bin/virtiofsd --sandbox none --socket-path /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/virtiofschar0 --shared-dir . --seccomp=none
+134951 /nix/store/bp9li432ba8adp47dr9z9y0hx56wn8v2-qemu-11.1.2/bin/qemu-system-x86_64 -accel kvm -cpu host -M memory-backend=mem -drive if=virtio,file=/home/mei/.local/share/containers/podman/machine/qemu/xsprof-vm-amd64.qcow2 -object memory-backend-memfd,id=mem,size=4096M,share=on -m 4096 -smp 4 -fw_cfg name=opt/com.coreos/config,file=/home/mei/.config/containers/podman/machine/qemu/xsprof-vm.ign -qmp unix:/home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/qmp_xsprof-vm.sock,server=on,wait=off -netdev stream,id=vlan,server=off,addr.type=unix,addr.path=/home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm-gvproxy.sock -device virtio-net-pci,netdev=vlan,mac=5a:94:ef:e4:0c:ee -device virtio-serial -chardev socket,path=/home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm.sock,server=on,wait=off,id=axsprof-vm_ready -device virtserialport,chardev=axsprof-vm_ready,name=org.fedoraproject.port.0 -pidfile /home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/xsprof-vm_vm.pid -chardev socket,id=virtiofschar0,path=/home/mei/Documents/xsprof/.cache/vm-run/runtime/podman/virtiofschar0 -device vhost-user-fs-pci,queue-size=1024,chardev=virtiofschar0,tag=ea0c794af1eb7d58ffdc213f3f8dd9820c23 -display none
+138604 bash -c  set -u WS=/home/mei/Documents/xsprof RUN=$WS/.cache/vm-run EVD=$WS/docs/evidence/v0.5.0-vm export PATH=/nix/store/bp9li432ba8adp47dr9z9y0hx56wn8v2-qemu-11.1.2/bin:/nix/store/qj0wcnj9kk404b1hmgwb323s7k7aqlaq-gvproxy-0.9.0/bin:/nix/store/8m9bi1ykhh1yjq86a6wkrkk0n9w7b1ny-virtiofsd-1.14.0/bin:$PATH export XDG_RUNTIME_DIR=$RUN/runtime export TMPDIR=$RUN/tmp LOG=$EVD/05-retention-bench.log {   echo "# retention_bench gate — real VM run"   echo "date=$(date -Is)"   echo "binary_sha256=$(sha256sum $RUN/src-head/zig-out/bin/xsprof | cut -d' ' -f1)"   echo "command: sudo -n env KEEP=1 sh /var/tmp/xsprof/qa/retention_bench.sh 600000 0 2G yes"   echo "----------------------------------------"   podman machine ssh xsprof-vm 'sudo -n env KEEP=1 sh /var/tmp/xsprof/qa/retention_bench.sh 600000 0 2G yes' 2>&1   rc=$?   echo "----------------------------------------"   echo "RETENTION_BENCH_EXIT=$rc" } > "$LOG" 2>&1 echo "retention gate finished rc=see-log" 
+139751 bash -c  set -u WS=/home/mei/Documents/xsprof RUN=$WS/.cache/vm-run EVD=$WS/docs/evidence/v0.5.0-vm export PATH=/nix/store/bp9li432ba8adp47dr9z9y0hx56wn8v2-qemu-11.1.2/bin:/nix/store/qj0wcnj9kk404b1hmgwb323s7k7aqlaq-gvproxy-0.9.0/bin:/nix/store/8m9bi1ykhh1yjq86a6wkrkk0n9w7b1ny-virtiofsd-1.14.0/bin:$PATH export XDG_RUNTIME_DIR=$RUN/runtime export TMPDIR=$RUN/tmp  # 01 provisioning log: exact init/start logs + inspect + processes {   echo "# KVM podman machine provisioning — exact captured output"   echo "date=$(date -Is)"   echo "host=$(hostname)"   echo "kernel=$(uname -r)"   echo "user=$(id -u)($(id -un)) groups=$(id -Gn)"   echo "podman=$(podman --version)"   echo "qemu=$(/nix/store/bp9li432ba8adp47dr9z9y0hx56wn8v2-qemu-11.1.2/bin/qemu-system-x86_64 --version | head -1)"   echo "gvproxy=$(command -v gvproxy 2>/dev/null || echo 'on PATH via nix store')"   echo "virtiofsd=$(command -v virtiofsd 2>/dev/null || echo 'on PATH via nix store')"   echo "kvm=$(ls -l /dev/kvm)"   echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR (mode $(stat -c %a "$XDG_RUNTIME_DIR"))"   echo "TMPDIR=$TMPDIR"   echo "cached_fcos_image=$(ls -l /home/mei/.local/share/containers/podman/machine/qemu/cache/*.qcow2.zst 2>/dev/null)"   echo   echo "===== probe: exact command from task WITH --provider qemu ====="   cat "$RUN/logs/init-provider-probe.log" 2>/dev/null || echo "(missing)"   echo   echo "===== podman machine init (without --provider: unknown flag in podman 5.8.7) ====="   cat "$RUN/logs/machine-init.log" 2>/dev/null || echo "(missing)"   echo   echo "===== podman machine start ====="   cat "$RUN/logs/machine-start.log" 2>/dev/null || echo "(missing)"   echo   echo "===== podman machine inspect xsprof-vm ====="   podman machine inspect xsprof-vm 2>&1   echo   echo "===== host process table (qemu/gvproxy/virtiofsd) ====="   pgrep -af 'qemu-system|gvproxy|virtiofsd' 2>&1 } > "$EVD/01-provisioning.log" 2>&1 echo "provisioning log: $(wc -l < "$EVD/01-provisioning.log") lines"  # 02 vm setup log cp "$RUN/logs/vm-setup.log" "$EVD/02-vm-setup.log" cp "$RUN/logs/vm-probe.log" "$EVD/02b-vm-probe.log"  # doctor JSON extracted podman machine ssh xsprof-vm 'sudo -n /var/tmp/xsprof/zig-out/bin/xsprof doctor --json' > "$EVD/02c-doctor.json" 2>&1 echo "doctor json: $(cat "$EVD/02c-doctor.json")"  ls -la "$EVD" 

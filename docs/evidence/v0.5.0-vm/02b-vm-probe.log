@@ -1,0 +1,61 @@
+=== VM probe 2026-11-06T16:10:36-05:00 ===
+Linux localhost.localdomain 7.2.7-200.fc44.x86_64 #1 SMP PREEMPT_DYNAMIC Mon Sep 21 18:25:57 UTC 2026 x86_64 GNU/Linux
+NAME="Fedora Linux"
+VERSION="44.20260928.3.2 (CoreOS)"
+4
+               total        used        free      shared  buff/cache   available
+Mem:            3901         456        3261           4         403        3444
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda4        24G  2.2G   22G  10% /
+/dev/vda4        24G  2.2G   22G  10% /var
+--- sudo ---
+uid=0(root) gid=0(root) groups=0(root) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+--- tools ---
+python3     /usr/bin/python3
+python      MISSING
+perf        MISSING
+curl        /usr/bin/curl
+rpm-ostree  /usr/bin/rpm-ostree
+dnf         /usr/bin/dnf
+systemctl   /usr/bin/systemctl
+systemd-run /usr/bin/systemd-run
+useradd     /usr/bin/useradd
+install     /usr/bin/install
+mount       /usr/bin/mount
+--- tracefs ---
+debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime,seclabel)
+tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime,seclabel)
+drwx------. 49 root root 0 Nov  6 16:09 /sys/kernel/debug
+drwx------. 10 root root 0 Nov  6 16:09 /sys/kernel/tracing
+2
+0
+--- /usr/local ---
+lrwxrwxrwx.  2 root root  15 Aug  1  2022 /usr/local -> ../var/usrlocal
+drwxr-xr-x. 10 root root 103 Nov  6 16:09 /var/usrlocal
+--- rpm queries ---
+python3-3.14.8-1.fc44.x86_64
+package perf is not installed
+--- systemd ---
+systemd
+running
+--- proc version / trace ---
+model name	: AMD Ryzen 7 5700X 8-Core Processor
+address_bits
+boot_params
+btf
+cgroup
+config
+cpu_byteorder
+crash_elfcorehdr_size
+debug
+fscaps
+hardlockup_count
+--- network ---
+HTTP/2 200 
+date: Fri, 06 Nov 2026 21:10:37 GMT
+curl_exit=0
+2600:1f18:d77:9000:3635:4e31:6190:e260 quay.io
+2600:1f18:d77:9001:d752:28d2:a06a:fbd7 quay.io
+--- host mount visible ---
+/home/mei/Documents/xsprof
+=== probe done ===

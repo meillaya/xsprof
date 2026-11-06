@@ -1,0 +1,18 @@
+# live_smoke gate — real VM run
+date=2026-11-06T16:11:02-05:00
+vm=7.2.7-200.fc44.x86_64
+binary_sha256=cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd
+command: sudo -n sh /var/tmp/xsprof/qa/live_smoke.sh
+----------------------------------------
+live_smoke: capture 1s
+live_smoke: record: 93534 lines, faults minor=1914 major=0
+live_smoke: top
+live_smoke: why
+live_smoke: daemon + history
+live_smoke: daemon: sidecars=1
+live_smoke: SIGTERM
+live_smoke: SIGTERM: clean
+live_smoke: bpf-gate: READY (VM marker)
+live_smoke: PASS
+----------------------------------------
+LIVE_SMOKE_EXIT=0

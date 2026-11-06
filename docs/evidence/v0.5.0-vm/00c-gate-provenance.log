@@ -1,0 +1,18 @@
+# Gate script and fixture provenance (committed HEAD 6b3c490)
+date=2026-11-06T16:11:57-05:00
+--- clean worktree hashes ---
+bedac3b0f829d290798a2849beb3eed9cc47b9978d116d3a30e36d0fa7e0e832  qa/live_smoke.sh
+19c292f38504a4099cd7abfefce4d006466898725204d4cdb602d45b584b4e41  qa/service_smoke.sh
+7343fd5d4e0b718f07b6f99298050a53f624312a4c640ebfb22e1bb790e45740  qa/retention_bench.sh
+--- VM staged hashes ---
+bedac3b0f829d290798a2849beb3eed9cc47b9978d116d3a30e36d0fa7e0e832  /var/tmp/xsprof/qa/live_smoke.sh
+19c292f38504a4099cd7abfefce4d006466898725204d4cdb602d45b584b4e41  /var/tmp/xsprof/qa/service_smoke.sh
+7343fd5d4e0b718f07b6f99298050a53f624312a4c640ebfb22e1bb790e45740  /var/tmp/xsprof/qa/retention_bench.sh
+--- VM fixtures/schemas counts ---
+10
+23
+/var/tmp/xsprof/fixtures/real/README.md
+/var/tmp/xsprof/fixtures/real/macos-vm-sched.ndjson
+/var/tmp/xsprof/fixtures/real/scheduler-mix.ndjson
+/var/tmp/xsprof/fixtures/real/vm-fragmented.ndjson
+/var/tmp/xsprof/fixtures/ui/design/demo.json

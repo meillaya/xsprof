@@ -1,0 +1,11 @@
+# service_smoke gate — real VM run
+date=2026-11-06T16:11:15-05:00
+binary_sha256=cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd
+command: sudo -n sh /var/tmp/xsprof/qa/service_smoke.sh
+----------------------------------------
+Running as unit: xsprof-service-smoke.service; invocation ID: fc8c9b93d54745a7a5ea5aef37123562
+Running as unit: xsprof-service-smoke.service; invocation ID: 97f9964ba1664e049f9795d86425b86d
+Running as unit: xsprof-service-smoke.service; invocation ID: 2bc4c5a069cb4506b01603f8bcbd398e
+service_smoke: PASS (3 segments, 421068 extracted lines)
+----------------------------------------
+SERVICE_SMOKE_EXIT=0

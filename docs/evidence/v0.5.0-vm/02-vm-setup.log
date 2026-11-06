@@ -1,0 +1,31 @@
+=== VM setup 2026-11-06T16:10:54-05:00 ===
+host=localhost.localdomain kernel=7.2.7-200.fc44.x86_64
+src=/home/mei/Documents/xsprof/.cache/vm-run/src-head
+dest=/var/tmp/xsprof
+host_binary_sha256=cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd
+vm_binary_sha256=cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd
+vm_binary_size=49708301
+--- version ---
+xsprof 0.4.0
+version_exit=0
+--- doctor --json ---
+{"checks":[{"name":"kernel","reason":"7.2.7-200.fc44.x86_64","state":"READY"},{"name":"perf_event_paranoid","reason":"2; CAP_PERFMON effective","state":"READY"},{"name":"tracefs","reason":"/sys/kernel/tracing","state":"READY"},{"name":"perf","reason":"sched tracepoints + CAP_PERFMON","state":"READY"},{"name":"pressure","reason":"/proc/pressure cpu/memory/io readable","state":"READY"},{"name":"cgroup","reason":"cgroup v2; 24 groups attributed","state":"READY"},{"name":"libbpf","reason":"libbpf.so.1 present","state":"READY"},{"name":"web_assets","reason":"run `zig build web` or set XSPROF_WEB_DIR","state":"SKIP"}],"host_mutation":false,"schema":"xsprof/doctor/v1","status":"SKIP"}
+doctor_exit=0
+--- staged tree ---
+/var/tmp/xsprof
+/var/tmp/xsprof/fixtures
+/var/tmp/xsprof/fixtures/real
+/var/tmp/xsprof/fixtures/ui
+/var/tmp/xsprof/qa
+/var/tmp/xsprof/schemas
+/var/tmp/xsprof/schemas/xsprof
+/var/tmp/xsprof/zig-out
+/var/tmp/xsprof/zig-out/bin
+total 40412
+drwxr-xr-x. 2 root root       20 Nov  6 16:10 .
+drwxr-xr-x. 3 root root       17 Nov  6 16:10 ..
+-rwxr-xr-x. 1 root root 49708301 Nov  6 16:09 xsprof
+--- tracefs state ---
+tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime,seclabel)
+2
+=== setup done ===

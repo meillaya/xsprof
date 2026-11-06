@@ -1,0 +1,24 @@
+# Committed 0.4.0 binary provenance
+date=2026-11-06T16:11:49-05:00
+repo=/home/mei/Documents/xsprof
+head=6b3c490b4fa0955e5fcd93fd19b50a9bb048a0eb
+head_subject=Complete UI-first operator console
+head_commit_date=2026-11-06 16:06:45 -0500
+workspace_status_at_run=71 dirty paths (concurrent v0.5.0 edits by other agents)
+workspace_stale_binary_sha256=6f2ae45650cdafca2cc0f0132877d6e95e76f2f99b85a0fed029ce97fd3af3b6
+clean_worktree=/home/mei/Documents/xsprof/.cache/vm-run/src-head
+clean_worktree_head=6b3c490b4fa0955e5fcd93fd19b50a9bb048a0eb
+clean_worktree_status=?? .tools
+build_command=cd /home/mei/Documents/xsprof/.cache/vm-run/src-head && ./tools/zig build
+committed_binary_sha256=cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd
+committed_binary_size=49708301
+committed_binary_version=xsprof 0.4.0
+
+===== clean-worktree build log =====
+xsprof 0.4.0
+06T16:09:49-05:00
+worktree=/home/mei/Documents/xsprof/.cache/vm-run/src-head
+head=6b3c490b4fa0955e5fcd93fd19b50a9bb048a0eb
+=== ./tools/zig build ===
+BUILD_EXIT=0
+cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd  zig-out/bin/xsprof

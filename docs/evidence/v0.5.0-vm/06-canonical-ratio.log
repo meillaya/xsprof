@@ -1,0 +1,31 @@
+# Canonical/compact ratio - 0.4.0 committed binary, x86_64 KVM VM
+date=2026-11-06T16:23:55-05:00
+=== canonical/compact ratio evidence 2026-11-06T16:23:55-05:00 ===
+binary=/var/tmp/xsprof/zig-out/bin/xsprof
+cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd  /var/tmp/xsprof/zig-out/bin/xsprof
+state=/var/tmp/xsprof-retention.0FQ2Tp
+
+--- gate own canonical sample (qa/retention_bench.sh) ---
+0 /var/tmp/xsprof-retention.0FQ2Tp/sample.ndjson
+gate_sample_bytes=0
+why: the gate runs capture --last 1s AFTER the daemon stopped, so the
+wall-clock 1 s window contains no events; its conditional ratio check
+was skipped and it reported canonical_bytes_per_event=0.0.
+reproduce:
+capture_1s_exit=0
+0 /tmp/cap1s-repro.ndjson
+
+--- same-VM same-binary canonical samples (independent 1 s record) ---
+record_1_exit=0
+record_1_sha256=86c97175331bc8e9298f45953eb11118c8533f3f89519d0aac5ac8669cc33767
+record_1_lines=88193
+record_1_bytes=14120099
+record_2_exit=0
+record_2_sha256=d74bc52ce7b2864f2ca0011c0e08bbb796c6bfc54e922368de6b25d13cb67a88
+record_2_lines=87665
+record_2_bytes=14035532
+
+--- arithmetic ---
+{"canonical_bytes_per_event": 160.104, "canonical_samples": [{"bytes": 14120099, "bytes_per_event": 160.105, "lines": 88193}, {"bytes": 14035532, "bytes_per_event": 160.104, "lines": 87665}], "compact_bytes_per_event": 12.058, "compact_ratio": 13.28, "compact_ratio_status": "supplemental: gate own sample.ndjson was empty", "gate_sample_bytes": 0, "retained_bytes": 625946419, "retained_events": 51912224, "schema": "xsprof/canonical-ratio/v1"}
+=== done ===
+CANONICAL_RATIO_EXIT=0
