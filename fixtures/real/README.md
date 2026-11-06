@@ -70,20 +70,12 @@ scheduler tracepoints.
   host claim. Header identity comes from the `ui_host`, `ui_kernel`, and
   `ui_arch` markers.
 
-## Live stream
+## Native live capture
 
-The live video was recorded against `xsprof serve --live --live-stride 20`
-running as root inside the same podman VM. The VM loopback port was exposed to
-this host with an SSH local forward:
-
-```sh
-ssh -i ~/.local/share/containers/podman/machine/machine -p <ssh-port> \
-  -N -L 8798:127.0.0.1:8798 core@127.0.0.1
-```
-
-The browser then opened the token URL through `http://127.0.0.1:8798/`. Four
-`yes` loops and repeated `dd` writes kept the VM scheduling; the console showed
-`LIVE` with advancing counters and explicit `LOSS 235488` at the captured
-overview frame. The live stream is not archived as a static journal because it
-keeps advancing; the video and `design/evidence/live_stream.json` record the
-observed counters.
+The native console follows a recorder state directory exported from the
+disposable Linux VM. The media under `design/media/xsprof-native-live-replay.*`
+is an offscreen native render of a bounded excerpt of this real capture,
+labelled REPLAY and `host_mutation:false`; it is not a real-window screen
+recording. The VM's live recorder is exercised by `qa/live_smoke.sh`,
+`qa/service_smoke.sh`, and `qa/retention_bench.sh`; evidence is under
+`docs/evidence/v0.5.0-vm/`. The browser/SSE lane was removed in 0.5.0.

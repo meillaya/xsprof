@@ -90,7 +90,7 @@ fn drawAccessibility(state: *const State, canvas: *Canvas, th: Theme, rect: Rect
     try panelHead(canvas, th, rect, "02", "ACCESSIBILITY", "tree is platform-neutral");
     try toggleRow(state, canvas, th, .{ .x = rect.x + 14, .y = rect.y + 44, .w = rect.w - 28, .h = 30 }, "Announce state changes", "status/loss/refusal live regions", state.settings.a11y_announce, hits.settings_a11y_announce);
     try toggleRow(state, canvas, th, .{ .x = rect.x + 14, .y = rect.y + 80, .w = rect.w - 28, .h = 30 }, "Expose accessibility tree", "nodes built from canvas hit ids", state.settings.a11y_tree, hits.settings_a11y_tree);
-    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = rect.y + 120, .w = rect.w - 28, .h = 50 }, style(text_10, th.dim, .regular), "Native macOS exposes an NSAccessibility tree; web mirrors the same nodes in a hidden DOM/ARIA tree. Linux AT-SPI is a DEGRADED/SKIP bridge with an explicit reason, never silently missing.");
+    try labelWrapped(canvas, .{ .x = rect.x + 14, .y = rect.y + 120, .w = rect.w - 28, .h = 50 }, style(text_10, th.dim, .regular), "Native macOS exposes an NSAccessibility tree; the platform-neutral tree also serializes to canonical JSON for tests and tooling. Linux AT-SPI is a DEGRADED/SKIP bridge with an explicit reason, never silently missing.");
 }
 
 fn drawCapture(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void {
@@ -158,7 +158,7 @@ fn drawAbout(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void 
     try canvas.rounded(rect, 5, th.panel, th.line, 1);
     try panelHead(canvas, th, rect, "06", "ABOUT & SAFETY", "read-only");
     try label(canvas, rect.x + 14, rect.y + 44, "xsprof — read-only scheduler & memory profiler", style(text_11, th.text, .regular));
-    try label(canvas, rect.x + 14, rect.y + 62, "host_mutation=false · no telemetry · loopback only", style(text_10, th.dim, .regular));
+    try label(canvas, rect.x + 14, rect.y + 62, "host_mutation=false · no telemetry · no network", style(text_10, th.dim, .regular));
     try label(canvas, rect.x + 14, rect.y + 80, "Onboarding version", style(text_10, th.dim, .regular));
     var buf: [24]u8 = undefined;
     try labelRight(canvas, rect.x + rect.w - 14, rect.y + 80, std.fmt.bufPrint(&buf, "{d}", .{state.onboarding.completed_version}) catch "0", style(text_10, th.text, .regular));

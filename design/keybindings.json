@@ -309,7 +309,7 @@
             "c",
             "Escape"
           ],
-          "action": "keep the web bindings; route to the UI input queue"
+          "action": "keep the analysis bindings; route to the UI input queue"
         },
         {
           "keys": [

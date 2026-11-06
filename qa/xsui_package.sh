@@ -24,6 +24,19 @@ if grep -R -n -E '\.\./\.\./src|\.\./\.\./app|src/ui/' "$PKG/src" "$PKG/examples
     fail=1
 fi
 
+# The package is native-only: no WebGL2 shim/ABI or wasm/freestanding branches
+# may creep back in (task: remove the browser surface).
+if grep -R -n -E 'webgl|WebGL2|wasm32|freestanding' \
+    "$PKG/src" "$PKG/examples" "$PKG/build.zig" "$PKG/README.md" >"$TMP/webgl" 2>/dev/null; then
+    echo "xsui_package: WebGL2/wasm remnants found" >&2
+    sed -n '1,20p' "$TMP/webgl" >&2
+    fail=1
+fi
+if [ -e "$PKG/src/gpu/webgl.zig" ] || [ -d "$PKG/src/gpu/shaders/webgl2" ]; then
+    echo "xsui_package: WebGL2 source files still present" >&2
+    fail=1
+fi
+
 # build.zig.zon and xsui.version must agree.
 zon_version=$(sed -n 's/.*\.version = "\(.*\)".*/\1/p' "$PKG/build.zig.zon" | head -1)
 src_version=$(sed -n 's/.*pub const version = "\(.*\)".*/\1/p' "$PKG/src/xsui.zig" | head -1)

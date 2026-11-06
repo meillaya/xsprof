@@ -1,6 +1,6 @@
 //! UI settings: schema xsprof/ui-settings/v1, canonical compact JSON with
 //! strictly ascending keys, bounded parse, and deterministic defaults.
-//! Persistence (file/localStorage) is a surface responsibility; this module is
+//! Persistence (file writes) is a surface responsibility; this module is
 //! pure so snapshot tests and reducers stay deterministic.
 
 const std = @import("std");

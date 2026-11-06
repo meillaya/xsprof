@@ -1,5 +1,5 @@
 //! Flat UI draw list + glyph atlas. The same instances feed the CPU, Metal,
-//! and WebGL2 backends; this file has no OS or profiler dependency.
+//! backends; this file has no OS or profiler dependency.
 
 const std = @import("std");
 const ttf = @import("ttf.zig");
@@ -112,7 +112,7 @@ pub const GlyphEntry = struct {
     advance_f: f32 = 0,
 };
 
-/// Fixed atlas dimensions shared by the CPU, Metal, GL, and WebGL2 backends.
+/// Fixed atlas dimensions shared by the CPU, Metal, and GL backends.
 pub const atlas_width: usize = 4096;
 pub const atlas_height: usize = 4096;
 

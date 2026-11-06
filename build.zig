@@ -147,6 +147,11 @@ pub fn build(b: *std.Build) void {
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
     compact_roundtrip_step.dependOn(&compact_roundtrip.step);
 
+    const showcase_smoke = b.addSystemCommand(&.{ "sh", "qa/showcase_smoke.sh" });
+    showcase_smoke.step.dependOn(b.getInstallStep());
+    const showcase_smoke_step = b.step("showcase-smoke", "Native showcase media determinism/provenance");
+    showcase_smoke_step.dependOn(&showcase_smoke.step);
+
     const a11y_smoke = b.addSystemCommand(&.{ "sh", "qa/a11y_smoke.sh" });
     a11y_smoke.step.dependOn(b.getInstallStep());
     const a11y_smoke_step = b.step("a11y-smoke", "Deterministic accessibility tree gate");
@@ -159,80 +164,6 @@ pub fn build(b: *std.Build) void {
     const xsui_package = b.addSystemCommand(&.{ "sh", "qa/xsui_package.sh" });
     const xsui_package_step = b.step("xsui-package", "Test the standalone xsui package");
     xsui_package_step.dependOn(&xsui_package.step);
-
-    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
-    const web_xsui_dep = b.dependency("xsui", .{ .target = wasm_target, .optimize = optimize });
-    const web_mod = b.createModule(.{
-        .root_source_file = b.path("src/web.zig"),
-        .target = wasm_target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "xsui", .module = web_xsui_dep.module("xsui") },
-        },
-    });
-    web_mod.export_symbol_names = &.{
-        "web_init",                "web_resize",              "web_alloc",
-        "web_free",                "web_load_journal",        "web_set_screen",
-        "web_set_theme",           "web_frame",               "web_instances_ptr",
-        "web_instance_stride",     "web_atlas_ptr",           "web_atlas_size",
-        "web_width",               "web_height",              "web_refusals",
-        "web_capabilities",        "web_append_journal",      "web_set_live",
-        "web_atlas_version",       "web_pointer",             "web_key",
-        "web_set_paused",          "web_set_follow",          "web_run_scenario",
-        "web_scenario_result_ptr", "web_scenario_result_len", "web_generate_trace",
-        "web_trace_result_ptr",    "web_trace_result_len",    "web_load_compare",
-        "web_clear_compare",       "web_ui_init",             "web_ui_resize",
-        "web_ui_load_journal",     "web_ui_load_demo",        "web_ui_load_recorder",
-        "web_ui_frame",            "web_ui_instances_ptr",    "web_ui_instance_stride",
-        "web_ui_atlas_ptr",        "web_ui_atlas_size",       "web_ui_atlas_version",
-        "web_ui_key",              "web_ui_focus_rail",       "web_ui_click",
-        "web_ui_tick",             "web_ui_pointer_down",     "web_ui_pointer_move",
-        "web_ui_pointer_up",       "web_ui_copy_ptr",         "web_ui_copy_len",
-        "web_ui_copy_clear",       "web_ui_set_screen",       "web_ui_set_theme",
-        "web_ui_set_live",         "web_ui_take_open",        "web_ui_take_reload",
-        "web_ui_loaded",           "web_ui_scroll",           "web_ui_pointer_leave",
-        "web_ui_append_journal",   "web_ui_event_count",      "web_ui_screen",
-        "web_ui_a11y_ptr",         "web_ui_a11y_len",         "web_ui_a11y_version",
-        "web_ui_a11y_focus",       "web_ui_a11y_activate",    "web_ui_take_demo",
-    };
-    const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
-    web_exe.entry = .disabled;
-    const web_step = b.step("web", "Build the WebAssembly frontend into zig-out/web");
-    const wasm_install = b.addInstallFile(web_exe.getEmittedBin(), "web/assets/xsprof-web.wasm");
-    web_step.dependOn(&wasm_install.step);
-    const web_assets = [_][]const u8{ "index.html", "main.js", "gl.js", "a11y.js", "style.css" };
-    inline for (web_assets) |asset| {
-        const install = b.addInstallFile(b.path("web/" ++ asset), "web/" ++ asset);
-        web_step.dependOn(&install.step);
-    }
-    inline for ([_][]const u8{ "ui.vert.glsl", "ui.frag.glsl" }) |shader| {
-        const source = b.fmt("src/gpu/shaders/webgl2/{s}", .{shader});
-        const install = b.addInstallFile(
-            web_xsui_dep.path(source),
-            b.fmt("web/shaders/{s}", .{shader}),
-        );
-        web_step.dependOn(&install.step);
-    }
-    const demo_install = b.addInstallFile(b.path("fixtures/ui/design/demo.json"), "web/assets/design-demo.json");
-    web_step.dependOn(&demo_install.step);
-    inline for ([_][]const u8{ "healthy.json", "loss.json", "empty.json", "scheduler-mix.json" }) |name| {
-        const install = b.addInstallFile(b.path("scenarios/" ++ name), "web/scenarios/" ++ name);
-        web_step.dependOn(&install.step);
-    }
-    // A plain `zig build` must leave a runnable console (`xsprof demo`); the
-    // web assets are part of the default install, not an extra developer step.
-    b.getInstallStep().dependOn(web_step);
-
-    const web_smoke = b.addSystemCommand(&.{ "sh", "qa/web_smoke.sh" });
-    web_smoke.step.dependOn(b.getInstallStep());
-    web_smoke.step.dependOn(web_step);
-    const web_smoke_step = b.step("web-smoke", "Optional loopback web bridge smoke test");
-    web_smoke_step.dependOn(&web_smoke.step);
-
-    const web_ui_smoke = b.addSystemCommand(&.{ "sh", "qa/web_ui_smoke.sh" });
-    web_ui_smoke.step.dependOn(web_step);
-    const web_ui_smoke_step = b.step("web-ui-smoke", "Headless wasm export/append gate");
-    web_ui_smoke_step.dependOn(&web_ui_smoke.step);
 
     const live_smoke = b.addSystemCommand(&.{ "sh", "qa/live_smoke.sh" });
     live_smoke.step.dependOn(b.getInstallStep());
@@ -250,11 +181,9 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&cli_parity.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
+    check.dependOn(&showcase_smoke.step);
     check.dependOn(&release_tooling.step);
     check.dependOn(&xsui_package.step);
-    check.dependOn(web_step);
-    check.dependOn(&web_ui_smoke.step);
-    check.dependOn(&web_smoke.step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
     check.dependOn(&run_xsui_api_tests.step);

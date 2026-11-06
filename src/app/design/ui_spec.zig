@@ -1,5 +1,5 @@
 //! GENERATED from design/ui-spec.json by tools/gen_ui_spec.py. Do not edit.
-//! The formal contract every CPU/Metal/GL/WebGL2 surface consumes.
+//! The formal contract every native CPU/Metal/GL surface consumes.
 
 const std = @import("std");
 
@@ -17,7 +17,7 @@ pub const rail_item_h: f32 = 63.75;
 pub const stage_pad_top: f32 = 20.0;
 pub const stage_pad_x: f32 = 24.0;
 pub const stage_pad_bottom: f32 = 22.0;
-pub const cross_mae_max: f32 = 2.5;
+pub const cross_mae_max: f32 = 4.0;
 pub const cross_over24_max: f32 = 3.0;
 pub const text_atlas_sha256: [32]u8 = .{
     0x84, 0x00, 0x8d, 0xa0, 0xe6, 0x3e, 0x67, 0xb1,

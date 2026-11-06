@@ -1,23 +1,22 @@
 # Architecture overview
 
 `xsprof` is split so the profiler core, the standalone UI package
-([`lib/xsui`](../../lib/xsui/README.md)), and the native/web surfaces can be
-tested independently.
+([`lib/xsui`](../../lib/xsui/README.md)), and the native surfaces can be
+tested independently. There is no browser/WASM/WebGL2 surface in 0.5.0.
 
 ```
 perf_event_open / tracefs / /proc / /sys / BPF (VM only)
         |
    capture threads -> bounded SPSC rings -> correlator/aggregator -> EventStore
         |                                                        |
-        |                                                        +-> journal NDJSON
+        |                                                        +-> compact segments + manifest
+        |                                                        +-> canonical NDJSON export
         |                                                        +-> advisor
-        |                                                        +-> SSE stream
         v
    app state (replay/live) -> xsui (lib/xsui) tree -> layout -> paint -> DrawList
                                                                |
                                       +------------------------+------------------+
-                                   CPU raster              WebGL2 (JS)        Metal (macOS)
-                                                                              GL 3.3 (Linux)
+                                   CPU raster          Metal (macOS)        GL 3.3 (Linux)
 ```
 
 ## Layers
@@ -30,12 +29,12 @@ perf_event_open / tracefs / /proc / /sys / BPF (VM only)
 | Analysis | `src/analyze/` | pure advisor over aggregates; suggestions only |
 | Viz | `src/viz/` | pure Chrome Trace serialization |
 | Stream | `src/stream/` | bounded event store, indexes, derived slices/flows |
-| Serve | `src/serve/` | loopback GET/HEAD, static assets, SSE; no mutation |
-| UI | `lib/xsui/` | standalone package; target-neutral core for native + wasm |
-| App | `src/app/` | profiler screens over stream/analysis |
-| Platform | `src/platform/` | macOS AppKit window, Linux X11/GLX surface, web ABI, headless |
-| GPU | `lib/xsui/src/gpu/` | one draw list; CPU/Metal/GL/WebGL2 backends |
-| CLI | `src/cli/`, `src/main.zig` | dispatch only |
+| Recorder | `src/recorder/` | compact segments, manifest, retention, extraction, verify |
+| UI | `lib/xsui/` | standalone native package; CPU/Metal/GL backends |
+| App | `src/app/` | profiler screens and product shell over stream/analysis |
+| Platform | `src/platform/` | macOS AppKit, Linux X11/GLX, native effect execution, headless smokes |
+| GPU | `lib/xsui/src/gpu/` | one draw list; CPU/Metal/GL backends |
+| CLI | `src/cli/`, `src/main.zig` | dispatch only; native UI default, automation verbs hidden |
 
 ## Data model
 
@@ -50,29 +49,29 @@ perf_event_open / tracefs / /proc / /sys / BPF (VM only)
   - migration/fault events become instant markers.
 - Aggregates are the frozen 21-field advisor input; uncollected signals stay
   zero with collection flags/capabilities, so no false findings fire.
+- Raw recorder storage is `xsprof/raw-segment/v1` compact blocks; extraction,
+  incident, and UI output remain canonical `xsprof/event/v1` NDJSON.
 
 ## Threading
 
 - UI thread owns the tree, input, layout, and frame build.
-- Render thread owns GPU submission with 2–3 frames in flight and bounded
-  backpressure.
-- Capture/parse threads feed bounded queues; live data is coalesced to display
-  refresh.
-- Worker pool for glyph/parse/paint chunks is opt-in; parallel paint must equal
-  serial paint (tested).
+- Render submission is owned by the platform surface with bounded backpressure.
+- Capture/recorder threads feed bounded queues; live data is coalesced to display
+  refresh with explicit sampler/loss markers.
+- Worker pools for glyph/parse/paint chunks are opt-in; parallel paint must
+  equal serial paint (tested).
 - Idle means no frames and no polling.
 
 ## Surfaces
 
-- **Web first:** `wasm32-freestanding` + WebGL2; tiny JS shim consumes the
-  `xsui` instance/atlas ABI; loopback SSE.
 - **Native macOS:** AppKit window surface + `xsui-metal` (`CAMetalLayer`);
   hand-written Objective-C runtime layer from `xsui-objc`; MSL embedded by the
-  package.
+  package; NSAccessibility bridge.
 - **Native Linux:** X11 + GLX surface in `src/platform/linux`; OpenGL 3.3
-  renderer in `xsui-gl`, loaded via `dlopen`; Xvfb tests; web is the Wayland
-  path.
-- **Headless:** CPU rasterizer + Tester + PNG snapshots on every host.
+  renderer in `xsui-gl`, loaded via `dlopen`; Xvfb tests; live capture on
+  Linux.
+- **Headless:** CPU rasterizer + Tester + PNG snapshots and deterministic
+  accessibility-tree dumps on every host.
 
 ## Failure posture
 

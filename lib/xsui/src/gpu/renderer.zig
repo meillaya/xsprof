@@ -10,9 +10,7 @@
 const std = @import("std");
 const draw = @import("../draw.zig");
 
-pub const webgl = @import("webgl.zig");
-
-pub const Backend = enum(u8) { cpu = 0, metal = 1, gl = 2, webgl2 = 3 };
+pub const Backend = enum(u8) { cpu = 0, metal = 1, gl = 2 };
 
 pub const Status = enum(u8) { ready = 0, degraded = 1, skip = 2, refuse = 3 };
 

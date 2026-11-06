@@ -166,7 +166,8 @@ for theme in themes:
 # Screen/flow/keymap/command coverage.
 screen_ids = [s.get("id") for s in screens.get("screens", [])]
 check(screen_ids == ROUTE_IDS, "screens.json: product routes")
-check(len(screens.get("overlays", [])) >= 7, "screens.json: overlays")
+check(len(screens.get("overlays", [])) >= 6, "screens.json: overlays")
+check(all(o.get("id") != "file-input" for o in screens.get("overlays", [])), "screens.json: no web file-input utility")
 route_ids = [s.get("id") for s in screens.get("screens", [])]
 for route_id in ROUTE_IDS:
     check(route_id in route_ids, f"screens.json: missing route {route_id}")
@@ -205,6 +206,9 @@ check([s.get("max_width") for s in spec.get("breakpoints", []) if "max_width" in
       "ui-spec.json: breakpoints")
 check(spec.get("screens") == ROUTE_IDS, "ui-spec.json: screens")
 check(spec.get("extension", {}).get("status") == "proposed", "ui-spec.json: extension marked proposed")
+backends = spec.get("render", {}).get("backends", [])
+check("webgl2" not in backends and "wasm" not in backends, "ui-spec.json: web backends removed")
+check("cpu_vs_webgl2" not in spec.get("acceptance", {}).get("cross_surface", {}), "ui-spec.json: webgl2 cross-surface gate removed")
 check(len(spec.get("overlays", [])) >= 7, "ui-spec.json: overlays")
 atlas_meta = spec.get("render", {}).get("text_atlas", {})
 atlas_path = ROOT / atlas_meta.get("file", "")
@@ -226,8 +230,9 @@ if gen_path.exists() and atlas_meta.get("sha256"):
     check(byte_lines in generated, "ui_spec.zig: atlas hash does not match ui-spec.json")
     check('pub const shell_top: f32 = 52.0;' in generated, "ui_spec.zig: shell_top")
     check('pub const rail_width: f32 = 92.0;' in generated, "ui_spec.zig: rail_width")
-cross = spec.get("acceptance", {}).get("cross_surface", {}).get("cpu_vs_webgl2", {})
-check(cross.get("mae_max", 0) > 0 and cross.get("over24_max", 0) > 0, "ui-spec.json: cross-surface gate")
+backends = spec.get("render", {}).get("backends", [])
+metal_gate = spec.get("acceptance", {}).get("cross_surface", {}).get("cpu_vs_metal", {})
+check(metal_gate.get("mae_max", 0) > 0 and metal_gate.get("over24_max", 0) > 0, "ui-spec.json: cpu-vs-metal gate")
 check(spec.get("acceptance", {}).get("reference", {}).get("pixel_gate") is False,
       "ui-spec.json: reference must be advisory")
 

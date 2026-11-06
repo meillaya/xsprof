@@ -24,7 +24,7 @@
         "setTheme('dark') and render the full app: chrome, brief, capability matrix, CPU lanes, advisor mini, threads, event mix, memory, losses, status, events, advisor, capture, type chips.",
         "Initialize navigation, timeline pointer interactions, advisor/events/capture handlers, palette, help, theme, and global keyboard.",
         "Read location.hash; if it names a known screen, activate it; otherwise activate overview.",
-        "Observe the timeline plot width with ResizeObserver; re-render on width changes greater than 2px.",
+        "Observe the native viewport width; re-render on width changes greater than 2px.",
         "Cancel the playback animation frame on beforeunload."
       ],
       "outcomes": [
@@ -542,7 +542,7 @@
       "steps": [
         "Apply the breakpoint rules in tokens.json/layout.breakpoints.",
         "At 1024px the rail becomes a bottom bar and the keybar hides.",
-        "ResizeObserver re-renders the timeline when plot width changes by more than 2px."
+        "Native viewport resize re-renders the timeline when the plot width changes by more than 2px."
       ],
       "outcomes": [
         "Layout matches the active breakpoint",
@@ -550,7 +550,7 @@
       ],
       "source": [
         "@media rules",
-        "ResizeObserver in boot()"
+        "native resize callback in the surface loop"
       ]
     },
     {
@@ -558,7 +558,7 @@
       "kind": "accessibility",
       "title": "Skip to profiler content",
       "trigger": [
-        "Tab from the browser chrome until the skip link is focused",
+        "Tab from the native window until the skip link is focused",
         "Enter on the focused skip link"
       ],
       "preconditions": [],
@@ -672,7 +672,7 @@
         "Running state with events/lost/window; restart issues a new session label"
       ],
       "failures": [
-        "Web and non-Linux fail closed; externally owned recorder is attach-only"
+        "Non-Linux surfaces fail closed; externally owned recorder is attach-only"
       ]
     },
     {
@@ -717,7 +717,7 @@
         "journal/trace/report/incident written to the state directory"
       ],
       "failures": [
-        "Web fails closed; failures surface as error toast + audit entry"
+        "Non-writable surfaces fail closed; failures surface as error toast + audit entry"
       ]
     },
     {
@@ -774,14 +774,14 @@
       "trigger": [
         "Tab traversal",
         "screen reader navigation",
-        "web DOM mirror"
+        "macOS NSAccessibility bridge"
       ],
       "preconditions": [
         "rendered frame"
       ],
       "steps": [
         "build platform-neutral nodes from Canvas hits",
-        "mirror to hidden DOM/ARIA or NSAccessibility"
+        "bridge to macOS NSAccessibility"
       ],
       "outcomes": [
         "Every focusable control has a role and label; dialog focus trapped"

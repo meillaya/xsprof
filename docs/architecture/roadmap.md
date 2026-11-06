@@ -7,7 +7,7 @@ Status is updated only when a phase gate actually passes.
 | P0 | Archive C++; pin Zig 0.17; vendor stdlib text; skeleton build/CI; guidance docs | **complete** |
 | P1 | Core event/JSON/privacy/safety; proc/sysfs; capabilities; advisor; Chrome Trace; CLI parity | **complete** |
 | P2 | `xsui` kernel: draw list, CPU raster, TTF text, layout, theme, core widgets, Tester, demo snapshots | **complete** |
-| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **complete** |
+| P3 | Web profiler UI on replay: EventStore/index, Overview/Timeline/Advisor/Events, wasm/WebGL2, `serve`, e2e | **removed in 0.5.0** |
 | P4 | Live capture: perf collectors, rings, loss, aggregation, `record`, live SSE, VM validation | **complete** |
 | P5 | Native macOS AppKit/Metal, offscreen parity, hidden smoke, `ui` | **complete** |
 | P6 | Native Linux X11/GL, Xvfb CI, packaging, performance/a11y polish | **complete** |
@@ -15,11 +15,24 @@ Status is updated only when a phase gate actually passes.
 | M1 | Flight recorder: daemon, segments, retention, `capture --last`, `watch`, `doctor`, systemd unit | **complete** |
 | M2 | Interaction: metrics index, pointer/scroll, filters, selections, live controls | **complete** |
 | M3 | Analysis: metrics, compare, reports, CI budget | **complete (first slice)** |
-| M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **complete** |
+| M4 | Live pipeline: recorder-spool tailing, incremental WASM store, pause/follow | **native follow tail; web lane removed in 0.5.0** |
 | M5 | Packaging: release CI, universal app, notarization script, Homebrew tap | **tooling complete; publication blocked on external credentials** |
 | M6 | Depth: presets, cgroup/PSI probes, overhead meter, fuzz, real fixtures | **complete** |
 | M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **complete** |
 | R1 | UI-first console: 8 routes, onboarding, GPU picker/settings/audit, native live/resize, a11y tree, compact raw tier, simplified CLI, Nix/release tooling | **complete locally; VM/macOS/credential lanes external** |
+
+## 0.5.0 native-only removal (current)
+
+- Removed the shipped browser runtime: `serve`, `/api/*`, SSE, wasm32/
+  WebGL2, `web/`, browser assets, web CLI/help/completions, ui-session schema,
+  Playwright evidence, and web packaging installs.
+- `xsprof demo` now opens the bundled capture in the native console and fails
+  with a native-only reason when headless. `xsprof serve` fails closed as a
+  removed 0.5.0 verb.
+- Kept the frozen `design/index.html` prototype as non-runtime design input;
+  removed WebGL2 from the standalone xsui package.
+- Added the AppImage artifact, KVM podman VM acceptance evidence, and native
+  offscreen showcase media.
 
 ## v0.4.0 UI-first console (local gates passed)
 

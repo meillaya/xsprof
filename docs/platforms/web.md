@@ -1,68 +1,34 @@
-# Web frontend
+# Web surface (removed in 0.5.0)
 
-The P3 web surface is a **read-only replay client**:
+The browser/WASM/WebGL2 lane is **not shipped**. 0.5.0 removed the web runtime
+and its serving bridge; the native GPU console (macOS, Linux) and the headless
+`snapshot` renderer are the only product surfaces.
 
-- `xsprof serve --journal <file> --assets-dir zig-out/web --port 8787`
-- Prints a loopback URL with a random token in the fragment (`#token=…`);
-  `?token=…` remains accepted for compatibility.
-- GET/HEAD only. `/api/meta` and `/api/journal` require the token; POST and
-  every other method return 405. There is no mutation endpoint.
-- The browser fetches the NDJSON journal, passes it into a
-  `wasm32-freestanding` build, and asks Zig for a flat UI instance buffer plus
-  the R8 glyph atlas.
-- `web/gl.js` uploads that buffer once per frame and draws one instanced
-  `TRIANGLE_STRIP` call in WebGL2. There is no JS UI framework, no external
-  font/CDN, and no telemetry.
-- `serve --live --live-dir <state>` tails the recorder spool instead of
-  opening a second capture.
-- `serve --live` keeps one perf capture open for the process lifetime. It
-  exposes one-shot SSE batches with `Last-Event-ID` resume; `--live-stride`
-  controls UI downsampling while loss markers report dropped events. Raw
-  recorder segments remain the full-fidelity path.
-- The browser appends only new NDJSON lines through `web_ui_append_journal`,
-  backed by a bounded store and incremental index. The view state is preserved
-  across appends; a server reset triggers a full reload.
-- `?screen=0..4` selects Overview/Timeline/Advisor/Events/Capture;
-- `p` pauses live updates, `f` toggles follow-tail, `o` opens a local
-  `.ndjson`/`.jsonl`/`.json` capture, and `0` resets the timeline window;
-- drag/drop a capture anywhere on the page to load it locally; nothing is
-  uploaded;
-- clicking an event row opens the timeline centered on that event;
-- the replay client now uses the same lab state and rail as native: `L`
-  toggles the rail, `K` opens the command palette, and the inspector follows
-  the selected task; live capture controls stay native-only;
-- the `run healthy scenario` button loads `scenarios/healthy.json`, runs the
-  same assertions in wasm, and reports PASS or FAIL; `scenario file` runs a
-  user-selected JSON scenario against the loaded journal, `download result`
-  saves the canonical run JSON, and `download trace` saves the loaded
-  journal as Chrome Trace; no snapshots or host paths are involved;
-- `c` filters by the selected comm, `P` by pid, `k` cycles event kinds, `l`
-  toggles loss/refusal rows, and `x` clears the combined filter;
-  `?theme=light` selects the paper theme; `1..5` switches screens.
-- `/api/meta` is `xsprof/ui-session/v1` with `host_mutation=false`, an event
-  count, and the live byte offset. `/api/journal` also returns
-  `x-xsprof-offset` for SSE resumption.
+## What was removed
 
-## Security boundary
+- `xsprof serve` and the loopback HTTP/SSE bridge, including `/api/meta`,
+  `/api/journal`, `/api/recorder`, `/api/events`, and `/api/window`.
+- The wasm32 build, WebGL2 renderer, browser assets, and the `web_smoke` /
+  `web_ui_smoke` / `web_lab_smoke` QA gates.
+- The `xsprof/ui-session/v1` schema, web-asset checks in `doctor`, and the
+  `XSPROF_WEB_DIR` packaged-runtime override.
+- `xsprof demo` no longer starts a loopback server: it opens the bundled
+  capture in the native console and fails with an explicit reason when no
+  display is available.
 
-- `serve` refuses any address other than `127.0.0.1`/`::1`.
-- Static assets are an explicit whitelist; no path traversal.
-- API responses are `no-store`; the UI shell has no inline script or external
-  origin.
-- `./tools/zig build` installs the web assets; `./tools/zig build web` rebuilds
-  them alone.
-- If WebGL2 is unavailable, the page shows an explicit error instead of
-  silently falling back to a fake renderer.
+The design prototype under `design/` remains design input for the native
+console and is not runtime code.
 
-## Verification
+## Headless and automated use
+
+Automated work never opens a window:
 
 ```sh
-./tools/zig build web
-./tools/zig build web-smoke
-node qa/web_lab_smoke.mjs   # optional, requires Node
+xsprof snapshot --replay capture.ndjson --out frame.png
+xsprof snapshot --demo-model fixtures/ui/design/demo.json --view home --a11y tree.json
+xsprof capture --last 5m --dir /var/lib/xsprof --out window.ndjson
+xsprof verify --dir /var/lib/xsprof --json
 ```
 
-`web_smoke` starts a loopback server, checks index/wasm/token behavior, rejects
-POST, and verifies `host_mutation=false` in `/api/meta`. A Playwright headless
-Chromium screenshot is the visual check used during P3; it is optional tooling,
-not a build dependency.
+The native console makes no external requests and sends no telemetry; there is
+no network listener, no token, and no browser asset lane to configure.

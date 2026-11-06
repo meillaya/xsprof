@@ -1,6 +1,6 @@
 //! Shared native-window options passed from the CLI to the macOS/Linux
 //! surfaces. Platform-neutral: no OS, window, or profiler imports, so it also
-//! compiles for the wasm/web build if a surface ever needs it.
+//! stays independent of any window toolkit.
 
 const std = @import("std");
 

@@ -7,11 +7,11 @@ const xsui = @import("xsui");
 test "package identity and draw ABI" {
     try std.testing.expect(xsui.version.len != 0);
     try std.testing.expectEqual(@as(usize, 72), @sizeOf(xsui.Instance));
-    try std.testing.expectEqual(@as(usize, 18), xsui.webgl.instance_stride_floats);
-    try std.testing.expectEqual(@as(usize, 18), xsui.webgl.instance_stride_bytes / @sizeOf(f32));
+    try std.testing.expectEqual(@as(usize, 18), @sizeOf(xsui.Instance) / @sizeOf(f32));
+    try std.testing.expectEqual(@as(usize, 16), @offsetOf(xsui.Instance, "clip"));
+    try std.testing.expectEqual(@as(usize, 32), @offsetOf(xsui.Instance, "uv"));
     try std.testing.expectEqual(@as(usize, 48), @offsetOf(xsui.Instance, "color"));
     try std.testing.expectEqual(@as(usize, 64), @offsetOf(xsui.Instance, "mode"));
-    try std.testing.expectEqual(@as(usize, 8), xsui.webgl.attributes.len);
 }
 
 test "theme presets and overrides are part of the public API" {

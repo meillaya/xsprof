@@ -456,7 +456,7 @@ fn entryBefore(a: picker.Entry, b: picker.Entry) bool {
 }
 
 test "effect executor keeps stable refusal surfaces" {
-    try std.testing.expect(!effect.supports(.web, .list_dir));
+    try std.testing.expect(!effect.supports(.snapshot, .list_dir));
     try std.testing.expect(effect.supports(.linux, .write_file));
     try std.testing.expect(!effect.supports(.macos, .recorder_control));
     try std.testing.expectEqualStrings("source.demo.missing", "source.demo.missing");

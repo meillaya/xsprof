@@ -5,12 +5,11 @@
 //!
 //! - CPU rasterizer (`raster`) for deterministic snapshots and parity tests;
 //! - Metal (`xsui-metal`, macOS);
-//! - OpenGL 3.3 (`xsui-gl`, Linux);
-//! - WebGL2 (`webgl` ABI constants + shaders, JS owns the GL context).
+//! - OpenGL 3.3 (`xsui-gl`, Linux).
 //!
 //! The core module is target-neutral: it has no profiler, OS, or window
-//! imports and compiles for native and wasm. Native renderer modules are
-//! separate imports so a wasm build never pulls in a framework.
+//! imports and compiles for native targets. Native renderer modules are
+//! separate imports so the core never pulls in a framework.
 //!
 //! Extension points:
 //! - `Ui.custom` with `CustomSpec.measure` / `CustomSpec.paint` for custom
@@ -57,8 +56,6 @@ pub const canvas = @import("canvas.zig");
 /// Platform-neutral accessibility tree built from the canvas draw/hit pass.
 pub const a11y = @import("a11y.zig");
 pub const gpu = @import("gpu/renderer.zig");
-/// Zig side of the WebGL2 instance/attribute/atlas ABI.
-pub const webgl = gpu.webgl;
 
 /// Packed RGBA color with a default opaque alpha.
 pub const Color = draw.Color;

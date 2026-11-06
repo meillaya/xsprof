@@ -6,7 +6,6 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const freestanding = target.result.cpu.arch == .wasm32 or target.result.os.tag == .freestanding;
 
     const fonts = b.createModule(.{
         .root_source_file = b.path("assets/fonts/fonts.zig"),
@@ -56,10 +55,6 @@ pub fn build(b: *std.Build) void {
             },
         });
     }
-
-    // The package build is also configured for wasm by xsprof. Only native
-    // targets get runnable test/example steps.
-    if (freestanding) return;
 
     const test_step = b.step("test", "Run xsui unit tests");
     const core_tests = b.addTest(.{ .root_module = xsui });

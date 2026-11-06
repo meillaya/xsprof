@@ -26,7 +26,6 @@ boundary, and every record carries `host_mutation=false`.
 | `pressure.v1.schema.json` | PSI CPU/memory/IO stall counters |
 | `cgroup.v1.schema.json` | Read-only cgroup attribution |
 | `bpf-gate.v1.schema.json` | VM-marker-gated no-op BPF gate |
-| `ui-session.v1.schema.json` | Web `/api/meta` metadata |
 | `lab-scenario.v1.schema.json` | Bounded lab scenario |
 | `lab-run.v1.schema.json` | Headless lab run result |
 | `compare.v1.schema.json` | Baseline/candidate comparison |

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.0 — 2026-11-06
+
+### Removed
+
+- The shipped browser surface: `xsprof serve`, the loopback HTTP/SSE bridge,
+  `/api/*`, wasm32/WebGL2, `web/` assets, the web CLI/help/completions
+  entries, `ui-session` schema, Playwright evidence scripts, and browser
+  packaging installs.
+- The standalone xsui package's WebGL2/wasm backend; CPU, Metal, and GL remain.
+- `xsprof demo`'s browser fallback; it now opens the bundled capture in the
+  native console and fails with a native-only reason when headless.
+- `xsprof serve` fails closed as a removed 0.5.0 verb.
+
+### Added
+
+- A tested AppImage artifact (native binary, desktop/icon, fixtures, AppRun; no
+  bundled X11/GL drivers; `--appimage-extract-and-run` smoke).
+- Native offscreen showcase media covering Home/onboarding, live-capture
+  replay, recorder, audit, replay, settings, picker, and accessibility, with
+  canonical provenance and no real-window capture.
+- KVM podman VM evidence for live/service/retention gates under
+  `docs/evidence/v0.5.0-vm/`.
+
+### Changed
+
+- The design prototype is frozen non-runtime design input; native snapshots and
+  native media replace browser screenshots/videos.
+- Version 0.5.0 across manifest, runtime, tests, release workflow, and docs.
+
 ## 0.4.0 — 2026-11-06
 
 ### Added

@@ -6,10 +6,10 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 
 const primary_commands =
-    "ui record top why incident doctor help version";
+    "ui demo record top why incident doctor help version";
 
 const all_commands =
-    "preflight capabilities advise incident report history timeline record serve " ++
+    "preflight capabilities advise incident report history timeline record " ++
     "snapshot ui bpf-gate daemon capture doctor demo watch top why metrics compare " ++
     "pressure cgroup lab verify completions version help";
 
@@ -69,6 +69,7 @@ test "completions primary set is UI-first and --all is complete" {
     try std.testing.expectEqual(@as(u8, 0), try cmdCompletions(&.{"bash"}, &writer, &err));
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "ui") != null);
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "top") != null);
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "demo") != null);
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "advise") == null);
 
     var all_buffer: [2048]u8 = undefined;

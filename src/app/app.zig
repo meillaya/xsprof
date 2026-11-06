@@ -1,5 +1,5 @@
-//! Profiler screens over a replay Session. P3 renders these headlessly and in
-//! the browser; later phases add live sources and interactions.
+//! Profiler screens over a replay Session. These render headlessly and in the
+//! native console; the browser surface was removed in 0.5.0.
 
 const std = @import("std");
 const xsui = @import("xsui");
@@ -471,7 +471,7 @@ fn captureView(state: *State, ui: *layout.Ui) !void {
         .color = th.live,
     });
     try ui.text(.{
-        .text = "xsprof serve --journal session.ndjson",
+        .text = "xsprof ui --replay session.ndjson",
         .size = 11,
         .color = th.live,
     });

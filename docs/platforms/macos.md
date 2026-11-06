@@ -2,7 +2,7 @@
 
 `xsprof ui` (or bare `xsprof` in the app bundle) opens one AppKit window
 hosting a `CAMetalLayer`. The renderer is the same flat instance draw list the
-CPU, GL, and WebGL2 backends use: four vertices per rounded rect or glyph quad,
+CPU and GL backends use: four vertices per rounded rect or glyph quad,
 one instanced draw per frame. First run starts with the four-step onboarding
 overlay; later runs start at Home.
 
@@ -22,13 +22,12 @@ overlay; later runs start at Home.
 - `src/platform/macos/a11y.zig` — `NSAccessibility` bridge. The dynamically
   defined `XsprofAXNode` subclasses `NSAccessibilityElement`; children, roles,
   labels, values, frames, focus, hit testing, and press actions come from the
-  same bounded tree as the web and snapshot surfaces. Notifications are
-  throttled.
+  same bounded tree as the snapshot surface. Notifications are throttled.
 - `src/platform/session.zig`, `effect_exec.zig`, `state_paths.zig`,
   `export_writer.zig` — shared native bootstrap: settings, onboarding, GPU
   picker listings, source loads, exports, audit, and atomic settings writes.
 - `lib/xsui/src/gpu/shaders/metal/ui.metal` — the vertex/fragment shader
-  mirrored from the WebGL2 pair.
+  for the native Metal backend.
 
 Metal aligns the instance struct to 16 bytes (80 bytes); the shared Zig struct
 is 72. The renderer pads each row before upload, so both backends consume the

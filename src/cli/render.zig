@@ -8,6 +8,7 @@ const design_model = @import("../app/design/model.zig");
 const design_state = @import("../app/design/state.zig");
 const design_view = @import("../app/design/view.zig");
 const design_a11y = @import("../app/design/a11y.zig");
+const design_picker = @import("../app/design/picker.zig");
 const native_options = @import("../platform/options.zig");
 
 const design_derive = @import("../app/design/derive.zig");
@@ -35,6 +36,10 @@ pub fn cmdSnapshot(
     var a11y_path: ?[]const u8 = null;
     var settings_mode: []const u8 = "none";
     var now_ms: u64 = 0;
+    var focus_id: ?u32 = null;
+    var onboarding_step: ?u8 = null;
+    var picker_dir: ?[]const u8 = null;
+    var palette_query: ?[]const u8 = null;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -89,6 +94,28 @@ pub fn cmdSnapshot(
                 try err.writeAll("snapshot: invalid --now\n");
                 return 2;
             };
+        } else if (std.mem.eql(u8, arg, "--focus") and i + 1 < args.len) {
+            i += 1;
+            focus_id = std.fmt.parseInt(u32, args[i], 10) catch {
+                try err.writeAll("snapshot: invalid --focus id\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--onboarding-step") and i + 1 < args.len) {
+            i += 1;
+            onboarding_step = std.fmt.parseInt(u8, args[i], 10) catch {
+                try err.writeAll("snapshot: invalid --onboarding-step\n");
+                return 2;
+            };
+            if (onboarding_step.? > 3) {
+                try err.writeAll("snapshot: --onboarding-step must be 0..3\n");
+                return 2;
+            }
+        } else if (std.mem.eql(u8, arg, "--picker-dir") and i + 1 < args.len) {
+            i += 1;
+            picker_dir = args[i];
+        } else if (std.mem.eql(u8, arg, "--palette-query") and i + 1 < args.len) {
+            i += 1;
+            palette_query = args[i];
         }
     }
     if (!std.mem.eql(u8, settings_mode, "none")) {
@@ -121,6 +148,10 @@ pub fn cmdSnapshot(
             try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
             return 2;
         }
+        applySnapshotExtras(&state, io, focus_id, onboarding_step, picker_dir, palette_query) catch |extras_error| {
+            try err.print("snapshot: cannot apply snapshot extras: {s}\n", .{@errorName(extras_error)});
+            return 1;
+        };
         var canvas = xsui.Canvas.init(&frame);
         defer canvas.deinit();
         design_view.view(&model, &state, &canvas) catch {
@@ -150,6 +181,10 @@ pub fn cmdSnapshot(
         try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
         return 2;
     }
+    applySnapshotExtras(&state, io, focus_id, onboarding_step, picker_dir, palette_query) catch |extras_error| {
+        try err.print("snapshot: cannot apply snapshot extras: {s}\n", .{@errorName(extras_error)});
+        return 1;
+    };
     var model: design_model.Model = undefined;
     if (replay) |journal_path| {
         const session = session_mod.Session.load(io, allocator, journal_path) catch |load_error| {
@@ -403,7 +438,90 @@ fn applyOverlay(state: *design_state.State, name: []const u8) bool {
     return false;
 }
 
-/// Canonical design a11y tree for `--a11y FILE`; the same schema the web DOM
+/// Extra deterministic snapshot state used by the native showcase renderer:
+/// keyboard focus ring, onboarding step, and a real bounded directory listing
+/// for the GPU picker. Never reads user settings.
+fn applySnapshotExtras(
+    state: *design_state.State,
+    io: std.Io,
+    focus_id: ?u32,
+    onboarding_step: ?u8,
+    picker_dir: ?[]const u8,
+    palette_query: ?[]const u8,
+) !void {
+    if (focus_id) |id| {
+        state.focus_id = id;
+        state.focus_visible = true;
+    }
+    if (onboarding_step) |step| {
+        state.dialog = .onboarding;
+        state.onboarding.active = true;
+        state.onboarding.step = switch (step) {
+            0 => .welcome,
+            1 => .read_only,
+            2 => .capabilities,
+            else => .source,
+        };
+    }
+    if (picker_dir) |dir| {
+        state.dialog = .picker;
+        state.picker.open(.file, .replay_file);
+        state.picker.phase = .browsing;
+        try loadPickerDir(state, io, dir);
+    }
+    if (palette_query) |query| {
+        state.dialog = .palette;
+        state.palette_input.reset(query);
+        state.palette_index = 0;
+    }
+}
+
+fn loadPickerDir(state: *design_state.State, io: std.Io, dir: []const u8) !void {
+    var opened = if (dir.len != 0 and dir[0] == '/')
+        try std.Io.Dir.openDirAbsolute(io, dir, .{ .iterate = true })
+    else
+        try std.Io.Dir.cwd().openDir(io, dir, .{ .iterate = true });
+    defer opened.close(io);
+    var entries: [design_picker.max_entries]design_picker.Entry = @splat(.{});
+    var count: usize = 0;
+    var iterator = opened.iterate();
+    while (iterator.next(io) catch null) |entry| {
+        if (count >= design_picker.max_entries) break;
+        if (entry.name.len == 0 or entry.name[0] == '.') continue;
+        var item = design_picker.Entry{ .is_dir = entry.kind == .directory };
+        const len = @min(entry.name.len, design_picker.max_name);
+        @memcpy(item.name[0..len], entry.name[0..len]);
+        item.name_len = len;
+        entries[count] = item;
+        count += 1;
+    }
+    sortPickerEntries(entries[0..count]);
+    state.picker.setCwd(dir);
+    state.picker.setListing(entries[0..count]);
+    state.picker.phase = .browsing;
+}
+
+fn sortPickerEntries(entries: []design_picker.Entry) void {
+    var index: usize = 1;
+    while (index < entries.len) : (index += 1) {
+        const item = entries[index];
+        var at = index;
+        while (at > 0) {
+            const previous = entries[at - 1];
+            if (!pickerEntryBefore(item, previous)) break;
+            entries[at] = previous;
+            at -= 1;
+        }
+        entries[at] = item;
+    }
+}
+
+fn pickerEntryBefore(a: design_picker.Entry, b: design_picker.Entry) bool {
+    if (a.is_dir != b.is_dir) return a.is_dir;
+    return std.mem.order(u8, a.nameSlice(), b.nameSlice()) == .lt;
+}
+
+/// Canonical design a11y tree for `--a11y FILE`; the same schema the native
 /// mirror and macOS bridge consume.
 fn writeA11y(
     io: std.Io,

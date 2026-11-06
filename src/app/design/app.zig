@@ -1,6 +1,6 @@
 //! Shared console application: model ownership, source loading, the effect
 //! queue, and delegation into the input/click adapters. Surfaces only
-//! translate native/web events and drain effects.
+//! translate native events and drain effects.
 
 const std = @import("std");
 const xsui = @import("xsui");
@@ -145,7 +145,7 @@ pub const App = struct {
     /// Recorder-window source: extract the last N ms from a recorder state dir,
     /// then derive the console model from the extracted journal.
     /// TODO(platform): called by the Linux recorder executor in response to an
-    /// Effect.extract_window; web surfaces must fail closed before reaching it.
+    /// Effect.extract_window; non-Linux surfaces must fail closed before reaching it.
     pub fn loadRecorderWindow(self: *App, io: std.Io, dir: []const u8, last_ms: u64) !void {
         self.arena.deinit();
         self.arena = std.heap.ArenaAllocator.init(self.backing);
@@ -517,7 +517,7 @@ pub const App = struct {
         click_mod.handle(self, canvas, x, y);
     }
 
-    /// The last frame's accessibility tree. Web/macOS bridges and snapshots
+    /// The last frame's accessibility tree. The macOS bridge and snapshots
     /// consume this; it is rebuilt by draw() and owns bounded label copies.
     pub fn accessibility(self: *App) *const design_a11y.Tree {
         return &self.a11y_tree;

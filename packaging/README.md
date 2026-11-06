@@ -14,6 +14,10 @@ fail-closed steps. Nothing here fakes a signature, notarization, or tap push.
   bootstraps into `.tools/`.
 - `packaging/homebrew/` holds formula/cask templates rendered by
   `tools/update_homebrew_tap.sh`.
+- `tools/fetch_appimagetool.sh` pins appimagetool 1.9.1 with SHA256 values for
+  x86_64/aarch64 and caches it in `.tools/downloads` (offline after the first
+  verified download). `tools/package_appimage.sh` uses it for the Linux
+  AppImage.
 
 ## Nix flake
 
@@ -54,8 +58,8 @@ deliberately unused (the pinned nixpkgs revision ships only <= 0.16.0).
 
 The Linux derivation uses `autoPatchelfHook` for the dynamic-glibc interpreter
 and a wrapper that prepends `libx11`, `libglvnd`, and `mesa` to
-`LD_LIBRARY_PATH` and sets `XSPROF_WEB_DIR`/`XSPROF_FIXTURES_DIR` for the
-installed data files. The binary still dlopens only `libX11.so.6` and
+`LD_LIBRARY_PATH` and sets `XSPROF_FIXTURES_DIR` for the installed replay
+fixture. Native-only: no browser/WASM assets are installed. The binary still dlopens only `libX11.so.6` and
 `libGL.so.1`; no link-time GUI dependency is added. NixOS users who want
 hardware OpenGL also need `hardware.graphics.enable = true` (mesa provides the
 llvmpipe fallback).
@@ -100,13 +104,12 @@ The service is disabled by default. Enabling it creates an unprivileged
 ## Linux tarball
 
 `sh tools/package.sh` (cross: `XSPROF_TARGET=aarch64-linux-gnu XSPROF_OS=linux
-XSPROF_ARCH=aarch64`) builds once with `--prefix` and copies
-`$PREFIX/web`, then writes `dist/xsprof-<version>-<os>-<arch>.tar.gz` and its
-`.sha256`. Layout:
+XSPROF_ARCH=aarch64`) builds once with `--prefix`, packages the native binary
+and data files, then writes `dist/xsprof-<version>-<os>-<arch>.tar.gz` and its
+`.sha256`. Layout (native-only; no web assets):
 
 ```text
 bin/xsprof
-share/xsprof/web/                      # wasm + web assets
 share/xsprof/fixtures/healthy.ndjson
 share/applications/xsprof.desktop
 share/icons/hicolor/scalable/apps/xsprof.svg
@@ -134,7 +137,31 @@ Debian changelog. Control fields include `Version: <version>-1`,
 `Maintainer: xsprof maintainers <maintainers@xsprof.dev>`, `Homepage`,
 `Depends: libc6`, and `Recommends: libx11-6, libgl1` (only `ui` needs X11/GL).
 The release workflow builds amd64 and arm64 debs and verifies them with
-`qa/package_layout.sh`.
+`qa/package_layout.sh`. No web/WASM assets are included in the deb.
+
+## AppImage (Linux)
+
+`sh tools/package_appimage.sh` builds a single-architecture AppImage on a
+matching Linux host. It downloads/verifies the pinned appimagetool 1.9.1
+(`tools/fetch_appimagetool.sh`, cached in `.tools/downloads`), stages an AppDir
+with the native binary, the replay fixture, the desktop entry, the icon, and
+`AppRun`, and writes `dist/Xsprof-<version>-<arch>.AppImage` plus its
+`.sha256`. The AppDir contains no web/WASM assets and no bundled
+X11/GL/mesa/driver/shared libraries: the binary keeps dlopening the host's
+`libX11.so.6`/`libGL.so.1`. glibc is likewise provided by the host (the CI
+artifact is built on Ubuntu 24.04, so it targets that glibc baseline). The
+release workflow builds and smoke-tests the x86_64 AppImage on the x86_64
+runner; aarch64 can be built natively on an aarch64 host.
+
+```sh
+sh tools/package_appimage.sh
+sh qa/appimage_smoke.sh --appimage dist/Xsprof-<version>-x86_64.AppImage
+```
+
+`qa/appimage_smoke.sh` is FUSE-free: it extracts the AppImage, checks the
+AppDir contents, runs `version`/`help` and a headless CPU `snapshot` through
+`AppRun`, and runs the AppImage runtime with `APPIMAGE_EXTRACT_AND_RUN=1`. It
+fails closed if web assets or X11/GL/driver libraries are bundled.
 
 ## macOS app: notarized vs unsigned
 
@@ -179,8 +206,9 @@ committing, or pushing if the cask cannot be rendered. Modes:
 `--tap-dir DIR` (git checkout; commits and pushes), `--dry-run` (render, no
 commit), `--no-push` (commit locally), `--render-dir DIR` (no git at all).
 `--attestation FILE --macos-size BYTES` gate the cask. The formula is Linux-only
-(`depends_on :linux`, MIT license) and installs the web/fixtures/completions/
+(`depends_on :linux`, MIT license) and installs the fixtures/completions/
 desktop/icon files and a reference systemd unit under `share/xsprof/systemd`.
+No web assets are installed.
 
 ## Release workflow
 
@@ -192,7 +220,8 @@ desktop/icon files and a reference systemd unit under `share/xsprof/systemd`.
   `MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGN_IDENTITY`,
   `NOTARY_PROFILE` or `APPLE_ID`/`APPLE_TEAM_ID`/`APPLE_APP_PASSWORD`, and
   `HOMEBREW_TAP_TOKEN`.
-- `linux` builds the x86_64/aarch64 tarballs and debs and verifies layouts.
+- `linux` builds the x86_64/aarch64 tarballs and debs, the x86_64 AppImage
+  (with a FUSE-free smoke test), and verifies all layouts.
 - `macos` imports the certificate into a temporary keychain only on strict
   releases, notarizes/verifies/attests, deletes the keychain always, and on a
   dry run asserts that the tap gate rejects the labelled unsigned artifact.
@@ -214,15 +243,18 @@ sh tools/update_homebrew_tap.sh --render-dir /tmp/tap \
   --macos-size <bytes> --attestation packaging/testdata/macos-attestation-valid.json
 ```
 
-`qa/package_layout.sh --tarball FILE [--deb FILE]` checks the real release
-layouts and checksums. Real notarization/stapling/Gatekeeper and any tap push
+`sh qa/appimage_smoke.sh --appimage FILE` extracts and executes a built
+AppImage without FUSE (version/help/CPU snapshot) and fails closed on web
+assets or bundled drivers. `qa/package_layout.sh --tarball FILE [--deb FILE]
+[--appimage FILE]` checks the real release layouts, native-only contents, and
+checksums. Real notarization/stapling/Gatekeeper and any tap push
 require external Apple and GitHub credentials; they are never exercised by these
 local gates and must not be claimed.
 
 ## Deferred
 
-AppImage and AUR are intentionally out of scope for the current request: the Nix
-flake covers NixOS/Nix, tarballs+deb cover generic Linux, and the Homebrew
-formula/cask cover Linuxbrew/macOS. AppImage would add FUSE/runtime bundling and
-another publication path; AUR needs a separate repo/credentials and can follow
-later without changing these artifacts.
+AUR is out of scope for now: it needs a separate repo/credentials and can
+follow later without changing these artifacts. AppImage is shipped (native
+x86_64 release artifact, buildable on a matching Linux host); the Nix flake
+covers NixOS/Nix, tarballs+deb cover generic Linux, and the Homebrew
+formula/cask cover Linuxbrew/macOS.

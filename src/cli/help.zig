@@ -12,8 +12,7 @@ pub fn writeQuickstart(w: *Writer) Writer.Error!void {
         \\
         \\Open the console:
         \\  xsprof                          native console (terminal + display)
-        \\  xsprof serve --journal FILE     browser console (loopback, token in fragment)
-        \\  xsprof demo                     bundled real replay in the browser
+        \\  xsprof demo                     bundled capture in the native console
         \\
         \\Headless workflows:
         \\  xsprof record                   save a short capture
@@ -83,12 +82,12 @@ pub fn writeCommand(w: *Writer, command: []const u8) Writer.Error!void {
             \\
         );
     }
-    if (std.mem.eql(u8, command, "serve")) {
+    if (std.mem.eql(u8, command, "demo")) {
         return w.writeAll(
-            \\xsprof serve [--journal FILE] [--recorder-dir DIR] [--live | --live-dir DIR]
-            \\  [--port 8787] [--assets-dir DIR]
-            \\Loopback-only console with a random token. /api/window serves a
-            \\bounded canonical recorder window to the browser.
+            \\xsprof demo [--view NAME] [--theme NAME] [--smoke]
+            \\Open the bundled capture in the native console. Native-only: it fails
+            \\with an explicit reason when no display is available. Headless output
+            \\uses `xsprof snapshot` / `xsprof ui --smoke`.
             \\
         );
     }
@@ -125,8 +124,8 @@ pub fn writeCommand(w: *Writer, command: []const u8) Writer.Error!void {
     if (std.mem.eql(u8, command, "doctor")) {
         return w.writeAll(
             \\xsprof doctor [--json]
-            \\Report kernel, perf, tracefs, cgroup, PSI, libbpf, and web-asset
-            \\readiness. Never executes a fix or suggests privilege escalation.
+            \\Report kernel, perf, tracefs, cgroup, PSI, and libbpf readiness.
+            \\Never executes a fix or suggests privilege escalation.
             \\
         );
     }
@@ -147,8 +146,8 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
         \\  incident                Offline incident bundle (alias: report)
         \\  doctor                  Check what this host can collect
         \\MORE:
-        \\  serve                   Loopback browser console
-        \\  demo                    Bundled replay in the browser
+        \\  demo                    Bundled capture in the native console
+        \\  snapshot                Headless PNG of the console
         \\  help --all              List every command, including automation verbs
         \\  help <command>          Detailed help for one command
         \\REFUSED (unsafe verbs; non-zero exit on host by design):
@@ -167,8 +166,7 @@ pub fn writeAllHelp(w: *Writer) Writer.Error!void {
         \\  xsprof [<command>|ui] [options]
         \\CONSOLE:
         \\  ui                      Native console (bare xsprof default)
-        \\  serve                   Loopback browser console
-        \\  demo                    Bundled real replay in the browser
+        \\  demo                    Bundled capture in the native console
         \\  snapshot                Headless PNG of the console
         \\CAPTURE / ANALYSIS:
         \\  record                  One bounded capture (NDJSON)

@@ -57,7 +57,7 @@ These are release-blocking, not aspirational.
 - `qa/unsafe_cli_matrix.sh` — refusal matrix and exit codes.
 - `qa/no_host_mutation.sh` — static scan plus optional runtime trace.
 - `qa/privacy_scan.sh` — seeded secrets must not appear in output.
-- `qa/web_ui_smoke.mjs` — JS/wasm export parity and incremental append.
+- `qa/showcase_smoke.sh` — native offscreen media determinism/provenance.
 - `qa/version_sync.sh` — package/runtime version lockstep.
 - `qa/vendor_hash.sh` — offline reference integrity.
 - `qa/live_smoke.sh` — root perf/daemon/SIGTERM gate in a disposable VM.

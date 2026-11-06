@@ -26,9 +26,9 @@ quickstart path. Neither opens a window.
 ./zig-out/bin/xsprof demo
 ```
 
-This serves the bundled real capture on loopback with a token in the URL
-fragment. Press `0` in the browser console to return Home, or use the route
-keys shown in the keybar.
+This opens the bundled real capture in the native console. Press `0` to return
+Home, or use the route keys shown in the keybar. There is no browser/server
+surface in 0.5.0.
 
 ## 3. Live and recorder window
 

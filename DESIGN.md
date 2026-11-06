@@ -1,15 +1,16 @@
 # xsprof UI design contract
 
-> The interactive console prototype is [`design/index.html`](design/index.html);
-> its extracted token set, screens, flows, keybindings, and GPU mapping live in
+> The frozen design prototype is [`design/index.html`](design/index.html); it is
+> design input only and is never built or served. Its extracted token set,
+> screens, flows, keybindings, and GPU mapping live in
 > [`design/`](design/README.md). This document remains the profiler screen contract.
 
 The profiler UI is a dense, read-only operator console. It should feel like an
 instrument panel, not a marketing dashboard: compact monospace rows, visible
 evidence, exact reason codes, and state colors that carry meaning.
 
-- **nanoui-derived:** single binary, immediate-feeling Zig authoring, GPU
-  instancing, web frontend, headless PNG snapshots, no C shims, idle-no-poll.
+- **nanoui-derived:** single native binary, immediate-feeling Zig authoring,
+  GPU instancing, headless PNG snapshots, no C shims, idle-no-poll.
 - **Raven-derived:** retained tree/cached layout, slot layout, flat draw list,
   custom-widget painter, render thread/backpressure, timeline/data widgets.
 - **Profiler-specific:** CPU/thread timeline, advisor evidence, event ledger,
@@ -104,17 +105,17 @@ follow-up.
 
 Every route builds a bounded `xsprof/a11y-tree/v1` tree from the same
 hit/draw pass: roles, labels, values, selected/focus flags, and focus order.
-Web mirrors it into a hidden DOM/ARIA tree; macOS exposes it through
-NSAccessibility; Linux emits canonical JSON and reports the AT-SPI2 bridge as
-DEGRADED with a reason. Loss, refusal, and SKIP states are exposed as state,
+macOS exposes it through NSAccessibility; Linux emits canonical JSON and
+reports the AT-SPI2 bridge as DEGRADED with a reason. There is no browser
+surface. Loss, refusal, and SKIP states are exposed as state,
 not colour alone. `snapshot --a11y FILE` is the deterministic golden.
 
 ## Rendering
 
 - One flat instance stream (~96 B) + one SDF shader per backend.
 - Per-instance clip; R8 glyph atlas; 1–3 draw calls typical.
-- CPU raster is the reference for snapshots and parity; Metal and WebGL2
-  consume the same draw list.
+- CPU raster is the reference for snapshots and parity; Metal and GL consume
+  the same draw list.
 - No glass/blur/shadows in v1. Flat surfaces, borders, and typography carry
   depth.
 

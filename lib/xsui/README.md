@@ -2,7 +2,7 @@
 
 `xsui` is a compact, flat-instance GPU UI kernel in Zig 0.17. It builds a
 per-frame layout tree, paints one instanced draw list, and renders it through a
-CPU rasterizer, Metal, OpenGL 3.3, or WebGL2. It is the UI library used by
+CPU rasterizer, Metal, or OpenGL 3.3. It is the UI library used by
 [`xsprof`](../..), but it has no profiler, capture, or host-policy imports and
 can be used on its own.
 
@@ -33,11 +33,10 @@ src/ttf.zig               minimal TrueType reader/rasterizer
 src/tester.zig            headless Tester
 src/theme.zig             dark/light/high-contrast presets, derive()
 src/gpu/renderer.zig      renderer contract, capability states
-src/gpu/webgl.zig         WebGL2 instance/attribute/atlas ABI
 src/gpu/metal.zig         Metal backend (module xsui-metal)
 src/gpu/gl.zig            OpenGL 3.3 backend (module xsui-gl)
 src/native/objc.zig       Objective-C runtime helpers (module xsui-objc)
-src/gpu/shaders/          Metal, GLSL 330, and WebGL2 shader sources
+src/gpu/shaders/          Metal and GLSL 330 shader sources
 assets/fonts/             JetBrains Mono Regular/Bold + OFL license
 examples/snapshot.zig     public-API-only PNG example
 ```
@@ -72,9 +71,9 @@ const objc = xsui_dep.module("xsui-objc");
 const gl = xsui_dep.module("xsui-gl");
 ```
 
-The core `xsui` module is target-neutral and works for wasm32-freestanding.
-Backends are never imported by the core, so a wasm build stays free of
-frameworks and OS calls.
+The core `xsui` module is target-neutral and has no OS or profiler imports.
+Backends are never imported by the core, so consumers choose Metal or GL at
+the surface and the core stays framework-free.
 
 ## Quickstart: offscreen PNG
 
@@ -143,7 +142,6 @@ _ = try gpu.drawFrame(&frame.list, .{ .width = width, .height = height }, frame.
 | `xsui.a11y`, `Canvas.node`, `Canvas.pushGroup` | bounded accessibility tree from the same draw/hit pass |
 | `xsui.themes` | `dark`, `light`, `high_contrast`, `named`, `derive` |
 | `xsui.gpu` | `Backend`, `Status`, `Capability`, `Target`, `Renderer` |
-| `xsui.webgl` | instance stride/attributes/atlas/served shader paths |
 
 The public root and the new extension surfaces carry doc comments in-source;
 
@@ -253,14 +251,13 @@ does not implement OS screen-reader AppKit/D-Bus calls; consumers do.
 | 64 | `mode` | `0` rect, `1` glyph |
 | 68 | `pad` | padding |
 
-The WebGL2 attributes are locations 0–7 with offsets 0/16/32/48/52/56/60/64;
-`xsui.webgl` pins these values with comptime assertions. The glyph atlas is
-1024×1024 R8 (`r8unorm`); the WebGL2 shim uploads it on version changes.
+The public root pins this layout with a comptime assertion in
+`tests/xsui.zig`. The glyph atlas is 1024×1024 R8 (`r8unorm`) and is uploaded
+by each native backend on version changes.
 
 Metal pads each row to 80 bytes for MSL's 16-byte alignment; the shared struct
-stays 72 bytes. Shader sources live under `src/gpu/shaders/` and are embedded
-by the native backends; the web build installs the WebGL2 pair at
-`shaders/ui.vert.glsl` and `shaders/ui.frag.glsl`.
+stays 72 bytes. Shader sources live under `src/gpu/shaders/` (`metal/` and
+`gl330/`) and are embedded by the native backends.
 
 ## Build and test
 
@@ -278,10 +275,9 @@ package gate (import isolation, version consistency, tests, example PNG).
   offscreen for parity tests without a window.
 - Linux: `xsui-gl` loads `libGL.so.1` through `std.DynLib`; the host owns the
   X11/GLX context. A static-musl binary can use the CPU path but not GL.
-- wasm32-freestanding: only the core module is used. JS owns WebGL2 and consumes
-  the exported instance pointer/stride and atlas pointer/version.
 - No backend opens a window. Windows, contexts, and event loops belong to the
-  host.
+  host. The CPU rasterizer is the canonical renderer for deterministic
+  snapshots and media.
 
 ## Versioning
 

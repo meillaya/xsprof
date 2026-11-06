@@ -9,12 +9,12 @@ prototype rather than approximating it.
 - Source sha256: `0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62`
 - Source size: 221,754 bytes
 - Token set version: `1.0.0`
-- Reference viewports: web `1440x900 @1`, native `1280x720 @1`
+- Reference viewports: frozen prototype `1440x900 @1` (design input only), native `1280x720 @1`
 - Real capture evidence: [`fixtures/real/macos-vm-sched.ndjson`](../fixtures/real/macos-vm-sched.ndjson)
   (Linux VM perf, 110,284 events) drives the live screenshots and video.
 - Status: implemented as the primary GPU console (`src/app/design/`,
   `lib/xsui/src/canvas.zig`). The formal contract is
-  [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/WebGL2 are
+  [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/GL are
   gated by [`qa/ui_cross_surface.py`](../qa/ui_cross_surface.py). The prototype
   remains the design source, and its pixel diff is advisory.
 
@@ -77,8 +77,7 @@ Loss rows are `LOSS` + `■` with a `tint-refuse` background.
 Shared shell: skip link, topbar (brand, current route, session meta, source/
 loss/safety chips, palette/theme/help buttons), vertical route rail or bottom
 route bar, stage, keybar with status. Overlays: command palette, appearance,
-keyboard help, onboarding, GPU picker, confirm, toast. The file input is a
-hidden web utility, not a visible surface. Home/Recorder/Audit/Settings and
+keyboard help, onboarding, GPU picker, confirm, toast. The native GPU picker is the only source-picker surface. Home/Recorder/Audit/Settings and
 their overlays are the product-shell extension documented in
 [`product-shell.md`](product-shell.md); the pinned prototype remains the
 visual source for the five analysis screens.
@@ -178,22 +177,22 @@ tokens.
 
 ## Implemented console and evidence
 
-The production surface is the WebGL2 canvas in `web/`, the native AppKit/X11
-surfaces under `src/platform/`, and `xsprof snapshot`. The old lab rail is not
+The production surface is the native AppKit/X11 console under
+`src/platform/` and `xsprof snapshot`. The old lab rail is not
 part of the console; `xsprof lab` remains a headless developer tool.
 
 Evidence lives in:
 
-- [`screenshots/prototype/`](screenshots/prototype/) — headless Chromium
-  captures of this prototype (reference).
-- [`screenshots/xsprof/`](screenshots/xsprof/) — the GPU console with the same
-  demo fixture for layout/color comparison.
-- [`screenshots/live/`](screenshots/live/) — the GPU console reading a real
-  replay journal and a recorder manifest (no demo fixture).
-- [`screenshots/diff/`](screenshots/diff/) — amplified difference images.
-- [`media/xsprof-ui-demo.mp4`](media/xsprof-ui-demo.mp4) — short headless
-  boot/use recording of the real console.
+- [`screenshots/prototype/`](screenshots/prototype/) — frozen reference
+  captures of the design prototype (not a shipped surface).
+- [`screenshots/native/`](screenshots/native/) — native GPU snapshots of the
+  analysis routes.
+- [`media/xsprof-native-showcase.mp4`](media/xsprof-native-showcase.mp4) —
+  deterministic native offscreen showcase.
+- [`media/xsprof-native-live-replay.mp4`](media/xsprof-native-live-replay.mp4) —
+  live-capture replay in the native console.
 - [`evidence/README.md`](evidence/README.md) — method, caveats, and commands.
 
-Run `sh qa/ui_evidence.sh` to regenerate after building the binary and web
-assets. It is developer-only and requires Playwright/Chromium and ffmpeg.
+Regenerate with `sh qa/showcase_smoke.sh` after building the binary. It is
+developer-only and uses the native snapshot renderer plus ffmpeg; no browser,
+Playwright, or real window is involved.
