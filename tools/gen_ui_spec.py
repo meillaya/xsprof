@@ -28,7 +28,7 @@ def main() -> int:
     canvas = spec["canvas"]
     lines = [
         "//! GENERATED from design/ui-spec.json by tools/gen_ui_spec.py. Do not edit.",
-        "//! The formal contract every CPU/Metal/GL/WebGL2 surface consumes.",
+        "//! The formal contract every native CPU/Metal/GL surface consumes.",
         "",
         "const std = @import(\"std\");",
         "",
@@ -46,8 +46,8 @@ def main() -> int:
         f"pub const stage_pad_top: f32 = {shell['stage_pad_top']}.0;",
         f"pub const stage_pad_x: f32 = {shell['stage_pad_x']}.0;",
         f"pub const stage_pad_bottom: f32 = {shell['stage_pad_bottom']}.0;",
-        f"pub const cross_mae_max: f32 = {spec['acceptance']['cross_surface']['cpu_vs_webgl2']['mae_max']};",
-        f"pub const cross_over24_max: f32 = {spec['acceptance']['cross_surface']['cpu_vs_webgl2']['over24_max']};",
+        f"pub const cross_mae_max: f32 = {spec['acceptance']['cross_surface']['cpu_vs_metal']['mae_max']};",
+        f"pub const cross_over24_max: f32 = {spec['acceptance']['cross_surface']['cpu_vs_metal']['over24_max']};",
         "pub const text_atlas_sha256: [32]u8 = .{",
     ]
     raw = bytes.fromhex(digest)

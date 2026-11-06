@@ -11,8 +11,7 @@ GOLD_OUT="$GOLD/segment_v1_golden.ndjson"
 [ -f "$GOLD_SEG" ] || { echo "compact_roundtrip: missing golden $GOLD_SEG" >&2; exit 1; }
 [ -f "$GOLD_OUT" ] || { echo "compact_roundtrip: missing golden $GOLD_OUT" >&2; exit 1; }
 TMP=$(mktemp -d)
-SRV=""
-trap 'if [ -n "$SRV" ]; then kill "$SRV" 2>/dev/null || true; wait "$SRV" 2>/dev/null || true; fi; rm -rf "$TMP"' EXIT HUP INT TERM
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 fail=0
 say() { printf '%s\n' "compact_roundtrip: $*"; }
 bad() { say "FAIL: $*" >&2; fail=1; }
@@ -127,36 +126,6 @@ fi
 "$BIN" capture --last 1h --dir "$UNSUP" --out "$TMP/unsup.ndjson" ||
     bad "capture failed on an unsupported segment"
 grep -q 'capture_unsupported_segment' "$TMP/unsup.ndjson" || bad "unsupported extraction has no marker"
-
-# 6. GET /api/window serves the bounded canonical window with the token gate.
-if command -v curl >/dev/null 2>&1; then
-    PORT=38993
-    "$BIN" serve --port "$PORT" --journal "$ROOT/fixtures/ui/healthy.ndjson" \
-        --recorder-dir "$CLEAN" >"$TMP/serve.log" 2>"$TMP/serve.err" &
-    SRV=$!
-    i=0
-    while [ "$i" -lt 50 ]; do
-        if grep -q "token=" "$TMP/serve.log" 2>/dev/null; then break; fi
-        sleep 0.1
-        i=$((i + 1))
-    done
-    URL=$(head -1 "$TMP/serve.log")
-    TOKEN=$(printf '%s' "$URL" | sed 's/.*token=//')
-    [ -n "$TOKEN" ] || bad "no serve token for /api/window"
-    CODE=$(curl -s -o "$TMP/api-window.ndjson" -w '%{http_code}' \
-        "http://127.0.0.1:$PORT/api/window?token=$TOKEN&last=1h")
-    [ "$CODE" = 200 ] || bad "/api/window returned HTTP $CODE"
-    if ! cmp -s "$TMP/api-window.ndjson" "$GOLD_OUT"; then
-        bad "/api/window body differs from the canonical golden extract"
-    fi
-    CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/window?last=1h")
-    [ "$CODE" = 401 ] || bad "/api/window accepted a missing token"
-    kill "$SRV" 2>/dev/null || true
-    wait "$SRV" 2>/dev/null || true
-    SRV=""
-else
-    say "SKIP /api/window (curl missing)"
-fi
 
 [ "$fail" -eq 0 ] || exit 1
 say "PASS"

@@ -88,16 +88,52 @@ The product is now a two-tier window:
 ## Compact raw tier (0.4)
 
 0.4 replaces NDJSON raw segments with compact .xsraw segments
-([raw-segment-v1.md](raw-segment-v1.md)). The format is projected at roughly
-12.75 bytes/event against the measured 159-160 bytes/event canonical form, so
-the default 2 GiB budget holds roughly 168M events (about 20 minutes at the
-measured 140k events/s) and the 10-minute `--retain` age cap binds first.
-The age cap makes the raw tier the 10-minute window; the byte budget remains
-the safety backstop for higher rates or larger event text. The sidecar tier is
-unchanged (one bucket every 60 s, 24 h retention, pruned).
+([raw-segment-v1.md](raw-segment-v1.md)). The format was projected at roughly
+12.75 bytes/event against the measured 159-160 bytes/event canonical form. The
+real 0.4.0 x86_64 KVM run below measured 12.06 bytes/event at 86,517
+events/s: the default 2 GiB budget projects 2,058 s of raw coverage there, so
+the 10-minute `--retain` age cap binds first. The age cap makes the raw tier
+the 10-minute window; the byte budget remains the safety backstop for higher
+rates or larger event text. The sidecar tier is unchanged (one bucket every
+60 s, 24 h retention, pruned).
 
-Acceptance is measured, not projected: `qa/retention_bench.sh 600000 0 2G yes`
+Acceptance is measured, not projected: qa/retention_bench.sh 600000 0 2G yes
 must report compact bytes/event <= 25.6 (hard), covered_s >= 590, no retained
-loss events, and a canonical/compact ratio >= 4x. The historical NDJSON
-numbers above stay as pre-0.4 evidence and must not be mixed with the compact
-gate.
+loss events, and a canonical/compact ratio >= 4x. The gate samples canonical
+events with `capture --last 1s` after the daemon has already stopped, so that
+window is empty and the script's conditional ratio check is skipped
+(`canonical_bytes_per_event: 0.0`); the ratio is not accepted on that evidence.
+`qa/vm_acceptance.sh` recomputes the ratio from a same-VM 1 s `record` sample
+and requires >= 4x explicitly. The historical NDJSON numbers above stay as
+pre-0.4 evidence and must not be mixed with the compact gate.
+
+### Real 0.5.0 KVM VM result (2026-11-06)
+
+Disposable KVM podman machine (Fedora CoreOS, kernel 7.2.7-200.fc44,
+4 vCPU/4 GiB, /dev/kvm), committed 0.4.0 binary (sha256
+cc438d08...), same core recorder. Logs:
+docs/evidence/v0.5.0-vm/03-live-smoke.log,
+04-service-smoke.log, 05-retention-bench.log, 06-canonical-ratio.log.
+
+| metric | value |
+|---|---:|
+| duration | 600,000 ms |
+| events retained | 51,912,224 |
+| events/s | 86,517 |
+| compact bytes/event | 12.06 |
+| retained bytes | 625,946,419 |
+| covered_s | 600.01 |
+| retained loss | 0 |
+| retention_loss markers | 0 |
+| history events | 51,912,222 |
+| history lost | 0 |
+| sidecars | 10 |
+| RSS | 12,928 KiB |
+| overhead | 6,148 bp |
+| canonical bytes/event (two 1 s records, same VM) | 160.10 |
+| canonical/compact ratio (recomputed, supplemental) | 13.28x |
+
+The age cap bound before the byte budget (projected 2,058 s at this rate).
+live_smoke PASSed (93,534 rows, tracepoints, SIGTERM clean, BPF gate READY)
+and service_smoke PASSed (3 compact segments, 421,068 extracted lines,
+lock refusal, SIGKILL recovery) in the same VM.

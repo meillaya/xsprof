@@ -64,15 +64,13 @@ else
 fi
 [ -x "$HOST_PREFIX/bin/xsprof" ] || { echo "package_deb: host binary missing" >&2; exit 1; }
 [ -x "$PREFIX/bin/xsprof" ] || { echo "package_deb: target binary missing" >&2; exit 1; }
-[ -f "$PREFIX/web/index.html" ] || { echo "package_deb: web assets missing" >&2; exit 1; }
 
 rm -rf "$STAGE"
-mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$STAGE/usr/share/xsprof/web"
+mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin"
 mkdir -p "$STAGE/usr/share/xsprof/fixtures" "$STAGE/usr/lib/systemd/system"
 mkdir -p "$STAGE/usr/lib/sysusers.d" "$STAGE/usr/share/doc/xsprof"
 mkdir -p "$STAGE/usr/share/applications" "$STAGE/usr/share/icons/hicolor/scalable/apps"
 cp "$PREFIX/bin/xsprof" "$STAGE/usr/bin/xsprof"
-cp -R "$PREFIX/web/." "$STAGE/usr/share/xsprof/web/"
 cp fixtures/ui/healthy.ndjson "$STAGE/usr/share/xsprof/fixtures/healthy.ndjson"
 cp packaging/systemd/xsprof-recorder.service "$STAGE/usr/lib/systemd/system/"
 cp packaging/sysusers/xsprof.conf "$STAGE/usr/lib/sysusers.d/xsprof.conf"
@@ -81,6 +79,10 @@ cp packaging/linux/xsprof.svg "$STAGE/usr/share/icons/hicolor/scalable/apps/xspr
 sh tools/gen_completions.sh "$HOST_PREFIX/bin/xsprof" "$STAGE/usr/share"
 cp README.md THIRD_PARTY_NOTICES.md LICENSE CHANGELOG.md "$STAGE/usr/share/doc/xsprof/"
 chmod 755 "$STAGE/usr/bin/xsprof"
+if [ -e "$STAGE/usr/share/xsprof/web" ] || find "$STAGE" -name '*.wasm' | grep -q .; then
+    echo "package_deb: refusing to package web assets" >&2
+    exit 1
+fi
 
 cat > "$STAGE/usr/share/doc/xsprof/copyright" <<COPYRIGHT
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/

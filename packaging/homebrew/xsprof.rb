@@ -19,7 +19,6 @@ class Xsprof < Formula
 
   def install
     bin.install "bin/xsprof"
-    (share/"xsprof").install "share/xsprof/web"
     (share/"xsprof").install "share/xsprof/fixtures"
     (share/"applications").install "share/applications/xsprof.desktop"
     (share/"icons/hicolor/scalable/apps").install "share/icons/hicolor/scalable/apps/xsprof.svg"

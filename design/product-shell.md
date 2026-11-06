@@ -1,16 +1,17 @@
 # Product shell v2 (extension)
 
 Status: **proposed extension**, approved for implementation. The five analysis
-screens in [`index.html`](index.html) remain the design source and are unchanged
-(ids 100-104, keys 1-5, in-screen hit ids). This document defines the UI-first
-product shell around them; the prototype will be updated separately. The formal
+screens in [`index.html`](index.html) remain the frozen design input and are
+unchanged (ids 100-104, keys 1-5, in-screen hit ids). This document defines the
+UI-first product shell around them; the prototype will not be updated. The formal
 contract is [`ui-spec.json`](ui-spec.json) v2, and `python3 design/validate.py`
-gates this folder.
+gates this folder. The browser/WASM/WebGL2 lane was removed in 0.5.0: every
+runtime surface here is native (macOS AppKit/Metal, Linux X11/GL, CPU snapshot).
 
 ## Why
 
 The product is the UI: every operator action must be discoverable and usable from
-the GPU-rendered console. Startup/onboarding, source selection, management,
+the GPU-rendered native console. Startup/onboarding, source selection, management,
 audit and settings are first-class routes, not command-line side effects.
 
 ## Routes
@@ -23,8 +24,8 @@ audit and settings are first-class routes, not command-line side effects.
 | settings | 107 | 7, Cmd/Ctrl+, | appearance, accessibility, capture defaults, storage/retention, diagnostics, about/reset |
 
 Overlays: palette, appearance, help, toast (existing) plus **picker**, **confirm**
-and **onboarding**. The hidden web file input stays a utility, never a visible
-surface.
+and **onboarding**. The native GPU picker is the only source-picker surface; no
+hidden file-input utility is shipped.
 
 ## Hit ids
 
@@ -43,45 +44,46 @@ enforces non-overlap. Palette rows are modal (700-739), so legacy theme option i
   loading. Keys/clicks delegate to `input.zig` / `click.zig`.
 - `action.zig` is the only input vocabulary; `dispatch.zig` +
   `dispatch_source.zig` are pure reducers returning bounded `effect.Batch`.
-- Surfaces drain `App.takeEffect()` and execute or fail closed with a stable
-  `surface.*` reason. `effect.zig` defines the capability matrix.
+- Native surfaces drain `App.takeEffect()` and execute or fail closed with a
+  stable `surface.*` reason. `effect.zig` defines the capability matrix for
+  `snapshot`, `macos` and `linux`; there is no web surface.
 - Host completions call `App.recorderStarted/Stopped/Failed`,
   `App.noteSourceFailure`, `App.loadRecorderWindow`, `App.applySettingsJson`.
-- Unsupported actions never mutate state: web recorder control, host directory
-  browsing, host-path extraction and host file export are refused with reasons.
+- Unsupported actions never mutate state: recorder control, directory browsing,
+  host-path extraction and host file export are refused with stable reasons on
+  surfaces that cannot perform them (e.g. `snapshot`).
 
 ## Persistence and audit
 
 - Settings: `xsprof/ui-settings/v1`, canonical compact JSON, written by the
-  surface (Linux `$XDG_STATE_HOME/xsprof/ui-settings.json`, macOS
-  `~/Library/Application Support/xsprof/ui-settings.json`, web localStorage).
-  Corrupt/unknown input resets to defaults with a reason. Snapshots ignore
-  user settings for determinism.
+  native surface (Linux `$XDG_STATE_HOME/xsprof/ui-settings.json`, macOS
+  `~/Library/Application Support/xsprof/ui-settings.json`). Corrupt/unknown
+  input resets to defaults with a reason. Snapshots ignore user settings for
+  determinism.
 - Recents: bounded 10 inside settings, deduplicated by kind/path; basenames are
   shown in UI/a11y, full paths stay local and are never exported.
 - Audit: 64-entry in-memory ring plus native append-only `audit.ndjson`
   (rotate 1 MiB): `{schema:"xsprof/ui-audit/v1",seq,wall_ms,action,outcome,code,source,host_mutation:false}`.
-  Web keeps the ring in memory.
 
 ## Accessibility
 
 `src/app/design/a11y.zig` builds a platform-neutral node tree from Canvas hits
 (role, label, value, selected/disabled, focusability) and serializes canonical
-`xsprof/a11y-tree/v1` JSON. Web mirrors it into a hidden DOM/ARIA tree; macOS
-bridges to NSAccessibility; Linux reports an explicit AT-SPI SKIP reason. Every
-focusable node must have a label (tested). TODO(native-runtime): adopt
-`Canvas.node()`/`Hit.data` once xsui exposes them.
+`xsprof/a11y-tree/v1` JSON for tests, snapshots and native bridges. macOS bridges
+it to NSAccessibility; Linux reports an explicit AT-SPI SKIP reason and ships the
+JSON dump. Every focusable node must have a label (tested).
+TODO(native-runtime): adopt `Canvas.node()`/`Hit.data` once xsui exposes them.
 
 ## Fail-closed matrix
 
-| action | native Linux | macOS | web | snapshot |
-|---|---|---|---|---|
-| load file / list dir | yes | yes | upload only / no | no |
-| live capture | READY-gated | SKIP | no (viewer) | no |
-| recorder control | READY + Settings opt-in | SKIP | REFUSED | no |
-| settings persist | file | file | localStorage | no |
-| a11y tree | JSON | NSAccessibility | DOM/ARIA | JSON |
-| host export | yes | yes | refused | PNG only |
+| action | native Linux | macOS | snapshot |
+|---|---|---|---|
+| load file / list dir | yes | yes | no |
+| live capture | READY-gated | SKIP | no |
+| recorder control | READY + Settings opt-in | SKIP | no |
+| settings persist | file | file | no |
+| a11y tree | canonical JSON | NSAccessibility | JSON |
+| host export | yes | yes | PNG only |
 
 ## Integration hooks (owned outside this folder)
 
@@ -89,7 +91,6 @@ focusable node must have a label (tested). TODO(native-runtime): adopt
   start/stop capture, extract window, export, save settings, append audit,
   open journal, reload. Use workspace `src/capture/lab_worker.zig` +
   `src/stream/live_feed.zig` for the in-process capture (no child processes).
-- `src/web_console.zig` + `web/*.js`: export effects/settings/a11y; keep the
-  read-only server (no POST control endpoint).
 - `src/cli/render.zig`: snapshot flags for home/audit/settings, overlays and
   `--a11y` JSON; snapshots must not read user settings.
+- No `web/`, serve, WebGL2, or WASM lane is part of the runtime contract.

@@ -25,14 +25,22 @@ check_not_contains() { # file needle label
 "$BIN" >"$TMP/quickstart"
 check_contains "$TMP/quickstart" "xsprof" "quickstart"
 check_contains "$TMP/quickstart" "help --all" "quickstart-all"
+check_contains "$TMP/quickstart" "native console" "quickstart-native"
+check_not_contains "$TMP/quickstart" "browser console" "quickstart-no-browser"
+check_not_contains "$TMP/quickstart" "xsprof serve" "quickstart-no-serve"
 "$BIN" help >"$TMP/help"
 check_contains "$TMP/help" "xsprof" "help"
 check_contains "$TMP/help" "PRIMARY COMMANDS" "help-primary"
 check_not_contains "$TMP/help" "advise" "help-hides-automation"
+check_not_contains "$TMP/help" "serve" "help-hides-serve"
 "$BIN" help --all >"$TMP/help-all"
 check_contains "$TMP/help-all" "advise" "help-all"
 check_contains "$TMP/help-all" "capture" "help-all-capture"
 check_contains "$TMP/help-all" "verify" "help-all-verify"
+check_not_contains "$TMP/help-all" "serve" "help-all-no-serve"
+"$BIN" help demo >"$TMP/help-demo"
+check_contains "$TMP/help-demo" "native console" "help-demo-native"
+"$BIN" demo --help >/dev/null
 "$BIN" help top >"$TMP/help-top"
 check_contains "$TMP/help-top" "top" "help-top"
 "$BIN" top --help >/dev/null
@@ -40,13 +48,18 @@ check_contains "$TMP/help-top" "top" "help-top"
 "$BIN" completions bash >"$TMP/completions"
 check_contains "$TMP/completions" "top" "completions"
 check_contains "$TMP/completions" "ui" "completions-ui"
+check_contains "$TMP/completions" "demo" "completions-demo"
 check_not_contains "$TMP/completions" "advise" "completions-primary"
+check_not_contains "$TMP/completions" "serve" "completions-no-serve"
 "$BIN" completions bash --all >"$TMP/completions-all"
 check_contains "$TMP/completions-all" "advise" "completions-all"
 "$BIN" doctor >"$TMP/doctor"
 check_contains "$TMP/doctor" "status=" "doctor-human"
+check_not_contains "$TMP/doctor" "web_assets" "doctor-no-web-assets"
+# Version comes from the package manifest so a release bump does not break the gate.
 "$BIN" version >"$TMP/version"
-check_contains "$TMP/version" "xsprof 0.4.0" "version"
+EXPECTED_VERSION=$(sed -n 's/.*\.version = "\(.*\)".*/\1/p' "$ROOT/build.zig.zon" | head -1)
+check_contains "$TMP/version" "xsprof $EXPECTED_VERSION" "version"
 XSPROF_NO_UI=1 "$BIN" >"$TMP/no-ui"
 check_contains "$TMP/no-ui" "xsprof" "no-ui-quickstart"
 
@@ -64,6 +77,23 @@ if "$BIN" no-such-verb >"$TMP/unknown" 2>/dev/null; then
     fail=1
 fi
 check_contains "$TMP/unknown" '"event":"refusal"' "unknown"
+
+# The web surface is removed; the verb must fail with an explicit reason.
+if "$BIN" serve >"$TMP/removed" 2>"$TMP/removed.err"; then
+    echo "cli_parity: removed serve verb exited zero" >&2
+    fail=1
+fi
+check_contains "$TMP/removed.err" "removed in 0.5.0" "removed-serve"
+
+# demo is native-only: on a headless Linux host it explains the failure and
+# never opens a window. macOS skips this (a real display is presumed).
+if [ "$(uname -s)" = Linux ]; then
+    if env -u DISPLAY -u WAYLAND_DISPLAY "$BIN" demo >"$TMP/demo.out" 2>"$TMP/demo.err"; then
+        echo "cli_parity: demo exited zero without a display" >&2
+        fail=1
+    fi
+    check_contains "$TMP/demo.err" "display unavailable" "demo-headless-reason"
+fi
 
 "$BIN" preflight --json >"$TMP/preflight"
 check_contains "$TMP/preflight" '"schema":"xsprof/preflight/v1"' "preflight"

@@ -14,3 +14,20 @@ vhs docs/media/watch.tape
 ```
 
 The recording needs `ffmpeg` and `ttyd` on `PATH`.
+
+## Native showcase media
+
+The native GPU console evidence lives under [`design/media/`](../../design/media/):
+
+- `xsprof-native-showcase.{mp4,gif}` — tour of Home, onboarding, GPU picker,
+  Overview, Timeline replay, Advisor, Events, Recorder, Audit, Settings,
+  accessibility focus, and export, plus the real VM capture;
+- `xsprof-native-live-replay.{mp4,gif}` — REPLAY of the committed podman
+  Linux-VM perf capture (`host_mutation=false`);
+- canonical `*.provenance.json` files with input hashes, scene flags, frame
+  hashes, and output hashes.
+
+[`native-showcase.md`](native-showcase.md) documents the headless renderer,
+determinism rules, and the provenance schema. Regenerate with
+`tools/showcase.sh` (headless; no window or display capture) and gate with
+`qa/showcase_smoke.sh`.

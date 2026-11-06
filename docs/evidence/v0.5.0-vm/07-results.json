@@ -1,0 +1,185 @@
+{
+  "acceptance": {
+    "live_smoke": "PASS",
+    "overall": "PASS",
+    "retention_bench": "PASS",
+    "retention_hard_criteria": {
+      "canonical_compact_ratio_ge_4_recomputed": true,
+      "compact_bytes_per_event_le_25_6": true,
+      "covered_s_ge_590": true,
+      "no_history_loss": true,
+      "no_retained_loss": true
+    },
+    "service_smoke": "PASS"
+  },
+  "binary": {
+    "commit": "6b3c490b4fa0955e5fcd93fd19b50a9bb048a0eb",
+    "commit_subject": "Complete UI-first operator console",
+    "concurrent_workspace_dirty_paths_at_run": 71,
+    "dirty_count_note": "71 dirty paths at gate start (recorded 00b); the tree kept changing while gates ran",
+    "sha256": "cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd",
+    "source": "clean git worktree detached at committed HEAD",
+    "staged_path_in_vm": "/var/tmp/xsprof/zig-out/bin/xsprof",
+    "staged_sha256_verified_in_vm": "cc438d08aeb9e1e94e0ebb9f9a7c30471800ff58baf504b99ef379136777c3dd",
+    "version": "xsprof 0.4.0"
+  },
+  "canonical_ratio": {
+    "log": "06-canonical-ratio.log",
+    "log_sha256": "1dd12b61a696e5647ae78f825c399cc50e96c8c34104e68b81e41c8fa439f74b",
+    "measurement": {
+      "canonical_bytes_per_event": 160.104,
+      "canonical_samples": [
+        {
+          "bytes": 14120099,
+          "bytes_per_event": 160.105,
+          "lines": 88193
+        },
+        {
+          "bytes": 14035532,
+          "bytes_per_event": 160.104,
+          "lines": 87665
+        }
+      ],
+      "compact_bytes_per_event": 12.058,
+      "compact_ratio": 13.28,
+      "compact_ratio_status": "supplemental: gate own sample.ndjson was empty",
+      "gate_sample_bytes": 0,
+      "retained_bytes": 625946419,
+      "retained_events": 51912224,
+      "schema": "xsprof/canonical-ratio/v1"
+    },
+    "status": "recomputed from same-VM 1 s record samples; gate's own sample was empty"
+  },
+  "caveats": [
+    "qa/retention_bench.sh's own canonical sample (sample.ndjson) is empty: it runs 'capture --last 1s' after the daemon stopped, so the wall-clock window has no events. The script reports canonical_bytes_per_event=0.0 and skips its ratio check. The 13.28x ratio here is recomputed from two independent same-VM 1 s 'xsprof record' samples against the retained compact bytes/events, and is labelled supplemental, not the script's own output.",
+    "The committed 0.4.0 binary was built in an isolated git worktree detached at HEAD 6b3c490 because the live working tree had concurrent v0.5.0 edits and was dirty/non-compiling during the run (see 00b-committed-binary.log). The workspace zig-out binary sha differed and was not staged.",
+    "podman 5.8.7 has no --provider flag: the exact task command with '--provider qemu' fails 'unknown flag: --provider'; the qemu provider is inferred automatically. Initialisation was rerun without the flag and is logged in 01-provisioning.log.",
+    "retention was run with workers=0 as specified, so 86,517 events/s is the VM's idle/housekeeping rate, not a synthetic load. The 2 GiB byte budget projected 2,058 s; the 600,000 ms age cap bound first.",
+    "The podman machine was removed after the evidence was copied: 'podman machine rm -f xsprof-vm' exited 0, podman machine list is empty, and a comm-based process check shows no qemu/gvproxy/virtiofsd left (08-cleanup.log). The executable harness qa/vm_acceptance.sh was self-checked end to end in --check mode; a full end-to-end harness trial was aborted mid-service_smoke at the Lead's cleanup request, so it is not claimed as a full harness PASS. The delivered gate evidence comes from the direct documented commands in this directory."
+  ],
+  "cleanup": {
+    "command": "podman machine rm -f xsprof-vm",
+    "exit": 0,
+    "log": "08-cleanup.log",
+    "machine_count_after": 0,
+    "note": "machine removed after evidence was copied; evidence directory is kept",
+    "stale_lock_left": "/home/mei/.config/containers/podman/machine/qemu/xsprof-vm.lock (0 bytes, podman bookkeeping)",
+    "vm_processes_after": "none (comm-based check)"
+  },
+  "date": "2026-11-06T16:11:02-05:00..2026-11-06T16:26:00-05:00",
+  "evidence_files": [
+    "00-host-facts.txt",
+    "00b-committed-binary.log",
+    "00c-gate-provenance.log",
+    "01-provisioning.log",
+    "02-vm-setup.log",
+    "02b-vm-probe.log",
+    "02c-doctor.json",
+    "03-live-smoke.log",
+    "04-service-smoke.log",
+    "05-retention-bench.log",
+    "05b-retention-artifacts.log",
+    "06-canonical-ratio.log",
+    "07-results.json",
+    "08-cleanup.log",
+    "README.md"
+  ],
+  "gates": {
+    "live_smoke": {
+      "command": "sudo -n sh /var/tmp/xsprof/qa/live_smoke.sh",
+      "exit": 0,
+      "log": "03-live-smoke.log",
+      "log_sha256": "696b486be8cd735a11392a6f5e50a3c116e2f59a69d056d850541e9797e59f35",
+      "pass_line": "live_smoke: PASS",
+      "summary_lines": [
+        "live_smoke: capture 1s",
+        "live_smoke: record: 93534 lines, faults minor=1914 major=0",
+        "live_smoke: top",
+        "live_smoke: why",
+        "live_smoke: daemon + history",
+        "live_smoke: daemon: sidecars=1",
+        "live_smoke: SIGTERM",
+        "live_smoke: SIGTERM: clean",
+        "live_smoke: bpf-gate: READY (VM marker)",
+        "live_smoke: PASS"
+      ]
+    },
+    "retention_bench": {
+      "command": "sudo -n env KEEP=1 sh /var/tmp/xsprof/qa/retention_bench.sh 600000 0 2G yes",
+      "exit": 0,
+      "log": "05-retention-bench.log",
+      "log_sha256": "a8379b3c75e0ad457f7a46d9a9063eae6baddb0b30288c8c93af4f3c343e183d",
+      "metrics": {
+        "bytes_per_event": 12.06,
+        "canonical_bytes_per_event": 0.0,
+        "compact_ratio": 0.0,
+        "covered_s": 600.01,
+        "duration_ms": 600000,
+        "events": 51911994,
+        "events_per_sec": 86517,
+        "history_events": 51912222,
+        "history_lost_events": 0,
+        "history_sidecars": 10,
+        "loss_markers_retained": 0,
+        "lost_events_retained": 0,
+        "max_bytes": 2147483648,
+        "overhead_bp": 6148,
+        "problems": [],
+        "projected_budget_window_s": 2058.55,
+        "raw_codec": "compact_v1",
+        "retained_bytes": 625946419,
+        "retained_events": 51912224,
+        "retention_loss_markers": 0,
+        "rss_kb": 12928,
+        "schema": "xsprof/retention-bench/v1",
+        "state": "PASS",
+        "workers": 0,
+        "workload": "yes"
+      },
+      "pass_line": "retention_bench: PASS"
+    },
+    "service_smoke": {
+      "command": "sudo -n sh /var/tmp/xsprof/qa/service_smoke.sh",
+      "exit": 0,
+      "log": "04-service-smoke.log",
+      "log_sha256": "949591cb425c0dee0a58f5bad89b2230803e996ed17b2ae746c3cf6aa75794da",
+      "pass_line": "service_smoke: PASS (3 segments, 421068 extracted lines)"
+    }
+  },
+  "host": {
+    "arch": "x86_64",
+    "hostname": "massive",
+    "kernel": "Linux 7.3.1-1-cachyos x86_64",
+    "kvm": "/dev/kvm crw-rw-rw- (r/w)",
+    "machine_hypervisor": "podman machine provider qemu, -accel kvm",
+    "nproc": 16,
+    "podman": "5.8.7",
+    "qemu": "11.1.2"
+  },
+  "retention_artifacts": {
+    "dir": "retention-artifacts/",
+    "files": [
+      "daemon-result.json",
+      "daemon.err",
+      "history-result.json",
+      "manifest.json",
+      "markers.ndjson",
+      "sample.ndjson"
+    ],
+    "history_result_sha256": "9e9bf23c5ac0aa85d50cde848ee7a04288cdb3ff88435716602f23ccab35c6f7",
+    "manifest_sha256": "82f9b5aa554a6bd41b29e1b04cac648a5b3aa89383049893a1ce641004f155a5"
+  },
+  "schema": "xsprof/vm-acceptance-evidence/v1",
+  "vm": {
+    "cpus": 4,
+    "disk_gib": 24,
+    "kernel": "7.2.7-200.fc44.x86_64",
+    "machine": "xsprof-vm",
+    "memory_mib": 4096,
+    "os": "Fedora CoreOS 44.20260928.3.2",
+    "perf_event_paranoid": 2,
+    "python3": "3.14.8-1.fc44",
+    "systemd_pid1": true,
+    "tracefs": "/sys/kernel/tracing mounted rw, root-readable"
+  }
+}

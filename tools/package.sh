@@ -5,7 +5,6 @@
 #
 # Layout (also asserted by qa/package_layout.sh):
 #   bin/xsprof
-#   share/xsprof/web/
 #   share/xsprof/fixtures/healthy.ndjson
 #   share/applications/xsprof.desktop
 #   share/icons/hicolor/scalable/apps/xsprof.svg
@@ -33,10 +32,10 @@ esac
 PREFIX="$ROOT/zig-out/package"
 HOST_PREFIX="$ROOT/zig-out/package-host"
 rm -rf "$PREFIX" "$HOST_PREFIX"
-# One build installs the binary and the wasm/web assets together. For cross
-# packaging, completions are arch-independent and are generated from a
-# host-native build of the same revision. A target equal to the host target is
-# treated as native so CI does not compile twice.
+# One build installs the binary. For cross packaging, completions are
+# arch-independent and are generated from a host-native build of the same
+# revision. A target equal to the host target is treated as native so CI does
+# not compile twice.
 NATIVE=0
 if [ -z "$TARGET" ]; then
     NATIVE=1
@@ -57,17 +56,16 @@ fi
     echo "package: binary missing after build" >&2
     exit 1
 }
-[ -f "$PREFIX/web/index.html" ] || {
-    echo "package: web assets missing after build" >&2
-    exit 1
-}
+# v0.5 ships the native console only; browser/WASM assets are not packaged.
+if [ -d "$PREFIX/web" ]; then
+    echo "package: ignoring legacy web assets in $PREFIX/web (not packaged)" >&2
+fi
 
 rm -rf "$DIST"
-mkdir -p "$DIST/bin" "$DIST/share/xsprof/web" "$DIST/share/xsprof/fixtures"
+mkdir -p "$DIST/bin" "$DIST/share/xsprof/fixtures"
 mkdir -p "$DIST/share/doc/xsprof" "$DIST/share/applications"
 mkdir -p "$DIST/share/icons/hicolor/scalable/apps" "$DIST/lib/sysusers.d"
 cp "$PREFIX/bin/xsprof" "$DIST/bin/xsprof"
-cp -R "$PREFIX/web/." "$DIST/share/xsprof/web/"
 cp fixtures/ui/healthy.ndjson "$DIST/share/xsprof/fixtures/healthy.ndjson"
 cp packaging/linux/xsprof.desktop "$DIST/share/applications/xsprof.desktop"
 cp packaging/linux/xsprof.svg "$DIST/share/icons/hicolor/scalable/apps/xsprof.svg"
@@ -82,6 +80,10 @@ if [ "$OS" = linux ]; then
     cp packaging/systemd/xsprof-recorder.service "$DIST/lib/systemd/system/"
 fi
 chmod 755 "$DIST/bin/xsprof"
+if [ -e "$DIST/share/xsprof/web" ] || find "$DIST" -name '*.wasm' | grep -q .; then
+    echo "package: refusing to package web assets" >&2
+    exit 1
+fi
 
 mkdir -p "$ROOT/dist"
 : "${SOURCE_DATE_EPOCH:=$(git log -1 --format=%ct 2>/dev/null || date +%s)}"

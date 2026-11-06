@@ -1,22 +1,25 @@
 # Install
 
+The native GPU console is the only product surface in v0.5.0; there is no
+browser/WASM build and packaged artifacts do not include web assets.
+
 ## Nix / NixOS (flake)
 
 ```sh
 nix run github:meillaya/xsprof/v<version> -- help
 nix profile install github:meillaya/xsprof/v<version>
 # or from a checkout:
-nix build .#xsprof && ./result/bin/xsprof demo
-nix develop            # pinned Zig 0.17.0 and the packaging/devenv tools
+nix build .#xsprof && ./result/bin/xsprof ui
+nix develop            # pinned Zig 0.17.0 and the packaging tools
 ```
 
 The flake supports `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, and
 `aarch64-darwin`. Linux and aarch64-darwin use the pinned nixos-unstable
 `nixpkgs`; Intel macOS uses the maintained `nixpkgs-26.05-darwin` input because
 nixpkgs 26.11 dropped x86_64-darwin. Both revisions are committed in
-`flake.lock`.
-Zig 0.17.0 is fetched from ziglang.org by hash (never nixpkgs' Zig) and the
-xsprof build itself needs no network. Offline/local-nixpkgs verification:
+`flake.lock`. Zig 0.17.0 is fetched from ziglang.org by hash (never nixpkgs'
+Zig) and the xsprof build itself needs no network. Offline/local-nixpkgs
+verification:
 
 ```sh
 nix build .#xsprof --offline --option substitute false       # after the store is warm
@@ -46,7 +49,7 @@ needs `hardware.graphics.enable = true`; mesa provides a software fallback.
 ```sh
 tar -xzf xsprof-<version>-linux-<arch>.tar.gz
 cd xsprof-<version>-linux-<arch>
-./bin/xsprof demo
+./bin/xsprof ui
 ```
 
 For a system install, copy `bin/xsprof` to `/usr/local/bin`, `share/xsprof` to
@@ -54,20 +57,46 @@ For a system install, copy `bin/xsprof` to `/usr/local/bin`, `share/xsprof` to
 `/usr/local/share/applications/`, the icon to
 `/usr/local/share/icons/hicolor/scalable/apps/`, the sysusers file to
 `/usr/local/lib/sysusers.d/`, and the unit to
-`/usr/local/lib/systemd/system/`. Bash/zsh/fish completions are included under
-`share/`. `xsprof serve` and `demo` search `/usr/local/share/xsprof/web` and
-`/usr/share/xsprof/web`; `XSPROF_WEB_DIR` overrides the web directory.
+`/usr/local/lib/systemd/system/`. Bash/zsh/fish completions and the replay
+fixture are included under `share/`. Packaged builds ship no browser assets;
+`XSPROF_FIXTURES_DIR` overrides the bundled fixture directory if needed.
 
 The recorder needs `CAP_PERFMON` and tracefs read access. Use the provided
 unit or grant equivalent capabilities explicitly. `xsprof doctor --json` names
 the missing piece.
 
+## AppImage (Linux x86_64)
+
+The release publishes `Xsprof-<version>-x86_64.AppImage` plus a `.sha256`.
+The AppImage bundles the native binary, the replay fixture, the desktop entry,
+and the icon. It does **not** bundle X11/GL/mesa driver libraries (the binary
+dlopens the host's `libX11.so.6`/`libGL.so.1`) and it ships no web assets.
+
+```sh
+sha256sum -c Xsprof-<version>-x86_64.AppImage.sha256
+chmod +x Xsprof-<version>-x86_64.AppImage
+./Xsprof-<version>-x86_64.AppImage ui       # native console
+./Xsprof-<version>-x86_64.AppImage version  # CLI
+```
+
+Without FUSE (containers, CI, minimal systems):
+
+```sh
+APPIMAGE_EXTRACT_AND_RUN=1 ./Xsprof-<version>-x86_64.AppImage version
+# or: ./Xsprof-<version>-x86_64.AppImage --appimage-extract-and-run version
+```
+
+The AppImage links the host's glibc (the CI artifact uses the Ubuntu 24.04
+baseline) and does not bundle glibc, X11, or GL drivers. It is built for the
+host architecture; the CI release artifact is x86_64. aarch64 users can build one natively on an aarch64 Linux host with
+`sh tools/package_appimage.sh` or use the tarball/deb.
+
 ## Debian package
 
 On Debian or Ubuntu, `./tools/package_deb.sh` builds
-`dist/xsprof_<version>-1_<arch>.deb` with the binary, web assets, fixture,
+`dist/xsprof_<version>-1_<arch>.deb` with the binary, replay fixture,
 desktop entry, icon, completions, sysusers entry, and systemd unit. The unit is
-installed but not enabled.
+installed but not enabled. No web assets are packaged.
 
 ## Homebrew
 
@@ -104,12 +133,12 @@ never updates the tap.
 
 ## Release CI
 
-`.github/workflows/release.yml` builds Linux arm64/x86_64 tarballs and debs, the
-universal macOS app, `SHA256SUMS`, and the attestation. Strict tag releases
-require all Apple and tap secrets up front and fail closed; unsigned dispatches
-are labelled `-unsigned` and never publish a cask. `.github/workflows/nix.yml`
-checks the flake and package, and `zig-ci.yml` runs the offline release-tooling
-gate.
+`.github/workflows/release.yml` builds Linux arm64/x86_64 tarballs and debs,
+the x86_64 AppImage (with a FUSE-free smoke test), the universal macOS app,
+`SHA256SUMS`, and the attestation. Strict tag releases require all Apple and
+tap secrets up front and fail closed; unsigned dispatches are labelled
+`-unsigned` and never publish a cask. `.github/workflows/nix.yml` checks the
+flake and package, and `zig-ci.yml` runs the offline release-tooling gate.
 
 ## Verify
 
@@ -117,5 +146,5 @@ gate.
 xsprof version
 xsprof help
 xsprof doctor --json
-xsprof demo
+xsprof snapshot --replay <fixture.ndjson> --out snapshot.png
 ```

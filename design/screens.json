@@ -652,7 +652,7 @@
         },
         {
           "id": "offline-journal",
-          "behavior": "single SKIP card: advisor runs in native profiler; browser journal is read-only; rules not re-evaluated"
+          "behavior": "single SKIP card: advisor runs in native profiler; journal replay is read-only; rules not re-evaluated"
         },
         {
           "id": "filter-empty",
@@ -1032,13 +1032,6 @@
       ]
     },
     {
-      "id": "file-input",
-      "component": "hidden utility",
-      "accept": ".ndjson,.jsonl,.json",
-      "trigger": "Open journal button, drag-drop, palette Open journal\u2026",
-      "notVisual": true
-    },
-    {
       "id": "picker",
       "component": "dialog.picker",
       "trigger": [
@@ -1116,5 +1109,10 @@
       "audit",
       "settings"
     ]
-  }
+  },
+  "platforms": [
+    "macos",
+    "linux",
+    "snapshot"
+  ]
 }

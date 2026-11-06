@@ -234,7 +234,7 @@ fn onboardingOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32
     const body = switch (state.onboarding.step) {
         .welcome => "xsprof is the product: one GPU-rendered console for choosing, viewing, auditing and managing read-only scheduler captures. The CLI remains for scripting, but every operator action here has a visible control and a key.",
         .read_only => "Nothing in this console mutates the host. No scheduler policy writes, no /proc or /sys writes, no privilege elevation, no advisor auto-apply. Every serialized record carries host_mutation=false. Capture is observation only; it is disabled by default and gated on a READY capability probe.",
-        .capabilities => "Host probes report READY, DEGRADED, SKIP or REFUSE with an exact reason. A missing signal is never rendered as zero or as success. Live capture needs Linux perf tracepoints; web stays a viewer; recorder control is native-Linux only.",
+        .capabilities => "Host probes report READY, DEGRADED, SKIP or REFUSE with an exact reason. A missing signal is never rendered as zero or as success. Live capture needs Linux perf tracepoints; recorder control is native-Linux only.",
         .source => "Pick a source on Home: a live read-only capture, a replay journal, a recorder window in a chosen time frame, or the bundled capture. Extraction older than retained data reports retention_loss instead of zero-filling.",
     };
     try labelWrapped(canvas, .{ .x = rect.x + 18, .y = rect.y + 76, .w = rect.w - 36, .h = 150 }, style(common.text_12, th.muted, .regular), body);

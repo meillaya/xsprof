@@ -74,7 +74,6 @@ fn buildView(ui: *xsui.Ui) !void {
     try backendRow(ui, "CPU raster", "snapshots, parity", th.pass);
     try backendRow(ui, "Metal", "macOS, instanced", th.live);
     try backendRow(ui, "OpenGL 3.3", "Linux, runtime loaded", th.live);
-    try backendRow(ui, "WebGL2", "browser shim", th.pending);
     panel.end();
     left.end();
 

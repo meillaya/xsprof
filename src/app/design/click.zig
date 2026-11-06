@@ -297,10 +297,10 @@ test "capture copy hit keeps legacy behaviour" {
     try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
 }
 
-test "web recorder control click is refused without mutating state" {
+test "snapshot recorder control click is refused without mutating state" {
     var app = App.init(std.testing.allocator);
     defer app.deinit();
-    app.setSurface(.web);
+    app.setSurface(.snapshot);
     var frame: xsui.frame.Frame = undefined;
     try frame.init(std.testing.allocator, 400, 400, .{});
     defer frame.deinit();

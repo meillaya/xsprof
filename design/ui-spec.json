@@ -2,7 +2,7 @@
   "$schema": "xsprof/ui-spec/v1",
   "version": 2,
   "status": "canonical",
-  "meaning": "The single deterministic rendering and interaction contract for every xsprof surface. The HTML prototype is the design source; reference pixel diffs are advisory. CPU is the canonical raster; Metal, OpenGL, WebGL2, and CPU must consume the same draw list and text atlas.",
+  "meaning": "The single deterministic rendering and interaction contract for every native xsprof surface. The frozen HTML prototype is design input only; reference pixel diffs are advisory. CPU is the canonical raster; Metal and OpenGL consume the same draw list and text atlas.",
   "design_source": {
     "prototype": "design/index.html",
     "sha256": "0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62",
@@ -21,12 +21,11 @@
     "backends": [
       "cpu",
       "metal",
-      "gl",
-      "webgl2"
+      "gl"
     ],
     "canonical_backend": "cpu",
     "blend": "sRGB source-over, 8-bit",
-    "geometry": "the same fractional draw list is consumed by every backend",
+    "geometry": "the same fractional draw list is consumed by every native backend",
     "platform_fonts": false,
     "text_atlas": {
       "file": "lib/xsui/assets/fonts/chromium_text_atlas.bin",
@@ -241,11 +240,10 @@
       "tab": "Tab/Shift+Tab cycle valid targets; dialogs trap and restore trigger",
       "activation": "Enter/Space activate the focused target; palette input keeps text keys",
       "rail": "Arrow Up/Down move between screen tabs while rail is focused",
-      "skip": "web skip link is the first Tab stop and focuses the rail; native uses Tab traversal"
+      "skip": "native uses Tab traversal; dialogs trap focus and restore the trigger"
     },
     "clipboard": {
-      "request": "bounded UTF-8 request emitted by App; surfaces consume exactly once",
-      "web": "navigator.clipboard with hidden-textarea fallback",
+      "request": "bounded UTF-8 request emitted by App; native surfaces consume exactly once",
       "macos": "NSPasteboard public.utf8-plain-text",
       "linux": "X11 CLIPBOARD owner + SelectionRequest/TARGETS handler (compile-verified)"
     },
@@ -259,17 +257,13 @@
     "settings": "meta/ctrl+,"
   },
   "data": {
-    "source": "journal, live SSE, recorder manifest",
+    "source": "journal, native live capture, recorder manifest",
     "read_only": true,
     "host_mutation": false,
     "uncollected": "explicit SKIP/uncollected; never fabricated zero"
   },
   "acceptance": {
     "cross_surface": {
-      "cpu_vs_webgl2": {
-        "mae_max": 2.5,
-        "over24_max": 3.0
-      },
       "cpu_vs_metal": {
         "mae_max": 4.0,
         "over24_max": 3.0
@@ -299,5 +293,10 @@
       "capture"
     ],
     "reason": "Product shell v2 adds Home/Audit/Settings routes and picker/confirm/onboarding overlays. The pinned design/index.html prototype remains the source for the five analysis screens; the extension is specified in design/product-shell.md and screens.json/flows.json until the prototype is updated."
-  }
+  },
+  "platforms": [
+    "macos",
+    "linux",
+    "snapshot"
+  ]
 }

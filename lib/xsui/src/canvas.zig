@@ -4,7 +4,7 @@
 //! rectangles. The design tokens define geometry; screens compute rects from
 //! them. It provides deterministic text layout, clipping, hit registration,
 //! lines, rounded surfaces, and vector-mask icons on top of the same DrawList
-//! the CPU, Metal, GL, and WebGL2 backends consume.
+//! the CPU, Metal, and GL backends consume.
 
 const std = @import("std");
 const a11y = @import("a11y.zig");

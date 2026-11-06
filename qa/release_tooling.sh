@@ -11,7 +11,7 @@ command -v python3 >/dev/null 2>&1 || {
 }
 
 echo "release_tooling: checking shell syntax"
-for script in tools/zig tools/*.sh qa/release_tooling.sh qa/homebrew_dry_run.sh qa/package_layout.sh; do
+for script in tools/zig tools/*.sh qa/release_tooling.sh qa/homebrew_dry_run.sh qa/package_layout.sh qa/appimage_smoke.sh; do
     sh -n "$script"
 done
 python3 -c 'import ast; ast.parse(open("tools/verify_macos_attestation.py", encoding="utf-8").read())'
@@ -59,6 +59,20 @@ expect_exit 12 "unsigned attestation rejected for publication" verify \
 expect_exit 0 "unsigned attestation accepted with --allow-unnotarized" verify \
     --attestation packaging/testdata/macos-attestation-unsigned.json --artifact-name "$UNSIGNED_NAME" \
     --allow-unnotarized
+
+echo "release_tooling: checking native-only packaging (no web assets)"
+for file in tools/package.sh tools/package_deb.sh tools/package_macos_app.sh nix/package.nix packaging/homebrew/xsprof.rb docs/guides/install.md; do
+    if grep -nE 'XSPROF_WEB_DIR|xsprof-web\.wasm' "$file" >/dev/null 2>&1; then
+        echo "release_tooling: $file still references packaged web assets" >&2
+        exit 1
+    fi
+done
+for file in tools/package.sh tools/package_deb.sh tools/package_macos_app.sh nix/package.nix; do
+    if grep -nE 'cp (-R|-[a-z]*R[a-z]*) .*/web|install .*/web' "$file" >/dev/null 2>&1; then
+        echo "release_tooling: $file still copies web assets into packages" >&2
+        exit 1
+    fi
+done
 
 echo "release_tooling: checking tap renderer and local tap publication"
 sh qa/homebrew_dry_run.sh

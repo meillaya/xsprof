@@ -43,37 +43,6 @@ fn stateName(state: live.State) []const u8 {
     };
 }
 
-var web_buffer: [1024]u8 = undefined;
-
-const installed_web_dirs = [_][]const u8{
-    "zig-out/web",
-    "share/xsprof/web",
-    "/usr/share/xsprof/web",
-    "/usr/local/share/xsprof/web",
-};
-
-fn hasIndex(io: std.Io, dir: []const u8) bool {
-    const path = std.fmt.bufPrint(&web_buffer, "{s}/index.html", .{dir}) catch return false;
-    if (path.len != 0 and path[0] == '/') {
-        std.Io.Dir.accessAbsolute(io, path, .{}) catch return false;
-    } else {
-        std.Io.Dir.cwd().access(io, path, .{}) catch return false;
-    }
-    return true;
-}
-
-/// XSPROF_WEB_DIR wins for packaged installs; repo and system prefixes follow.
-fn webAssetsDir(io: std.Io) ?[]const u8 {
-    if (std.c.getenv("XSPROF_WEB_DIR")) |value| {
-        const dir = std.mem.span(value);
-        if (dir.len != 0 and hasIndex(io, dir)) return dir;
-    }
-    for (installed_web_dirs) |candidate| {
-        if (hasIndex(io, candidate)) return candidate;
-    }
-    return null;
-}
-
 pub fn run(io: std.Io, allocator: std.mem.Allocator) !Result {
     var checks: std.ArrayList(Check) = .empty;
     errdefer checks.deinit(allocator);
@@ -161,16 +130,6 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator) !Result {
         .reason = if (hasLibbpf()) "libbpf.so.1 present" else "libbpf.so.1 not found; useful only for bpf-gate",
     });
 
-    const web_dir = webAssetsDir(io);
-    try checks.append(allocator, .{
-        .name = "web_assets",
-        .state = if (web_dir != null) "READY" else "SKIP",
-        .reason = if (web_dir) |dir|
-            try std.fmt.allocPrint(allocator, "{s} present", .{dir})
-        else
-            "run `zig build web` or set XSPROF_WEB_DIR",
-    });
-
     var status: []const u8 = "READY";
     for (checks.items) |check| {
         if (std.mem.eql(u8, check.state, "REFUSE")) {
@@ -216,23 +175,4 @@ test "doctor reports a read-only status" {
     try writeJson(&writer, result);
     try std.testing.expect(std.mem.startsWith(u8, writer.buffered(), "{\"checks\":["));
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "\"host_mutation\":false") != null);
-}
-// Checks XSPROF_WEB_DIR lookup with an explicit temp directory and the
-// packaged fallback list.
-test "web asset dir honors env override and packaged prefixes" {
-    const allocator = std.testing.allocator;
-    const root = try std.fmt.allocPrint(allocator, "/tmp/xsprof-webdir-{d}", .{std.testing.random_seed});
-    defer allocator.free(root);
-    std.Io.Dir.createDirAbsolute(std.testing.io, root, .default_dir) catch {};
-    defer std.Io.Dir.deleteDirAbsolute(std.testing.io, root) catch {};
-    const index_path = try std.fmt.allocPrint(allocator, "{s}/index.html", .{root});
-    defer allocator.free(index_path);
-    {
-        const file = try std.Io.Dir.createFileAbsolute(std.testing.io, index_path, .{});
-        defer file.close(std.testing.io);
-        try file.writeStreamingAll(std.testing.io, "<html></html>");
-    }
-    try std.testing.expect(hasIndex(std.testing.io, root));
-    try std.testing.expectEqualStrings("/usr/share/xsprof/web", installed_web_dirs[2]);
-    _ = webAssetsDir;
 }

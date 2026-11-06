@@ -29,7 +29,6 @@ UNIVERSAL=${XSPROF_UNIVERSAL:-0}
 NOTARIZE=${XSPROF_NOTARIZE:-0}
 identity=${XSPROF_SIGN_IDENTITY:-${MACOS_SIGN_IDENTITY:-}}
 
-# One build: the install step also builds the wasm/web assets.
 ./tools/zig build -Doptimize=ReleaseSafe
 if [ "$UNIVERSAL" = 1 ]; then
     command -v lipo >/dev/null 2>&1 || {
@@ -54,7 +53,7 @@ if [ "$UNIVERSAL" = 1 ]; then
 fi
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/web" "$APP/Contents/Resources/fixtures"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fixtures"
 if [ "$UNIVERSAL" = 1 ]; then
     lipo -create \
         zig-out/macos-native/bin/xsprof \
@@ -67,7 +66,6 @@ else
     cp zig-out/bin/xsprof "$APP/Contents/MacOS/Xsprof"
 fi
 chmod 755 "$APP/Contents/MacOS/Xsprof"
-cp -R zig-out/web/. "$APP/Contents/Resources/web/"
 cp fixtures/ui/healthy.ndjson "$APP/Contents/Resources/fixtures/healthy.ndjson"
 sed "s/@VERSION@/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 

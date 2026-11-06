@@ -1,4 +1,8 @@
-# GUI lab plan (headless developer tool)
+# GUI lab
+
+> Historical lab notes. The browser/WASM lab client was removed in 0.5.0;
+> `xsprof lab` remains a headless native scenario/QA tool. Web-specific steps
+> below are historical and are not shipped. plan (headless developer tool)
 
 Status: complete. The visible lab rail was retired from the product in the
 console implementation; `xsprof lab` remains a headless scenario/QA tool.

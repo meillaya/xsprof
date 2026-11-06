@@ -25,7 +25,6 @@ pub const stream_store = @import("stream/store.zig");
 pub const stream_index = @import("stream/index.zig");
 pub const chrome_trace = @import("viz/chrome_trace.zig");
 pub const session = @import("stream/session.zig");
-pub const serve = @import("serve/server.zig");
 pub const live = @import("capture/live.zig");
 pub const capture_lab_worker = @import("capture/lab_worker.zig");
 pub const stream_live_feed = @import("stream/live_feed.zig");
@@ -86,7 +85,6 @@ test {
     _ = session;
     _ = stream_store;
     _ = stream_index;
-    _ = serve;
     _ = live;
     _ = capture_lab_worker;
     _ = stream_live_feed;

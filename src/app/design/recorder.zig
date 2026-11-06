@@ -3,8 +3,8 @@
 //! worker; this module only decides transitions and emits commands.
 //!
 //! TODO(platform): wire Effect.start_capture/stop_capture/extract_window to
-//! src/capture/lab_worker.zig + live_feed.Store (native) and fail closed on
-//! web. Restart of an externally owned recorder is attach-only.
+//! src/capture/lab_worker.zig + live_feed.Store (native Linux) and fail closed
+//! elsewhere. Restart of an externally owned recorder is attach-only.
 
 const std = @import("std");
 

@@ -3,9 +3,9 @@
 ## Project
 
 `xsprof` is a read-only Linux scheduler and memory profiler rewritten in Zig
-0.17.0, with a custom GPU UI (`xsui`) targeting a web frontend, native macOS,
-and native Linux. The historical C++ tree lives on `archive/cpp-0.1.0`; do not
-restore it to `main`.
+0.17.0, with a custom native GPU UI (`xsui`) for macOS and Linux. The
+historical C++ tree lives on `archive/cpp-0.1.0`; do not restore it to `main`.
+There is no shipped browser surface.
 
 ## Hard rules
 
@@ -33,9 +33,8 @@ restore it to `main`.
 - **Headless first.** Every UI feature needs a deterministic snapshot or unit
   test. Every backend feature needs a fail-closed/SKIP test. Every wire output
   needs a canonical JSON test.
-- **No hidden network.** The serve lane is loopback-only with a token. The UI
-  makes no external requests and sends no telemetry. Web assets use relative
-  URLs only.
+- **No hidden network.** The native UI makes no external requests and sends no
+  telemetry. No server or browser asset lane is shipped.
 
 ## Commands
 
@@ -73,15 +72,15 @@ sh qa/vendor_hash.sh
   SKIP/REFUSE, never fake data.
 - `lib/xsui/` is the standalone GPU UI package: target-neutral core, CPU
   rasterizer, Metal/GL backends, fonts, and shaders. Its core has no profiler
-  or OS imports and compiles for native and wasm; native backends are separate
-  modules (`xsui-metal`, `xsui-gl`, `xsui-objc`). Treat it as a consumer would:
+  or OS imports and targets native only; native backends are separate modules
+  (`xsui-metal`, `xsui-gl`, `xsui-objc`). Treat it as a consumer would:
   xsprof imports it as a path dependency and only uses its public API.
 - `src/app/` is platform-neutral; `src/platform/` owns windows and contexts;
   renderers live in `lib/xsui/src/gpu/`. The app uses one draw list everywhere.
-- `design/` holds the console prototype (`index.html`) and its UI/UX token contract:
-  palettes, typography, layout, components, screens, flows, keybindings, and the
-  GPU mapping. Keep it in sync with the prototype (`python3 design/validate.py`);
-  it is design input, not runtime code.
+- `design/` holds the frozen console prototype (`index.html`) and its UI/UX
+  token contract: palettes, typography, layout, components, screens, flows,
+  keybindings, and the GPU mapping. Validate with `python3 design/validate.py`.
+  It is design input, never built or served.
 - Wire schemas live in `schemas/xsprof/`; fixtures in `fixtures/`; golden
   bytes in `tests/golden/`. Keep them in lockstep with the Zig constants.
 - JSON output is canonical: keys strictly ascending, compact separators, no
@@ -94,11 +93,12 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 and M0–M4/M6/M7 are complete. v0.4.0 makes the GPU console the
-product surface: Home/Recorder/Audit/Settings routes, first-run onboarding,
+P0–P7 and M0–M4/M6/M7 are complete. v0.5.0 makes the native GPU console the
+only product surface (the browser/WASM/WebGL2 lane was removed):
+Home/Recorder/Audit/Settings routes, first-run onboarding,
 GPU picker/text entry, in-process native live capture plus recorder tail,
-native window resize/input, a platform-neutral accessibility tree with web and
-macOS bridges, compact `.xsraw` raw segments (ten-minute age cap under the byte
+native window resize/input, a platform-neutral accessibility tree with macOS
+bridge and Linux JSON/DEGRADED state, compact `.xsraw` raw segments (ten-minute age cap under the byte
 budget), a simplified CLI, and Nix/Linux/macOS packaging with fail-closed
 notarization/tap tooling. The recorder module normalizes its own state and
 never mutates host policy. Developer ID notarization, public tap publication,
@@ -108,16 +108,14 @@ the exact reason and does not claim them.
 Keep the read-only safety invariants and the 600-line limit green. Native
 windows are human-run; automated work uses CPU snapshots, Metal offscreen
 parity, Xvfb/hidden-window smokes, and the gated service/live/retention smokes
-in a disposable Linux VM. The design console (`src/app/design/`,
-`lib/xsui/src/canvas.zig`, `web/`) is the product surface on web, macOS,
-Linux, and `snapshot`. The visible lab rail is retired; `xsprof lab` remains a
+in a disposable Linux VM. The design console (`src/app/design/`, `lib/xsui/src/canvas.zig`) is the
+product surface on macOS, Linux, and `snapshot`; the browser surface is gone. The visible lab rail is retired; `xsprof lab` remains a
 headless scenario/QA tool. Re-run `zig build check`, `qa/cli_parity.sh`,
 `qa/compact_roundtrip.sh`, and `qa/release_tooling.sh` after any behavior
 change. Visual evidence is developer-only under `design/evidence/`
-(`qa/ui_evidence.sh`). `design/ui-spec.json` is the formal runtime contract; CPU
-is canonical and `qa/ui_cross_surface.py` gates Metal/WebGL2 against it.
-Reference diffs are advisory, not acceptance criteria. Keyboard focus,
-clipboard, brush, and the hidden a11y DOM mirror are covered by the Playwright
-scripts. The committed real capture `fixtures/real/macos-vm-sched.ndjson` comes
+(`qa/showcase_smoke.sh`). `design/ui-spec.json` is the formal runtime contract; CPU
+is canonical and native rendering gates cover Metal. Reference diffs are
+advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
+covered by native snapshot/a11y checks. The committed real capture `fixtures/real/macos-vm-sched.ndjson` comes
 from the podman Linux VM (macOS has no perf/tracepoint capture); live screenshots
 and video replay it, marked `REPLAY` and `host_mutation=false`.

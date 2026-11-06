@@ -64,9 +64,6 @@ pub const Source = struct {
     ) live_mod.StartResult {
         _ = options;
         const self: *Source = @ptrCast(@alignCast(ctx));
-        if (@import("builtin").cpu.arch == .wasm32) {
-            return .{ .unavailable = .{ .state = .skip, .reason = "recorder tail needs a native filesystem" } };
-        }
         if (!self.begin(allocator, io, feed, self.dir)) {
             return .{ .unavailable = .{ .state = .refuse, .reason = "recorder tail could not start" } };
         }

@@ -1,0 +1,229 @@
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":2773,"schema":"xsprof/event/v1","tid":2773,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"host_memory buddy_fragmentation=0.924269","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":112959657789}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"capture_stop","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":712961123064}

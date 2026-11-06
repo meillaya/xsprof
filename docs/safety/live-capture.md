@@ -52,25 +52,23 @@ printable-ASCII comms, increasing ns timestamps, and valid UTF-8 JSON.
 The host (macOS) and any unprivileged Linux host report SKIP and exit 1; this
 is the tested fail-closed behavior.
 
-## Live SSE and the browser
+## Native live view
 
-`xsprof serve --live --live-dir <state>` tails recorder segments without
-opening a capture. `xsprof serve --live` opens one perf capture for the
-process lifetime. It
-downsamples UI events (`--live-stride`, default 80) into a bounded, line-aligned
-store and aggregates dropped events into one `sample_loss live_downsample`
-marker per second. The browser appends new lines through the incremental store.
-Endpoints:
+The native console starts one in-process read-only recorder (compact
+`.xsraw` segments) and tails those segments through
+`src/platform/follow_source.zig` for the live view. It:
+- gates on `live.probe` READY before starting;
+- keeps a bounded feed/index and rebuilds the model at most about 4 times per
+  second;
+- re-serializes canonical NDJSON for the UI, preserving the selected screen and
+  remapping selection by stable keys;
+- emits explicit `sample_loss`/`retention_loss` markers on trim, corrupt
+  blocks, or caps;
+- never starts a browser/server, never kills an external recorder, and writes
+  only its state directory.
 
-- `/api/journal` — current snapshot for initial load.
-- `/api/events` — one-shot SSE batches with `id:` offsets and `Last-Event-ID`
-  resume; an `event: reset` frame tells the client to reload after trimming.
-- `/api/meta` — `source:"live"`.
-
-The browser appends SSE lines through `web_append_journal`, re-renders while
-preserving the active screen, and reloads on reset. Verified in the VM with a
-headless Chromium screenshot: LIVE READY capability, 51k+ events, 4 CPUs,
-loss markers, `host_mutation=false`.
-
-The worker downsamples for UI responsiveness; the CLI `record` remains the
-full-fidelity evidence path.
+External recorders are attach-only: `xsprof ui --follow-recorder DIR` tails
+the same compact/legacy segments without opening a capture. The CLI `record`
+remains the full-fidelity evidence path. macOS has no perf backend and reports
+live capture as SKIP; it still supports follow-recorder over an exported state
+directory.

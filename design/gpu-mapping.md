@@ -2,8 +2,8 @@
 
 This document maps the design tokens to a flat-instance GPU UI. The canonical
 runtime contract is [`ui-spec.json`](ui-spec.json): CPU is the reference
-rasterizer and Metal/GL/WebGL2 consume the same draw list, fractional geometry,
-and browser-generated text atlas. The HTML prototype is the design source; its
+rasterizer and native Metal/GL consume the same draw list, fractional geometry,
+and staged text atlas. The HTML prototype is the design source; its
 pixel diff is advisory. Formal cross-surface results live in
 [`evidence/cross_surface.json`](evidence/cross_surface.json).
 
@@ -16,7 +16,7 @@ The source of truth is the inline CSS/markup/script in `design/index.html`
 
 | Target | Size | DPR | Role |
 |---|---|---|---|
-| Web parity | 1440×900 | 1 | primary comparison canvas |
+| Prototype parity | 1440×900 | 1 | frozen design comparison canvas |
 | Native parity | 1280×720 | 1 | current `xsprof ui` window |
 | Responsive checks | 1320×900, 1140×900, 1024×768, 780×900, 420×900 | 1 | breakpoint behavior |
 
@@ -67,7 +67,7 @@ state signal. Do not render unsafe, lost, or refused data as success.
 
 ## 3. Instance/draw-list mapping
 
-Current `xsui` ABI (pinned in `xsui.webgl`):
+Current `xsui` ABI (pinned in the `xsui` draw list):
 
 | Field | Offset | Notes |
 |---|---|---|
@@ -84,8 +84,8 @@ Current `xsui` ABI (pinned in `xsui.webgl`):
 | vertices | 4 | triangle strip |
 | atlas | 1024×1024 | R8 |
 
-Metal pads each row to 80 bytes for MSL alignment. WebGL2 uses the 72-byte
-stride. One draw call is expected for typical screens.
+Metal pads each row to 80 bytes for MSL alignment; the shared Zig struct uses
+the 72-byte stride. One draw call is expected for typical screens.
 
 ### Primitive recipes
 
@@ -262,10 +262,10 @@ Recommended capture set for every token change:
 8. Toast (info and error variants).
 9. Responsive 1024, 780, and 420 widths.
 
-For CPU rendering, compare framebuffer hashes exactly. For Metal/GL/WebGL2,
-compare against the CPU reference using the thresholds in `ui-spec.json`
-(WebGL2: MAE ≤ 2.5, >24 ≤ 3%; Metal/GL: MAE ≤ 4.0, >24 ≤ 3%). The formal gate
-is `qa/ui_cross_surface.py`; reference diffs are advisory.
+For CPU rendering, compare framebuffer hashes exactly. For Metal/GL, compare
+against the CPU reference using the thresholds in `ui-spec.json` (Metal/GL:
+MAE ≤ 4.0, >24 ≤ 3%). The formal gate is `qa/ui_cross_surface.py`; reference
+diffs are advisory.
 
 ## 11. Implementation checklist
 
@@ -292,15 +292,15 @@ is `qa/ui_cross_surface.py`; reference diffs are advisory.
 - [x] Replace platform text rasterization with a browser-generated glyph mask
       atlas at the measured ¼ px x / ½ px y subpixel grid; TTF remains a
       documented fallback for unknown glyphs/phases.
-- [x] Make CPU the canonical backend and gate Metal/WebGL2 against it through
+- [x] Make CPU the canonical backend and gate native Metal/GL against it through
       `design/ui-spec.json` and `qa/ui_cross_surface.py`.
 - [x] Wire the 1320/1140/1024/780/420 shell, compact topbar, bottom rail,
       one-column Overview/Capture/Advisor, and stacked Events/Timeline.
-- [x] Emit bounded clipboard requests; web uses the Clipboard API, macOS uses
-      NSPasteboard. Brush drag/zoom is wired on web.
+- [x] Emit bounded clipboard requests; macOS uses NSPasteboard and X11 owns
+      CLIPBOARD. Brush drag/zoom is wired natively.
 - [x] Mobile ledger/thread rows, phone theme grid/stat sizes, focus
       traversal/trapping/return, skip-link focus, and X11 clipboard selection.
-- [ ] Native Linux open-journal picker remains; use `--replay`/web file input.
+- [x] Native GPU open-journal and recorder-window picker; no web file input.
 
 The cross-surface report records actual pixel metrics and pass/fail against the
 formal thresholds. Reference-progress is reported separately and is advisory.

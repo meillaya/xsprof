@@ -72,11 +72,8 @@ fn handleSource(state: *State, surface: effect.Surface, act: Action, batch: *Bat
             .replay => {
                 if (effect.supports(surface, .list_dir)) {
                     openPicker(state, surface, .file, .replay_file, batch);
-                } else if (effect.supports(surface, .load_file)) {
-                    batch.add(.open_journal);
-                    batch.notify("choose a local journal to upload", false);
                 } else {
-                    const refusal = effect.refusalFor(surface, .load_file);
+                    const refusal = effect.refusalFor(surface, .list_dir);
                     batch.refuse(refusal.code, refusal.reason);
                 }
             },
@@ -337,11 +334,11 @@ fn exportFile(state: *State, surface: effect.Surface, kind: effect.ExportKind, b
     batch.notify("export queued", false);
 }
 
-test "web recorder control fails closed with a stable reason" {
+test "snapshot recorder control fails closed with a stable reason" {
     var state = State{};
     state.settings.capture_enabled = true;
     var batch = Batch{};
-    handle(&state, .web, .{ .recorder = .start }, &batch);
+    handle(&state, .snapshot, .{ .recorder = .start }, &batch);
     try std.testing.expect(batch.len == 1);
     switch (batch.items[0]) {
         .refusal => |refusal| {
@@ -371,21 +368,22 @@ test "linux start capture requires the settings opt-in" {
     }
 }
 
-test "web replay selection falls back to the upload utility" {
+test "snapshot replay selection fails closed without a picker" {
     var state = State{};
     var batch = Batch{};
-    handle(&state, .web, .{ .source_select = .replay }, &batch);
+    handle(&state, .snapshot, .{ .source_select = .replay }, &batch);
     try std.testing.expect(batch.len >= 1);
     switch (batch.items[0]) {
-        .open_journal => {},
+        .refusal => |refusal| try std.testing.expectEqualStrings("surface.list_dir.unsupported", refusal.code),
         else => return error.TestUnexpectedResult,
     }
+    try std.testing.expectEqual(source.Phase.idle, state.source.phase);
 }
 
 test "export requires a writable surface" {
     var state = State{};
     var batch = Batch{};
-    handle(&state, .web, .{ .export_file = .trace }, &batch);
+    handle(&state, .snapshot, .{ .export_file = .trace }, &batch);
     switch (batch.items[0]) {
         .refusal => |refusal| try std.testing.expectEqualStrings("surface.write.unsupported", refusal.code),
         else => return error.TestUnexpectedResult,
@@ -399,7 +397,7 @@ test "export requires a writable surface" {
     try std.testing.expect(found);
 }
 
-test "external restart asks for confirmation and fails closed on web" {
+test "external restart fails closed for an externally managed recorder" {
     var state = State{};
     state.recorder.external = true;
     var batch = Batch{};

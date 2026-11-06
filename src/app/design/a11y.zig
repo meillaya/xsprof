@@ -1,6 +1,6 @@
 //! Platform-neutral accessibility tree built from Canvas hit registrations.
-//! Web mirrors this tree into a hidden DOM/ARIA tree; macOS bridges it to
-//! NSAccessibility. Linux ships the JSON dump with an explicit AT-SPI SKIP.
+//! macOS bridges this tree to NSAccessibility. Linux ships the canonical JSON
+//! dump with an explicit AT-SPI SKIP.
 //!
 //! TODO(native-runtime): when xsui exposes Canvas.node(role,label,...) and
 //! Hit.data, read those directly instead of the id catalogue + data ranges.
@@ -324,7 +324,7 @@ fn writeString(w: *std.Io.Writer, text: []const u8) !void {
     try w.writeByte('"');
 }
 
-/// Canonical JSON for web DOM/ARIA mirroring, native bridges and golden tests.
+/// Canonical JSON for native bridges, snapshot dumps and golden tests.
 pub fn writeJson(w: *std.Io.Writer, tree: *const Tree) !void {
     try w.writeAll("{\"host_mutation\":false,\"nodes\":[");
     for (tree.slice(), 0..) |node, index| {

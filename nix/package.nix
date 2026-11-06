@@ -48,7 +48,6 @@ let
     ${lib.optionalString isLinux ''
         if [ -e "$out/bin/xsprof" ] && [ ! -e "$out/bin/.xsprof-wrapped" ]; then
             wrapProgram "$out/bin/xsprof" \
-                --set-default XSPROF_WEB_DIR "$out/share/xsprof/web" \
                 --set-default XSPROF_FIXTURES_DIR "$out/share/xsprof/fixtures" \
                 --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libx11 libglvnd mesa ]}"
         fi
@@ -86,12 +85,10 @@ stdenv.mkDerivation {
 
   installPhase = ''
     runHook preInstall
-    # The Zig install step writes the binary to $out/bin and web assets to
-    # $out/web; package the documented share/xsprof layout.
+    # v0.5 ships the native console only; drop any legacy browser/WASM tree
+    # and package the documented share/xsprof layout.
+    rm -rf "$out/web"
     mkdir -p $out/share/xsprof/fixtures
-    if [ -d "$out/web" ]; then
-      mv "$out/web" "$out/share/xsprof/web"
-    fi
     install -Dm644 ${src}/fixtures/ui/healthy.ndjson $out/share/xsprof/fixtures/healthy.ndjson
     install -Dm644 ${src}/packaging/systemd/xsprof-recorder.service $out/lib/systemd/system/xsprof-recorder.service
     install -Dm644 ${src}/packaging/sysusers/xsprof.conf $out/lib/sysusers.d/xsprof.conf

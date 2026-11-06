@@ -184,7 +184,6 @@ fn drawSegments(model: *const Model, canvas: *Canvas, th: Theme, rect: Rect) !vo
 pub const commands = [_][2][]const u8{
     .{ "record a bounded window", "xsprof record --duration <ms> --out <dir>" },
     .{ "render a deterministic snapshot", "xsprof snapshot --replay /tmp/xsprof/journal.ndjson --out /tmp/xsprof.png" },
-    .{ "serve the console on loopback", "xsprof serve --journal /tmp/xsprof/journal.ndjson" },
     .{ "replay in the native window", "xsprof ui --replay /tmp/xsprof/journal.ndjson" },
 };
 

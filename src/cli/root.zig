@@ -7,7 +7,7 @@ const proc = @import("../os/linux/proc.zig");
 const journal = @import("../stream/journal.zig");
 const chrome_trace = @import("../viz/chrome_trace.zig");
 const render_cmd = @import("render.zig");
-const serve_cmd = @import("serve_cmd.zig");
+const demo_cmd = @import("demo_cmd.zig");
 const advise_cmd = @import("advise_cmd.zig");
 const incident_cmd = @import("incident_cmd.zig");
 const history_cmd = @import("history_cmd.zig");
@@ -37,7 +37,6 @@ const known_commands = [_][]const u8{
     "history",
     "timeline",
     "record",
-    "serve",
     "snapshot",
     "ui",
     "bpf-gate",
@@ -57,6 +56,17 @@ const known_commands = [_][]const u8{
     "lab",
     "verify",
 };
+
+/// Verbs removed in 0.5.0. They fail closed with an explicit reason instead of
+/// silently becoming an unknown verb, so scripts see why they stopped working.
+const removed_commands = [_][]const u8{"serve"};
+
+fn isRemovedCommand(cmd: []const u8) bool {
+    for (removed_commands) |removed| {
+        if (std.mem.eql(u8, cmd, removed)) return true;
+    }
+    return false;
+}
 
 const refusal_reason =
     "unsafe verb is disabled in the host operator (fail-closed); " ++
@@ -275,6 +285,13 @@ pub fn runWith(
         try help.writeHelp(out);
         return 0;
     }
+    if (isRemovedCommand(cmd)) {
+        try err.print(
+            "xsprof: {s} was removed in 0.5.0; the console is native only (run `xsprof` or `xsprof demo`, or use `xsprof snapshot` for headless output)\n",
+            .{cmd},
+        );
+        return 2;
+    }
     if (args.len > 2 and (std.mem.eql(u8, args[2], "--help") or std.mem.eql(u8, args[2], "-h"))) {
         try help.writeCommand(out, cmd);
         return 0;
@@ -308,9 +325,6 @@ pub fn runWith(
     if (std.mem.eql(u8, cmd, "snapshot")) {
         return render_cmd.cmdSnapshot(io, allocator, args[2..], out, err);
     }
-    if (std.mem.eql(u8, cmd, "serve")) {
-        return serve_cmd.cmdServe(io, allocator, args[2..], out, err);
-    }
     if (std.mem.eql(u8, cmd, "record")) {
         return record_cmd.cmdRecord(io, allocator, args[2..], out, err);
     }
@@ -339,7 +353,7 @@ pub fn runWith(
         return doctor_cmd.cmdDoctor(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "demo")) {
-        return serve_cmd.cmdServe(io, allocator, &.{"--demo"}, out, err);
+        return demo_cmd.cmdDemo(io, allocator, args[2..], out, err);
     }
     if (std.mem.eql(u8, cmd, "watch")) {
         return watch_cmd.cmdWatch(io, allocator, args[2..], out, err);
@@ -455,7 +469,7 @@ test "version is stable" {
         @as(u8, 0),
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.4.0\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.5.0\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {
@@ -494,6 +508,20 @@ test "unknown verbs fail closed" {
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
     try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"verb\":\"no-such-verb\"") != null);
+}
+
+test "removed serve verb fails closed with an explicit reason" {
+    var out_buffer: [512]u8 = undefined;
+    var err_buffer: [1024]u8 = undefined;
+    var out: Writer = undefined;
+    var err: Writer = undefined;
+    const args = [_][]const u8{ "xsprof", "serve" };
+    try std.testing.expectEqual(
+        @as(u8, 2),
+        try testRun(&args, &out_buffer, &err_buffer, &out, &err),
+    );
+    try std.testing.expect(std.mem.indexOf(u8, err.buffered(), "removed in 0.5.0") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "refusal") == null);
 }
 
 test "preflight requires --json and emits a read-only document" {

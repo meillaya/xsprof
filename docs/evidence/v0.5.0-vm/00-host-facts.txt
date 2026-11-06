@@ -1,0 +1,18 @@
+# Host facts captured 2026-11-06T16:09:23-05:00
+hostname=massive
+kernel=Linux massive 7.3.1-1-cachyos #1 SMP PREEMPT_DYNAMIC Sat, 31 Oct 2026 15:33:05 +0000 x86_64 GNU/Linux
+git_head=6b3c490b4fa0955e5fcd93fd19b50a9bb048a0eb
+git_describe=6b3c490-dirty
+git_status= M README.md
+ M build.zig
+ M src/app/design/a11y.zig
+ M src/app/design/app.zig
+ M src/app/design/capture.zig
+xsprof_bin_sha256=34577fa73b9aaf383c17572ec3321e67e8ebf3641334de5e4cf00d9d6b58ce0f
+xsprof_version=xsprof 0.4.0
+podman=podman version 5.8.7
+qemu=QEMU emulator version 11.1.2
+kvm=crw-rw-rw- 1 root kvm 10, 232 Nov  6 12:38 /dev/kvm
+nproc=16
+mem=62G
+cached_fcos=-rw-r--r-- 1 mei mei 1001535337 Nov  6 00:46 /home/mei/.local/share/containers/podman/machine/qemu/cache/f819a25d185ceb24642f91b29fc3d36a707129ead9731de0718b26eac50210f7.qcow2.zst

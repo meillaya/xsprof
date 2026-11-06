@@ -8,8 +8,8 @@ repository plus a disposable Linux VM for live/BPF lanes.
 | P0 | C++ tree on `archive/cpp-0.1.0` / tag `cpp-0.1.0`; Zig 0.17.0 pinned; vendored stdlib text hash-checked; no C++ build files on `main`; the archived simulator stayed untouched through the rewrite and was later deleted from `main`. |
 | P1 | Canonical event/JSON goldens; privacy redaction; SafePath/unsafe verbs; proc/sysfs capability probes; seven-rule advisor; Chrome Trace; CLI parity. |
 | P2 | `xsui` draw list, TTF rasterizer, 8-bit atlas, layout, widgets, Tester, gallery golden; headless snapshots. |
-| P3 | Replay Session; Overview/Timeline/Advisor/Events/Capture; wasm32 + WebGL2 instancing; token-gated loopback `serve`; headless Chromium screenshots. |
-| P4 | `perf_event_open` collectors, rings, loss markers, `record`; live SSE with `Last-Event-ID` and bounded downsample store; VM browser evidence. |
+| P3 | Replay Session; Overview/Timeline/Advisor/Events/Capture; wasm32 + WebGL2 instancing; token-gated loopback `serve`; headless Chromium screenshots. **Removed in 0.5.0.** |
+| P4 | `perf_event_open` collectors, rings, loss markers, `record`; native in-process recorder and follow-tail live view. Web SSE was removed in 0.5.0. |
 | P5 | AppKit `NSWindow` + `CAMetalLayer`; instanced Metal; offscreen Metal/CPU parity (avg 0.50); hidden-window smoke; `xsprof ui`. |
 | P6 | X11 + GLX native window; runtime-loaded X11/GL; Xvfb smoke; mapped native screenshot; glibc packaging note. |
 | P7 | Host-refused/Vm-marker-gated `bpf-gate`; no-op tracepoint `BPF_PROG_LOAD` + perf attach for 200 ms; libbpf dlopen probe; schema + parity. |
@@ -118,6 +118,28 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   bytes/event, covered-span, and loss thresholds and must be rerun in the VM.
   Historical 0.3.0 NDJSON numbers below are retained as pre-0.4 evidence only.
 
+## 0.5.0 native-only removal evidence
+
+- `web/`, `src/web.zig`, `src/web_console.zig`, `src/serve/`,
+  `src/cli/serve_cmd.zig`, `ui-session` schema, web QA/Playwright scripts, and
+  browser assets are deleted; `build.zig` no longer builds wasm/WebGL2 or web
+  smokes.
+- `xsprof demo` is native-only; `xsprof serve` fails closed as a removed
+  0.5.0 verb; help/completions contain no browser surface.
+- The standalone xsui package has no WebGL2/wasm backend; CPU/Metal/GL remain.
+- AppImage and native offscreen showcase media are part of the 0.5.0 evidence;
+  KVM podman VM logs for live_smoke/service_smoke/retention_bench are under
+  `docs/evidence/v0.5.0-vm/`.
+- Local gate: `zig build check`, fuzz, design validation, and the native
+  snapshot/a11y gates pass; browser artifacts are absent from package layouts.
+- KVM podman VM (Fedora CoreOS 44, /dev/kvm, committed 0.4.0 binary):
+  `live_smoke` PASS (93,534 rows, SIGTERM clean), `service_smoke` PASS
+  (3 compact segments, 421,068 extracted lines), `retention_bench 600000 0 2G
+  yes` PASS (51,912,224 events, 12.06 B/event, covered 600.01 s, 0 loss,
+  10 sidecars, 12,928 KiB RSS). Canonical ratio recomputed from same-VM
+  samples: 160.10 B/event -> 13.28x. Evidence:
+  `docs/evidence/v0.5.0-vm/`.
+
 ## v0.4.0 UI-first evidence
 
 - The native console is the product: eight routes, first-run onboarding,
@@ -160,7 +182,6 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
   the actual covered span.
 - The BPF lane is a no-op load/attach gate; perf remains the event data path.
 - PNG output currently uses stored deflate blocks (large but valid).
-- Web screenshots use developer Playwright; it is not a shipped dependency.
 - Developer ID notarization and the public Homebrew tap require external Apple
   and tap credentials; the unsigned local bundle is ad-hoc signed. A tag-driven
   release run also needs available GitHub Actions minutes.
@@ -177,12 +198,11 @@ qa/retention_bench.sh 600000 0 2G yes     # Linux root, disposable VM
 - Page faults split into `SW_PAGE_FAULTS_MIN`/`MAJ`; major/minor are observable.
 - `record`/`capture` stream; daemon SIGTERM flushes and marks the manifest
   stopped; history sidecars use a bounded interval/retention.
-- `serve` validates journals, prints the token in the fragment, and adds
-  CSP/referrer/frame headers. Live web appends preserve the view.
-- MIT LICENSE, version 0.3.0, default web install, Deb web assets, release
-  check gate and checksum upload.
-- New gates: `unsafe_cli_matrix`, `no_host_mutation`, `privacy_scan`,
-  `web_ui_smoke`, `version_sync`, and root `live_smoke`.
+- Historical 0.3 web surface (removed in 0.5.0): `serve` validated journals,
+  tokens, CSP, and live append. The current native console replaces it.
+- MIT LICENSE, release check gate and checksum upload.
+- Historical gates: `unsafe_cli_matrix`, `no_host_mutation`, `privacy_scan`,
+  `web_ui_smoke` (removed), `version_sync`, and root `live_smoke`.
 - VM evidence (Fedora 44 x86_64): `live_smoke` PASS, `service_smoke` PASS
   (6 segments, 334,064 extracted lines), `bpf-gate` READY.
 

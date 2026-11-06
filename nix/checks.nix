@@ -24,7 +24,15 @@ let
     export HOME="$TMPDIR"
     ${xsprof}/bin/xsprof version | grep -Fx "xsprof ${version}"
     ${xsprof}/bin/xsprof help > /dev/null
-    test -s ${xsprof}/share/xsprof/web/index.html
+    test ! -e ${xsprof}/share/xsprof/web
+    if find ${xsprof} -name '*.wasm' | grep -q .; then
+      echo "xsprof package ships wasm/web assets" >&2
+      exit 1
+    fi
+    if [ "$(head -c 2 ${xsprof}/bin/xsprof)" = "#!" ] && grep -q XSPROF_WEB_DIR ${xsprof}/bin/xsprof; then
+      echo "xsprof wrapper still sets XSPROF_WEB_DIR" >&2
+      exit 1
+    fi
     test -s ${xsprof}/share/xsprof/fixtures/healthy.ndjson
     test -f ${xsprof}/share/applications/xsprof.desktop
     test -f ${xsprof}/share/bash-completion/completions/xsprof
