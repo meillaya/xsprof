@@ -56,6 +56,50 @@
     },
     "wakeups": {
       "type": "integer"
+    },
+    "out_of_order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pairs_truncated": {
+      "type": "boolean"
+    },
+    "wakeup_pairs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "p95_wait_us",
+          "waker_comm",
+          "waker_pid",
+          "woken_comm",
+          "woken_pid"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "p95_wait_us": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waker_comm": {
+            "type": "string"
+          },
+          "waker_pid": {
+            "type": "integer"
+          },
+          "woken_comm": {
+            "type": "string"
+          },
+          "woken_pid": {
+            "type": "integer"
+          }
+        }
+      }
     }
   },
   "required": [
@@ -76,7 +120,10 @@
     "tasks",
     "unnecessary_wakeups",
     "unresolved_wakeups",
-    "wakeups"
+    "wakeups",
+    "out_of_order",
+    "pairs_truncated",
+    "wakeup_pairs"
   ],
   "title": "xsprof scheduler metrics",
   "type": "object"

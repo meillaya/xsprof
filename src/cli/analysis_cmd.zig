@@ -1,6 +1,7 @@
 const std = @import("std");
 const journal = @import("../stream/journal.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
+const metrics_json = @import("../analyze/metrics_json.zig");
 const compare_mod = @import("../analyze/compare.zig");
 
 const Writer = std.Io.Writer;
@@ -51,7 +52,7 @@ pub fn cmdMetrics(
         try err.print("metrics: {s}\n", .{@errorName(load_error)});
         return 1;
     };
-    try metrics_mod.writeJson(out, values, top);
+    try metrics_json.writeJson(out, values, top);
     try out.writeByte('\n');
     return 0;
 }

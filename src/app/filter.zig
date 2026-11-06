@@ -33,7 +33,8 @@ pub const Filter = struct {
             if (comm.len == 0 or !std.mem.eql(u8, entry.comm, comm)) return false;
         }
         if (self.pid) |pid| {
-            if (entry.pid != pid and entry.tid != pid) return false;
+            if (entry.pid != pid and entry.tid != pid and
+                event.subjectPid(entry) != pid and event.actorPid(entry) != pid) return false;
         }
         if (self.kind) |kind| {
             if (entry.kind != kind) return false;

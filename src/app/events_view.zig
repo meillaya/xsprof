@@ -5,6 +5,8 @@ const std = @import("std");
 const xsui = @import("xsui");
 const app_state = @import("app_state.zig");
 const filter_mod = @import("filter.zig");
+const event_mod = @import("../core/event.zig");
+const privacy = @import("../core/privacy.zig");
 const app_util = @import("app_util.zig");
 const frame_mod = xsui.frame;
 const layout = xsui.layout;
@@ -73,9 +75,10 @@ fn paint(user: ?*anyopaque, frame: *frame_mod.Frame, rect: layout.Rect, clip: [4
         _ = try frame.list.text(0, &frame.regular, 12, rect.x, y, try app_util.formatTime(frame.allocator, entry.ts_ns / 1000), th.muted, clip);
         _ = try frame.list.text(0, &frame.regular, 10, rect.x + 76, y, @tagName(entry.kind), color, clip);
         var meta: [64]u8 = undefined;
-        const meta_text = std.fmt.bufPrint(&meta, "cpu={d} pid={d}", .{ entry.cpu, entry.pid }) catch "";
+        const meta_text = std.fmt.bufPrint(&meta, "cpu={d} pid={d}", .{ entry.cpu, event_mod.subjectPid(entry) }) catch "";
         _ = try frame.list.text(0, &frame.regular, 10, rect.x + 192, y, meta_text, th.muted, clip);
-        const detail = if (is_loss) "explicit sample loss - unsafe" else entry.detail;
+        var detail_buf: [1024]u8 = undefined;
+        const detail = if (is_loss) "explicit sample loss - unsafe" else privacy.redactDetail(entry.detail, &detail_buf);
         _ = try frame.list.text(0, &frame.regular, 10, rect.x + 300, y, detail, if (is_loss) th.refuse else th.muted, clip);
     }
 }

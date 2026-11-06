@@ -110,7 +110,7 @@ pub const Session = struct {
                     if (is_self) session.self_switches += 1;
                     if (e.cpu >= 0) {
                         const cpu: u8 = @intCast(@min(e.cpu, 255));
-                        session.cpu_count = @max(session.cpu_count, cpu + 1);
+                        session.cpu_count = @max(session.cpu_count, cpu +| 1);
                     }
                     if (e.comm.len != 0 and !is_self) {
                         const entry = try comm_counts.getOrPut(e.comm);

@@ -18,6 +18,7 @@ command -v dpkg-deb >/dev/null 2>&1 || {
     exit 1
 }
 
+./tools/zig build web -Doptimize=ReleaseSafe
 ./tools/zig build -Doptimize=ReleaseSafe
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$STAGE/usr/share/xsprof/web"
@@ -27,7 +28,13 @@ cp zig-out/bin/xsprof "$STAGE/usr/bin/xsprof"
 cp -R zig-out/web/. "$STAGE/usr/share/xsprof/web/"
 cp fixtures/ui/healthy.ndjson "$STAGE/usr/share/xsprof/fixtures/healthy.ndjson"
 cp packaging/systemd/xsprof-recorder.service "$STAGE/usr/lib/systemd/system/"
-cp README.md THIRD_PARTY_NOTICES.md "$STAGE/usr/share/doc/xsprof/"
+cp README.md THIRD_PARTY_NOTICES.md LICENSE "$STAGE/usr/share/doc/xsprof/"
+cat > "$STAGE/usr/share/doc/xsprof/copyright" <<COPYRIGHT
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: xsprof
+License: MIT
+Copyright: 2026 xsprof contributors
+COPYRIGHT
 
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: xsprof

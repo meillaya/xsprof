@@ -70,6 +70,14 @@ fn isDelimiter(c: u8) bool {
 /// Redact sensitive `key=value` / `key: value` material and secret-looking
 /// values into `out`. The result is a prefix if the input is too long; callers
 /// bound event detail before this point.
+/// Allocate a sanitized copy for display/model paths. The allocation is the
+/// input length; empty input stays empty.
+pub fn redactAlloc(allocator: std.mem.Allocator, detail: []const u8) ![]const u8 {
+    if (detail.len == 0) return "";
+    const out = try allocator.alloc(u8, detail.len);
+    return redactDetail(detail, out);
+}
+
 pub fn redactDetail(detail: []const u8, out: []u8) []const u8 {
     var used: usize = 0;
     var i: usize = 0;

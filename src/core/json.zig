@@ -24,6 +24,48 @@ pub const Entry = struct {
     value: Value,
 };
 
+/// Reject pathological nesting before handing input to std.json. The scanner
+/// has no public depth limit, so a small but deeply nested line could cause
+/// unbounded recursion. String contents are skipped so brackets in text do not
+/// count.
+pub fn depthOk(data: []const u8, max_depth: usize) bool {
+    var depth: usize = 0;
+    var in_string = false;
+    var escaped = false;
+    for (data) |c| {
+        if (in_string) {
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        switch (c) {
+            '"' => in_string = true,
+            '[', '{' => {
+                depth += 1;
+                if (depth > max_depth) return false;
+            },
+            ']', '}' => {
+                if (depth == 0) return false;
+                depth -= 1;
+            },
+            else => {},
+        }
+    }
+    return depth == 0 and !in_string and !escaped;
+}
+
+test "depth guard rejects nesting beyond the limit" {
+    try std.testing.expect(depthOk("{\"a\":[1,2]}", 4));
+    try std.testing.expect(!depthOk("[[[[[]]]]]", 4));
+    try std.testing.expect(depthOk("{\"text\":\"[[[[\"}", 2));
+    try std.testing.expect(!depthOk("}", 4));
+}
+
 pub fn write(w: *Writer, value: Value) Writer.Error!void {
     switch (value) {
         .nul => try w.writeAll("null"),

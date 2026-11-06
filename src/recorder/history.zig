@@ -5,6 +5,7 @@ const std = @import("std");
 const json = @import("../core/json.zig");
 const aggregates = @import("../analyze/aggregates.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
+const metrics_json = @import("../analyze/metrics_json.zig");
 
 const Writer = std.Io.Writer;
 
@@ -94,6 +95,25 @@ pub fn scan(
         if (start_wall < cutoff) continue;
         const path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ metrics_path, item.name });
         const data = readFile(io, allocator, path) catch continue;
+        if (!json.depthOk(data, 64)) continue;
+        const envelope = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch continue;
+        defer envelope.deinit();
+        const object = switch (envelope.value) {
+            .object => |value| value,
+            else => continue,
+        };
+        const schema_value = object.get("schema") orelse continue;
+        const schema_text = switch (schema_value) {
+            .string => |value| value,
+            else => continue,
+        };
+        if (!std.mem.eql(u8, schema_text, "xsprof/metrics/v1")) continue;
+        if (object.get("host_mutation")) |mutation| {
+            switch (mutation) {
+                .bool => |value| if (value) continue,
+                else => continue,
+            }
+        } else continue;
         const parsed = std.json.parseFromSlice(metrics_mod.Metrics, allocator, data, .{
             .ignore_unknown_fields = true,
         }) catch continue;
@@ -188,7 +208,7 @@ pub fn writeJson(w: *Writer, report: Report) !void {
             },
         );
     }
-    try w.print("],\"first_wall_ns\":{d},\"last_wall_ns\":{d},\"schema\":\"xsprof/history/v1\",\"sidecars\":{d},\"totals\":{{\"cpu_busy_us\":{d},\"events\":{d},\"faults\":{d},\"lost\":{d},\"migrations\":{d},\"switches\":{d},\"unnecessary_wakeups\":{d},\"unresolved_wakeups\":{d},\"wakeups\":{d}}},\"window_ms\":{d}}}\n", .{
+    try w.print("],\"first_wall_ns\":{d},\"host_mutation\":false,\"last_wall_ns\":{d},\"schema\":\"xsprof/history/v1\",\"sidecars\":{d},\"totals\":{{\"cpu_busy_us\":{d},\"events\":{d},\"faults\":{d},\"lost\":{d},\"migrations\":{d},\"switches\":{d},\"unnecessary_wakeups\":{d},\"unresolved_wakeups\":{d},\"wakeups\":{d}}},\"window_ms\":{d}}}\n", .{
         report.first_wall_ns,
         report.last_wall_ns,
         report.sidecars,
@@ -246,7 +266,7 @@ fn writeHistorySidecar(
     defer file.close(io);
     var buffer: [16 * 1024]u8 = undefined;
     var writer = file.writer(io, &buffer);
-    try metrics_mod.writeJson(&writer.interface, .{
+    try metrics_json.writeJson(&writer.interface, .{
         .events = switches + 1,
         .switches = switches,
         .wakeups = 2,

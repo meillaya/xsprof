@@ -53,12 +53,29 @@ pub fn cmdDaemon(
                 try err.writeAll("daemon: invalid --max-bytes\n");
                 return 2;
             };
+        } else if (std.mem.eql(u8, arg, "--history-interval") and i + 1 < args.len) {
+            i += 1;
+            options.history_interval_ms = extract.parseDuration(args[i]) catch {
+                try err.writeAll("daemon: invalid --history-interval\n");
+                return 2;
+            };
+        } else if (std.mem.eql(u8, arg, "--history-retain") and i + 1 < args.len) {
+            i += 1;
+            options.history_retain_ms = extract.parseDuration(args[i]) catch {
+                try err.writeAll("daemon: invalid --history-retain\n");
+                return 2;
+            };
         } else if (std.mem.eql(u8, arg, "--duration") and i + 1 < args.len) {
             i += 1;
-            options.duration_ms = std.fmt.parseInt(u32, args[i], 10) catch {
+            const duration = extract.parseDuration(args[i]) catch {
                 try err.writeAll("daemon: invalid --duration\n");
                 return 2;
             };
+            if (duration > std.math.maxInt(u32)) {
+                try err.writeAll("daemon: --duration too large\n");
+                return 2;
+            }
+            options.duration_ms = @intCast(duration);
         } else if (std.mem.eql(u8, arg, "--preset") and i + 1 < args.len) {
             i += 1;
             const preset = live.parsePreset(args[i]) orelse {
@@ -85,6 +102,8 @@ pub fn cmdDaemon(
         .{ .key = "dir", .value = .{ .string = result.dir } },
         .{ .key = "events", .value = .{ .unsigned = result.events } },
         .{ .key = "events_per_sec", .value = .{ .unsigned = result.overhead.events_per_sec } },
+        .{ .key = "history_dropped", .value = .{ .unsigned = result.history_dropped } },
+        .{ .key = "history_sidecars", .value = .{ .unsigned = result.history_sidecars } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
         .{ .key = "overhead_available", .value = .{ .boolean = result.overhead.available } },
         .{ .key = "overhead_bp", .value = .{ .unsigned = result.overhead.overhead_bp } },
@@ -92,6 +111,7 @@ pub fn cmdDaemon(
         .{ .key = "rss_kb", .value = .{ .unsigned = result.overhead.rss_kb } },
         .{ .key = "schema", .value = .{ .string = "xsprof/recorder-result/v1" } },
         .{ .key = "session_id", .value = .{ .string = result.session_id } },
+        .{ .key = "sidecar_errors", .value = .{ .unsigned = result.sidecar_errors } },
         .{ .key = "state", .value = .{ .string = @tagName(result.state) } },
         .{ .key = "wall_ms", .value = .{ .unsigned = result.overhead.wall_ms } },
     } });
@@ -109,6 +129,7 @@ pub fn cmdCapture(
     var dir: ?[]const u8 = null;
     var last_text: ?[]const u8 = null;
     var output: ?[]const u8 = null;
+    var force = false;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -121,6 +142,8 @@ pub fn cmdCapture(
         } else if (std.mem.eql(u8, arg, "--out") and i + 1 < args.len) {
             i += 1;
             output = args[i];
+        } else if (std.mem.eql(u8, arg, "--force")) {
+            force = true;
         } else {
             try err.print("capture: unknown option {s}\n", .{arg});
             return 2;
@@ -135,26 +158,40 @@ pub fn cmdCapture(
         return 2;
     };
     const resolved_dir = if (dir) |value| value else try defaultDir(allocator);
-    const data = extract.extract(io, allocator, .{
+    const stdout_mode = if (output) |path| std.mem.eql(u8, path, "-") else true;
+
+    var file: ?std.Io.File = null;
+    if (!stdout_mode) {
+        const path = output.?;
+        const options: std.Io.Dir.CreateFileOptions = .{
+            .exclusive = !force,
+            .truncate = force,
+        };
+        file = if (path.len != 0 and path[0] == '/')
+            std.Io.Dir.createFileAbsolute(io, path, options) catch |open_error| {
+                try err.print("capture: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
+                return 1;
+            }
+        else
+            std.Io.Dir.cwd().createFile(io, path, options) catch |open_error| {
+                try err.print("capture: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
+                return 1;
+            };
+    }
+    defer if (file) |opened| opened.close(io);
+
+    var buffer: [64 * 1024]u8 = undefined;
+    var file_writer: ?std.Io.File.Writer = null;
+    if (file) |opened| file_writer = opened.writer(io, &buffer);
+    const writer: *std.Io.Writer = if (file_writer) |*fw| &fw.interface else out;
+    extract.writeTo(io, allocator, .{
         .dir = resolved_dir,
         .last_ms = last_ms,
-    }) catch |extract_error| {
+    }, writer) catch |extract_error| {
         try err.print("capture: {s}\n", .{@errorName(extract_error)});
         return 1;
     };
-    if (output) |path| {
-        const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch |open_error| {
-            try err.print("capture: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
-            return 1;
-        };
-        defer file.close(io);
-        file.writeStreamingAll(io, data) catch |write_error| {
-            try err.print("capture: cannot write {s}: {s}\n", .{ path, @errorName(write_error) });
-            return 1;
-        };
-    } else {
-        try out.writeAll(data);
-    }
+    try writer.flush();
     return 0;
 }
 

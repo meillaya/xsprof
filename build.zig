@@ -126,6 +126,17 @@ pub fn build(b: *std.Build) void {
     const vendor_step = b.step("vendor-check", "Verify vendored Zig 0.17 hashes");
     vendor_step.dependOn(&vendor.step);
 
+    const version_sync = b.addSystemCommand(&.{ "sh", "qa/version_sync.sh" });
+    const version_sync_step = b.step("version-sync", "Check package/runtime version lockstep");
+    version_sync_step.dependOn(&version_sync.step);
+
+    const unsafe_matrix = b.addSystemCommand(&.{ "sh", "qa/unsafe_cli_matrix.sh" });
+    unsafe_matrix.step.dependOn(b.getInstallStep());
+    const no_mutation = b.addSystemCommand(&.{ "sh", "qa/no_host_mutation.sh" });
+    no_mutation.step.dependOn(b.getInstallStep());
+    const privacy_scan = b.addSystemCommand(&.{ "sh", "qa/privacy_scan.sh" });
+    privacy_scan.step.dependOn(b.getInstallStep());
+
     const cli_parity = b.addSystemCommand(&.{ "sh", "qa/cli_parity.sh" });
     cli_parity.step.dependOn(b.getInstallStep());
     const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
@@ -165,7 +176,8 @@ pub fn build(b: *std.Build) void {
         "web_ui_pointer_up",       "web_ui_copy_ptr",         "web_ui_copy_len",
         "web_ui_copy_clear",       "web_ui_set_screen",       "web_ui_set_theme",
         "web_ui_set_live",         "web_ui_take_open",        "web_ui_take_reload",
-        "web_ui_loaded",
+        "web_ui_loaded",           "web_ui_scroll",           "web_ui_pointer_leave",
+        "web_ui_append_journal",   "web_ui_event_count",      "web_ui_screen",
     };
     const web_exe = b.addExecutable(.{ .name = "xsprof-web", .root_module = web_mod });
     web_exe.entry = .disabled;
@@ -191,6 +203,9 @@ pub fn build(b: *std.Build) void {
         const install = b.addInstallFile(b.path("scenarios/" ++ name), "web/scenarios/" ++ name);
         web_step.dependOn(&install.step);
     }
+    // A plain `zig build` must leave a runnable console (`xsprof demo`); the
+    // web assets are part of the default install, not an extra developer step.
+    b.getInstallStep().dependOn(web_step);
 
     const web_smoke = b.addSystemCommand(&.{ "sh", "qa/web_smoke.sh" });
     web_smoke.step.dependOn(b.getInstallStep());
@@ -198,13 +213,29 @@ pub fn build(b: *std.Build) void {
     const web_smoke_step = b.step("web-smoke", "Optional loopback web bridge smoke test");
     web_smoke_step.dependOn(&web_smoke.step);
 
+    const web_ui_smoke = b.addSystemCommand(&.{ "sh", "qa/web_ui_smoke.sh" });
+    web_ui_smoke.step.dependOn(web_step);
+    const web_ui_smoke_step = b.step("web-ui-smoke", "Headless wasm export/append gate");
+    web_ui_smoke_step.dependOn(&web_ui_smoke.step);
+
+    const live_smoke = b.addSystemCommand(&.{ "sh", "qa/live_smoke.sh" });
+    live_smoke.step.dependOn(b.getInstallStep());
+    const live_smoke_step = b.step("live-smoke", "Root perf/daemon gate for a disposable Linux VM");
+    live_smoke_step.dependOn(&live_smoke.step);
+
     const check = b.step("check", "Full local gate: fmt, lines, vendor, tests");
     check.dependOn(&fmt.step);
     check.dependOn(&lines.step);
     check.dependOn(&vendor.step);
+    check.dependOn(&version_sync.step);
+    check.dependOn(&privacy_scan.step);
+    check.dependOn(&no_mutation.step);
+    check.dependOn(&unsafe_matrix.step);
     check.dependOn(&cli_parity.step);
     check.dependOn(&xsui_package.step);
     check.dependOn(web_step);
+    check.dependOn(&web_ui_smoke.step);
+    check.dependOn(&web_smoke.step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
     check.dependOn(&run_xsui_api_tests.step);

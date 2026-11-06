@@ -17,6 +17,7 @@ pub fn cmdIncident(
     var dir: ?[]const u8 = null;
     var out_dir: ?[]const u8 = null;
     var last_text: []const u8 = "10m";
+    var force = false;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -41,6 +42,8 @@ pub fn cmdIncident(
             }
             i += 1;
             last_text = args[i];
+        } else if (std.mem.eql(u8, arg, "--force")) {
+            force = true;
         } else if (std.mem.eql(u8, arg, "--json")) {
             continue;
         } else {
@@ -48,10 +51,21 @@ pub fn cmdIncident(
             return 2;
         }
     }
-    const destination = out_dir orelse {
-        try err.writeAll("incident: --out <dir> is required\n");
-        return 2;
+    const destination = out_dir orelse blk: {
+        const now = std.Io.Clock.now(.real, io).nanoseconds;
+        break :blk try std.fmt.allocPrint(allocator, "xsprof-incident-{d}", .{now});
     };
+    var exists = false;
+    if (std.Io.Dir.cwd().access(io, destination, .{})) |_| {
+        exists = true;
+    } else |access_error| switch (access_error) {
+        error.FileNotFound => {},
+        else => exists = true,
+    }
+    if (exists and !force) {
+        try err.print("incident: {s} already exists (use --force)\n", .{destination});
+        return 1;
+    }
     const last_ms = extract.parseDuration(last_text) catch {
         try err.writeAll("incident: invalid --last duration\n");
         return 2;
@@ -108,15 +122,6 @@ test "incident requires --out and a valid duration" {
     var err: Writer = undefined;
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var out_args = [_][]const u8{"incident"};
-    out = Writer.fixed(&out_buffer);
-    err = Writer.fixed(&err_buffer);
-    try std.testing.expectEqual(
-        @as(u8, 2),
-        try cmdIncident(std.testing.io, arena.allocator(), out_args[1..], &out, &err),
-    );
-    try std.testing.expect(std.mem.indexOf(u8, err.buffered(), "--out") != null);
-
     var bad_args = [_][]const u8{ "--out", "/tmp/x", "--last", "nope" };
     out = Writer.fixed(&out_buffer);
     err = Writer.fixed(&err_buffer);

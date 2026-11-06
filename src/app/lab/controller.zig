@@ -11,6 +11,7 @@ const lab_worker = @import("../../capture/lab_worker.zig");
 const live = @import("../../capture/live.zig");
 const chrome_trace = @import("../../viz/chrome_trace.zig");
 const metrics_mod = @import("../../analyze/metrics.zig");
+const metrics_json = @import("../../analyze/metrics_json.zig");
 const pressure = @import("../../os/linux/pressure.zig");
 const cgroup = @import("../../os/linux/cgroup.zig");
 
@@ -216,7 +217,7 @@ pub const Controller = struct {
             defer file.close(io);
             var report_buffer: [64 * 1024]u8 = undefined;
             var report_writer = file.writer(io, &report_buffer);
-            metrics_mod.writeJson(&report_writer.interface, lab.view.session.metrics, 64) catch {
+            metrics_json.writeJson(&report_writer.interface, lab.view.session.metrics, 64) catch {
                 _ = try lab.apply(.{ .completion = .{ .export_failed = .{
                     .kind = kind,
                     .reason = "cannot write report",

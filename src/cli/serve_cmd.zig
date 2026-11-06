@@ -1,5 +1,8 @@
 const std = @import("std");
 const server = @import("../serve/server.zig");
+const live = @import("../capture/live.zig");
+const journal = @import("../stream/journal.zig");
+const capability = @import("capability.zig");
 
 const Writer = std.Io.Writer;
 
@@ -72,6 +75,31 @@ pub fn cmdServe(
         try err.writeAll("serve: refusing non-loopback address\n");
         return 2;
     }
+    if (live_dir != null) live_capture = true;
+    if (live_capture and live_dir == null) {
+        const probe = live.probe(io, allocator) catch |probe_error| {
+            try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(probe_error));
+            return 1;
+        };
+        if (probe.state != .READY) {
+            try capability.writeCapabilityEvent(
+                out,
+                "live_capture",
+                capability.stateName(probe.state),
+                probe.reason,
+            );
+            return 1;
+        }
+    }
+    if (!live_capture) {
+        journal.validateFile(io, allocator, journal_path) catch |validate_error| {
+            try err.print(
+                "serve: refusing invalid journal {s}: {s}\n",
+                .{ journal_path, @errorName(validate_error) },
+            );
+            return 1;
+        };
+    }
     var raw: [16]u8 = undefined;
     std.Io.randomSecure(io, &raw) catch {
         try err.writeAll("serve: entropy unavailable\n");
@@ -83,7 +111,7 @@ pub fn cmdServe(
         token[index * 2] = hex[byte >> 4];
         token[index * 2 + 1] = hex[byte & 0x0f];
     }
-    try out.print("http://{s}:{d}/?token={s}\n", .{ addr, port, token[0..] });
+    try out.print("http://{s}:{d}/#token={s}\n", .{ addr, port, token[0..] });
     try out.flush();
     server.run(io, allocator, .{
         .addr = addr,

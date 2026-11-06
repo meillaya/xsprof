@@ -48,7 +48,9 @@ and the defects it intentionally fixes. No C++ source is copied into `main`.
 - Chrome Trace `X`/`i`/`s`/`f`/`M` shapes, windowing, chunk streaming,
   `SAMPLE_LOSS` as unsafe.
 - Journal replay: one JSON object per line; reject wrong schema,
-  `host_mutation=true`, malformed rows, non-monotonic stream sequence.
+  `host_mutation=true`, malformed rows, oversized/deeply nested lines. Legacy
+  cross-ring timestamp skew is tolerated and counted (`out_of_order`); new
+  capture batches are sorted before journaling.
 
 ## Retained devices (read-only)
 

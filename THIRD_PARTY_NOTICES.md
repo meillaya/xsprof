@@ -30,3 +30,7 @@ SOFTWARE.
 ## JetBrains Mono
 
 Bundled under the SIL Open Font License 1.1; see `lib/xsui/assets/fonts/OFL.txt`.
+
+## xsprof
+
+xsprof itself is licensed under the MIT License; see `LICENSE`.

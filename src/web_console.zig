@@ -8,6 +8,9 @@ const console_app = @import("app/design/app.zig");
 const state_mod = @import("app/design/state.zig");
 const pointer_mod = @import("app/design/pointer.zig");
 const focus_mod = @import("app/design/focus.zig");
+const derive = @import("app/design/derive.zig");
+const stream_store = @import("stream/store.zig");
+const stream_index = @import("stream/index.zig");
 
 const gpa = std.heap.wasm_allocator;
 
@@ -18,6 +21,70 @@ var canvas_ptr: ?*xsui.Canvas = null;
 var width: u32 = 1440;
 var height: u32 = 900;
 var loaded = false;
+var live_ready = false;
+var live_store: stream_store.Store = undefined;
+var live_index: stream_index.Index = undefined;
+var live_indexed: usize = 0;
+var live_arena: std.heap.ArenaAllocator = undefined;
+var live_arena_ready = false;
+
+fn resetLive() void {
+    if (live_ready) {
+        live_store.deinit();
+        live_index.deinit();
+        live_ready = false;
+        live_indexed = 0;
+    }
+    if (live_arena_ready) {
+        live_arena.deinit();
+        live_arena_ready = false;
+    }
+}
+
+fn startLive(data: []const u8) bool {
+    resetLive();
+    live_store = stream_store.Store.init(gpa);
+    live_store.max_bytes = 64 * 1024 * 1024;
+    _ = live_store.append(data) catch return false;
+    live_index = stream_index.Index.init(gpa);
+    live_index.append(live_store.events.items) catch return false;
+    live_indexed = live_store.events.items.len;
+    live_arena = std.heap.ArenaAllocator.init(gpa);
+    live_arena_ready = true;
+    live_ready = true;
+    return true;
+}
+
+fn rebuildLive() bool {
+    if (!live_ready) return false;
+    var next_arena = std.heap.ArenaAllocator.init(gpa);
+    var session = live_index.snapshot(next_arena.allocator(), "live capture") catch {
+        next_arena.deinit();
+        return false;
+    };
+    const model = derive.fromSession(next_arena.allocator(), &session, .{
+        .host = "live",
+        .source = "LIVE",
+        .fixture = "live stream",
+        .live = true,
+    }) catch {
+        next_arena.deinit();
+        return false;
+    };
+    const previous_window = app.model.summary.windowMs;
+    app.session = session;
+    app.model = model;
+    if (app.state.timeline_end <= previous_window) {
+        app.state.timeline_end = model.summary.windowMs;
+    }
+    if (app.state.timeline_start > app.state.timeline_end) {
+        app.state.timeline_start = 0;
+    }
+    if (live_arena_ready) live_arena.deinit();
+    live_arena = next_arena;
+    live_arena_ready = true;
+    return true;
+}
 
 fn ensure() bool {
     if (ready) return true;
@@ -74,12 +141,45 @@ pub fn resize(w: u32, h: u32) void {
 pub fn loadJournal(addr: usize, len: usize) u32 {
     if (!ensure()) return 0;
     const data = if (len == 0) "" else @as([*]const u8, @ptrFromInt(addr))[0..len];
-    app.loadJournalData(data, "web replay") catch {
+    app.loadJournalData(data, if (app.live) "web live" else "web replay") catch {
         loaded = false;
         return 0;
     };
+    if (app.live) {
+        if (!startLive(data)) {
+            resetLive();
+            loaded = false;
+            return 0;
+        }
+    } else {
+        resetLive();
+    }
     loaded = true;
     return 1;
+}
+
+/// Append complete NDJSON lines from the live SSE stream. The view state is
+/// deliberately preserved: only the model is rebuilt.
+pub fn appendJournal(addr: usize, len: usize) u32 {
+    if (!ensure() or !app.live or !live_ready or addr == 0 or len == 0) return 0;
+    const data = @as([*]const u8, @ptrFromInt(addr))[0..len];
+    _ = live_store.append(data) catch return 0;
+    if (live_store.events.items.len == live_indexed) return 1;
+    live_index.append(live_store.events.items[live_indexed..]) catch return 0;
+    live_indexed = live_store.events.items.len;
+    if (!rebuildLive()) return 0;
+    loaded = true;
+    return 1;
+}
+
+pub fn eventCount() u32 {
+    if (!ready) return 0;
+    return @intCast(@min(app.model.events.len, std.math.maxInt(u32)));
+}
+
+pub fn screenIndex() u32 {
+    if (!ready) return 0;
+    return @intCast(@backingInt(app.state.screen));
 }
 
 pub fn loadRecorder(addr: usize, len: usize) u32 {
@@ -91,6 +191,8 @@ pub fn loadRecorder(addr: usize, len: usize) u32 {
 
 pub fn loadDemo(addr: usize, len: usize) u32 {
     if (!ensure()) return 0;
+    resetLive();
+    app.setLive(false);
     const data = if (len == 0) "" else @as([*]const u8, @ptrFromInt(addr))[0..len];
     app.loadDemoData(data) catch {
         loaded = false;
@@ -202,6 +304,7 @@ pub fn setScreen(index: u32) void {
 pub fn setLive(value: u32) void {
     if (!ensure()) return;
     app.setLive(value != 0);
+    if (value == 0) resetLive();
 }
 
 pub fn setTheme(index: u32) void {

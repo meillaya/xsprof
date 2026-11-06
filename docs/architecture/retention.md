@@ -36,13 +36,13 @@ baseline 140k events/s the raw budget retains about 94 seconds. A hypothetical
 seconds (4.5 minutes); ten minutes of raw events at 50k/s would require about
 71.6 bytes/event.
 
-The sidecar tier fills that gap. The same retained state, queried with
-`history --last 10m`, returned 774 sidecars, 81,409,933 events, 74,900,659
-switches, and 3,278 lost events out of 81.4M (0.004%). The retained 94-second
-raw window itself had no loss markers; the earlier segments account for the
-3,278. The full 10-minute loss is under the 0.1% target. The sidecar history
-covers the full ten-minute request even though raw retention keeps only the
-last 94 seconds.
+The sidecar tier fills that gap. In the historical run, `history --last 10m`
+returned 774 per-segment sidecars, 81,409,933 events, 74,900,659 switches, and
+3,278 lost events out of 81.4M (0.004%). That 774-sidecar profile is historical:
+0.3.0 writes one sidecar per 60 s bucket by default (`--history-interval`) and
+retains 24 h (`--history-retain`) so a high-rate recorder does not accumulate
+tens of thousands of files. The current cadence has its own short VM evidence in
+`docs/audit/v0.3.0.md`; do not mix the two profiles.
 
 ## The sidecar stall (fixed)
 
@@ -75,9 +75,11 @@ The product is now a two-tier window:
 - the Capture screen shows the actual retained wall span (`X covered · cap Y`)
   from the manifest, never the configured cap;
 - the raw tier is bounded by the byte budget (~94 seconds here);
-- the sidecar tier is the 10-minute history query: `xsprof history --last 10m
-  --dir <state>` aggregates per-segment metrics across raw drops, with 0.004%
-  lost events in the measured run;
+- the sidecar tier is the history query: `xsprof history --last 10m --dir
+  <state>` aggregates bucket metrics across raw drops. In 0.3.0 a bucket is
+  written every 60 seconds by default (`--history-interval`) and retained for
+  24 hours (`--history-retain`); the historical 774-sidecar profile is not the
+  current cadence;
 - `incident` streams `window.ndjson` to disk, scans the whole window with a
   bounded-memory analyzer, and keeps at most 200,000 trace events. A 613 MB,
   4,020,874-event window was bundled on the same VM with two findings and a

@@ -41,6 +41,21 @@
         "perf_tracepoint",
         "bpf_core"
       ]
+    },
+    "faults_major": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "faults_minor": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lost": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "output": {
+      "type": "string"
     }
   },
   "required": [
@@ -53,7 +68,11 @@
     "sched_migrations",
     "page_faults",
     "duration_ms",
-    "host_mutation"
+    "host_mutation",
+    "faults_major",
+    "faults_minor",
+    "lost",
+    "output"
   ],
   "title": "xsprof capture summary v1",
   "type": "object"

@@ -4,22 +4,96 @@
   "title": "xsprof recorder daemon result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["bytes", "bytes_per_sec", "cpu_ms", "dir", "events", "events_per_sec", "host_mutation", "overhead_available", "overhead_bp", "reason", "rss_kb", "schema", "session_id", "state", "wall_ms"],
+  "required": [
+    "bytes",
+    "bytes_per_sec",
+    "cpu_ms",
+    "dir",
+    "events",
+    "events_per_sec",
+    "host_mutation",
+    "overhead_available",
+    "overhead_bp",
+    "reason",
+    "rss_kb",
+    "schema",
+    "session_id",
+    "state",
+    "wall_ms",
+    "history_dropped",
+    "history_sidecars",
+    "sidecar_errors"
+  ],
   "properties": {
-    "bytes": { "type": "integer", "minimum": 0 },
-    "bytes_per_sec": { "type": "integer", "minimum": 0 },
-    "cpu_ms": { "type": "integer", "minimum": 0 },
-    "dir": { "type": "string" },
-    "events": { "type": "integer", "minimum": 0 },
-    "events_per_sec": { "type": "integer", "minimum": 0 },
-    "host_mutation": { "const": false },
-    "overhead_available": { "type": "boolean" },
-    "overhead_bp": { "type": "integer", "minimum": 0 },
-    "reason": { "type": "string" },
-    "rss_kb": { "type": "integer", "minimum": 0 },
-    "schema": { "const": "xsprof/recorder-result/v1" },
-    "session_id": { "type": "string" },
-    "state": { "enum": ["READY", "DEGRADED", "SKIP", "REFUSE"] },
-    "wall_ms": { "type": "integer", "minimum": 0 }
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes_per_sec": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cpu_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dir": {
+      "type": "string"
+    },
+    "events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "events_per_sec": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "host_mutation": {
+      "const": false
+    },
+    "overhead_available": {
+      "type": "boolean"
+    },
+    "overhead_bp": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reason": {
+      "type": "string"
+    },
+    "rss_kb": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "schema": {
+      "const": "xsprof/recorder-result/v1"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "READY",
+        "DEGRADED",
+        "SKIP",
+        "REFUSE"
+      ]
+    },
+    "wall_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "history_dropped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "history_sidecars": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sidecar_errors": {
+      "type": "integer",
+      "minimum": 0
+    }
   }
 }

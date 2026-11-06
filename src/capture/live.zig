@@ -5,6 +5,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const event = @import("../core/event.zig");
 const proc = @import("../os/linux/proc.zig");
+const ring_mod = @import("ring.zig");
+const order = @import("order.zig");
 
 pub const live_linux = builtin.os.tag == .linux;
 
@@ -95,32 +97,9 @@ fn probeLinux(io: std.Io, allocator: std.mem.Allocator) !Result {
     };
 }
 
-const RingKind = enum { switch_, wakeup, migrate, faults };
-
-const Fields = struct {
-    prev_comm: u16 = 0,
-    prev_pid: u16 = 0,
-    next_comm: u16 = 0,
-    next_pid: u16 = 0,
-    prev_state: u16 = 0,
-    comm: u16 = 0,
-    pid: u16 = 0,
-    target_cpu: u16 = 0,
-    orig_cpu: u16 = 0,
-    dest_cpu: u16 = 0,
-    valid: bool = false,
-};
-
-const Ring = struct {
-    fd: i32,
-    base: [*]align(std.heap.page_size_min) u8,
-    length: usize,
-    kind: RingKind,
-    cpu: u32,
-    fields: Fields,
-    page: *std.os.linux.perf_event_mmap_page,
-    data: []u8,
-};
+const RingKind = ring_mod.RingKind;
+const Fields = ring_mod.Fields;
+const Ring = ring_mod.Ring;
 
 pub const Batch = struct {
     events: []event.RawEvent,
@@ -196,6 +175,7 @@ pub const Capture = struct {
         const owned = self.events.toOwnedSlice(self.batch_arena.allocator()) catch |err| {
             return err;
         };
+        order.sortBatch(owned);
         const old_arena = self.batch_arena;
         self.batch_arena = std.heap.ArenaAllocator.init(self.allocator);
         self.events = .empty;
@@ -218,119 +198,6 @@ pub const Capture = struct {
         self.batch_arena.deinit();
     }
 };
-
-fn parseFormat(text: []const u8) Fields {
-    var fields: Fields = .{ .valid = true };
-    var lines = std.mem.splitScalar(u8, text, '\n');
-    while (lines.next()) |raw_line| {
-        const line = std.mem.trimStart(u8, raw_line, " \t");
-        if (!std.mem.startsWith(u8, line, "field:")) continue;
-        const semi = std.mem.indexOfScalar(u8, line, ';') orelse continue;
-        const decl = line["field:".len..semi];
-        const off_marker = std.mem.indexOf(u8, line, "offset:") orelse continue;
-        const off_start = off_marker + "offset:".len;
-        const off_end = std.mem.indexOfScalarPos(u8, line, off_start, ';') orelse line.len;
-        const offset = std.fmt.parseInt(u16, std.mem.trim(u8, line[off_start..off_end], " "), 10) catch continue;
-        var name = std.mem.trim(u8, decl, " \t");
-        if (std.mem.indexOfScalar(u8, name, '[')) |bracket| name = name[0..bracket];
-        const last_space = std.mem.lastIndexOfScalar(u8, name, ' ') orelse 0;
-        name = std.mem.trim(u8, name[last_space..], " \t");
-        if (std.mem.eql(u8, name, "prev_comm")) fields.prev_comm = offset;
-        if (std.mem.eql(u8, name, "prev_pid")) fields.prev_pid = offset;
-        if (std.mem.eql(u8, name, "next_comm")) fields.next_comm = offset;
-        if (std.mem.eql(u8, name, "next_pid")) fields.next_pid = offset;
-        if (std.mem.eql(u8, name, "prev_state")) fields.prev_state = offset;
-        if (std.mem.eql(u8, name, "comm")) fields.comm = offset;
-        if (std.mem.eql(u8, name, "pid")) fields.pid = offset;
-        if (std.mem.eql(u8, name, "target_cpu")) fields.target_cpu = offset;
-        if (std.mem.eql(u8, name, "orig_cpu")) fields.orig_cpu = offset;
-        if (std.mem.eql(u8, name, "dest_cpu")) fields.dest_cpu = offset;
-    }
-    return fields;
-}
-
-fn tracepointId(io: std.Io, allocator: std.mem.Allocator, root: []const u8, name: []const u8) !u64 {
-    var path_buffer: [256]u8 = undefined;
-    const path = try std.fmt.bufPrint(&path_buffer, "{s}/events/sched/{s}/id", .{ root, name });
-    const text = readFile(io, allocator, path, 64) orelse return error.TracepointUnavailable;
-    return std.fmt.parseInt(u64, std.mem.trim(u8, text, " \t\r\n"), 10) catch error.TracepointUnavailable;
-}
-
-fn formatFor(io: std.Io, allocator: std.mem.Allocator, root: []const u8, name: []const u8) !Fields {
-    var path_buffer: [256]u8 = undefined;
-    const path = try std.fmt.bufPrint(&path_buffer, "{s}/events/sched/{s}/format", .{ root, name });
-    const text = readFile(io, allocator, path, 64 * 1024) orelse return error.TracepointUnavailable;
-    return parseFormat(text);
-}
-
-fn openRing(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    kind: RingKind,
-    cpu: u32,
-    id: u64,
-    fields: Fields,
-    ring_pages: u16,
-) !Ring {
-    var attr: std.os.linux.perf_event_attr = .{
-        .type = .TRACEPOINT,
-        .config = id,
-        .sample_period_or_freq = 1,
-        .sample_type = @as(u64, std.os.linux.PERF.SAMPLE.TID) |
-            @as(u64, std.os.linux.PERF.SAMPLE.TIME) |
-            @as(u64, std.os.linux.PERF.SAMPLE.CPU) |
-            @as(u64, std.os.linux.PERF.SAMPLE.RAW),
-        .wakeup_events_or_watermark = 1,
-    };
-    if (kind == .faults) {
-        attr.type = .SOFTWARE;
-        attr.config = @backingInt(std.os.linux.PERF.COUNT.SW.PAGE_FAULTS);
-        attr.sample_type = @as(u64, std.os.linux.PERF.SAMPLE.TID) |
-            @as(u64, std.os.linux.PERF.SAMPLE.TIME) |
-            @as(u64, std.os.linux.PERF.SAMPLE.CPU);
-    }
-    const rc = std.os.linux.perf_event_open(&attr, -1, @intCast(cpu), -1, std.os.linux.PERF.FLAG.FD_CLOEXEC);
-    switch (std.os.linux.errno(rc)) {
-        .SUCCESS => {},
-        .ACCES => return error.PermissionDenied,
-        .PERM => return error.PermissionDenied,
-        .NOENT => return error.TracepointUnavailable,
-        .NODEV => return error.TracepointUnavailable,
-        else => return error.PerfOpenFailed,
-    }
-    const fd: i32 = @intCast(rc);
-    errdefer _ = std.os.linux.close(fd);
-    const page_size = std.heap.pageSize();
-    const length = page_size * (@as(usize, ring_pages) + 1);
-    const map_rc = std.os.linux.mmap(
-        null,
-        length,
-        .{ .READ = true, .WRITE = true },
-        .{ .TYPE = .SHARED },
-        fd,
-        0,
-    );
-    switch (std.os.linux.errno(map_rc)) {
-        .SUCCESS => {},
-        else => return error.MmapFailed,
-    }
-    const base: [*]align(std.heap.page_size_min) u8 = @ptrFromInt(map_rc);
-    const page: *std.os.linux.perf_event_mmap_page = @ptrCast(@alignCast(base));
-    const data_offset: usize = @intCast(page.data_offset);
-    const data_size: usize = @intCast(page.data_size);
-    _ = allocator;
-    _ = io;
-    return .{
-        .fd = fd,
-        .base = base,
-        .length = length,
-        .kind = kind,
-        .cpu = cpu,
-        .fields = fields,
-        .page = page,
-        .data = base[data_offset .. data_offset + data_size],
-    };
-}
 
 const Sample = struct {
     pid: i32,
@@ -379,7 +246,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
     switch (kind) {
         9 => {
             const sample = parseSample(bytes) orelse return;
-            if (ring.kind == .faults) {
+            if (ring.isFault()) {
                 try self.events.append(self.batch_arena.allocator(), .{
                     .kind = .page_fault,
                     .ts_ns = sample.ts_ns,
@@ -387,6 +254,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .pid = sample.pid,
                     .tid = sample.tid,
                     .a = 1,
+                    .b = if (ring.kind == .faults_major) 1 else 0,
                 });
                 return;
             }
@@ -433,7 +301,7 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .b = dest_cpu,
                     .comm = try commAt(self.batch_arena.allocator(), raw, fields.comm),
                 }),
-                .faults => {},
+                .faults_minor, .faults_major, .faults_combined => {},
             }
         },
         2 => {
@@ -507,20 +375,18 @@ pub fn openReady(
     };
     errdefer capture.deinit();
 
-    const switch_id = tracepointId(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
-    const wakeup_id = tracepointId(io, allocator, root, "sched_wakeup") catch 0;
-    const migrate_id = tracepointId(io, allocator, root, "sched_migrate_task") catch 0;
-    capture.switch_fields = formatFor(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
-    capture.wakeup_fields = formatFor(io, allocator, root, "sched_wakeup") catch .{};
-    capture.migrate_fields = formatFor(io, allocator, root, "sched_migrate_task") catch .{};
+    const switch_id = ring_mod.tracepointId(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
+    const wakeup_id = ring_mod.tracepointId(io, allocator, root, "sched_wakeup") catch 0;
+    const migrate_id = ring_mod.tracepointId(io, allocator, root, "sched_migrate_task") catch 0;
+    capture.switch_fields = ring_mod.formatFor(io, allocator, root, "sched_switch") catch return error.TracepointUnavailable;
+    capture.wakeup_fields = ring_mod.formatFor(io, allocator, root, "sched_wakeup") catch .{};
+    capture.migrate_fields = ring_mod.formatFor(io, allocator, root, "sched_migrate_task") catch .{};
 
     const cpu_count = @min(std.Thread.getCpuCount() catch 1, max_cpus);
     capture.cpus = @intCast(cpu_count);
     var cpu: u32 = 0;
     while (cpu < cpu_count) : (cpu += 1) {
-        try capture.rings.append(allocator, try openRing(
-            io,
-            allocator,
+        try capture.rings.append(allocator, try ring_mod.openRing(
             .switch_,
             cpu,
             switch_id,
@@ -528,37 +394,48 @@ pub fn openReady(
             opts.ring_pages,
         ));
         if (opts.wakeups and wakeup_id != 0) {
-            capture.rings.append(allocator, try openRing(
-                io,
-                allocator,
+            if (ring_mod.openRing(
                 .wakeup,
                 cpu,
                 wakeup_id,
                 capture.wakeup_fields,
                 opts.ring_pages,
-            )) catch {};
+            )) |wakeup_ring| {
+                try capture.rings.append(allocator, wakeup_ring);
+            } else |_| {}
         }
         if (opts.migrations and migrate_id != 0) {
-            capture.rings.append(allocator, try openRing(
-                io,
-                allocator,
+            if (ring_mod.openRing(
                 .migrate,
                 cpu,
                 migrate_id,
                 capture.migrate_fields,
                 opts.ring_pages,
-            )) catch {};
+            )) |migrate_ring| {
+                try capture.rings.append(allocator, migrate_ring);
+            } else |_| {}
         }
         if (opts.faults) {
-            capture.rings.append(allocator, try openRing(
-                io,
-                allocator,
-                .faults,
-                cpu,
-                0,
-                .{},
-                opts.ring_pages,
-            )) catch {};
+            var fault_rings: usize = 0;
+            if (ring_mod.openRing(.faults_minor, cpu, 0, .{}, opts.ring_pages)) |minor| {
+                try capture.rings.append(allocator, minor);
+                fault_rings += 1;
+            } else |_| {}
+            if (ring_mod.openRing(.faults_major, cpu, 0, .{}, opts.ring_pages)) |major| {
+                try capture.rings.append(allocator, major);
+                fault_rings += 1;
+            } else |_| {}
+            if (fault_rings == 0) {
+                if (ring_mod.openRing(
+                    .faults_combined,
+                    cpu,
+                    0,
+                    .{},
+                    opts.ring_pages,
+                )) |combined| {
+                    try capture.rings.append(allocator, combined);
+                } else |_| {}
+            }
         }
     }
     if (capture.rings.items.len == 0) return error.NoEvents;

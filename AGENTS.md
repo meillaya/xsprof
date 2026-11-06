@@ -41,13 +41,14 @@ restore it to `main`.
 
 ```sh
 ./tools/zig build              # xsprof binary
-./tools/zig build check        # fmt, 600-line limit, vendor hashes, tests
+./tools/zig build check        # fmt, 600-line limit, vendor, tests, QA gates
 ./tools/zig build test
 ./tools/zig build run -- help
 ./tools/zig build fmt-check
 ./tools/zig build lines
 ./tools/zig build vendor-check
 ./tools/zig build fuzz            # deterministic parser fuzz tests
+./tools/zig build live-smoke      # root perf/daemon/SIGTERM, disposable VM only
 ./tools/zig build xsui-package    # standalone GPU UI package gate
 ./tools/zig build service-smoke   # Linux root, disposable VM only
 devenv shell                      # git/curl/xz; Zig still comes from tools/zig
@@ -88,7 +89,9 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 and M0–M4/M6/M7 are complete. M5 release tooling is complete, while
+P0–P7 and M0–M4/M6/M7 are complete. v0.3.0 added `top`, `why`, incremental live
+web updates, recorder SIGTERM cleanup, split page faults, bounded history
+sidecars, a license, and the missing QA gates. M5 release tooling is complete, while
 Developer ID notarization and public tap publication need external Apple/tap
 credentials. Keep the read-only safety invariants, P0–P7 gates, and the
 600-line limit green. Native windows are

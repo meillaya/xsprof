@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version without the v prefix (for example 0.2.0)"
+        description: "Version without the v prefix (for example 0.3.0)"
         required: true
 
 permissions:
@@ -18,6 +18,21 @@ env:
   HOMEBREW_TAP_REPO: meillaya/homebrew-xsprof
 
 jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Full local gate
+        run: ./tools/zig build check --summary all
+
   linux:
     strategy:
       fail-fast: false
@@ -123,7 +138,7 @@ jobs:
           path: dist/Xsprof-*.zip*
 
   release:
-    needs: [linux, macos]
+    needs: [check, linux, macos]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -142,9 +157,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip --clobber
+            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 --clobber
           else
-            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip \
+            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 \
               --title "xsprof ${VERSION}" --generate-notes
           fi
       - name: Update Homebrew tap

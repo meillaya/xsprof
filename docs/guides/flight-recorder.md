@@ -37,16 +37,19 @@ Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest closed
 segments when the byte or age budget is exceeded and writes a
 `retention_loss` marker.
 
-If the process is killed, the next start marks the stale segment closed, adds
-`capture_interrupted previous_session=<id>`, and starts a new segment without
-discarding the earlier history.
+SIGTERM/SIGINT is a cooperative stop: the daemon flushes the active segment,
+writes `capture_stop signal=terminated`, flushes the history bucket, and marks
+the manifest `stopped`. If the process is killed, the next start marks the stale
+segment closed, adds `capture_interrupted previous_session=<id>`, and starts a
+new segment without discarding the earlier history.
 
-Each closed segment also gets a `metrics/<stem>.json` sidecar with CPU busy,
-switch, wakeup, migration, fault, and top-task p95 wait metrics. The sidecar is
-small enough to keep after raw retention drops the segment. Sidecars are
-written from the in-memory per-segment metrics snapshot, so rotation does not
-re-read the raw file. `xsprof history` queries them across raw retention; the
-console and advisor still analyze the extracted raw window.
+History sidecars are written from an in-memory metrics accumulator every
+`--history-interval` (default 60 s) and retained for `--history-retain` (default
+24 h). Each sidecar has CPU busy, switch, wakeup, migration, fault, and top-task
+p95 wait metrics. This keeps the long-term history tier bounded instead of
+creating one file per segment rotation. `xsprof history` queries the sidecars
+across raw retention; the console and advisor still analyze the extracted raw
+window.
 
 ## Extract a window
 

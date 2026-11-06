@@ -8,6 +8,7 @@ const metrics_mod = @import("../../analyze/metrics.zig");
 const advisor_mod = @import("../../analyze/advisor.zig");
 const rules_mod = @import("../../analyze/rules.zig");
 const event_mod = @import("../../core/event.zig");
+const privacy = @import("../../core/privacy.zig");
 const model_mod = @import("model.zig");
 
 const Session = session_mod.Session;
@@ -92,16 +93,6 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
             if (task.last_cpu == index) best_p95 = @max(best_p95, task.wait_p95_us);
         }
         var slice_busy_us: u64 = 0;
-        const total = busy + idle;
-        const slice_total_us: u64 = if (duration_us == 0) 1 else duration_us;
-        const busy_pct: u8 = if (slice_busy_us == 0)
-            (if (total == 0) 0 else @intFromFloat(@round(@as(f64, @floatFromInt(busy)) * 100.0 / @as(f64, @floatFromInt(total)))))
-        else
-            @intFromFloat(@min(100.0, @round(@as(f64, @floatFromInt(slice_busy_us)) * 100.0 / @as(f64, @floatFromInt(slice_total_us)))));
-        if (total > 0 or slice_busy_us > 0) {
-            total_busy += @floatFromInt(busy_pct);
-            busy_cpus += 1;
-        }
         var buckets = try allocator.alloc(f64, 48);
         @memset(buckets, 0);
         if (window_ms > 0) {
@@ -122,6 +113,18 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
                     if (overlap > 0) buckets[b] = @min(1.0, buckets[b] + overlap / bucket_ms);
                 }
             }
+        }
+        const total = busy + idle;
+        const slice_total_us: u64 = if (duration_us == 0) 1 else duration_us;
+        const busy_pct: u8 = if (slice_busy_us > 0)
+            @intFromFloat(@min(100.0, @round(@as(f64, @floatFromInt(slice_busy_us)) * 100.0 / @as(f64, @floatFromInt(slice_total_us)))))
+        else if (total == 0)
+            0
+        else
+            @intFromFloat(@min(100.0, @round(@as(f64, @floatFromInt(busy)) * 100.0 / @as(f64, @floatFromInt(total)))));
+        if (total > 0 or slice_busy_us > 0) {
+            total_busy += @floatFromInt(busy_pct);
+            busy_cpus += 1;
         }
         stat.* = .{
             .cpu = @intCast(index),
@@ -183,8 +186,8 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
             .type = event_mod.kindName(e.kind),
             .cpu = e.cpu,
             .comm = e.comm,
-            .pid = e.pid,
-            .detail = e.detail,
+            .pid = event_mod.subjectPid(e),
+            .detail = privacy.redactAlloc(allocator, e.detail) catch "",
             .loss = is_loss,
         };
         if (is_loss) try lost_list.append(allocator, events[index].ts);

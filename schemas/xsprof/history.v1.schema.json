@@ -7,16 +7,36 @@
       "items": {
         "additionalProperties": false,
         "properties": {
-          "cpu_busy_us": { "type": "integer" },
-          "events": { "type": "integer" },
-          "faults": { "type": "integer" },
-          "lost": { "type": "integer" },
-          "migrations": { "type": "integer" },
-          "start_wall_ns": { "type": "integer" },
-          "switches": { "type": "integer" },
-          "unnecessary_wakeups": { "type": "integer" },
-          "unresolved_wakeups": { "type": "integer" },
-          "wakeups": { "type": "integer" }
+          "cpu_busy_us": {
+            "type": "integer"
+          },
+          "events": {
+            "type": "integer"
+          },
+          "faults": {
+            "type": "integer"
+          },
+          "lost": {
+            "type": "integer"
+          },
+          "migrations": {
+            "type": "integer"
+          },
+          "start_wall_ns": {
+            "type": "integer"
+          },
+          "switches": {
+            "type": "integer"
+          },
+          "unnecessary_wakeups": {
+            "type": "integer"
+          },
+          "unresolved_wakeups": {
+            "type": "integer"
+          },
+          "wakeups": {
+            "type": "integer"
+          }
         },
         "required": [
           "cpu_busy_us",
@@ -34,22 +54,48 @@
       },
       "type": "array"
     },
-    "first_wall_ns": { "type": "integer" },
-    "last_wall_ns": { "type": "integer" },
-    "schema": { "const": "xsprof/history/v1" },
-    "sidecars": { "type": "integer" },
+    "first_wall_ns": {
+      "type": "integer"
+    },
+    "last_wall_ns": {
+      "type": "integer"
+    },
+    "schema": {
+      "const": "xsprof/history/v1"
+    },
+    "sidecars": {
+      "type": "integer"
+    },
     "totals": {
       "additionalProperties": false,
       "properties": {
-        "cpu_busy_us": { "type": "integer" },
-        "events": { "type": "integer" },
-        "faults": { "type": "integer" },
-        "lost": { "type": "integer" },
-        "migrations": { "type": "integer" },
-        "switches": { "type": "integer" },
-        "unnecessary_wakeups": { "type": "integer" },
-        "unresolved_wakeups": { "type": "integer" },
-        "wakeups": { "type": "integer" }
+        "cpu_busy_us": {
+          "type": "integer"
+        },
+        "events": {
+          "type": "integer"
+        },
+        "faults": {
+          "type": "integer"
+        },
+        "lost": {
+          "type": "integer"
+        },
+        "migrations": {
+          "type": "integer"
+        },
+        "switches": {
+          "type": "integer"
+        },
+        "unnecessary_wakeups": {
+          "type": "integer"
+        },
+        "unresolved_wakeups": {
+          "type": "integer"
+        },
+        "wakeups": {
+          "type": "integer"
+        }
       },
       "required": [
         "cpu_busy_us",
@@ -64,7 +110,12 @@
       ],
       "type": "object"
     },
-    "window_ms": { "type": "integer" }
+    "window_ms": {
+      "type": "integer"
+    },
+    "host_mutation": {
+      "const": false
+    }
   },
   "required": [
     "schema",
@@ -73,7 +124,8 @@
     "last_wall_ns",
     "sidecars",
     "totals",
-    "window_ms"
+    "window_ms",
+    "host_mutation"
   ],
   "title": "xsprof sidecar history v1",
   "type": "object"
