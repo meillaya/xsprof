@@ -13,7 +13,6 @@ const state_mod = @import("state.zig");
 const route = @import("route.zig");
 const hits = @import("hits.zig");
 const commands = @import("commands.zig");
-const capture = @import("capture.zig");
 const picker = @import("picker.zig");
 
 pub const schema = "xsprof/a11y-tree/v1";
@@ -170,7 +169,7 @@ fn nodeFor(model: *const model_mod.Model, state: *const state_mod.State, id: u32
         hits.recorder_export_incident => return labeled(&node, .button, "Bundle incident"),
         hits.audit_copy => return labeled(&node, .button, "Copy audit summary"),
         hits.audit_export => return labeled(&node, .button, "Export audit log"),
-        hits.audit_verify => return labeled(&node, .button, "Verify audit log"),
+        hits.audit_verify => return labeled(&node, .button, "Verify recorder state"),
         hits.settings_reduced_motion => return toggle(&node, state.settings.reduced_motion, "Reduced motion"),
         hits.settings_a11y_announce => return toggle(&node, state.settings.a11y_announce, "Announce state changes"),
         hits.settings_a11y_tree => return toggle(&node, state.settings.a11y_tree, "Expose accessibility tree"),
@@ -251,11 +250,6 @@ fn nodeFor(model: *const model_mod.Model, state: *const state_mod.State, id: u32
     if (id >= hits.advisor_card_base and id < hits.advisor_card_base + hits.advisor_card_max) {
         const index = id - hits.advisor_card_base;
         if (index < model.advisor.len) return labeled(&node, .button, model.advisor[index].id);
-        return null;
-    }
-    if (id >= hits.capture_copy_base and id < hits.capture_copy_base + hits.capture_copy_max) {
-        const index = id - hits.capture_copy_base;
-        if (index < capture.commands.len) return labeled(&node, .button, capture.commands[index][0]);
         return null;
     }
     if (id >= hits.slice_base and id < hits.slice_base + hits.slice_max) {

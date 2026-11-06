@@ -63,7 +63,7 @@ pub const App = struct {
         return .{
             .backing = backing,
             .arena = std.heap.ArenaAllocator.init(backing),
-            .model = .{ .meta = .{ .host = "no source", .source = "EMPTY", .fixture = "open a journal" } },
+            .model = .{ .meta = .{ .host = "no source", .source = "EMPTY", .fixture = "" } },
         };
     }
 
@@ -236,7 +236,7 @@ pub const App = struct {
         self.session = null;
         if (self.source_path) |old| self.backing.free(old);
         self.source_path = null;
-        self.model = .{ .meta = .{ .host = "no source", .source = "EMPTY", .fixture = "open a journal" }, .summary = .{ .windowMs = 0 } };
+        self.model = .{ .meta = .{ .host = "no source", .source = "EMPTY", .fixture = "" }, .summary = .{ .windowMs = 0 } };
         self.state.source.clear();
         self.resetView();
     }
@@ -457,6 +457,19 @@ pub const App = struct {
         self.state.recorder.fail(reason);
         self.showToast(reason, true);
         self.recordAudit("capture.failed", .failed, reason);
+    }
+
+    /// Probe or worker unavailability. A missing capability or an external
+    /// ownership conflict is SKIP/REFUSE, not a failed recording attempt.
+    pub fn recorderUnavailable(self: *App, phase: source_mod.Phase, reason: []const u8) void {
+        switch (phase) {
+            .skipped => self.state.recorder.skip(reason),
+            .refused => self.state.recorder.refuse(reason),
+            else => self.state.recorder.fail(reason),
+        }
+        self.state.source.fail(phase, reason);
+        self.showToast(reason, true);
+        self.recordAudit("capture.unavailable", .failed, reason);
     }
 
     pub fn showToast(self: *App, text_value: []const u8, is_error: bool) void {

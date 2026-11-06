@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Recorder probe SKIP/REFUSE is no longer displayed as FAILED; the reason is
+  shown with the capture permission requirement and the Recorder screen keeps
+  in-app export/verify actions instead of shell snippets.
+- Capture permission guidance added in docs/guides/capture-permissions.md
+  (setcap, privileged daemon + follow-recorder, systemd service).
+
 ## 0.5.0 — 2026-11-06
 
 ### Removed

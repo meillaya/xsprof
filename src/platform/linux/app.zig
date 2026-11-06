@@ -340,8 +340,7 @@ pub const App = struct {
                 status.reason
             else
                 "live capture unavailable";
-            self.design.noteSourceFailure(phaseFor(status.state), reason);
-            self.design.recorderFailed(reason);
+            self.design.recorderUnavailable(phaseFor(status.state), reason);
             controller.deinit();
             self.live_controller = null;
             return false;

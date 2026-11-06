@@ -127,31 +127,15 @@ test "timeline brush zooms to the dragged range" {
     try std.testing.expect(app.state.timeline_end - app.state.timeline_start < app.model.summary.windowMs);
 }
 
-test "copy requests carry capture commands and slice summaries" {
+test "copy requests carry slice summaries" {
     var app = App.init(std.testing.allocator);
     defer app.deinit();
     try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
-    var frame: xsui.frame.Frame = undefined;
-    try frame.init(std.testing.allocator, 1440, 900, .{});
-    defer frame.deinit();
-    var canvas = xsui.Canvas.init(&frame);
-    defer canvas.deinit();
-    app.state.screen = .capture;
-    try view_mod.view(&app.model, &app.state, &canvas);
-    var copy_hit: ?xsui.Rect = undefined;
-    for (canvas.hits.items) |hit| {
-        if (hit.id == 800) copy_hit = hit.rect;
-    }
-    const rect = copy_hit orelse return error.TestUnexpectedResult;
-    app.click(&canvas, rect.x + 4, rect.y + 4);
-    const capture = @import("capture.zig");
-    try std.testing.expectEqualStrings(capture.commands[0][1], app.copyText());
-    app.clearCopy();
-    try std.testing.expectEqual(@as(usize, 0), app.copyText().len);
-
     app.state.selected_slice = 0;
     app.handleKey('c', .{});
     try std.testing.expect(app.copyText().len > 0);
+    app.clearCopy();
+    try std.testing.expectEqual(@as(usize, 0), app.copyText().len);
 }
 
 test "stage scrolling clamps and resets on navigation" {
