@@ -23,7 +23,7 @@
 //! `/sys`, scheduler policy, or the network.
 
 /// Package semantic version; kept in lockstep with `build.zig.zon`.
-pub const version = "0.1.0";
+pub const version = "0.2.0";
 
 /// Browser-matched mask bytes used by the baked glyph atlas; the profiler
 /// hashes this against its formal UI spec.
