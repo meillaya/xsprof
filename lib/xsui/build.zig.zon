@@ -1,6 +1,6 @@
 .{
     .name = .xsui,
-    .version = "0.1.0",
+    .version = "0.2.0",
     .fingerprint = 0xbf5ed529e7f679ba,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{},
