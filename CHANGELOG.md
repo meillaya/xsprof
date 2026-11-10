@@ -43,6 +43,10 @@ the root/VM gates and CI/release lanes must run before a tag is cut.
   (no silent SKIPs), `check-media` (screenshot re-render), `check-vm` (root
   live/service/retention). CI covers Linux x86_64/aarch64 and macOS; the
   release workflow is tag-first and attaches its check-ci log + provenance.
+- A headless quickstart smoke (why, metrics, validate, offscreen snapshot,
+  incident bundle, doctor) runs in the fast gate. Strict `check-ci` executes
+  the Xvfb CPU-vs-GL parity for `home`/`overview` and treats a SKIP as a
+  failure; the measured software-GLX delta is documented in the GPU map.
 
 ### Fixed
 
@@ -52,8 +56,10 @@ the root/VM gates and CI/release lanes must run before a tag is cut.
 - `fixtures/ui/healthy.ndjson` rows missing canonical `"c"` were corrected;
   schemas/`$id`s are canonical and schema-conformance is enforced.
 - `metrics` accepts its documented `--json` flag.
-- Retention delete failures no longer silently stop trimming; crash orphANS
+- Retention delete failures no longer silently stop trimming; crash orphans
   are adopted instead of becoming invisible; state-dir rename is fsynced.
+- The GL renderer adapter vtable no longer points at a stack temporary; the
+  Xvfb parity readback that exposed the fault now runs and passes.
 
 ## 0.5.1 — 2026-11-10
 
