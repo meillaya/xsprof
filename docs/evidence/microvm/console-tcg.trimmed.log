@@ -1,0 +1,18 @@
+# xsprof disposable microVM verification console (filtered evidence)
+# variant=tcg flake_output=xsprof-microvm-tcg accelerator_observed=tcg host=massive kernel=7.3.3-1-cachyos
+# excerpt: qemu accelerator fallback + xsprof verification markers + guest reset; the full serial capture is console-<variant>.log (not filtered)
+microvm@xsprof-verify: Could not access KVM kernel module: No such file or directory
+microvm@xsprof-verify: falling back to tcg
+[   34.386226] xsprof-vm-verify-start[542]: XSPROF-VM-BOOT variant=tcg kernel=6.18.60 cpus=2
+[   34.463965] xsprof-vm-verify-start[542]: XSPROF-VM-OK fixtures path=/nix/store/iwmmf8f5dfgs216qp4jkgnlc5x78yfsa-xsprof-0.5.0/share/xsprof/fixtures/healthy.ndjson
+[   34.686678] xsprof-vm-verify-start[542]: XSPROF-VM-OK version expected=0.5.0
+[   34.961419] xsprof-vm-verify-start[542]: XSPROF-VM-OK help exit=0
+[   36.258545] xsprof-vm-verify-start[542]: XSPROF-VM-OK doctor-json status=SKIP checks=7 host_mutation=false
+[   36.625870] xsprof-vm-verify-start[542]: XSPROF-VM-OK capabilities-json probes=5 states=READY host_mutation=false
+[   37.033891] xsprof-vm-verify-start[542]: XSPROF-VM-OK preflight-json schema=xsprof/preflight/v1 capabilities=5 host_mutation=false
+[   38.018653] xsprof-vm-verify-start[542]: XSPROF-VM-OK snapshot-deterministic sha256=8dd5cda3e4f824353e4118f9db6cfbdcf2d584fc414def283ba1d8fefbb52684 width=480 height=320
+[   38.431519] xsprof-vm-verify-start[542]: XSPROF-VM-OK snapshot-theme-paper theme=paper bytes=614833
+[   39.147393] xsprof-vm-verify-start[542]: XSPROF-VM-OK ui-smoke-a11y schema=xsprof/a11y-tree/v1 nodes=15 roles=4 host_mutation=false
+[   41.314364] xsprof-vm-verify-start[542]: XSPROF-VM-OK ui-smoke-lab scenario=healthy steps=5 events=1444 status=passed
+[   41.316141] xsprof-vm-verify-start[542]: XSPROF-VM-VERIFY-PASS checks=10 variant=tcg
+[   43.257390] reboot: Restarting system

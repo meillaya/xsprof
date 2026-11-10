@@ -1,211 +1,329 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="xsprof logo" width="180">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg"><img src="assets/logo-light.svg" alt="xsprof logo" width="440"></picture>
 </p>
 
 <h1 align="center">xsprof</h1>
 
-<p align="center">Read-only Linux scheduler and memory profiler with a native GPU operator console.</p>
-
 <p align="center">
-  <img src="design/media/xsprof-native-showcase.gif" alt="Native xsprof console showcase: Home, onboarding, live replay, recorder, audit, replay" width="900">
+  A read-only Linux scheduler &amp; memory profiler with a native GPU operator console.
 </p>
 
-<p align="center"><strong>Native console showcase</strong> (offscreen render of the same GPU draw list; captured data) ·
-<a href="design/media/xsprof-native-showcase.mp4">full MP4</a></p>
-
 <p align="center">
-  <img src="design/media/xsprof-native-live-replay.gif" alt="Native console following a recorded live capture" width="900">
+  <a href="https://github.com/meillaya/xsprof/actions/workflows/zig-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/meillaya/xsprof/zig-ci.yml?style=flat-square&label=zig-ci" alt="zig-ci status"></a>
+  <a href="https://github.com/meillaya/xsprof/actions/workflows/nix.yml"><img src="https://img.shields.io/github/actions/workflow/status/meillaya/xsprof/nix.yml?style=flat-square&label=nix" alt="nix status"></a>
+  <a href="https://github.com/meillaya/xsprof/releases"><img src="https://img.shields.io/badge/version-0.5.0-58d7e8?style=flat-square" alt="version 0.5.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-72d487?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-89b4fa?style=flat-square" alt="Linux and macOS">
 </p>
 
-<p align="center"><strong>Live-capture replay</strong> of a real recorder window ·
-<a href="design/media/xsprof-native-live-replay.mp4">full MP4</a></p>
+---
 
-`xsprof` is the product UI: one native GPU-rendered console for choosing,
-viewing, recording, auditing, and exporting read-only scheduler/memory data.
-Launch it, choose a source, inspect the evidence, manage the recorder, and
-export a window without a terminal. There is no browser surface. The CLI
-remains for scripting and CI.
+## 🖼️ Screenshots
 
-The console has eight routes: Home, Overview, Timeline, Advisor, Events,
-Recorder, Audit, and Settings. First run shows a four-step onboarding overlay;
-later runs start at Home with recent sources and capability state. Source
-choices are Live (Linux perf, capability-gated), Replay (journal file),
-Recorder window (1m/5m/10m/retained/custom from a state directory), and the
-bundled demo. File and directory selection is drawn by the same GPU UI. The
-only OS utilities are clipboard and accessibility APIs.
+Native GPU console, rendered offscreen by the CPU rasterizer from committed fixtures; every still follows your system theme.
 
-The GPU surface is the standalone [`lib/xsui`](lib/xsui/README.md) package:
-one draw list rendered by CPU, Metal, or OpenGL 3.3. CPU is canonical; Metal and
-GL consume the same instances and atlas. The historical lab bench remains a
-headless developer tool.
+<div align="center">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/home.png"><img src="design/screenshots/native/light/home.png" alt="Home route: source cards, capability strip, safety contract" width="100%"></picture>
 
-## Requirements
+  <br>
 
-Zig 0.17.0 is pinned by `./tools/zig`. `devenv shell` provides git, curl, and
-xz but keeps Zig on `tools/zig`. macOS 15+ and Linux 5.10+ are supported.
-The native macOS UI needs the Xcode SDK; the native Linux UI loads X11 and GLX
-at runtime. The shipped binary has no third-party runtime dependencies.
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/overview.png"><img src="design/screenshots/native/light/overview.png" alt="Overview route: excerpt summary, capability matrix, per-CPU lanes" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/timeline.png"><img src="design/screenshots/native/light/timeline.png" alt="Timeline route: CPU/thread lanes, wakeup flows, loss bands" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/advisor.png"><img src="design/screenshots/native/light/advisor.png" alt="Advisor route: seven rules, evidence, suggestion-only recommendations" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/events.png"><img src="design/screenshots/native/light/events.png" alt="Events route: sanitized ledger, filters, detail pane" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/recorder.png"><img src="design/screenshots/native/light/recorder.png" alt="Recorder route: retention, segments, verify, exports" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/audit.png"><img src="design/screenshots/native/light/audit.png" alt="Audit route: provenance, manifest lifecycle, verification evidence" width="48%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="design/screenshots/native/dark/settings.png"><img src="design/screenshots/native/light/settings.png" alt="Settings route: appearance, capture defaults, storage, accessibility" width="100%"></picture>
+</div>
 
-## Build
+The full light/dark still set also lives under
+[`design/screenshots/native/`](design/screenshots/native/), regenerated by
+`sh tools/screenshots.sh` (`--check` verifies committed bytes). All evidence is
+offscreen CPU snapshots, never window capture ([method](design/evidence/README.md)).
+
+### Live replay
+
+The console tailing a real podman Linux-VM capture, labelled `REPLAY` with `host_mutation=false`:
+
+<p align="center">
+  <a href="design/media/xsprof-native-live-replay.mp4"><img src="design/media/xsprof-native-live-replay.gif" alt="Native console following a recorded VM capture" width="900"></a>
+</p>
+
+[Showcase GIF](design/media/xsprof-native-showcase.gif) · [Showcase MP4](design/media/xsprof-native-showcase.mp4) · [Live replay GIF](design/media/xsprof-native-live-replay.gif) · [Live replay MP4](design/media/xsprof-native-live-replay.mp4)
+
+---
+
+## ✨ What it is
+
+`xsprof` samples Linux scheduler and memory events read-only, then hands the
+evidence to one native GPU console. There is no browser, WASM, or server
+surface: the console is the product and the CLI is the automation lane.
+
+- [x] **Eight routes** — Home, Overview, Timeline, Advisor, Events, Recorder, Audit, Settings.
+- [x] **Native GPU console** — one flat draw list rendered by CPU, Metal, or OpenGL 3.3 via [`lib/xsui`](lib/xsui/README.md).
+- [x] **Read-only recorder** — in-process Linux perf capture, capability-gated with READY/DEGRADED/SKIP/REFUSE and a reason.
+- [x] **Compact `.xsraw` tier** — 64-byte header, CRC-32C 32 KiB blocks, block-local string tables, ten-minute age cap.
+- [x] **Exports** — capture window, incident bundle (`window.ndjson`, `summary.json`, `report.html`, `trace.json`), Chrome Trace, sidecar history.
+- [x] **Accessibility tree** — `xsprof/a11y-tree/v1` from the same draw/hit pass; macOS NSAccessibility, Linux JSON with honest AT-SPI2 DEGRADED.
+- [x] **Six palettes** — Graphite, Paper, and Catppuccin Latte/Frappe/Macchiato/Mocha, light and dark.
+- [x] **Automation CLI** — canonical `xsprof/*` JSON; **no host mutation** — every serialized record carries `host_mutation=false`.
+
+## 📦 Installation
+
+### Nix (x86_64/aarch64 Linux, aarch64/x86_64 Darwin)
 
 ```sh
-./tools/zig build                # native binary
-./tools/zig build check          # fmt, line limit, vendor, tests, QA gates
-./tools/zig build run -- help
+nix run github:meillaya/xsprof -- demo        # bundled capture in the console
+nix profile install github:meillaya/xsprof    # install
+nix build .#xsprof                            # from a checkout
 ```
 
-## Launch
+### Release artifacts
 
 ```sh
-./zig-out/bin/xsprof             # native console on an interactive graphical TTY
-./zig-out/bin/xsprof demo        # bundled capture in the native console
-XSPROF_NO_UI=1 ./zig-out/bin/xsprof   # quickstart only; never opens a window
+chmod +x Xsprof-0.5.0-x86_64.AppImage && ./Xsprof-0.5.0-x86_64.AppImage ui   # AppImage, host X11/GL
+sudo dpkg -i xsprof_0.5.0-1_amd64.deb                                        # Debian / Ubuntu
+tar -xzf xsprof-0.5.0-linux-x86_64.tar.gz && ./xsprof-0.5.0-linux-x86_64/bin/xsprof ui  # tarball
+# macOS: unzip Xsprof-0.5.0-macos.zip, then open Xsprof.app
+brew tap meillaya/xsprof && brew install xsprof                              # Homebrew, Linux only
 ```
 
-Bare `xsprof` opens the console only when stdout is a terminal and a display is
-available. Packaged app bundles set `XSPROF_APP_MODE=1` and always open the
-console. Scripts must use an explicit verb (or `XSPROF_NO_UI=1`) and stay
-headless.
+Strict releases publish checksummed Linux artifacts and a notarized macOS
+bundle; local macOS builds without Apple credentials are ad-hoc signed as
+`-unsigned` and are never cask-eligible. Notarization and tap publication are
+credential-gated — see
+[`packaging/README.md`](packaging/README.md) and [install guide](docs/guides/install.md).
 
-### Live and recorder
+### From source
 
 ```sh
-sudo xsprof ui --live                    # Linux perf; until stopped
-xsprof ui --follow-recorder /var/lib/xsprof
-xsprof ui --replay session.ndjson
+git clone https://github.com/meillaya/xsprof && cd xsprof
+./tools/zig build
+./zig-out/bin/xsprof
+```
+
+Linux 5.10+ with runtime-loaded X11/GLX, macOS 15+ with the Xcode SDK; Zig 0.17.0 is pinned by `./tools/zig`. No third-party runtime dependencies.
+
+### First run
+
+```sh
+xsprof                    # native console on an interactive graphical TTY
+xsprof demo               # bundled capture in the native console
+XSPROF_NO_UI=1 xsprof     # quickstart only; never opens a window
+```
+
+`ui`/`demo` need a real desktop session; headless jobs use
+`xsprof snapshot --replay <fixture> --out FILE` and JSON verbs instead.
+
+## 🚀 Deployment options
+
+Four lanes, one read-only contract; none of them changes scheduler or memory
+policy.
+
+| Lane | Who it is for | What runs | Safety boundary |
+|---|---|---|---|
+| **Native console** | Workstation operator | `xsprof` / `xsprof demo`; Live, recorder window, replay, demo sources | Observes the host read-only; may own its read-only recorder; writes settings/audit/state |
+| **Headless automation** | Scripts, CI, remote SSH | explicit verb + `--json`; `XSPROF_NO_UI=1` forces it | Canonical `xsprof/*` JSON; no window, server, or network surface |
+| **Recorder service** | Long-running host or VM | `xsprof daemon --foreground --dir DIR` via systemd/NixOS; attach with `xsprof ui --follow-recorder DIR` | Writes only its state directory; external recorders are attach-only |
+| **Disposable VM** | Maintainers | `qa/vm_acceptance.sh` (KVM podman host); microVM lane | Root-only gates run inside a disposable Linux VM |
+
+```sh
+xsprof top --json                                               # headless metrics
 sudo xsprof daemon --foreground --dir /var/lib/xsprof --retain 10m --max-bytes 2G
-xsprof verify --dir /var/lib/xsprof --json
+xsprof ui --follow-recorder /var/lib/xsprof                     # read-only attach
 ```
 
-The native console starts its own in-process, read-only recorder when capture
-controls are enabled in Settings and `live.probe` is READY. It writes compact
-`.xsraw` segments, keeps a durable manifest, and shows the real covered span,
-loss, and sampler state. External systemd/CLI recorders are attach-only.
-macOS has no perf backend: it can follow a recorder directory exported from
-Linux and shows live capture as SKIP with a reason.
+`daemon --foreground` is the only long-running process; Ctrl-C is a cooperative
+stop. Live capture needs Linux perf tracepoints and `CAP_PERFMON`, which the
+operator owns granting ([recording permissions](docs/guides/capture-permissions.md)).
 
-### Compact raw 10-minute tier
+The microVM lane is the lightweight complement: `nix run .#xsprof-microvm-tcg`
+boots a disposable NixOS guest (TCG, no `/dev/kvm` needed) for headless packaged
+checks — version, help, doctor, capabilities, snapshot determinism, the
+accessibility tree, and the lab scenario runner. It does not claim privileged
+live capture; root perf/live/service/retention gates stay with
+`qa/vm_acceptance.sh` on a KVM host ([microVM guide](docs/guides/microvm.md),
+[committed TCG evidence](docs/evidence/microvm/results-tcg.json)).
 
-Recorder raw segments are `xsprof/raw-segment/v1` compact blocks (64-byte
-header, CRC-32C 32 KiB blocks, footer, varint/zigzag events, block-local string
-tables). They hold much longer than the old NDJSON raw form under the same
-byte budget, while `capture`, `incident`, `why`, and the UI still emit
-canonical `xsprof/event/v1` NDJSON. Ten minutes is an age cap, not a promise:
-the byte budget and workload binding are reported honestly by the UI and
-`verify`. Legacy `.ndjson` state remains readable.
+## ❄️ NixOS configuration
 
-```sh
-xsprof capture --last 10m --dir /var/lib/xsprof --out window.ndjson
-xsprof incident --last 10m --dir /var/lib/xsprof --max-window-bytes 4G
-xsprof history --last 10m --dir /var/lib/xsprof
-xsprof watch --dir /var/lib/xsprof
+The recorder service is **disabled by default**; enabling it creates an
+unprivileged `xsprof` user and grants only `CAP_PERFMON` and `CAP_DAC_READ_SEARCH`.
+
+```nix
+{
+  inputs.xsprof.url = "github:meillaya/xsprof";
+  outputs = { nixpkgs, xsprof, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        xsprof.nixosModules.default
+        {
+          services.xsprof.recorder.enable = true;
+          hardware.graphics.enable = true; # hardware GL for `xsprof ui`
+        }
+      ];
+    };
+  };
+}
 ```
 
-`incident` writes `window.ndjson`, `summary.json`, `report.html`, and
-`trace.json` into a self-contained folder. Oversized windows refuse rather than
-truncate silently. History sidecars cover the longer horizon.
+| Option | Default | Meaning |
+|---|---|---|
+| `user` / `group` | `xsprof` | unprivileged recorder identity |
+| `stateDir` | `/var/lib/xsprof` | state directory (must live under `/var/lib`) |
+| `retain` / `maxBytes` | `10m` / `2G` | raw journal age cap and byte budget |
+| `historyInterval` / `historyRetain` | `60s` / `24h` | sidecar cadence and horizon |
+| `extraArgs` | `[]` | extra read-only daemon args; unsafe verbs fail evaluation |
 
-## Console routes
+Home Manager: `home.packages = [ inputs.xsprof.packages.${pkgs.system}.default ];`
+
+`nix develop` provides the pinned toolchain; `nix build .#xsprof` builds and
+`nix flake check` evaluates the module, package smoke, Zig pins, and version
+sync without booting a VM. Intel macOS needs a second locked input because
+nixpkgs 26.11 dropped `x86_64-darwin`; see [`nix/module.nix`](nix/module.nix).
+
+---
+
+## 🧩 Extensions & theming
+
+- **UI toolkit** — [`lib/xsui`](lib/xsui/README.md) is a standalone GPU UI package
+  (path dependency; CPU, Metal, GL 3.3): `ui.custom` painters, injectable fonts,
+  `themes.derive` overrides, renderer backends, and a headless `Tester`.
+- **Themes** — six selectable palettes (Graphite, Paper, Catppuccin Latte/
+  Frappe/Macchiato/Mocha); `design/palettes.json` is the color source and
+  `design/ui-spec.json` the contract. `lib/xsui` embedders can also use
+  `xsui.themes.high_contrast` or derive tokens. Validate with
+  `python3 design/validate.py` ([design/README.md](design/README.md)).
+- **Wire schemas** — canonical `xsprof/*` JSON in
+  [`schemas/xsprof/`](schemas/xsprof/README.md), fixtures in `fixtures/`, golden
+  bytes in `tests/golden/`. Consume `event/v1`, `metrics/v1`, `lab-run/v1`, ...
+- **Scenarios & lab** — [`scenarios/`](scenarios/healthy.json) run headlessly with
+  `xsprof lab`; A/B CI gates use `xsprof compare --fail-on wait.p95=10%`
+  ([guide](docs/guides/compare-ci.md)).
+- **Services** — packaged
+  [`systemd` unit](packaging/systemd/xsprof-recorder.service) and
+  [`NixOS module`](nix/module.nix); `extraArgs` is checked against unsafe verbs.
+- **Completions** — `xsprof completions bash|zsh|fish`, `--all` for automation.
+
+## 🎛️ The console
+
+Eight routes, one draw list. Route keys work everywhere; every pointer action has a keyboard equivalent and is exposed in the accessibility tree.
 
 `0` Home · `1` Overview · `2` Timeline · `3` Advisor · `4` Events ·
-`5` Recorder · `6` Audit · `7` Settings · `Cmd/Ctrl+K` palette ·
-`?` keyboard help · `Esc` close. Every pointer action has a keyboard
-equivalent, and every focusable control is in the accessibility tree.
+`5` Recorder · `6` Audit · `7` Settings
 
-The Recorder route starts/stops/restarts the owned capture, configures the
-state directory and retention, lists compact segments, verifies the state,
-streams window/incident/trace/report exports, and shows sidecar history.
-Audit shows provenance, manifest lifecycle, verification, capability/gate
-evidence, and the bounded operator action log. Settings persists
-`xsprof/ui-settings/v1` atomically and includes appearance, capture defaults,
-storage, accessibility, and diagnostics. Snapshot mode never reads user
-settings.
+`Cmd/Ctrl+K` palette · `?` help · `Esc` close · `/` filter · `Space` pause · `f` fit ·
+`+`/`-` zoom · `t` now · `w` theme · `Cmd/Ctrl+,` Settings; dialogs trap focus.
 
-## Accessibility
+Themes: `xsprof ui --theme dark|paper|latte|frappe|macchiato|mocha`, also
+selectable in `Settings → Appearance`.
 
-The same draw/hit pass produces a bounded `xsprof/a11y-tree/v1` tree (roles,
-labels, values, selected/focus flags, focus order, hit testing). macOS exposes
-it through NSAccessibility; Linux emits canonical JSON and reports the AT-SPI
-bridge as DEGRADED with the exact reason. `snapshot --a11y FILE` writes the
-deterministic tree. Focus traversal follows the tree order and dialogs trap
-focus.
-
-## CLI
-
-Visible workflows: `ui`, `record`, `top`, `why`, `incident`, `doctor`
-(plus `demo`, `version`, `help`). Every automation verb remains valid but
-hidden from the short help: `daemon`, `capture`, `history`, `watch`,
-`verify`, `advise`, `metrics`, `compare`, `timeline`, `snapshot`,
-`preflight`, `capabilities`, `pressure`, `cgroup`, `bpf-gate`, `lab`,
-`completions`. Use `xsprof help --all` for the grouped list and
-`xsprof completions <shell> --all` for full completions.
-
-## Safety
-
-Every record carries `host_mutation=false`. The profiler does not write
-`/proc` or `/sys`, elevate privileges, enable BPF on a host, or auto-apply
-advisor recommendations. The BPF gate remains VM-marker-gated and host-refused.
-`load`, `attach`, `enable`, `mutate`, `apply`, `sched-ext-attach`,
-`setaffinity`, `setpriority`, and `bind` are refused. Runtime samples never
-include argv, environment variables, secrets, or tokens. The UI may start and
-stop its own read-only capture, writing only its state/output directories; no
-server or network surface is shipped.
-
-## Package
+CLI: visible `ui`, `record`, `top`, `why`, `incident`, `doctor` (plus `demo`,
+`version`, `help`); hidden but valid: `daemon`, `capture`, `history`, `watch`,
+`verify`, `advise`, `metrics`, `compare`, `timeline`, `snapshot`, `preflight`,
+`capabilities`, `pressure`, `cgroup`, `bpf-gate`, `lab`.
 
 ```sh
-nix build .#xsprof                          # Linux/macOS, pinned Zig 0.17.0
-nix develop                                 # pinned dev shell
-./tools/package.sh                          # Linux/macOS tarball
-./tools/package_deb.sh                      # Debian package (dpkg-deb host)
-./tools/package_appimage.sh                 # generic Linux AppImage
-./tools/package_macos_app.sh                # universal macOS app
+xsprof help --all
+xsprof top --json
+xsprof snapshot --view home --theme paper --out home.png
 ```
 
-`flake.nix` provides Linux x86_64/aarch64 and macOS arm64/x86_64 packages, an
-opt-in NixOS recorder module, checks, and a devShell. The Linux AppImage package
-includes the native binary, desktop entry, icon, and fixtures; it deliberately
-uses the host X11/OpenGL driver stack. The macOS release path is fail-closed:
-strict tag releases require Developer ID/notary credentials and a notarization
-attestation before the cask is published; unsigned previews use the
-`-unsigned` name and never touch the tap. Actual notarization and tap
-publication require external credentials.
+## 🛡️ Safety
 
-## Development
+Release-blocking invariants; full rules in
+[`docs/safety/invariants.md`](docs/safety/invariants.md).
+
+- **Read-only host** — never writes `/proc`, `/sys`, tracefs, cgroups,
+  affinities, priorities, or scheduler policy; every serialized record carries
+  `host_mutation=false`.
+- **No privilege escalation** — probes return READY/DEGRADED/SKIP/REFUSE with a
+  reason; they never elevate or suggest elevation.
+- **No mutation verbs** — `load`, `attach`, `enable`, `mutate`, `apply`,
+  `sched-ext-attach`, `setaffinity`, `setpriority`, and `bind` refuse non-zero
+  before dispatch; BPF stays VM-marker-gated and host-refused.
+- **No secrets** — no argv, environment, secrets, or tokens; `comm` is bounded
+  and details are redacted.
+- **No network** — no telemetry, external fonts, CDNs, or external requests.
+- **Advisor is advice** — findings are printed or copied, never applied.
+
+The native console may start and stop its own read-only recorder once the perf
+probe is READY; external recorders are attach-only. State/export paths are its own.
+
+## 🧪 Testing & verification
 
 ```sh
-./tools/zig build check
-./tools/zig build fuzz
-./tools/zig build compact-roundtrip
-./tools/zig build a11y-smoke
-./tools/zig build release-tooling
-(cd lib/xsui && ../../tools/zig build test)
-qa/vm_acceptance.sh                  # KVM podman VM: live/service/retention
+./tools/zig build check             # fmt, 600-line limit, vendor, tests, QA gates
+./tools/zig build fuzz              # deterministic parser fuzz
+./tools/zig build compact-roundtrip # .xsraw decode/verify/corruption gate
+./tools/zig build a11y-smoke        # deterministic accessibility tree
+./tools/zig build release-tooling   # attestation/tap dry-run, never publishes
+./tools/zig build xsui-package      # standalone GPU UI package gate
+qa/vm_acceptance.sh                 # KVM podman host: live/service/retention
+sh qa/microvm_verify.sh             # boot the packaged binary in a disposable microvm.nix guest
+nix run .#xsprof-microvm-tcg        # run that microVM guest directly (TCG)
 ```
 
-More: [quickstart](docs/guides/quickstart.md), [recording permissions](docs/guides/capture-permissions.md), [top/why](docs/guides/top-why.md),
-[event field semantics](docs/architecture/events.md),
-[raw segment format](docs/architecture/raw-segment-v1.md),
-[retention](docs/architecture/retention.md), [audit](docs/audit/v0.5.0.md).
+Headless by default: native windows are human-run, so automated work uses CPU
+snapshots, hidden-window/Xvfb smokes, and the gated live/service/retention gates
+in a disposable Linux VM. Verify stills with `sh tools/screenshots.sh --check`;
+evidence: [`docs/evidence/`](docs/evidence/v0.5.0-vm/README.md) (plus the
+[TCG microVM run](docs/evidence/microvm/results-tcg.json)) and
+[`design/evidence/`](design/evidence/README.md).
 
-## Known limits
+## ⚠️ Known limits
 
-- Linux AT-SPI2 screen-reader bridging is not built; the canonical tree,
-  keyboard focus, JSON dump, and a visible DEGRADED reason are provided. macOS
+- Linux AT-SPI2 screen-reader bridging is not built; the canonical tree, focus
+  order, and JSON dump are provided with a visible DEGRADED reason. macOS
   VoiceOver still needs a human-run audit.
-- Native capture requires Linux perf tracepoints and `CAP_PERFMON` (or
-  `perf_event_paranoid <= 1`). macOS live capture is intentionally SKIP.
-- The 10-minute raw tier is workload/budget dependent; the UI/verify report the
-  actual covered span, never a configured cap.
-- 1x native rendering; Retina 2x crispness, X11 IME/paste parity, and native
-  window video capture by agents remain follow-ups.
-- A/B compare and lab scenario runner remain headless automation tools; they
-  are not console controls yet.
-- Real Developer ID notarization, Gatekeeper acceptance, and tap publication
-  require external credentials; the repository ships fail-closed tooling and
-  local dry-runs.
+- Native live capture needs Linux perf tracepoints and `CAP_PERFMON` (or
+  `perf_event_paranoid <= 1`); macOS live capture is SKIP by design.
+- The ten-minute raw tier is an age cap under a byte budget: the console and
+  `verify` report the actual covered span, never the configured cap.
+- Native rendering is 1x; Retina 2x crispness, X11 IME/paste parity, and
+  real-window video capture by agents remain follow-ups.
+- A/B compare and `lab` scenarios are headless tools, not console controls.
+- Long session identity strings (e.g. the full real VM capture) can overlap the
+  topbar `REPLAY`/loss chips at 1280 px; the committed stills use the healthy
+  replay and the real capture appears in the live-replay media.
+- Real Developer ID notarization, Gatekeeper acceptance, and Homebrew tap
+  publication need external credentials; the repository ships fail-closed
+  tooling and local dry-runs.
 
-## License
+## 📚 Documentation
 
-MIT. See [LICENSE](LICENSE). The bundled JetBrains Mono font is OFL; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+| Doc | Contents |
+|---|---|
+| [Quickstart](docs/guides/quickstart.md) | launch, demo, live/recorder, exports |
+| [Recording permissions](docs/guides/capture-permissions.md) | setcap, privileged daemon, systemd |
+| [Flight recorder](docs/guides/flight-recorder.md) | retention, extraction, incident bundles |
+| [top & why](docs/guides/top-why.md) | live ranking and root-cause reports |
+| [Event fields](docs/architecture/events.md) | `a`/`b`/`c` semantics per event kind |
+| [Raw segment v1](docs/architecture/raw-segment-v1.md) | `.xsraw` layout, CRC, torn tails |
+| [Retention](docs/architecture/retention.md) | measured windows, age cap vs byte budget |
+| [MicroVM guide](docs/guides/microvm.md) | disposable NixOS verification lane |
+| [v0.5.0 audit](docs/audit/v0.5.0.md) | native-only changes and VM evidence |
+| [Design contract](DESIGN.md) · [tokens](design/README.md) · [xsui](lib/xsui/README.md) | UI contract, palettes, UI package |
+
+More: [install](docs/guides/install.md) · [platforms](docs/platforms/linux.md) · [packaging](packaging/README.md) · [schemas](schemas/xsprof/README.md).
+
+---
+
+## 💛 Credits
+
+- **Zig 0.17.0** — language and toolchain; `./tools/zig` pins and bootstraps it.
+- **JetBrains Mono** — bundled under the SIL Open Font License 1.1.
+- **Catppuccin** — Latte, Frappe, Macchiato, and Mocha palettes.
+- **nanoui** — the Objective-C `msg` pattern adapted in `lib/xsui` (MIT).
+- **microvm.nix** — the disposable NixOS verification lane.
+- **podman + Fedora CoreOS** — the disposable KVM VM behind the live/service/
+  retention evidence; `fixtures/real/macos-vm-sched.ndjson` comes from it and
+  the console labels it REPLAY.
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE). Bundled third-party notices (nanoui, JetBrains
+Mono) are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+<p align="center"><sub>Read-only by design · host_mutation=false everywhere</sub></p>

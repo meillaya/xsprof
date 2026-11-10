@@ -1,10 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="xsprof">
-  <rect x="1" y="1" width="126" height="126" rx="24" fill="#10100e" stroke="#3a332b" stroke-width="2"/>
-  <g fill="#2a2723">
-    <rect x="20" y="27" width="88" height="10" rx="5"/>
-    <rect x="20" y="59" width="88" height="10" rx="5"/>
-    <rect x="20" y="91" width="88" height="10" rx="5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="291" height="90" viewBox="0 0 291 90" role="img" aria-label="xsprof — read-only scheduler and memory profiler">
+  <!-- Mark: two trace lanes crossing at a sample node. The BL→TR lane steps twice (scheduler trace); the TL→BR lane is a clean run. -->
+  <g transform="translate(-2 14)">
+    <g fill="none" stroke="#58d7e8" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter">
+      <path d="M13 13 L51 51"/>
+      <path d="M10 52 H22 V42 L42 22 V12 H54"/>
+    </g>
+    <rect x="26" y="26" width="12" height="12" fill="#72d487"/>
   </g>
-  <path d="M24 96 L46 68 L62 80 L78 43 L104 32" fill="none" stroke="#58d7e8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="78" cy="43" r="6" fill="#72d487"/>
+  <!-- Wordmark: brand typeface is JetBrains Mono Bold; stack matches design/tokens.css -->
+  <text x="80" y="62" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="62" font-weight="700" letter-spacing="-2" fill="#f5efe4">xsprof</text>
 </svg>

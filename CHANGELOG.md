@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Added
+
+- A disposable microvm.nix verification lane: `nix run .#xsprof-microvm-tcg`
+  (or `sh qa/microvm_verify.sh`) boots a throwaway NixOS guest that smoke-checks
+  the Nix-packaged binary — version/help, canonical-JSON
+  doctor/capabilities/preflight, byte-identical CPU snapshots, the
+  accessibility tree, and `xsprof lab` — and prints strict PASS/FAIL markers.
+  The harness builds the KVM or TCG variant, captures the serial console, and
+  writes canonical evidence under `docs/evidence/microvm/`. Root
+  perf/live/service/retention gates remain in `qa/vm_acceptance.sh`. The
+  committed TCG run passed all 10 checks in 45 s on a container host with no
+  `/dev/kvm` (qemu fell back to TCG). See
+  [docs/guides/microvm.md](docs/guides/microvm.md).
+- A deterministic light/dark native screenshot set
+  (`design/screenshots/native/{dark,light}/`, 1280x720, canonical provenance)
+  plus `tools/screenshots.sh`, whose `--check` verifies committed bytes,
+  sha256, dimensions, and the provenance schema without a renderer.
+
+### Changed
+
+- README rewritten around the Ambxst-style layout: branded logo header,
+  light/dark screenshots, installation and deployment-option explainers,
+  NixOS configuration, extensions/theming, safety, verification lanes, known
+  limits, and credits.
+- New logo system (`assets/logo.svg`, `assets/logo-light.svg`,
+  `assets/logo-mark.svg`) and refreshed AppImage/deb/desktop icon
+  (`packaging/linux/xsprof.svg`): a sampled X built from two crossing scheduler
+  trace lanes.
+
 ### Fixed
 
 - Live tail stop no longer stalls when the bounded feed fills up. The feed now

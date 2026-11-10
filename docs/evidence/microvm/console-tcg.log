@@ -1,0 +1,304 @@
+microvm@xsprof-verify: Could not access KVM kernel module: No such file or directory
+microvm@xsprof-verify: failed to initialize kvm: No such file or directory
+microvm@xsprof-verify: falling back to tcg
+c[?7l[2J[0mSeaBIOS (version rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org)
+Machine UUID 5535812c-ec8a-ea3d-3dce-1f773f78ce43
+Booting from ROM...
+PPrroobbiinngg  EEDDDD  ((eedddd==ooffff  ttoo  ddiissaabbllee))......  ook
+c[?7l[2J[0mk
+
+
+
+No EFI environment detected.
+early console in extract_kernel
+input_data: 0x000000000408b2cc
+input_len: 0x0000000000cff9fb
+output: 0x0000000001000000
+output_len: 0x0000000003d2cd10
+kernel_total_size: 0x0000000003430000
+needed_size: 0x0000000003e00000
+trampoline_32bit: 0x000000000009d000
+Physical KASLR using RDRAND RDTSC...
+Virtual KASLR using RDRAND RDTSC...
+
+Decompressing Linux... No EFI environment detected.
+Parsing ELF... Performing relocations... done.
+Booting the kernel (entry_offset: 0x00000000029904e0).
+[    0.000000] Linux version 6.18.60 (nixbld@localhost) (gcc (GCC) 16.2.0, GNU ld (GNU Binutils) 2.46) #1-NixOS SMP PREEMPT_DYNAMIC @1793362001
+[    0.000000] Command line: earlyprintk=ttyS0 console=ttyS0 reboot=t panic=-1 8250.nr_uarts=1 systemd.log_color=0 root=fstab loglevel=4 lsm=landlock,yama,bpf init=/nix/store/lk0lfwh8idga9lkm402nd4lpqnrfvxxk-nixos-system-xsprof-verify-26.11.20261103.1d06008/init regInfo=/nix/store/ys17lijb0ydhsdny8mvj99v5xh9bgyhl-closure-info/registration
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000000f0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x000000003ffdcfff] usable
+[    0.000000] BIOS-e820: [mem 0x000000003ffdd000-0x000000003fffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000b0000000-0x00000000bfffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000fed1c000-0x00000000fed1ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000fffc0000-0x00000000ffffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000fd00000000-0x000000ffffffffff] reserved
+[    0.000000] printk: legacy bootconsole [earlyser0] enabled
+Memory KASLR using RDRAND RDTSC...
+Poking KASLR using RDRAND RDTSC...
+[    1.049025] ACPI BIOS Error (bug): Failure creating named object [\_SB.PCI0.SF8.KBD], AE_ALREADY_EXISTS (20250807/dswload2-326)
+[    1.051714] ACPI Error: AE_ALREADY_EXISTS, During name lookup/catalog (20250807/psobject-220)
+[    1.052839] ACPI BIOS Error (bug): Failure creating named object [\_SB.PCI0.SF8.MOU], AE_ALREADY_EXISTS (20250807/dswload2-326)
+[    1.053073] ACPI Error: AE_ALREADY_EXISTS, During name lookup/catalog (20250807/psobject-220)
+P+q6E616D65\[18t7[32766;32766H[6n8[!p]104\[0m[?7h[1G[0JBooting initrd of NixOS 26.11 (Zokor) (Initrd)...
+]3008;start=7d8d063476fa4275a855927a07ba7752;user=root;hostname=xsprof-verify;machineid=5535812cec8aea3d3dce1f773f78ce43;bootid=25c05967ff7e46f49ec847457d7797d8;pid=1;pidfdid=2;comm=systemd;type=boot\[  OK  ] Created slice Slice /system/modprobe.
+[  OK  ] Started Dispatch Password Requests to Console Directory Watch.
+         Expecting device /dev/disk/by-label/nix-store...
+[  OK  ] Reached target Initrd Root Device.
+[  OK  ] Reached target Path Units.
+[  OK  ] Reached target Slice Units.
+[  OK  ] Reached target Swaps.
+[  OK  ] Reached target Timer Units.
+[  OK  ] Listening on D-Bus System Message Bus Socket.
+[  OK  ] Listening on Journal Socket (/dev/log).
+[  OK  ] Listening on Journal Sockets.
+[  OK  ] Listening on udev Kernel Socket.
+[  OK  ] Listening on udev Varlink Socket.
+[  OK  ] Reached target Socket Units.
+         Starting Create List of Static Device Nodes...
+         Starting Load Kernel Module configfs...
+         Starting Journal Service...
+         Starting Load Kernel Modules...
+         Starting Coldplug All udev Devices...
+[  OK  ] Finished Create List of Static Device Nodes.
+[  OK  ] Finished Load Kernel Module configfs.
+         Starting Create Static Device Nodes in /dev gracefully...
+[  OK  ] Finished Create Static Device Nodes in /dev gracefully.
+         Starting Create Static Device Nodes in /dev...
+[  OK  ] Finished Create Static Device Nodes in /dev.
+[  OK  ] Reached target Preparation for Local File Systems.
+[  OK  ] Reached target Local File Systems.
+         Starting Rule-based Manager for Device Events and Files...
+[  OK  ] Started Journal Service.
+         Starting Create System Files and Directories...
+[  OK  ] Finished Load Kernel Modules.
+         Mounting /sysroot...
+         Starting Apply Kernel Variables...
+[  OK  ] Finished Create System Files and Directories.
+[  OK  ] Finished Apply Kernel Variables.
+[  OK  ] Mounted /sysroot.
+[  OK  ] Reached target Initrd Root File System.
+         Starting Mountpoints Configured in the Real Root...
+[  OK  ] Started Rule-based Manager for Device Events and Files.
+[  OK  ] Finished Coldplug All udev Devices.
+[  OK  ] Finished Mountpoints Configured in the Real Root.
+[  OK  ] Reached target System Initialization.
+[  OK  ] Reached target Basic System.
+         Mounting /sysroot/run...
+[  OK  ] Mounted /sysroot/run.
+[  OK  ] Found device /dev/disk/by-label/nix-store.
+         Mounting /sysroot/nix/store...
+[  OK  ] Mounted /sysroot/nix/store.
+[  OK  ] Reached target Initrd File Systems.
+         Starting Find NixOS closure...
+         Starting Create Volatile Files and Directories in the Real Root...
+[  OK  ] Finished Create Volatile Files and Directories in the Real Root.
+[  OK  ] Finished Find NixOS closure.
+[  OK  ] Reached target Initrd Default Target.
+         Starting Cleaning Up and Shutting Down Daemons...
+[  OK  ] Stopped target Initrd Default Target.
+[  OK  ] Stopped target Basic System.
+[  OK  ] Stopped target Initrd Root Device.
+[  OK  ] Stopped target Path Units.
+[  OK  ] Stopped Dispatch Password Requests to Console Directory Watch.
+[  OK  ] Stopped target Slice Units.
+[  OK  ] Stopped target Socket Units.
+[  OK  ] Stopped target System Initialization.
+[  OK  ] Stopped target Swaps.
+[  OK  ] Stopped target Timer Units.
+[  OK  ] Closed D-Bus System Message Bus Socket.
+[  OK  ] Stopped Find NixOS closure.
+[  OK  ] Stopped Apply Kernel Variables.
+[  OK  ] Stopped Load Kernel Modules.
+[  OK  ] Stopped Create Volatile Files and Directories in the Real Root.
+[  OK  ] Stopped Create System Files and Directories.
+[  OK  ] Stopped target Local File Systems.
+[  OK  ] Stopped target Preparation for Local File Systems.
+[  OK  ] Stopped Coldplug All udev Devices.
+         Stopping Rule-based Manager for Device Events and Files...
+[  OK  ] Finished Cleaning Up and Shutting Down Daemons.
+[  OK  ] Stopped Rule-based Manager for Device Events and Files.
+[  OK  ] Closed udev Varlink Socket.
+         Starting Cleanup udev Database...
+[  OK  ] Stopped Create Static Device Nodes in /dev.
+[  OK  ] Stopped Create Static Device Nodes in /dev gracefully.
+[  OK  ] Stopped Create List of Static Device Nodes.
+[  OK  ] Finished Cleanup udev Database.
+[  OK  ] Reached target Switch Root.
+         Starting NixOS Activation...
+[*     ] A start job is running for NixOS Activation (3s / no limit)
+M[K[**    ] A start job is running for NixOS Activation (3s / no limit)
+M[K[***   ] A start job is running for NixOS Activation (4s / no limit)
+M[K[ ***  ] A start job is running for NixOS Activation (4s / no limit)
+M[K[  *** ] A start job is running for NixOS Activation (5s / no limit)
+M[K[   ***] A start job is running for NixOS Activation (5s / no limit)
+M[K[  OK  ] Finished NixOS Activation.
+[K         Starting Switch Root...
+P+q6E616D65\[18t7[32766;32766H[6n8[!p]104\[0m[?7h[1G[0J
+Welcome to NixOS 26.11 (Zokor)!
+
+]3008;start=6bb18a0528984ec1a6fe82610721bd65;user=root;hostname=xsprof-verify;machineid=5535812cec8aea3d3dce1f773f78ce43;bootid=25c05967ff7e46f49ec847457d7797d8;pid=1;pidfdid=2;comm=systemd;type=boot\[  OK  ] Stopped initrd-switch-root.service.
+[  OK  ] Created slice Slice /system/getty.
+[  OK  ] Created slice User and Session Slice.
+[  OK  ] Started Dispatch Password Requests to Console Directory Watch.
+[  OK  ] Started Forward Password Requests to Wall Directory Watch.
+[  OK  ] Reached target Local Encrypted Volumes.
+[  OK  ] Stopped target initrd-fs.target.
+[  OK  ] Stopped target initrd-root-fs.target.
+[  OK  ] Stopped target initrd-switch-root.target.
+[  OK  ] Reached target Virtual Machines and Containers.
+[  OK  ] Reached target Path Units.
+[  OK  ] Reached target Remote File Systems.
+[  OK  ] Reached target Slice Units.
+[  OK  ] Reached target Swaps.
+[  OK  ] Listening on Query the User Interactively for a Password.
+[  OK  ] Listening on Process Core Dump Socket.
+[  OK  ] Listening on Credential Encryption/Decryption.
+[  OK  ] Listening on Factory Reset Management.
+[  OK  ] Listening on Hostname Service Socket.
+         Starting Journal Log Access Socket...
+[  OK  ] Listening on Journal Audit Socket.
+[  OK  ] Listening on Console Output Muting Service Socket.
+[  OK  ] Listening on Network Management Metrics Varlink Socket.
+[  OK  ] Listening on Network Management Varlink Socket.
+[  OK  ] Listening on Network Management Netlink Socket.
+[  OK  ] Listening on Userspace Out-Of-Memory (OOM) Killer Socket.
+[  OK  ] Listening on Disk Repartitioning Service Socket.
+[  OK  ] Listening on Resolve Monitor Varlink Socket.
+[  OK  ] Listening on Resolve Service Varlink Socket.
+[  OK  ] Listening on udev Varlink Socket.
+         Mounting Huge Pages File System...
+         Mounting POSIX Message Queue File System...
+         Mounting Kernel Debug File System...
+         Mounting Kernel Trace File System...
+         Starting Create List of Static Device Nodes...
+         Starting Load Kernel Module configfs...
+         Mounting FUSE Control File System...
+         Starting Journal Service...
+         Starting Load Kernel Modules...
+         Starting Userspace Out-Of-Memory (OOM) Killer...
+         Starting Remount Root and Kernel File Systems...
+         Starting Coldplug All udev Devices...
+[  OK  ] Listening on Journal Log Access Socket.
+[  OK  ] Mounted Huge Pages File System.
+[  OK  ] Mounted POSIX Message Queue File System.
+[  OK  ] Mounted Kernel Debug File System.
+[  OK  ] Mounted Kernel Trace File System.
+[  OK  ] Finished Create List of Static Device Nodes.
+[  OK  ] Finished Load Kernel Module configfs.
+[  OK  ] Mounted FUSE Control File System.
+[  OK  ] Finished Remount Root and Kernel File Systems.
+[  OK  ] Finished Load Kernel Modules.
+[  OK  ] Listening on Disk Image Download Service Socket.
+         Mounting Kernel Configuration File System...
+         Starting Firewall...
+         Starting Load/Save OS Random Seed...
+         Starting Apply Kernel Variables...
+         Starting Create Static Device Nodes in /dev gracefully...
+[  OK  ] Started Journal Service.
+[  OK  ] Finished Load/Save OS Random Seed.
+[  OK  ] Mounted Kernel Configuration File System.
+[  OK  ] Finished Create Static Device Nodes in /dev gracefully.
+[  OK  ] Finished Apply Kernel Variables.
+[  OK  ] Started Userspace Out-Of-Memory (OOM) Killer.
+         Starting Flush Journal to Persistent Storage...
+         Starting Network Name Resolution...
+         Starting Create Static Device Nodes in /dev...
+[  OK  ] Finished Create Static Device Nodes in /dev.
+[  OK  ] Finished Flush Journal to Persistent Storage.
+[  OK  ] Reached target Preparation for Local File Systems.
+         Mounting /run/wrappers...
+         Starting Rule-based Manager for Device Events and Files...
+[  OK  ] Mounted /run/wrappers.
+[  OK  ] Reached target Local File Systems.
+[  OK  ] Listening on Boot Loader Control Service Socket.
+         Starting Create SUID/SGID Wrappers...
+         Starting Create System Files and Directories...
+[  OK  ] Started Network Name Resolution.
+[  OK  ] Finished Create System Files and Directories.
+         Starting Rebuild Journal Catalog...
+         Starting Network Time Synchronization...
+         Starting Record System Boot/Shutdown in UTMP...
+[  OK  ] Finished Coldplug All udev Devices.
+[  OK  ] Started Rule-based Manager for Device Events and Files.
+[  OK  ] Finished Record System Boot/Shutdown in UTMP.
+[  OK  ] Finished Rebuild Journal Catalog.
+         Starting Update is Completed...
+[  OK  ] Finished Update is Completed.
+[  OK  ] Started Network Time Synchronization.
+[  OK  ] Reached target System Time Set.
+[  OK  ] Finished Create SUID/SGID Wrappers.
+[  OK  ] Reached target System Initialization.
+[  OK  ] Started Discard unused filesystem blocks once a week.
+[  OK  ] Started logrotate.timer.
+[  OK  ] Started Daily Cleanup of Temporary Directories.
+[  OK  ] Reached target Timer Units.
+[  OK  ] Listening on D-Bus System Message Bus Socket.
+[  OK  ] Listening on Virtual Machine and Co…ainer Registration Service Socket.
+[  OK  ] Reached target Socket Units.
+[  OK  ] Reached target Basic System.
+         Starting Import lastlog data into lastlog2 database...
+         Starting Logrotate configuration check...
+         Starting Name Service Cache Daemon (nsncd)...
+         Starting Post-Boot Actions...
+[  OK  ] Started Reset console on configuration changes.
+[  OK  ] Finished Logrotate configuration check.
+[  OK  ] Finished Firewall.
+[  OK  ] Reached target Preparation for Network.
+[  OK  ] Listening on Network Management Resolve Hook Socket.
+         Starting D-Bus System Message Bus...
+         Starting Network Management...
+[  OK  ] Started Name Service Cache Daemon (nsncd).
+[  OK  ] Finished Post-Boot Actions.
+[  OK  ] Finished Import lastlog data into lastlog2 database.
+[  OK  ] Reached target Host and Network Name Lookups.
+[  OK  ] Reached target User and Group Name Lookups.
+         Starting User Login Management...
+[  OK  ] Started D-Bus System Message Bus.
+         Starting Virtual Console Setup...
+[  OK  ] Started User Login Management.
+         Starting linger-users.service...
+[  OK  ] Finished Virtual Console Setup.
+[  OK  ] Finished linger-users.service.
+[  OK  ] Started Network Management.
+[  OK  ] Reached target Network.
+         Starting Enable Persistent Storage in systemd-networkd...
+         Starting Permit User Sessions...
+[  OK  ] Finished Permit User Sessions.
+[  OK  ] Started Getty on tty1.
+[  OK  ] Reached target Login Prompts.
+[  OK  ] Reached target Multi-User System.
+         Starting xsprof disposable microVM verification (read-only)...
+[  OK  ] Finished Enable Persistent Storage in systemd-networkd.
+[   34.386226] xsprof-vm-verify-start[542]: XSPROF-VM-BOOT variant=tcg kernel=6.18.60 cpus=2
+[   34.463965] xsprof-vm-verify-start[542]: XSPROF-VM-OK fixtures path=/nix/store/iwmmf8f5dfgs216qp4jkgnlc5x78yfsa-xsprof-0.5.0/share/xsprof/fixtures/healthy.ndjson
+[   34.686678] xsprof-vm-verify-start[542]: XSPROF-VM-OK version expected=0.5.0
+[  OK  ] Stopped Virtual Console Setup.
+         Stopping Virtual Console Setup...
+         Starting Virtual Console Setup...
+[   34.961419] xsprof-vm-verify-start[542]: XSPROF-VM-OK help exit=0
+[  OK  ] Finished Virtual Console Setup.
+[  OK  ] Listening on Load/Save RF Kill Switch Status /dev/rfkill Watch.
+[   36.258545] xsprof-vm-verify-start[542]: XSPROF-VM-OK doctor-json status=SKIP checks=7 host_mutation=false
+[   36.625870] xsprof-vm-verify-start[542]: XSPROF-VM-OK capabilities-json probes=5 states=READY host_mutation=false
+[   37.033891] xsprof-vm-verify-start[542]: XSPROF-VM-OK preflight-json schema=xsprof/preflight/v1 capabilities=5 host_mutation=false
+[*     ] A start job is running for xsprof d…ation (read-only) (16s / no limit)
+[   38.018653] xsprof-vm-verify-start[542]: XSPROF-VM-OK snapshot-deterministic sha256=8dd5cda3e4f824353e4118f9db6cfbdcf2d584fc414def283ba1d8fefbb52684 width=480 height=320
+M[K[**    ] A start job is running for xsprof d…ation (read-only) (17s / no limit)
+[   38.431519] xsprof-vm-verify-start[542]: XSPROF-VM-OK snapshot-theme-paper theme=paper bytes=614833
+M[K[***   ] A start job is running for xsprof d…ation (read-only) (17s / no limit)
+[   39.147393] xsprof-vm-verify-start[542]: XSPROF-VM-OK ui-smoke-a11y schema=xsprof/a11y-tree/v1 nodes=15 roles=4 host_mutation=false
+M[K[ ***  ] A start job is running for xsprof d…ation (read-only) (18s / no limit)
+M[K[  *** ] A start job is running for xsprof d…ation (read-only) (18s / no limit)
+M[K[   ***] A start job is running for xsprof d…ation (read-only) (19s / no limit)
+M[K[    **] A start job is running for xsprof d…ation (read-only) (19s / no limit)
+[   41.314364] xsprof-vm-verify-start[542]: XSPROF-VM-OK ui-smoke-lab scenario=healthy steps=5 events=1444 status=passed
+[   41.316141] xsprof-vm-verify-start[542]: XSPROF-VM-VERIFY-PASS checks=10 variant=tcg
+M[K[     *] A start job is running for xsprof d…ation (read-only) (20s / no limit)
+M[K[    **] A start job is running for xsprof d…ation (read-only) (21s / no limit)
+[   42.859652] watchdog: watchdog0: watchdog did not stop!
+]3008;end=6bb18a0528984ec1a6fe82610721bd65\[   43.243398] watchdog: watchdog0: watchdog did not stop!
+[   43.257390] reboot: Restarting system

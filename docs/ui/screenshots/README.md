@@ -1,17 +1,51 @@
 # UI screenshots
 
-Generated headlessly with the native CPU snapshot path:
+## Native console evidence (light and dark)
+
+Committed native evidence lives in
+[`design/screenshots/native/`](../../design/screenshots/native/): 1280x720 CPU
+snapshots of the eight console routes in both core themes.
+
+- `dark/` — Graphite (`--theme dark`)
+- `light/` — Paper, the light core preset (`--theme paper`)
+- `provenance.json` — canonical `xsprof/screenshot-provenance/v1` manifest with
+  input fixture hashes, per-file scene flags/sha256/byte size/dimensions, and
+  the compression command/version.
+
+Each theme directory contains `home`, `overview`, `timeline`, `advisor`,
+`events`, `recorder`, `audit`, and `settings` PNGs. They come from
+`xsprof snapshot`, which renders the same draw list as the native macOS/Linux
+window with the CPU rasterizer. No window is opened, activated, or captured and
+no synthetic input is used: every still is an offscreen CPU snapshot.
+
+Regenerate both themes and rewrite provenance with:
+
+```sh
+./tools/zig build                 # once, produces zig-out/bin/xsprof
+./tools/screenshots.sh            # render + compress + provenance
+./tools/screenshots.sh --check    # verify committed bytes/sha256/dimensions
+```
+
+`--check` needs only `python3`; it does not invoke the renderer or ImageMagick.
+To render a single frame by hand (raw snapshots are ~3.7 MB; compress them
+before use):
 
 ```sh
 ./zig-out/bin/xsprof snapshot --demo-model fixtures/ui/design/demo.json \
-  --view overview --out /tmp/xsprof-demo.png --width 1280 --height 720
+  --view home --theme dark --width 1280 --height 720 --out /tmp/xsprof-home-dark.png
+magick /tmp/xsprof-home-dark.png -strip -define png:compression-level=9 \
+  design/screenshots/native/dark/home.png
 ```
 
-`p2-gallery.png` is the P2 layout checkpoint from the same
-`src/app/gallery.zig` view that owns the golden framebuffer hash. It exercises
-the flex layout, reusable panels/chips/stat cards, custom chart paint nodes, the
-bundled JetBrains Mono rasterizer, semantic status colors, and dense operator
-layout.
+See [`design/evidence/README.md`](../../design/evidence/README.md) for the
+method, exact scene flags, provenance schema, and determinism notes.
+
+## Historical checkpoints
+
+`p2-gallery.png` is the P2 layout checkpoint from the same `src/app/gallery.zig`
+view that owns the golden framebuffer hash. It exercises the flex layout,
+reusable panels/chips/stat cards, custom chart paint nodes, the bundled
+JetBrains Mono rasterizer, semantic status colors, and dense operator layout.
 
 `p6-linux.png` is a native X11/OpenGL frame rendered under Xvfb from the
 healthy replay fixture (no browser, no window manager).
