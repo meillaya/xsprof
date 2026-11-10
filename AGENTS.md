@@ -71,6 +71,8 @@ its schemas were removed; do not reintroduce them. Historical material lives in
 ./tools/zig build docs-links       # every relative markdown link resolves
 ./tools/zig build screenshots-check # committed stills: bytes + provenance
 ./tools/zig build cli-parity       # process-level read-only CLI behavior
+./tools/zig build cli-manifest     # committed CLI manifest is current
+./tools/zig build perf-smoke       # bounded hot-path performance floor
 ./tools/zig build compact-roundtrip # .xsraw decode/verify/corruption gate
 ./tools/zig build a11y-smoke       # deterministic accessibility tree
 ./tools/zig build xsui-package     # standalone UI package gate
@@ -80,6 +82,10 @@ its schemas were removed; do not reintroduce them. Historical material lives in
 ./tools/zig build service-smoke    # root systemd gate, disposable VM only
 ./tools/zig build retention-bench  # root retention budget gate, disposable VM only
 ```
+
+One-time, pre-first-tag only (destructive history rewrite; see
+`docs/maintaining.md`): `CONFIRM=1 sh tools/repo_diet.sh`. Never rewrite history
+after a release tag exists.
 
 `check` never needs a display, Python, ffmpeg, or root. `check-ci` sets
 `XSPROF_REQUIRE_TOOLS=1`, so a missing tool fails instead of skipping; CI and

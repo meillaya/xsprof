@@ -41,7 +41,7 @@ Files over the limit should be split by responsibility, not compressed.
 | Command | What it runs | Needs |
 |---|---|---|
 | `./tools/zig build check` | fmt, 1,000-line limit, version sync, shell syntax, design contract, privacy/no-mutation/unsafe-verb scans, CLI parity, compact round-trip, a11y smoke, xsui package, unit/integration/fuzz tests, schema conformance | no display, no root, no network |
-| `./tools/zig build check-ci` | `check` + platform smokes (Xvfb/native live; macOS smoke on macOS) + screenshots provenance + repo size + docs links, with `XSPROF_REQUIRE_TOOLS=1` (a missing tool fails, never silently skips) | Linux (X11/Xvfb, python3, ffmpeg); arm64 runs the same gate |
+| `./tools/zig build check-ci` | `check` + platform smokes (Xvfb/native live) + screenshots + re-render check + repo size + docs links + perf floor, with `XSPROF_REQUIRE_TOOLS=1` (a missing tool fails, never silently skips) | Linux (X11/Xvfb, python3, ffmpeg, ImageMagick); arm64 runs the same gate |
 | `./tools/zig build check-vm` | root-only `qa/live_smoke.sh`, `qa/service_smoke.sh`, `qa/retention_bench.sh 600000 0 2G yes` | disposable KVM Linux VM with readable tracefs |
 
 CI (`.github/workflows/zig-ci.yml`) runs `check-ci` on Linux x86_64 and
@@ -49,9 +49,9 @@ aarch64 runners and `check` on macOS. The release preflight runs `check-ci` and
 `qa/version_sync.sh` before any artifact is built.
 
 Useful individual steps: `test`, `fuzz`, `fmt-check`, `lines`, `design-check`,
-`repo-size`, `docs-links`, `screenshots-check`, `cli-parity`,
-`compact-roundtrip`, `a11y-smoke`, `xsui-package`, platform
-smokes (`xvfb-smoke`, `native-live-smoke`, `macos-smoke`), and the VM gates
+`repo-size`, `docs-links`, `screenshots-check`, `cli-parity`, `cli-manifest`,
+`perf-smoke`, `compact-roundtrip`, `a11y-smoke`, `xsui-package`, platform
+smokes (`xvfb-smoke`, `native-live-smoke`), and the VM gates
 (`live-smoke`, `service-smoke`, `retention-bench`). Never run privileged gates
 on a production host.
 
@@ -103,6 +103,11 @@ A trust-first repository must stay cheap to clone, mirror, and review:
 
 ## Release checklist (tag-first)
 
+0. **One-time history diet, before the first tag only**: run
+   `CONFIRM=1 sh tools/repo_diet.sh` from a clean checkout (requires
+   `git-filter-repo`; creates a backup branch + bundle). It rewrites every commit
+   id to drop `.zig-cache` and removed asset blobs. Never rewrite history after a
+   tag exists; fix forward instead. Re-run `./tools/zig build check` afterward.
 1. **Bump the version in all four sources** (`build.zig.zon`,
    `src/core/version.zig`, the top `CHANGELOG.md` heading, and the README version
    badge/artifacts). `qa/version_sync.sh` fails if they disagree.

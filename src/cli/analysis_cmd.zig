@@ -40,6 +40,9 @@ pub fn cmdMetrics(
                 try err.writeAll("metrics: invalid --top\n");
                 return .usage;
             };
+        } else if (std.mem.eql(u8, arg, "--json")) {
+            // Metrics output is always canonical JSON; the flag is accepted
+            // for automation symmetry with the documented usage.
         } else {
             try err.print("metrics: unknown option {s}\n", .{arg});
             return .usage;

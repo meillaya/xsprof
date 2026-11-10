@@ -169,6 +169,11 @@ pub fn build(b: *std.Build) void {
     const cli_manifest_step = b.step("cli-manifest", "Check the committed CLI manifest is current");
     cli_manifest_step.dependOn(&cli_manifest.step);
 
+    const perf_smoke = b.addSystemCommand(&.{ "sh", "qa/perf_smoke.sh" });
+    perf_smoke.step.dependOn(b.getInstallStep());
+    const perf_smoke_step = b.step("perf-smoke", "Bounded hot-path performance floor");
+    perf_smoke_step.dependOn(&perf_smoke.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -276,6 +281,7 @@ pub fn build(b: *std.Build) void {
     check_ci.dependOn(&repo_size.step);
     check_ci.dependOn(&docs_links.step);
     check_ci.dependOn(&design_check.step);
+    check_ci.dependOn(&perf_smoke.step);
     if (target.result.os.tag == .linux) {
         const strict_xvfb = requireTools(b, &.{ "sh", "qa/xvfb_smoke.sh" });
         strict_xvfb.step.dependOn(b.getInstallStep());
