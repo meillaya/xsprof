@@ -1,10 +1,11 @@
 //! Pure recorder-management state machine for the Recorder screen and the
 //! Home recorder strip. The executor (platform layer) owns the actual capture
-//! worker; this module only decides transitions and emits commands.
+//! daemon; this module only decides transitions and emits commands.
 //!
-//! TODO(platform): wire Effect.start_capture/stop_capture/extract_window to
-//! src/capture/lab_worker.zig + live_feed.Store (native Linux) and fail closed
-//! elsewhere. Restart of an externally owned recorder is attach-only.
+//! TODO(platform): wire Effect.start_capture/stop_capture/extract_window to the
+//! owned recorder daemon (`src/recorder/daemon.zig`) + live_feed.Store (native
+//! Linux) and fail closed elsewhere. Restart of an externally owned recorder is
+//! attach-only.
 
 const std = @import("std");
 

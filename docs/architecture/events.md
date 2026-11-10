@@ -113,12 +113,18 @@ major flag.
 
 ## Compatibility note
 
-`fixtures/real/macos-vm-sched.ndjson` is a canonical raw capture: all 94,152
-switch rows have `pid == b`, and all 54 wakeups have `pid != a`. Some synthetic
-fixtures (for example `fixtures/ui/healthy.ndjson`) put the next pid in `pid`
-for switch rows. Consumers that need the switch-in task should read `a`;
-consumers that need its name should read `comm`. Do not assume `pid` is the
-subject for `sched_switch`.
+`fixtures/real/macos-vm-sched.ndjson` is the committed deterministic 12,000-line
+prefix of a real podman Linux-VM capture (the full capture is attached to the
+release, never committed). In that prefix every `sched_switch` row has
+`pid == b` and every `sched_wakeup` row has `pid != a`. Some synthetic fixtures
+(for example `fixtures/ui/healthy.ndjson`) put the next pid in `pid` for switch
+rows. Consumers that need the switch-in task should read `a`; consumers that
+need its name should read `comm`. Do not assume `pid` is the subject for
+`sched_switch`.
+
+Wire documents are validated against the committed schemas as part of the test
+root (`./tools/zig build check`): every schema-backed committed sample, including
+the fixtures above, must validate line-by-line.
 
 See the [perf_event_open(2) man page](https://man7.org/linux/man-pages/man2/perf_event_open.2.html)
 for `PERF_SAMPLE_TID`/`PERF_SAMPLE_CPU` and tracepoint raw layouts, and the

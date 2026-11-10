@@ -14,7 +14,6 @@ zig-out/
 snapshots-local/
 *.tmp
 *.log
-!docs/evidence/**/*.log
 .DS_Store
 
 # Local server journals
@@ -30,3 +29,7 @@ __pycache__/
 
 # Local release artifacts
 /dist/
+
+# Local Nix evaluation caches (sandbox-friendly)
+.nix-cache/
+.nix-tmp/

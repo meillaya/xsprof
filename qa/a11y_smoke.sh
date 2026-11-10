@@ -1,8 +1,45 @@
 #!/bin/sh
 # Deterministic accessibility-tree gate: no window, no user settings.
 # Uses the CPU snapshot path for the product routes and compares two runs.
+#
+# Tool policy: python3 is required for the structural JSON validation. Without
+# --require-tools / XSPROF_REQUIRE_TOOLS=1 a missing interpreter downgrades the
+# gate to SKIP (exit 0) for developer hosts; CI sets XSPROF_REQUIRE_TOOLS=1
+# through `zig build check-ci`, where a SKIP is a hard failure.
+#
+# Usage: sh qa/a11y_smoke.sh [--require-tools]
+# Exit:  0 PASS (or SKIP without --require-tools), 1 FAIL.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+REQUIRE_TOOLS=0
+case "${XSPROF_REQUIRE_TOOLS:-0}" in
+    1 | true | TRUE | yes | YES) REQUIRE_TOOLS=1 ;;
+esac
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --require-tools) REQUIRE_TOOLS=1 ;;
+        -h | --help)
+            echo "usage: sh qa/a11y_smoke.sh [--require-tools]"
+            exit 0
+            ;;
+        *)
+            echo "a11y_smoke: unknown argument: $1" >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+unavailable() { # reason
+    if [ "$REQUIRE_TOOLS" = 1 ]; then
+        echo "a11y_smoke: FAIL ($1)" >&2
+        exit 1
+    fi
+    echo "a11y_smoke: SKIP ($1)"
+    exit 0
+}
+
+command -v python3 >/dev/null 2>&1 || unavailable "required tool unavailable: python3"
 BIN=${XSPROF_BIN:-"$ROOT/zig-out/bin/xsprof"}
 DEMO="$ROOT/fixtures/ui/design/demo.json"
 [ -x "$BIN" ] || { echo "a11y_smoke: build first" >&2; exit 1; }
@@ -27,8 +64,7 @@ for view in home audit settings; do
         echo "a11y_smoke: $view exposes a pointer-only role" >&2
         exit 1
     fi
-    if command -v python3 >/dev/null 2>&1; then
-        python3 - "$TMP/$view.json" <<'PY'
+    python3 - "$TMP/$view.json" <<'PY'
 import json, sys
 tree = json.load(open(sys.argv[1], encoding="utf-8"))
 nodes = tree["nodes"]
@@ -45,6 +81,5 @@ for node in nodes:
         "dialog", "status", "heading", "progressbar",
     }, node["role"]
 PY
-    fi
 done
 echo "a11y_smoke: PASS (deterministic home/audit/settings trees)"

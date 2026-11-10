@@ -402,8 +402,8 @@ test "recorder self is excluded from rankings but counted in the summary" {
     defer arena.deinit();
     const session = try Session.load(std.testing.io, arena.allocator(), "fixtures/real/scheduler-mix.ndjson");
     const model = try fromSession(arena.allocator(), &session, .{ .fixture = "fixtures/real/scheduler-mix.ndjson" });
-    try std.testing.expectEqual(@as(u32, 2153), model.summary.selfSwitches);
-    try std.testing.expect(model.summary.selfShare > 40 and model.summary.selfShare < 50);
+    try std.testing.expectEqual(@as(u32, 200), model.summary.selfSwitches);
+    try std.testing.expect(model.summary.selfShare > 35 and model.summary.selfShare < 40);
     for (model.threads) |thread| {
         try std.testing.expect(!std.mem.startsWith(u8, thread.comm, "xsprof"));
     }

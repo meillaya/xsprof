@@ -11,7 +11,7 @@ const primary_commands =
 const all_commands =
     "preflight capabilities advise incident report history timeline record " ++
     "snapshot ui bpf-gate daemon capture doctor demo watch top why metrics compare " ++
-    "pressure cgroup lab verify completions version help";
+    "pressure cgroup verify validate completions version help";
 
 fn commandList(args: []const []const u8) []const u8 {
     for (args) |arg| {

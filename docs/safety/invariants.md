@@ -13,11 +13,12 @@ These are release-blocking, not aspirational.
    audit/rollback identity, and SKIPs when BTF/libbpf is absent.
 6. Advisor recommendations are printed/copied only; no syscall path applies
    them.
-7. The web server exposes no mutation endpoint (GET/HEAD only). The native
-   UI may start/stop its own read-only capture/recorder after the perf probe is
-   READY and the Settings opt-in is set; it writes only its own state, export,
-   audit, and settings directories and never changes host policy. External
-   recorders are attach-only.
+7. There is no network surface: no server, listener, HTTP/SSE bridge, browser
+   asset lane, telemetry, or external request. The optional viewer may
+   start/stop its own read-only capture/recorder after the perf probe is READY
+   and the Settings opt-in is set; it writes only its own state, export, audit,
+   and settings directories and never changes host policy. External recorders
+   are attach-only.
 
 ## Privacy
 
@@ -54,18 +55,29 @@ These are release-blocking, not aspirational.
 
 ## Automated gates
 
+Run by `./tools/zig build check` (fast, tool-light) and `check-ci` (adds
+platform/media lanes, repo-size and docs-links; a missing tool fails instead of
+skipping):
+
 - `qa/unsafe_cli_matrix.sh` — refusal matrix and exit codes.
 - `qa/no_host_mutation.sh` — static scan plus optional runtime trace.
 - `qa/privacy_scan.sh` — seeded secrets must not appear in output.
-- `qa/showcase_smoke.sh` — native offscreen media determinism/provenance.
-- `qa/version_sync.sh` — package/runtime version lockstep.
-- `qa/vendor_hash.sh` — offline reference integrity.
-- `qa/live_smoke.sh` — root perf/daemon/SIGTERM gate in a disposable VM.
+- `qa/cli_parity.sh` — process-level read-only CLI behavior and exit codes.
 - `qa/compact_roundtrip.sh` — compact segment decode/verify, corruption,
-  truncation, mixed legacy state, and bounded HTTP window.
-- `qa/release_tooling.sh` — notarization attestation, tap gating, unsigned
-  labeling, and local publication dry-runs.
-- `qa/a11y_smoke.sh` and the web a11y smoke — canonical tree, focus order, and
-  DOM/ARIA mirror determinism.
-- Golden bytes and UI snapshots — determinism.
-- Linux fail-closed tests; VM tests marked separately.
+  truncation, and mixed legacy state.
+- `qa/a11y_smoke.sh` — canonical accessibility tree, focus order, deterministic
+  bytes (no window).
+- Unit/integration/fuzz tests plus `tests/schema.zig` — canonical wire bytes,
+  schema conformance, bounded parsers.
+- `qa/lines.sh` — 1,000-line responsibility limit; generated files and tests
+  exempt.
+- `qa/version_sync.sh`, `qa/script_syntax.sh` — version lockstep and shell
+  syntax.
+- `qa/repo_size.sh`, `qa/docs_links.sh` — tracked-tree size budgets and
+  markdown link integrity.
+- Platform smokes (`qa/xvfb_smoke.sh`, `qa/native_live_smoke.sh`,
+  `qa/macos_smoke.sh`) and `tools/screenshots.sh --check` — hidden-window
+  rendering and committed-still provenance; never a real window.
+- Root-only `qa/live_smoke.sh`, `qa/service_smoke.sh`, and
+  `qa/retention_bench.sh` — run via `./tools/zig build check-vm` in a
+  disposable Linux VM only.

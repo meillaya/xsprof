@@ -121,6 +121,14 @@ pub fn writeCommand(w: *Writer, command: []const u8) Writer.Error!void {
             \\
         );
     }
+    if (std.mem.eql(u8, command, "validate")) {
+        return w.writeAll(
+            \\xsprof validate --schema NAME|PATH --file PATH [--json] [--ndjson]
+            \\Validate one canonical wire document (or every non-empty NDJSON line)
+            \\against the committed JSON schema. Exit 0 only when all documents pass.
+            \\
+        );
+    }
     if (std.mem.eql(u8, command, "doctor")) {
         return w.writeAll(
             \\xsprof doctor [--json]
@@ -183,6 +191,7 @@ pub fn writeAllHelp(w: *Writer) Writer.Error!void {
         \\  history                 Sidecar history beyond raw retention
         \\  watch                   Bounded ANSI recorder view
         \\  verify                  Read-only segment/state verification
+        \\  validate                Validate wire documents against schemas
         \\HOST / SAFETY:
         \\  preflight --json        Host facts and capability probes
         \\  capabilities --json     perf/tracepoint/BPF/PMU/sched_ext states
@@ -190,7 +199,6 @@ pub fn writeAllHelp(w: *Writer) Writer.Error!void {
         \\  cgroup --json           Read-only cgroup task attribution
         \\  bpf-gate --json         VM-marker-gated no-op BPF gate
         \\  doctor                  Human or --json host readiness
-        \\  lab                     Headless GUI scenario/QA runner
         \\  version                 Print version
         \\  completions bash|zsh|fish [--all]
         \\  help [command|--all]    This help, command help, or full list

@@ -1,20 +1,17 @@
 name: zig-ci
 
+# Honest gates: Linux runs `check-ci`, which sets XSPROF_REQUIRE_TOOLS=1 so a
+# missing display server / media tool is a hard failure instead of a silent
+# SKIP. macOS runs the fast `check` gate (no Xvfb lane exists there).
+#
+# There is deliberately no path filter: repo-size and docs-links gates reason
+# over the tracked tree, so a docs-only or asset-only change must still be
+# checked for stale links and size-budget regressions.
+
 on:
   push:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   workflow_dispatch:
-    inputs:
-      full:
-        description: "Run the full macOS check as well as the Linux gate"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -23,60 +20,96 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
+  ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
+
 jobs:
-  linux:
+  linux-x86_64:
+    name: check-ci (Linux x86_64)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Install display/media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils python3
       - name: Cache pinned Zig toolchain
         uses: actions/cache@v4
         with:
           path: .tools
-          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-${{ hashFiles('tools/zig', 'tools/bootstrap.sh') }}
+      - name: Cache Zig build cache
+        uses: actions/cache@v4
+        with:
+          path: .zig-cache
+          key: zig-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig', 'build.zig.zon', 'lib/xsui/build.zig.zon') }}
+          restore-keys: |
+            zig-cache-${{ runner.os }}-${{ runner.arch }}-
       - name: Bootstrap Zig 0.17.0
         run: sh tools/bootstrap.sh
-      - name: Check
-        run: ./tools/zig build check --summary all
+      - name: Full CI gate (no silent SKIPs)
+        env:
+          XSPROF_REQUIRE_TOOLS: "1"
+        run: ./tools/zig build check-ci --summary all
 
-  macos-smoke:
-    runs-on: macos-15
-    timeout-minutes: 15
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.full) }}
+  linux-arm64:
+    name: check-ci (Linux arm64)
+    # Native arm64 hosted runner label. The release workflow builds the arm64
+    # artifacts on the same label, so this job verifies the architecture we
+    # ship. If the plan/org has no arm64 runners, either drop this job (the
+    # x86_64 job remains the release gate) or point `runs-on` at a self-hosted
+    # aarch64 runner; do not replace it with a cross build, because the smokes
+    # must execute the native binary.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Install display/media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils python3
       - name: Cache pinned Zig toolchain
         uses: actions/cache@v4
         with:
           path: .tools
-          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-${{ hashFiles('tools/zig', 'tools/bootstrap.sh') }}
+      - name: Cache Zig build cache
+        uses: actions/cache@v4
+        with:
+          path: .zig-cache
+          key: zig-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig', 'build.zig.zon', 'lib/xsui/build.zig.zon') }}
+          restore-keys: |
+            zig-cache-${{ runner.os }}-${{ runner.arch }}-
       - name: Bootstrap Zig 0.17.0
         run: sh tools/bootstrap.sh
-      - name: Hidden AppKit/Metal smoke
-        run: ./tools/zig build macos-smoke --summary all
+      - name: Full CI gate (no silent SKIPs)
+        env:
+          XSPROF_REQUIRE_TOOLS: "1"
+        run: ./tools/zig build check-ci --summary all
 
-  macos-full:
+  macos-15:
+    name: check (macOS 15)
     runs-on: macos-15
     timeout-minutes: 30
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain
         uses: actions/cache@v4
         with:
           path: .tools
-          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-${{ hashFiles('tools/zig', 'tools/bootstrap.sh') }}
+      - name: Cache Zig build cache
+        uses: actions/cache@v4
+        with:
+          path: .zig-cache
+          key: zig-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig', 'build.zig.zon', 'lib/xsui/build.zig.zon') }}
+          restore-keys: |
+            zig-cache-${{ runner.os }}-${{ runner.arch }}-
       - name: Bootstrap Zig 0.17.0
         run: sh tools/bootstrap.sh
-      - name: Check
+      - name: Full local gate
         run: ./tools/zig build check --summary all
-
-  release-tooling:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Offline release tooling gate (attestation, tap, layouts)
-        run: sh qa/release_tooling.sh
-      - name: Shell script syntax + committed evidence drift (offline)
-        run: sh qa/script_syntax.sh && sh tools/screenshots.sh --check

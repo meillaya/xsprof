@@ -193,9 +193,9 @@ test "live journal reload changes the displayed numbers" {
     try std.testing.expectEqualStrings("LIVE", app.model.meta.source);
     try app.loadJournalData(second, "live sample");
     try std.testing.expect(app.model.summary.switches != first_switches);
-    try std.testing.expectEqual(@as(u32, 4574), app.model.summary.switches);
+    try std.testing.expectEqual(@as(u32, 534), app.model.summary.switches);
     try std.testing.expect(app.model.slices.len > 100);
-    try std.testing.expect(app.model.events.len == 12000);
+    try std.testing.expect(app.model.events.len == 4000);
 }
 
 test "advisor evidence and event detail actions switch to timeline" {

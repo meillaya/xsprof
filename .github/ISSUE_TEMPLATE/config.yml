@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Quickstart (5 minutes)
+    url: https://github.com/meillaya/xsprof/blob/main/docs/guides/quickstart.md
+    about: Build, capture, incident bundle, and the optional viewer.
+  - name: Recording permissions
+    url: https://github.com/meillaya/xsprof/blob/main/docs/guides/capture-permissions.md
+    about: Why live capture needs CAP_PERFMON/tracefs, and the operator-owned ways to grant it.
+  - name: Security report
+    url: https://github.com/meillaya/xsprof/security/advisories/new
+    about: Report a vulnerability privately. Do not open a public issue for security problems.

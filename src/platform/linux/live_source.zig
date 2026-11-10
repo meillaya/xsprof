@@ -1,20 +1,17 @@
 //! Linux live source for the native console.
 //!
-//! Preferred mode (recorder state dir configured): one in-process recorder
-//! daemon thread writes compact `.xsraw` segments for the requested duration
-//! (`recorder/daemon.zig` `stop` flag, no signal handlers), while a
-//! `follow_source` tail re-serializes those segments into the bounded live feed
-//! for the view-only controller. Stop sets the flag, joins the daemon, then
-//! stops the tail. This is one capture producing both a recording and a live
-//! view; nothing silently claims recording when the daemon cannot start.
-//!
-//! Fallback mode (no recorder dir): `capture/lab_worker` bounded chunks feed
-//! the same store, view-only. That is reported to the user as view-only.
+//! The viewer always owns its recorder: one in-process recorder daemon thread
+//! writes compact `.xsraw` segments into the configured recorder state dir for
+//! the requested duration (`recorder/daemon.zig` `stop` flag, no signal
+//! handlers), while a `follow_source` tail re-serializes those segments into the
+//! bounded live feed for the controller. Stop sets the flag, joins the daemon,
+//! then stops the tail. The owned daemon is the only capture path: without a
+//! recorder state dir the source refuses instead of streaming view-only data,
+//! and a non-READY probe is reported as SKIP/REFUSE with its reason.
 
 const std = @import("std");
 const builtin = @import("builtin");
 const live = @import("../../capture/live.zig");
-const lab_worker = @import("../../capture/lab_worker.zig");
 const recorder_daemon = @import("../../recorder/daemon.zig");
 const live_feed = @import("../../stream/live_feed.zig");
 const live_mod = @import("../../app/design/live.zig");
@@ -25,21 +22,16 @@ pub const Source = struct {
     io: std.Io = undefined,
     feed: ?*live_feed.Store = null,
     options: live_mod.SourceOptions = .{},
-    /// Non-empty enables recording mode (daemon + tail); empty is view-only.
+    /// Recorder state directory. The owned recorder writes compact segments
+    /// here and the tail re-reads them for the live view; empty fails closed.
     dir: []const u8 = "",
-    view_only: bool = true,
-    worker: ?*lab_worker.Worker = null,
     daemon_thread: ?std.Thread = null,
     daemon_stop: std.atomic.Value(bool) = .init(false),
     daemon_done: std.atomic.Value(bool) = .init(false),
     daemon_failed: std.atomic.Value(bool) = .init(false),
     stopping: bool = false,
     follow: follow_source.Source = .{},
-    totals_events: u64 = 0,
-    totals_lost: u64 = 0,
     failed: bool = false,
-    /// View-only chunk size (lab_worker has no unbounded mode).
-    chunk_ms: u32 = 5000,
     /// Recorder duration: null means "until stop" (never silently 5 s).
     daemon_duration: ?u32 = null,
     reason_buf: [192]u8 = @splat(0),
@@ -59,6 +51,11 @@ pub const Source = struct {
         @memcpy(self.reason_buf[0..len], text[0..len]);
     }
 
+    fn copyReasonText(self: *Source, text: []const u8) []const u8 {
+        self.copyReason(text);
+        return self.reasonText();
+    }
+
     fn startImpl(
         ctx: *anyopaque,
         allocator: std.mem.Allocator,
@@ -72,7 +69,6 @@ pub const Source = struct {
         self.feed = feed;
         self.options = options;
         self.failed = false;
-        self.view_only = self.dir.len == 0;
         self.stopping = false;
         self.daemon_done.store(false, .release);
         self.daemon_failed.store(false, .release);
@@ -82,6 +78,14 @@ pub const Source = struct {
                 .reason = "non-Linux host: perf_event_open unavailable",
             } };
         }
+        if (self.dir.len == 0) {
+            return .{ .unavailable = .{
+                .state = .refuse,
+                .reason = self.copyReasonText(
+                    "live view requires the owned recorder; no recorder state directory is configured",
+                ),
+            } };
+        }
         const probe = live.probe(io, allocator) catch {
             return .{ .unavailable = .{ .state = .refuse, .reason = self.copyReasonText("live probe failed") } };
         };
@@ -89,18 +93,11 @@ pub const Source = struct {
             .state = mapState(probe.state),
             .reason = self.copyReasonText(probe.reason),
         } };
-        self.chunk_ms = if (options.duration_ms == 0) 5000 else options.duration_ms;
         self.daemon_duration = if (options.duration_ms == 0)
             null
         else
             @intCast(std.math.clamp(options.duration_ms, 1000, 600_000));
-        if (!self.view_only) return self.startRecording();
-        return self.startViewOnly();
-    }
-
-    fn copyReasonText(self: *Source, text: []const u8) []const u8 {
-        self.copyReason(text);
-        return self.reasonText();
+        return self.startRecording();
     }
 
     fn startRecording(self: *Source) live_mod.StartResult {
@@ -143,40 +140,6 @@ pub const Source = struct {
         self.daemon_done.store(true, .release);
     }
 
-    fn startViewOnly(self: *Source) live_mod.StartResult {
-        const feed = self.feed orelse return .{ .unavailable = .{ .state = .refuse, .reason = "no live feed" } };
-        const preset = live.parsePreset(self.options.preset) orelse .scheduler;
-        const result = lab_worker.Worker.start(self.io, self.allocator, feed, .{
-            .duration_ms = self.chunk_ms,
-            .preset = preset,
-        }) catch {
-            return .{ .unavailable = .{
-                .state = .refuse,
-                .reason = self.copyReasonText("capture worker failed to start"),
-            } };
-        };
-        switch (result) {
-            .running => |worker| {
-                self.worker = worker;
-                return .running;
-            },
-            .unavailable => |unavailable| return .{ .unavailable = .{
-                .state = mapState(unavailable.state),
-                .reason = self.copyReasonText(unavailable.reason),
-            } },
-        }
-    }
-
-    fn destroyWorker(self: *Source) void {
-        const worker = self.worker orelse return;
-        const stats = worker.stats();
-        self.totals_events += stats.events;
-        self.totals_lost += stats.lost;
-        if (stats.failed) self.failed = true;
-        worker.destroy();
-        self.worker = null;
-    }
-
     fn stopRecording(self: *Source) void {
         self.stopping = true;
         self.daemon_stop.store(true, .release);
@@ -189,7 +152,7 @@ pub const Source = struct {
 
     fn stopImpl(ctx: *anyopaque) void {
         const self: *Source = @ptrCast(@alignCast(ctx));
-        if (!self.view_only) self.stopRecording() else self.destroyWorker();
+        self.stopRecording();
         self.stopping = false;
         self.feed = null;
     }
@@ -197,44 +160,19 @@ pub const Source = struct {
     fn tickImpl(ctx: *anyopaque, io: std.Io) void {
         _ = io;
         const self: *Source = @ptrCast(@alignCast(ctx));
-        if (!self.view_only) {
-            if (self.daemon_failed.load(.acquire)) self.failed = true;
-            return;
-        }
-        const worker = self.worker orelse return;
-        const stats = worker.stats();
-        if (!stats.finished) return;
-        if (stats.failed) self.failed = true;
-        self.destroyWorker();
-        if (self.failed) return;
-        const result = self.startViewOnly();
-        switch (result) {
-            .running => {},
-            .unavailable => self.failed = true,
-        }
+        if (self.daemon_failed.load(.acquire)) self.failed = true;
     }
 
     fn statsImpl(ctx: *anyopaque) live_mod.SourceStats {
         const self: *Source = @ptrCast(@alignCast(ctx));
-        if (!self.view_only) {
-            const follow_stats = self.follow.stats();
-            return .{
-                .events = follow_stats.events,
-                .lost = follow_stats.lost,
-                .failed = self.failed or self.daemon_failed.load(.acquire),
-                .finished = self.daemon_done.load(.acquire) and
-                    !self.daemon_failed.load(.acquire) and !self.stopping,
-            };
-        }
-        var events = self.totals_events;
-        var lost = self.totals_lost;
-        if (self.worker) |worker| {
-            const stats = worker.stats();
-            events += stats.events;
-            lost += stats.lost;
-            if (stats.failed) self.failed = true;
-        }
-        return .{ .events = events, .lost = lost, .failed = self.failed };
+        const follow_stats = self.follow.stats();
+        return .{
+            .events = follow_stats.events,
+            .lost = follow_stats.lost,
+            .failed = self.failed or self.daemon_failed.load(.acquire),
+            .finished = self.daemon_done.load(.acquire) and
+                !self.daemon_failed.load(.acquire) and !self.stopping,
+        };
     }
 };
 

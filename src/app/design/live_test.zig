@@ -206,6 +206,101 @@ test "failed worker flips the controller state" {
     try std.testing.expectEqual(State.failed, controller.statusView().state);
 }
 
+test "store full stops ingest once and leaves the store untouched" {
+    var controller = Controller.init(std.testing.allocator, std.testing.io, .{
+        .rebuild_interval_ms = 0,
+        .max_store_bytes = 64,
+    });
+    defer controller.deinit();
+    var fake = FakeSource{};
+    controller.attach(fake.source(), .{});
+    try std.testing.expect(controller.start());
+    fake.emit(4);
+    const result = controller.poll(10, .{});
+    try std.testing.expect(!result.changed);
+    try std.testing.expectEqual(State.degraded, controller.statusView().state);
+    try std.testing.expectEqualStrings("live store full; ingest stopped", controller.statusView().reason);
+    try std.testing.expect(!controller.started);
+    // The failed append is all-or-nothing: nothing was retained.
+    try std.testing.expectEqual(@as(usize, 0), controller.store.eventCount());
+    try std.testing.expectEqual(@as(usize, 0), controller.store.byteCount());
+    try std.testing.expectEqual(@as(usize, 0), controller.store.pending.items.len);
+    try std.testing.expect(controller.index.events.items.len == 1);
+    try std.testing.expectEqual(@as(u64, 1), controller.lossView().markers);
+
+    // Repeated polls cannot re-append the rejected chunk or repeat markers.
+    var iteration: usize = 0;
+    while (iteration < 10) : (iteration += 1) _ = controller.poll(100 + iteration, .{});
+    try std.testing.expectEqual(@as(u64, 1), controller.rejected);
+    try std.testing.expectEqual(@as(u64, 1), controller.lossView().markers);
+    try std.testing.expect(controller.index.events.items.len == 1);
+    try std.testing.expectEqual(@as(usize, 0), controller.store.pending.items.len);
+    try std.testing.expectEqual(@as(usize, 0), controller.store.eventCount());
+    try std.testing.expectEqualStrings("live store full; ingest stopped", controller.statusView().reason);
+}
+
+test "corrupt journal stops ingest without a partial commit" {
+    var controller = Controller.init(std.testing.allocator, std.testing.io, .{ .rebuild_interval_ms = 0 });
+    defer controller.deinit();
+    var fake = FakeSource{};
+    controller.attach(fake.source(), .{});
+    try std.testing.expect(controller.start());
+    // One valid line and one corrupt line arrive in the same drained chunk.
+    fake.emit(1);
+    controller.feed.append("{\"schema\":\"nope\"}\n");
+    const result = controller.poll(10, .{});
+    try std.testing.expect(!result.changed);
+    try std.testing.expectEqual(State.degraded, controller.statusView().state);
+    try std.testing.expectEqualStrings("live journal corrupt; ingest stopped", controller.statusView().reason);
+    try std.testing.expect(!controller.started);
+    try std.testing.expectEqual(@as(usize, 0), controller.store.eventCount());
+    try std.testing.expectEqual(@as(usize, 0), controller.store.byteCount());
+    try std.testing.expectEqual(@as(usize, 0), controller.store.pending.items.len);
+    try std.testing.expect(controller.index.events.items.len == 1);
+
+    // Frozen pipeline: no retry, no extra loss marker.
+    var iteration: usize = 0;
+    while (iteration < 10) : (iteration += 1) _ = controller.poll(100 + iteration, .{});
+    try std.testing.expectEqual(@as(u64, 1), controller.rejected);
+    try std.testing.expectEqual(@as(u64, 1), controller.lossView().markers);
+    try std.testing.expect(controller.index.events.items.len == 1);
+
+    // InvalidJournal is terminal for this pipeline, but a clean restart works.
+    try std.testing.expect(controller.restart());
+    try std.testing.expectEqual(State.ready, controller.statusView().state);
+    fake.emit(2);
+    const after = controller.poll(200, .{});
+    try std.testing.expect(after.changed);
+    try std.testing.expectEqual(@as(usize, 2), controller.store.eventCount());
+}
+
+test "loss markers are capped with aggregate loss reported outside the cap" {
+    var controller = Controller.init(std.testing.allocator, std.testing.io, .{
+        .rebuild_interval_ms = 0,
+        .max_feed_bytes = 256,
+        .max_loss_markers = 2,
+    });
+    defer controller.deinit();
+    var fake = FakeSource{};
+    controller.attach(fake.source(), .{});
+    try std.testing.expect(controller.start());
+    var iteration: usize = 0;
+    while (iteration < 6) : (iteration += 1) {
+        fake.emit(4);
+        _ = controller.poll(10 + iteration * 10, .{});
+    }
+    // Feed trims keep arriving; only the cap becomes marker events.
+    try std.testing.expectEqual(@as(u64, 2), controller.lossView().markers);
+    try std.testing.expect(controller.lossView().aggregate > 0);
+    try std.testing.expect(controller.index.events.items.len <= controller.indexed_events + 2);
+    try std.testing.expectEqual(
+        @as(u64, controller.index.lost) +| controller.lossView().aggregate,
+        controller.statsView().lost,
+    );
+    const model = controller.view() orelse return error.TestUnexpectedResult;
+    try std.testing.expect(model.summary.lost > 0);
+}
+
 const follow_source = @import("../../platform/follow_source.zig");
 
 test "recorder tail reaches the controller and reports retention gaps" {

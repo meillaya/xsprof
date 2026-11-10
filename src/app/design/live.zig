@@ -1,10 +1,10 @@
-//! OS-free live controller for native view-only streaming.
+//! OS-free live controller for native live streaming.
 //!
 //! The controller owns a bounded NDJSON feed, an incremental `stream/index`
 //! index, and a rebuild cadence; sources are injected through a vtable so this
 //! file never imports capture/OS code:
-//!   - Linux `src/platform/linux/live_source.zig` wraps `capture/lab_worker`
-//!     (bounded duration chunks, probe-gated READY/SKIP/REFUSE).
+//!   - Linux `src/platform/linux/live_source.zig` owns the recorder daemon and
+//!     tails its compact segments (probe-gated READY/SKIP/REFUSE).
 //!   - `src/platform/follow_source.zig` tails a recorder directory on any OS.
 //!
 //! Integration hook for the app shell (ui-arch owns app.zig): construct this in
@@ -69,8 +69,8 @@ pub const VTable = struct {
         options: SourceOptions,
     ) StartResult,
     stop: *const fn (ctx: *anyopaque) void,
-    /// Called once per controller poll. Sources that chain bounded workers
-    /// (lab_worker has no unbounded mode) restart here.
+    /// Called once per controller poll; sources that need per-poll
+    /// maintenance (for example recorder-daemon failure tracking) use it.
     tick: *const fn (ctx: *anyopaque, io: std.Io) void,
     stats: *const fn (ctx: *anyopaque) SourceStats,
 };
@@ -86,6 +86,9 @@ pub const Options = struct {
     /// Hard cap on indexed events; beyond it the controller stops indexing and
     /// emits one loss marker (never silently truncates).
     max_events: usize = 200_000,
+    /// Hard cap on loss-marker events kept in the index. Further loss is counted
+    /// in an aggregate total instead of growing the index without bound.
+    max_loss_markers: u64 = 64,
     rebuild_interval_ms: u64 = 250,
 };
 
@@ -119,6 +122,11 @@ pub const Controller = struct {
     indexed_events: usize = 0,
     pending_rebuild: bool = false,
     overflow_marker_sent: bool = false,
+    /// Set on the first failed ingest: the pipeline is frozen (source stopped)
+    /// so poisoned bytes are never re-appended and the reason stays stable.
+    ingest_failed: bool = false,
+    loss_markers: u64 = 0,
+    loss_aggregate: u64 = 0,
     last_rebuild_ms: u64 = 0,
     rebuilds: u64 = 0,
     source_events: u64 = 0,
@@ -229,6 +237,9 @@ pub const Controller = struct {
         self.indexed_events = 0;
         self.pending_rebuild = false;
         self.overflow_marker_sent = false;
+        self.ingest_failed = false;
+        self.loss_markers = 0;
+        self.loss_aggregate = 0;
         self.last_rebuild_ms = 0;
         self.rebuilds = 0;
         self.source_events = 0;
@@ -255,10 +266,18 @@ pub const Controller = struct {
     pub fn statsView(self: *const Controller) struct { events: u64, lost: u64, rebuilds: u64, source_events: u64 } {
         return .{
             .events = self.index.events.items.len,
-            .lost = self.index.lost,
+            // Aggregate loss (beyond the loss-marker cap) is still reported so
+            // the shell never understates dropped samples.
+            .lost = @as(u64, self.index.lost) +| self.loss_aggregate,
             .rebuilds = self.rebuilds,
             .source_events = self.source_events,
         };
+    }
+
+    /// Loss accounting for the shell: markers kept as events are capped; the
+    /// aggregate counts dropped samples that had no marker budget left.
+    pub fn lossView(self: *const Controller) struct { markers: u64, aggregate: u64 } {
+        return .{ .markers = self.loss_markers, .aggregate = self.loss_aggregate };
     }
 
     /// Consumes the feed, indexes new events, and rebuilds at most every
@@ -273,12 +292,16 @@ pub const Controller = struct {
             const stats = source.vtable.stats(source.context);
             self.source_events = stats.events;
             self.source_lost = stats.lost;
-            if (stats.failed) {
-                self.status = .{ .state = .failed, .reason = "capture worker failed" };
-                self.started = false;
-            } else if (stats.finished and self.status.state == .ready) {
-                self.status = .{ .state = .stopped, .reason = "live source finished" };
-                self.started = false;
+            // An ingest failure already set the single degraded reason and
+            // stopped the source; a post-stop worker report cannot override it.
+            if (!self.ingest_failed) {
+                if (stats.failed) {
+                    self.status = .{ .state = .failed, .reason = "capture worker failed" };
+                    self.started = false;
+                } else if (stats.finished and self.status.state == .ready) {
+                    self.status = .{ .state = .stopped, .reason = "live source finished" };
+                    self.started = false;
+                }
             }
         }
         if (!self.pending_rebuild) {
@@ -295,6 +318,7 @@ pub const Controller = struct {
     }
 
     fn consume(self: *Controller) void {
+        if (self.ingest_failed) return;
         const snapshot = self.feed.since(self.allocator, self.feed_offset) catch return;
         defer self.allocator.free(snapshot.data);
         if (snapshot.reset) {
@@ -304,18 +328,11 @@ pub const Controller = struct {
         }
         if (snapshot.data.len == 0) return;
         _ = self.store.append(snapshot.data) catch |err| {
+            // The store is unchanged by a failed append. Stop ingesting here
+            // instead of advancing past and retrying the poisoned bytes forever.
             self.feed_offset = snapshot.end;
             self.rejected += 1;
-            switch (err) {
-                error.InvalidJournal => {
-                    _ = self.emitLoss(1, "corrupt_line");
-                },
-                error.StoreFull => {
-                    self.status = .{ .state = .degraded, .reason = "live store full; indexing stopped" };
-                    _ = self.emitLoss(1, "store_full");
-                },
-                else => self.status = .{ .state = .degraded, .reason = "live store append failed" },
-            }
+            self.failIngest(err);
             return;
         };
         self.feed_offset = snapshot.end;
@@ -342,6 +359,29 @@ pub const Controller = struct {
             }
             self.indexed_events = self.store.events.items.len;
         }
+    }
+
+    /// Persistent ingest failure: exactly one degraded reason, one loss marker,
+    /// and the source is stopped. The pipeline stays frozen until `restart()`.
+    fn failIngest(self: *Controller, err: anyerror) void {
+        if (self.ingest_failed) return;
+        self.ingest_failed = true;
+        switch (err) {
+            error.StoreFull => {
+                self.status = .{ .state = .degraded, .reason = "live store full; ingest stopped" };
+                _ = self.emitLoss(1, "store_full");
+            },
+            error.InvalidJournal => {
+                self.status = .{ .state = .degraded, .reason = "live journal corrupt; ingest stopped" };
+                _ = self.emitLoss(1, "corrupt_line");
+            },
+            else => {
+                self.status = .{ .state = .degraded, .reason = "live store append failed; ingest stopped" };
+                _ = self.emitLoss(1, "append_failed");
+            },
+        }
+        if (self.source) |source| source.vtable.stop(source.context);
+        self.started = false;
     }
 
     fn rebuild(self: *Controller, now_ms: u64, selection: Selection) PollResult {
@@ -386,23 +426,35 @@ pub const Controller = struct {
     }
 
     fn emitLoss(self: *Controller, dropped: u64, reason: []const u8) bool {
+        if (self.loss_markers >= self.options.max_loss_markers) return self.suppressLoss(dropped);
         const text = std.fmt.bufPrint(
             &self.loss_buf,
             "sample_loss live_ui dropped={d} reason={s}",
             .{ dropped, reason },
         ) catch "sample_loss live_ui dropped=1";
-        const owned = self.allocator.dupe(u8, text) catch return false;
+        const owned = self.allocator.dupe(u8, text) catch return self.suppressLoss(dropped);
         self.loss_allocations.append(self.allocator, owned) catch {
             self.allocator.free(owned);
-            return false;
+            return self.suppressLoss(dropped);
         };
         self.index.append(&.{event_mod.RawEvent{
             .kind = .marker,
             .ts_ns = @intCast(@max(0, std.Io.Clock.now(.awake, self.io).nanoseconds)),
             .cpu = -1,
             .detail = owned,
-        }}) catch return false;
+        }}) catch {
+            _ = self.loss_allocations.pop();
+            self.allocator.free(owned);
+            return self.suppressLoss(dropped);
+        };
+        self.loss_markers += 1;
         return true;
+    }
+
+    /// Markers are capped; keep the true dropped count outside the event caps.
+    fn suppressLoss(self: *Controller, dropped: u64) bool {
+        self.loss_aggregate +|= dropped;
+        return false;
     }
 
     fn publishCapability(self: *Controller, state: State, reason: []const u8) void {

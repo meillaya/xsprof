@@ -1,194 +1,170 @@
 name: release
 
+# Linux-only, fail-closed release lane.
+#
+# * Publishing happens only for a pushed `vX.Y.Z` tag. Preflight refuses the run
+#   unless the tag equals build.zig.zon, the runtime version, the CHANGELOG top
+#   heading, and the README version, and unless the full `check-ci` gate passes.
+# * `workflow_dispatch` is a dry run by construction: it builds and smoke-tests
+#   the packages but can never run the publish job (see its `if:`), so it cannot
+#   create a GitHub release. The input is informational only.
+# * There is no macOS job, no code-signing keys or release credentials, no
+#   package-manager tap publication, and no token-bearing clone URL: artifacts
+#   are Linux tarballs, Debian packages, and AppImages, published with
+#   SHA256SUMS plus a Sigstore build-provenance attestation.
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version without the v prefix (for example 0.5.0)"
-        required: true
-      channel:
-        description: "release = strict notarized release; unsigned = labelled prerelease, never tap"
-        type: choice
-        options:
-          - release
-          - unsigned
-        default: release
       dry_run:
-        description: "Build the labelled unsigned macOS path and assert the tap gate rejects it"
+        description: "Dispatch runs are always dry runs (build + smoke, never publish)"
         type: boolean
-        default: false
+        default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  HOMEBREW_TAP_REPO: meillaya/homebrew-xsprof
+  ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
+  ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
 
 jobs:
   preflight:
-    name: fail-closed preflight
+    name: preflight (version lockstep + full CI)
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 45
     outputs:
       version: ${{ steps.resolve.outputs.version }}
-      channel: ${{ steps.resolve.outputs.channel }}
       dry_run: ${{ steps.resolve.outputs.dry_run }}
-      strict: ${{ steps.resolve.outputs.strict }}
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve version and channel
+      - name: Resolve version and fail closed
         id: resolve
         env:
-          INPUT_VERSION: ${{ github.event.inputs.version }}
-          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
-          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -eu
-          if [ "${{ github.event_name }}" = "push" ]; then
-            version="${GITHUB_REF_NAME#v}"
-            channel=release
+          zon=$(sed -n 's/.*\.version = "\(.*\)".*/\1/p' build.zig.zon | head -1)
+          case "$zon" in
+            "" | *[!A-Za-z0-9._+-]*)
+              echo "::error::build.zig.zon has an invalid version '$zon'"
+              exit 1
+              ;;
+          esac
+          if [ "$EVENT_NAME" = "push" ]; then
+            case "$REF_NAME" in
+              v*) tag=${REF_NAME#v} ;;
+              *) echo "::error::release tag must look like vX.Y.Z: $REF_NAME"; exit 1 ;;
+            esac
+            if [ "$tag" != "$zon" ]; then
+              echo "::error::tag v$tag does not match build.zig.zon version $zon"
+              exit 1
+            fi
             dry_run=false
+            echo "release: tag v$tag matches manifest version $zon"
           else
-            version="${INPUT_VERSION:-}"
-            channel="${INPUT_CHANNEL:-release}"
-            dry_run="${INPUT_DRY_RUN:-false}"
+            dry_run=true
+            echo "::notice::workflow_dispatch is a dry run: no release will be published"
           fi
-          case "$version" in
-            ""|*[!A-Za-z0-9._+-]*) echo "::error::invalid version '$version'"; exit 1 ;;
-          esac
-          zon=$(sed -n 's/.*version = "\(.*\)".*/\1/p' build.zig.zon | head -1)
-          if [ "$zon" != "$version" ]; then
-            echo "::error::build.zig.zon version $zon does not match release version $version"
-            exit 1
-          fi
-          case "$channel" in release|unsigned) ;; *) echo "::error::invalid channel $channel"; exit 1 ;; esac
-          strict=false
-          if [ "$channel" = release ] && [ "$dry_run" != "true" ]; then strict=true; fi
+          sh qa/version_sync.sh
           {
-            echo "version=$version"
-            echo "channel=$channel"
+            echo "version=$zon"
             echo "dry_run=$dry_run"
-            echo "strict=$strict"
           } >> "$GITHUB_OUTPUT"
-          echo "release: version=$version channel=$channel dry_run=$dry_run strict=$strict"
-      - name: Refuse strict release without all credentials
-        if: steps.resolve.outputs.strict == 'true'
-        env:
-          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Install display/media tools
         run: |
-          set -eu
-          missing=""
-          check() { name=$1; value=$2; [ -n "$value" ] || missing="$missing $name"; }
-          check MACOS_CERTIFICATE_P12 "$MACOS_CERTIFICATE_P12"
-          check MACOS_CERTIFICATE_PASSWORD "$MACOS_CERTIFICATE_PASSWORD"
-          check MACOS_SIGN_IDENTITY "$MACOS_SIGN_IDENTITY"
-          check HOMEBREW_TAP_TOKEN "$HOMEBREW_TAP_TOKEN"
-          case "$MACOS_SIGN_IDENTITY" in
-            "Developer ID Application:"*) ;;
-            *) missing="$missing MACOS_SIGN_IDENTITY(Developer ID Application)" ;;
-          esac
-          if [ -z "${NOTARY_PROFILE:-}" ]; then
-            check APPLE_ID "$APPLE_ID"
-            check APPLE_TEAM_ID "$APPLE_TEAM_ID"
-            check APPLE_APP_PASSWORD "$APPLE_APP_PASSWORD"
-          fi
-          if [ -n "$missing" ]; then
-            echo "::error::strict release is missing required secrets:$missing"
-            echo "::error::refusing to publish unsigned artifacts; use channel=unsigned for a labelled prerelease"
-            exit 1
-          fi
-          echo "release: all strict-release credentials are present"
-      - name: Release tooling self-test
-        run: sh qa/release_tooling.sh
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils python3
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-${{ hashFiles('tools/zig', 'tools/bootstrap.sh') }}
+      - name: Cache Zig build cache
+        uses: actions/cache@v4
+        with:
+          path: .zig-cache
+          key: zig-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig', 'build.zig.zon', 'lib/xsui/build.zig.zon') }}
+          restore-keys: |
+            zig-cache-${{ runner.os }}-${{ runner.arch }}-
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Full CI gate (no silent SKIPs)
+        env:
+          XSPROF_REQUIRE_TOOLS: "1"
+        run: ./tools/zig build check-ci --summary all
 
   linux:
     name: linux ${{ matrix.arch }}
     needs: preflight
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
+            runner: ubuntu-24.04
             target: x86_64-linux-gnu
             deb_arch: amd64
           - arch: aarch64
+            runner: ubuntu-24.04-arm
             target: aarch64-linux-gnu
             deb_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain
         uses: actions/cache@v4
         with:
           path: .tools
-          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
-      - name: Bootstrap Zig 0.17.0
-        run: sh tools/bootstrap.sh
-      - name: Cache pinned appimagetool (x86_64)
-        if: matrix.arch == 'x86_64'
+          key: ${{ runner.os }}-${{ runner.arch }}-zig-${{ hashFiles('tools/zig', 'tools/bootstrap.sh') }}
+      - name: Cache Zig build cache
+        uses: actions/cache@v4
+        with:
+          path: .zig-cache
+          key: zig-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig', 'build.zig.zon', 'lib/xsui/build.zig.zon') }}
+          restore-keys: |
+            zig-cache-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache pinned appimagetool
         uses: actions/cache@v4
         with:
           path: .tools/downloads/appimagetool-*
-          key: ${{ runner.os }}-appimagetool-1.9.1
-      - name: Package Linux tarball
+          key: ${{ runner.os }}-${{ runner.arch }}-appimagetool-1.9.1
+      - name: Bootstrap Zig 0.17.0
+        run: sh tools/bootstrap.sh
+      - name: Package tarball, Debian package, and AppImage
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
           XSPROF_TARGET: ${{ matrix.target }}
           XSPROF_OS: linux
           XSPROF_ARCH: ${{ matrix.arch }}
+          XSPROF_DEB_ARCH: ${{ matrix.deb_arch }}
+          XSPROF_APPIMAGE_ARCH: ${{ matrix.arch }}
         run: |
           set -eu
           sh tools/package.sh
-          cd dist
-          sha256sum "xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz" \
-            > "xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz.sha256"
-      - name: Package Debian artifact
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-          XSPROF_TARGET: ${{ matrix.target }}
-          XSPROF_ARCH: ${{ matrix.arch }}
-          XSPROF_DEB_ARCH: ${{ matrix.deb_arch }}
-        run: |
           sh tools/package_deb.sh
-      - name: Package AppImage (x86_64 native)
-        if: matrix.arch == 'x86_64'
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-          XSPROF_APPIMAGE_ARCH: x86_64
-        run: |
-          set -eu
           sh tools/package_appimage.sh
-          sh qa/appimage_smoke.sh --appimage "dist/Xsprof-${VERSION}-x86_64.AppImage" \
+          sh qa/appimage_smoke.sh \
+            --appimage "dist/Xsprof-${VERSION}-${{ matrix.arch }}.AppImage" \
             --version "$VERSION"
-      - name: Verify package layouts
+      - name: Smoke package layouts
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           set -eu
-          if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            sh qa/package_layout.sh \
-              --tarball "dist/xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz" \
-              --deb "dist/xsprof_${VERSION}-1_${{ matrix.deb_arch }}.deb" \
-              --appimage "dist/Xsprof-${VERSION}-x86_64.AppImage"
-          else
-            sh qa/package_layout.sh \
-              --tarball "dist/xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz" \
-              --deb "dist/xsprof_${VERSION}-1_${{ matrix.deb_arch }}.deb"
-          fi
+          sh qa/package_layout.sh \
+            --tarball "dist/xsprof-${VERSION}-linux-${{ matrix.arch }}.tar.gz" \
+            --deb "dist/xsprof_${VERSION}-1_${{ matrix.deb_arch }}.deb" \
+            --appimage "dist/Xsprof-${VERSION}-${{ matrix.arch }}.AppImage"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
@@ -201,114 +177,28 @@ jobs:
             dist/*.AppImage.sha256
           if-no-files-found: error
 
-  macos:
-    name: macos (signed when strict)
-    needs: preflight
-    runs-on: macos-15
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache pinned Zig toolchain
-        uses: actions/cache@v4
-        with:
-          path: .tools
-          key: ${{ runner.os }}-${{ runner.arch }}-zig-0.17.0
-      - name: Bootstrap Zig 0.17.0
-        run: sh tools/bootstrap.sh
-      - name: Import Developer ID certificate
-        if: needs.preflight.outputs.strict == 'true'
-        env:
-          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          set -eu
-          keychain="$RUNNER_TEMP/xsprof-signing.keychain-db"
-          password=$(openssl rand -hex 24)
-          echo "$MACOS_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$password" "$keychain" >/dev/null
-          security list-keychains -d user -s "$keychain" login.keychain-db
-          security default-keychain -s "$keychain"
-          rm -f "$RUNNER_TEMP/cert.p12"
-          echo "release: imported the Developer ID certificate into a temporary keychain"
-      - name: Verify Developer ID identity
-        if: needs.preflight.outputs.strict == 'true'
-        env:
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-        run: |
-          set -eu
-          security find-identity -v -p codesigning | grep -F "$MACOS_SIGN_IDENTITY"
-      - name: Package macOS app
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-          XSPROF_UNIVERSAL: "1"
-          XSPROF_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          set -eu
-          if [ "${{ needs.preflight.outputs.strict }}" = "true" ]; then
-            XSPROF_NOTARIZE=1 sh tools/package_macos_app.sh
-          else
-            sh tools/package_macos_app.sh
-          fi
-          cd dist
-          shasum -a 256 Xsprof-*.zip > /dev/null
-          for zip in Xsprof-*.zip; do
-            shasum -a 256 "$zip" > "$zip.sha256"
-          done
-      - name: Assert unsigned artifact cannot satisfy the tap gate (dry run)
-        if: needs.preflight.outputs.dry_run == 'true'
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -eu
-          zip=$(ls dist/Xsprof-*-macos-unsigned.zip)
-          att=$(ls dist/Xsprof-*-macos-unsigned-notarization.json)
-          size=$(stat -f%z "$zip")
-          sha=$(shasum -a 256 "$zip" | cut -d' ' -f1)
-          dummy=$(printf 'a%63s' '' | tr ' ' 'a')
-          if sh tools/update_homebrew_tap.sh --render-dir "$RUNNER_TEMP/tap-render" \
-            --version "$VERSION" \
-            --linux-arm64 "$dummy" --linux-x86_64 "$dummy" --macos "$sha" \
-            --macos-size "$size" --attestation "$att" --require-notarized; then
-            echo "::error::unsigned artifact satisfied --require-notarized"
-            exit 1
-          fi
-          echo "release: tap gate rejected the unsigned artifact as expected"
-      - name: Remove signing keychain
-        if: always()
-        run: security delete-keychain "$RUNNER_TEMP/xsprof-signing.keychain-db" || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: |
-            dist/*.zip
-            dist/*.zip.sha256
-            dist/*.json
-          if-no-files-found: error
-
-  release:
+  publish:
     name: publish
-    needs: [preflight, linux, macos]
-    if: needs.preflight.outputs.dry_run != 'true'
+    needs: [preflight, linux]
+    # Double fail-closed: only a tag push with a real (non-dry) preflight can
+    # publish, and workflow_dispatch can never satisfy this condition.
+    if: >-
+      needs.preflight.outputs.dry_run == 'false' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Verify per-file checksums
+      - name: Verify per-artifact checksums
         run: |
           set -eu
           cd dist
@@ -318,78 +208,35 @@ jobs:
             sha256sum -c "$file"
             found=1
           done
-          [ "$found" = 1 ] || { echo "::error::no checksums found"; exit 1; }
+          [ "$found" = 1 ] || { echo "::error::no per-artifact checksums found"; exit 1; }
       - name: Build aggregate SHA256SUMS
         run: |
           set -eu
           cd dist
           : > SHA256SUMS
-          find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.AppImage' \) -printf '%f\n' \
-            | sort | while IFS= read -r name; do sha256sum "$name" >> SHA256SUMS; done
+          for file in *.tar.gz *.deb *.AppImage; do
+            [ -f "$file" ] || continue
+            sha256sum "$file" >> SHA256SUMS
+          done
+          [ -s SHA256SUMS ] || { echo "::error::no release artifacts found"; exit 1; }
           cat SHA256SUMS
-      - name: Verify macOS attestation
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-          CHANNEL: ${{ needs.preflight.outputs.channel }}
-        run: |
-          set -eu
-          if [ "$CHANNEL" = "release" ]; then
-            zip="dist/Xsprof-${VERSION}-macos.zip"
-            att="dist/Xsprof-${VERSION}-macos-notarization.json"
-            python3 tools/verify_macos_attestation.py --attestation "$att" \
-              --version "$VERSION" --artifact-name "Xsprof-${VERSION}-macos.zip" \
-              --artifact-sha256 "$(sha256sum "$zip" | cut -d' ' -f1)" \
-              --artifact-size "$(stat -c%s "$zip")"
-          else
-            zip="dist/Xsprof-${VERSION}-macos-unsigned.zip"
-            att="dist/Xsprof-${VERSION}-macos-unsigned-notarization.json"
-            python3 tools/verify_macos_attestation.py --allow-unnotarized \
-              --attestation "$att" --version "$VERSION" \
-              --artifact-name "Xsprof-${VERSION}-macos-unsigned.zip" \
-              --artifact-sha256 "$(sha256sum "$zip" | cut -d' ' -f1)" \
-              --artifact-size "$(stat -c%s "$zip")"
-          fi
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.AppImage
+            dist/SHA256SUMS
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.preflight.outputs.version }}
-          CHANNEL: ${{ needs.preflight.outputs.channel }}
         run: |
           set -eu
-          if [ "$CHANNEL" = "unsigned" ]; then
-            notes="AD-HOC SIGNED, NOT NOTARIZED - do not distribute. This run was dispatched as channel=unsigned; no Homebrew cask was published."
-            if gh release view "v${VERSION}" >/dev/null 2>&1; then
-              gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json --clobber
-            else
-              gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json \
-                --prerelease --title "xsprof ${VERSION} (unsigned)" \
-                --notes "$notes" --target "$GITHUB_SHA"
-            fi
-            exit 0
-          fi
-          notes="Developer ID signed, notarized, stapled; xsprof/macos-notarization/v1 attestation attached. Homebrew cask publication is gated on that attestation."
-          if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json --clobber
-          else
-            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json \
-              --title "xsprof ${VERSION}" --notes "$notes" --target "$GITHUB_SHA"
-          fi
-      - name: Update Homebrew tap (attestation-gated cask)
-        if: needs.preflight.outputs.strict == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -eu
-          arm=$(sha256sum "dist/xsprof-${VERSION}-linux-aarch64.tar.gz" | cut -d' ' -f1)
-          x86=$(sha256sum "dist/xsprof-${VERSION}-linux-x86_64.tar.gz" | cut -d' ' -f1)
-          mac=$(sha256sum "dist/Xsprof-${VERSION}-macos.zip" | cut -d' ' -f1)
-          size=$(stat -c%s "dist/Xsprof-${VERSION}-macos.zip")
-          tap="$RUNNER_TEMP/homebrew-tap"
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${HOMEBREW_TAP_REPO}.git" "$tap"
-          sh tools/update_homebrew_tap.sh --tap-dir "$tap" --version "$VERSION" \
-            --linux-arm64 "$arm" --linux-x86_64 "$x86" --macos "$mac" \
-            --macos-size "$size" \
-            --attestation "dist/Xsprof-${VERSION}-macos-notarization.json" \
-            --require-notarized
+          cd dist
+          files=(*.tar.gz *.deb *.AppImage *.sha256 SHA256SUMS)
+          gh release create "v${VERSION}" --verify-tag \
+            --title "xsprof ${VERSION}" \
+            --notes "Linux x86_64/aarch64 tarballs, Debian packages, and AppImages. The SHA256SUMS file lists every artifact and the build provenance is attested with Sigstore (verify with: gh attestation verify <file> -R ${GITHUB_REPOSITORY})." \
+            "${files[@]}"

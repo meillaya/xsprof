@@ -305,9 +305,10 @@ pub const App = struct {
         _ = io;
         self.live_duration_ms = options.duration_ms;
         self.live_preset_name = options.preset.label();
-        // Recording mode when a recorder state dir is configured: one capture
-        // (daemon writes compact segments) + tail for the live view. Empty dir
-        // falls back to a view-only lab_worker stream.
+        // Recording mode requires a recorder state dir: one capture (the
+        // daemon writes compact segments) + tail for the live view. A missing
+        // state dir fails closed with an explicit refusal; there is no
+        // view-only fallback.
         var dir_len: usize = 0;
         const configured = self.design.state.settings.recorderDirSlice();
         if (configured.len != 0) {
@@ -319,7 +320,7 @@ pub const App = struct {
             @memcpy(self.live_dir_buf[0..dir_len], fallback[0..dir_len]);
         } else |_| {}
         self.live_source = .{ .dir = self.live_dir_buf[0..dir_len] };
-        return self.startController(self.live_source.source(), if (dir_len != 0) "live capture" else "live capture (view only)");
+        return self.startController(self.live_source.source(), "live capture");
     }
 
     fn startController(self: *App, source: live_mod.Source, label: []const u8) bool {
@@ -364,7 +365,7 @@ pub const App = struct {
         self.design.setLive(false);
     }
 
-    /// Polls the view-only live controller; never blocks the window loop.
+    /// Polls the live controller; never blocks the window loop.
     fn pollLive(self: *App) void {
         const controller = if (self.live_controller) |*value| value else return;
         const selection = live_mod.Selection{
@@ -375,6 +376,18 @@ pub const App = struct {
         const status = controller.statusView();
         if (status.state == .stopped) {
             self.design.recorderStopped();
+            self.stopLive();
+            return;
+        }
+        if (status.state == .degraded) {
+            // A terminal ingest failure (full store or corrupt journal) is a
+            // visible degraded state, not a live session. Stop polling so the
+            // controller never re-appends poisoned bytes.
+            var reason = if (status.reason.len != 0) status.reason else "live ingest stopped";
+            const source_reason = self.live_source.reasonText();
+            if (source_reason.len != 0) reason = source_reason;
+            self.design.noteSourceFailure(.failed, reason);
+            self.design.recorderFailed(reason);
             self.stopLive();
             return;
         }

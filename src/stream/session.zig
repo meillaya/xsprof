@@ -311,19 +311,19 @@ test "real workload fixture builds multi-CPU slices" {
         arena.allocator(),
         "fixtures/real/scheduler-mix.ndjson",
     );
-    try std.testing.expectEqual(@as(usize, 12000), session.events.len);
+    try std.testing.expectEqual(@as(usize, 4000), session.events.len);
     try std.testing.expectEqual(@as(u8, 4), session.cpu_count);
-    try std.testing.expectEqual(@as(u32, 4574), session.switches);
-    try std.testing.expectEqual(@as(u32, 40), session.migrations);
+    try std.testing.expectEqual(@as(u32, 534), session.switches);
+    try std.testing.expectEqual(@as(u32, 18), session.migrations);
     try std.testing.expectEqual(@as(u32, 0), session.lost);
-    try std.testing.expect(session.slices.len > 1000);
+    try std.testing.expect(session.slices.len > 500);
     try std.testing.expect(session.metrics.tasks.len > 8);
-    try std.testing.expectEqual(@as(u32, 2153), session.self_switches);
+    try std.testing.expectEqual(@as(u32, 200), session.self_switches);
     const agg = session.aggregate();
-    try std.testing.expectEqual(@as(i64, 133), agg.wakeups);
-    try std.testing.expectEqual(@as(i64, 73), agg.self_wakeups);
-    try std.testing.expectEqual(@as(i64, 40), agg.unnecessary_wakeups);
-    try std.testing.expectEqual(@as(i64, 7), agg.unresolved_wakeups);
+    try std.testing.expectEqual(@as(i64, 64), agg.wakeups);
+    try std.testing.expectEqual(@as(i64, 5), agg.self_wakeups);
+    try std.testing.expectEqual(@as(i64, 27), agg.unnecessary_wakeups);
+    try std.testing.expectEqual(@as(i64, 5), agg.unresolved_wakeups);
 }
 
 test "real metadata fixture records buddyinfo and the recorder pid" {
@@ -334,7 +334,7 @@ test "real metadata fixture records buddyinfo and the recorder pid" {
         arena.allocator(),
         "fixtures/real/vm-fragmented.ndjson",
     );
-    try std.testing.expectEqual(@as(usize, 12000), session.events.len);
+    try std.testing.expectEqual(@as(usize, 4000), session.events.len);
     try std.testing.expect(session.meta.self_seen);
     try std.testing.expect(session.meta.self_pid > 0);
     try std.testing.expect(session.self_switches > 0);

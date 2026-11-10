@@ -1,11 +1,15 @@
-# xsprof UI design contract
+# xsprof viewer design contract (optional, frozen)
 
-> The frozen design prototype is [`design/index.html`](design/index.html); it is
-> design input only and is never built or served. Its extracted token set,
-> screens, flows, keybindings, and GPU mapping live in
-> [`design/`](design/README.md). This document remains the profiler screen contract.
+> Status: the viewer is **optional and frozen**. The product is the flight
+> recorder and its evidence tooling; the viewer is a consumer of the same data
+> and must not grow new routes, palettes, or effects without an explicit product
+> decision. The frozen prototype is [`design/index.html`](design/index.html)
+> (design input only, never built or served). Its token set, screens, flows,
+> keybindings, and GPU mapping live in [`design/`](design/README.md); the formal
+> runtime contract is `design/ui-spec.json`. This document remains the screen
+> contract for the existing viewer.
 
-The profiler UI is a dense, read-only operator console. It should feel like an
+The viewer is a dense, read-only operator console. It should feel like an
 instrument panel, not a marketing dashboard: compact monospace rows, visible
 evidence, exact reason codes, and state colors that carry meaning.
 
@@ -19,7 +23,7 @@ evidence, exact reason codes, and state colors that carry meaning.
 ## Identity
 
 - Wordmark: `▚ xsprof`
-- Context line: `read-only scheduler & memory profiler`
+- Context line: `read-only scheduler & memory flight recorder`
 - Persistent safety chip: `read-only · host_mutation=false`
 - Source chip: `LIVE`, `REPLAY`, `WINDOW`, `DEMO`, or `EMPTY`
 - Tone: terse, evidence-led. No celebratory language for gate results.
@@ -43,19 +47,21 @@ evidence, exact reason codes, and state colors that carry meaning.
 | `status.vm` | `#b48cff` | VM-only identity |
 
 Additional themes: light “paper” and high-contrast, exposed as
-`xsui.themes.light` / `xsui.themes.high_contrast` with
-`xsui.themes.derive` for overrides. Unavailable data is `SKIP`/uncollected,
-never a fabricated zero. Lost/gapped/refused/malformed rows use refusal
-styling.
+`xsui.themes.light` / `xsui.themes.high_contrast` with `xsui.themes.derive` for
+overrides. Six selectable palettes exist today (Graphite, Paper, and four
+Catppuccin flavours — see `design/palettes.json`); they are frozen with the
+viewer. Unavailable data is `SKIP`/uncollected, never a fabricated zero.
+Lost/gapped/refused/malformed rows use refusal styling.
 
 ## Typography and spacing
 
 - Monospace-first: JetBrains Mono (OFL), bundled. Sizes 10/11/12/14/16/20.
-  Numeric values use 14–16 px so the dotted zero stays legible; labels may use 9–10 px.
+  Numeric values use 14–16 px so the dotted zero stays legible; labels may use
+  9–10 px.
 - Regular 400, medium 500, bold 700. Tabular numerals for counters/times.
 - 4 px spacing grid; 1 px borders; 4–6 px radii; no decorative shadows.
-- Long paths are relative evidence references; truncate visually, never
-  rewrite the stored value.
+- Long paths are relative evidence references; truncate visually, never rewrite
+  the stored value.
 
 ## Layout
 
@@ -63,13 +69,15 @@ styling.
   theme/help.
 - Footer key map: visible shortcuts; every action has a pointer equivalent.
 - Routes: Home, Overview, Timeline, Advisor, Events, Recorder, Audit, Settings.
-- Panes use hairline borders and dense ledgers. Overlays (palette, tooltip)
-  are separate layers and never hide the safety/loss banner.
+- Panes use hairline borders and dense ledgers. Overlays (palette, tooltip) are
+  separate layers and never hide the safety/loss banner.
 - Responsive/narrow: stack in workflow order; never hide refusal/loss rows.
 
 ## Routes
 
-0. **Home** — onboarding entry, source choice (live / replay / recorder window / demo), time frame, recent sources, capability strip, recorder status, and the safety contract.
+0. **Home** — onboarding entry, source choice (live / replay / recorder window /
+   demo), time frame, recent sources, capability strip, recorder status, and the
+   safety contract.
 1. **Overview** — host facts, capability matrix with reasons, per-CPU
    utilization/runqueue, migrations/wakeups/faults/cache/memory/NUMA, top
    threads, advisor summary, alerts.
@@ -81,9 +89,15 @@ styling.
    applied.” Empty, uncollected, and healthy are distinct.
 4. **Events** — append-only ledger; filter/search; follow-tail; loss/gap rows;
    detail pane; sanitized, privacy-redacted text.
-5. **Recorder** — start/stop/restart the owned read-only capture, compact retention, segments, verify, window extraction, incident/trace/report/snapshot/audit exports, and sidecar history. External recorders are attach-only.
-6. **Audit** — provenance, manifest lifecycle, verify result, capability/gate evidence, bounded operator action log, and audit export.
-7. **Settings** — appearance, capture defaults, storage/retention, accessibility toggles and bridge state, diagnostics, and reset. Settings persist atomically; snapshot mode ignores them.
+5. **Recorder** — start/stop/restart the owned read-only capture, compact
+   retention, segments, verify, window extraction, incident/trace/report/
+   snapshot/audit exports, and sidecar history. External recorders are
+   attach-only.
+6. **Audit** — provenance, manifest lifecycle, verify result, capability/gate
+   evidence, bounded operator action log, and audit export.
+7. **Settings** — appearance, capture defaults, storage/retention,
+   accessibility toggles and bridge state, diagnostics, and reset. Settings
+   persist atomically; snapshot mode ignores them.
 
 ## Motion
 
@@ -93,31 +107,35 @@ Never animate loss/refusal/unsafe states into normal progress.
 
 ## Keyboard
 
-`0` Home, `1..5` analysis/Recorder, `6` Audit, `7` Settings,
-`Cmd/Ctrl+,` Settings, `/` filter, `Space` pause, `f` fit, `+/-` zoom,
-`t` now, `w` theme, `?` help, `Cmd/Ctrl+K` palette, `c` copy, `Esc` close
-overlay. Focus ring always visible and follows the accessibility tree.
-Dialogs trap focus and restore it to the trigger. Native pickers and text
-fields are GPU-drawn; there is no OS file dialog. IME composition remains a
-follow-up.
+`0` Home, `1..5` analysis/Recorder, `6` Audit, `7` Settings, `Cmd/Ctrl+,`
+Settings, `/` filter, `Space` pause, `f` fit, `+/-` zoom, `t` now, `w` theme,
+`?` help, `Cmd/Ctrl+K` palette, `c` copy, `Esc` close overlay. Focus ring always
+visible and follows the accessibility tree. Dialogs trap focus and restore it
+to the trigger. Native pickers and text fields are GPU-drawn; there is no OS
+file dialog.
 
 ## Accessibility
 
-Every route builds a bounded `xsprof/a11y-tree/v1` tree from the same
-hit/draw pass: roles, labels, values, selected/focus flags, and focus order.
-macOS exposes it through NSAccessibility; Linux emits canonical JSON and
-reports the AT-SPI2 bridge as DEGRADED with a reason. There is no browser
-surface. Loss, refusal, and SKIP states are exposed as state,
-not colour alone. `snapshot --a11y FILE` is the deterministic golden.
+Every route builds a bounded `xsprof/a11y-tree/v1` tree from the same hit/draw
+pass: roles, labels, values, selected/focus flags, and focus order. macOS
+exposes it through NSAccessibility; Linux emits canonical JSON and reports the
+AT-SPI2 bridge as `DEGRADED` with a reason (there is no AT-SPI2 implementation).
+Loss, refusal, and SKIP states are exposed as state, not colour alone.
+`snapshot --a11y FILE` is the deterministic golden. Automated work never opens
+a real window; VoiceOver/IME verification is human-run and is not claimed until
+done.
 
 ## Rendering
 
 - One flat instance stream (~96 B) + one SDF shader per backend.
 - Per-instance clip; R8 glyph atlas; 1–3 draw calls typical.
-- CPU raster is the reference for snapshots and parity; Metal and GL consume
-  the same draw list.
-- No glass/blur/shadows in v1. Flat surfaces, borders, and typography carry
-  depth.
+- CPU raster is the reference for snapshots and parity; Metal and GL consume the
+  same draw list.
+- No glass/blur/shadows: flat surfaces, borders, and typography carry depth.
+- Committed stills: `design/screenshots/native/{dark,light}/{home,overview}.png`,
+  rendered offscreen by the CPU rasterizer (no window capture). Regenerate with
+  `sh tools/screenshots.sh`; `./tools/zig build screenshots-check` verifies
+  committed bytes/provenance.
 
 ## Required states for every screen
 

@@ -20,23 +20,18 @@ The program reads nothing, writes nothing, and exports no events. It proves
 the load/attach path under the VM gate without changing scheduler behavior.
 
 The unsafe `bpf` verb remains refused by the safety matrix; the read-only gate
-is named `bpf-gate`.
+is named `bpf-gate`. The lane is a proof of the load/attach path, not a data
+source: perf remains the event path, and the BPF gate is not part of the happy
+path for users.
 
-## VM evidence
+## Verification
 
-Fedora 44 aarch64 podman VM, `Apple Virtualization Generic Platform`, libbpf
-present, root with CAP_BPF, tracefs mounted:
-
-```json
-{"attached":true,"capability":"READY","host_mutation":false,
- "libbpf":true,"program_loaded":true,
- "reason":"no-op tracepoint program attached for 200 ms",
- "schema":"xsprof/bpf-gate/v1",
- "vm_marker":"Apple Virtualization Generic Platform"}
-```
-
-On macOS/Linux hosts without the marker the same command returns
-`capability:"SKIP"` or `"REFUSE"` and exits 1.
+The gate was validated once in a disposable Fedora aarch64 podman VM with a
+hypervisor marker, libbpf present, and tracefs mounted: `READY`,
+`attached:true`, `libbpf:true`, `host_mutation:false`. That run's evidence is
+attached to the release, not committed to git. On macOS/Linux hosts without a
+hypervisor marker the same command returns `capability:"SKIP"` or `"REFUSE"` and
+exits 1.
 
 ## Limits
 

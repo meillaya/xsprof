@@ -82,10 +82,28 @@ pub fn build(b: *std.Build) void {
     const xsui_api_tests = b.addTest(.{ .root_module = xsui_api_mod });
     const run_xsui_api_tests = b.addRunArtifact(xsui_api_tests);
 
+    // Schema-conformance root: validates committed schemas and wire samples.
+    const schema_core_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/schema.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const schema_test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/schema.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "xsprof-schema", .module = schema_core_mod },
+        },
+    });
+    const schema_tests = b.addTest(.{ .root_module = schema_test_mod });
+    const run_schema_tests = b.addRunArtifact(schema_tests);
+
     const test_step = b.step("test", "Run unit and integration tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
     test_step.dependOn(&run_xsui_api_tests.step);
+    test_step.dependOn(&run_schema_tests.step);
 
     const fuzz_mod = b.createModule(.{
         .root_source_file = b.path("tests/fuzz.zig"),
@@ -119,20 +137,20 @@ pub fn build(b: *std.Build) void {
     fmt_step.dependOn(&fmt.step);
 
     const lines = b.addSystemCommand(&.{ "sh", "qa/lines.sh" });
-    const lines_step = b.step("lines", "Enforce the 600-line source limit");
+    const lines_step = b.step("lines", "Enforce the source responsibility limit");
     lines_step.dependOn(&lines.step);
 
-    const vendor = b.addSystemCommand(&.{ "sh", "qa/vendor_hash.sh" });
-    const vendor_step = b.step("vendor-check", "Verify vendored Zig 0.17 hashes");
-    vendor_step.dependOn(&vendor.step);
-
     const version_sync = b.addSystemCommand(&.{ "sh", "qa/version_sync.sh" });
-    const version_sync_step = b.step("version-sync", "Check package/runtime version lockstep");
+    const version_sync_step = b.step("version-sync", "Check package/runtime/docs version lockstep");
     version_sync_step.dependOn(&version_sync.step);
 
     const script_syntax = b.addSystemCommand(&.{ "sh", "qa/script_syntax.sh" });
     const script_syntax_step = b.step("script-syntax", "Syntax-check every tracked shell script");
     script_syntax_step.dependOn(&script_syntax.step);
+
+    const design_check = b.addSystemCommand(&.{ "python3", "design/validate.py" });
+    const design_check_step = b.step("design-check", "Validate the design token/spec contract");
+    design_check_step.dependOn(&design_check.step);
 
     const unsafe_matrix = b.addSystemCommand(&.{ "sh", "qa/unsafe_cli_matrix.sh" });
     unsafe_matrix.step.dependOn(b.getInstallStep());
@@ -151,33 +169,84 @@ pub fn build(b: *std.Build) void {
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
     compact_roundtrip_step.dependOn(&compact_roundtrip.step);
 
-    const showcase_smoke = b.addSystemCommand(&.{ "sh", "qa/showcase_smoke.sh" });
-    showcase_smoke.step.dependOn(b.getInstallStep());
-    const showcase_smoke_step = b.step("showcase-smoke", "Native showcase media determinism/provenance");
-    showcase_smoke_step.dependOn(&showcase_smoke.step);
-
     const a11y_smoke = b.addSystemCommand(&.{ "sh", "qa/a11y_smoke.sh" });
     a11y_smoke.step.dependOn(b.getInstallStep());
     const a11y_smoke_step = b.step("a11y-smoke", "Deterministic accessibility tree gate");
     a11y_smoke_step.dependOn(&a11y_smoke.step);
 
-    const release_tooling = b.addSystemCommand(&.{ "sh", "qa/release_tooling.sh" });
-    const release_tooling_step = b.step("release-tooling", "Release attestation/tap dry-run gate");
-    release_tooling_step.dependOn(&release_tooling.step);
-
     const xsui_package = b.addSystemCommand(&.{ "sh", "qa/xsui_package.sh" });
     const xsui_package_step = b.step("xsui-package", "Test the standalone xsui package");
     xsui_package_step.dependOn(&xsui_package.step);
 
-    const live_smoke = b.addSystemCommand(&.{ "sh", "qa/live_smoke.sh" });
-    live_smoke.step.dependOn(b.getInstallStep());
-    const live_smoke_step = b.step("live-smoke", "Root perf/daemon gate for a disposable Linux VM");
-    live_smoke_step.dependOn(&live_smoke.step);
+    // Standalone developer gates. They are promoted into `check-ci` only once
+    // the repo diet has landed (they intentionally fail on the pre-diet tree).
+    const repo_size = b.addSystemCommand(&.{ "sh", "qa/repo_size.sh" });
+    const repo_size_step = b.step("repo-size", "Enforce tracked-file and repository size budgets");
+    repo_size_step.dependOn(&repo_size.step);
 
-    const check = b.step("check", "Full local gate: fmt, lines, vendor, tests");
+    const docs_links = b.addSystemCommand(&.{ "sh", "qa/docs_links.sh" });
+    const docs_links_step = b.step("docs-links", "Check relative links in tracked markdown");
+    docs_links_step.dependOn(&docs_links.step);
+
+    // Platform/media gates: they need a display server, ffmpeg, or python3 and
+    // therefore never run as part of the fast `check` gate.
+    var platform_steps = std.ArrayList(*std.Build.Step).empty;
+    defer platform_steps.deinit(b.allocator);
+
+    const screenshots_check = b.addSystemCommand(&.{ "sh", "tools/screenshots.sh", "--check" });
+    const screenshots_check_step = b.step("screenshots-check", "Verify committed screenshot bytes/provenance");
+    screenshots_check_step.dependOn(&screenshots_check.step);
+
+    if (target.result.os.tag == .linux) {
+        const xvfb_smoke = b.addSystemCommand(&.{ "sh", "qa/xvfb_smoke.sh" });
+        xvfb_smoke.step.dependOn(b.getInstallStep());
+        const xvfb_smoke_step = b.step("xvfb-smoke", "Hidden X11/GLX native smoke under Xvfb when available");
+        xvfb_smoke_step.dependOn(&xvfb_smoke.step);
+        platform_steps.append(b.allocator, &xvfb_smoke.step) catch @panic("OOM");
+
+        const native_live = b.addSystemCommand(&.{ "sh", "qa/native_live_smoke.sh" });
+        native_live.step.dependOn(b.getInstallStep());
+        const native_live_step = b.step("native-live-smoke", "Hidden live/recorder-tail smoke under Xvfb when available");
+        native_live_step.dependOn(&native_live.step);
+        platform_steps.append(b.allocator, &native_live.step) catch @panic("OOM");
+
+        const live_smoke = b.addSystemCommand(&.{ "sh", "qa/live_smoke.sh" });
+        live_smoke.step.dependOn(b.getInstallStep());
+        const live_smoke_step = b.step("live-smoke", "Root perf/daemon gate for a disposable Linux VM");
+        live_smoke_step.dependOn(&live_smoke.step);
+
+        const service_smoke = b.addSystemCommand(&.{ "sh", "qa/service_smoke.sh" });
+        service_smoke.step.dependOn(b.getInstallStep());
+        const service_step = b.step("service-smoke", "Root systemd smoke on a disposable Linux VM");
+        service_step.dependOn(&service_smoke.step);
+
+        const retention_bench = b.addSystemCommand(&.{ "sh", "qa/retention_bench.sh", "600000", "0", "2G", "yes" });
+        retention_bench.step.dependOn(b.getInstallStep());
+        const retention_bench_step = b.step("retention-bench", "Root retention budget gate for a disposable Linux VM");
+        retention_bench_step.dependOn(&retention_bench.step);
+
+        const check_vm = b.step("check-vm", "Root-only live/service/retention gate (disposable Linux VM)");
+        check_vm.dependOn(&live_smoke.step);
+        check_vm.dependOn(&service_smoke.step);
+        check_vm.dependOn(&retention_bench.step);
+    }
+    if (target.result.os.tag == .macos) {
+        // The viewer is an optional frozen surface on macOS (no capture). The
+        // normal `check`/`check-ci` test roots compile the AppKit/Metal paths;
+        // there is no hidden-window smoke lane any more.
+    }
+
+    const check_platform = b.step("check-platform", "Platform smokes (display server)");
+    for (platform_steps.items) |step| check_platform.dependOn(step);
+
+    const check_media = b.step("check-media", "Screenshot determinism/provenance gates");
+    check_media.dependOn(&screenshots_check.step);
+
+    // Fast, tool-light gate: safe to run on any developer host. No display
+    // server, Python, ffmpeg, or privileged access is expected here.
+    const check = b.step("check", "Fast local gate: format, limits, contracts, tests");
     check.dependOn(&fmt.step);
     check.dependOn(&lines.step);
-    check.dependOn(&vendor.step);
     check.dependOn(&version_sync.step);
     check.dependOn(&script_syntax.step);
     check.dependOn(&privacy_scan.step);
@@ -186,42 +255,39 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&cli_parity.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
-    check.dependOn(&showcase_smoke.step);
-    check.dependOn(&release_tooling.step);
     check.dependOn(&xsui_package.step);
     check.dependOn(&run_mod_tests.step);
     check.dependOn(&run_exe_tests.step);
     check.dependOn(&run_xsui_api_tests.step);
+    check.dependOn(&run_schema_tests.step);
     check.dependOn(&run_fuzz_tests.step);
+
+    // CI gate: every declared tool must be present; a SKIP is a failure.
+    const check_ci = b.step("check-ci", "Full CI gate: fast + platform/media, no silent SKIPs");
+    check_ci.dependOn(check);
+    check_ci.dependOn(check_platform);
+    check_ci.dependOn(check_media);
+    check_ci.dependOn(&repo_size.step);
+    check_ci.dependOn(&docs_links.step);
+    check_ci.dependOn(&design_check.step);
     if (target.result.os.tag == .linux) {
-        const xvfb_smoke = b.addSystemCommand(&.{ "sh", "qa/xvfb_smoke.sh" });
-        xvfb_smoke.step.dependOn(b.getInstallStep());
-        const xvfb_smoke_step = b.step("xvfb-smoke", "Hidden X11/GLX native smoke under Xvfb when available");
-        xvfb_smoke_step.dependOn(&xvfb_smoke.step);
-        check.dependOn(&xvfb_smoke.step);
-
-        const native_live = b.addSystemCommand(&.{ "sh", "qa/native_live_smoke.sh" });
-        native_live.step.dependOn(b.getInstallStep());
-        const native_live_step = b.step("native-live-smoke", "Hidden live/recorder-tail smoke under Xvfb when available");
-        native_live_step.dependOn(&native_live.step);
-        check.dependOn(&native_live.step);
-
-        const lab_smoke = b.addSystemCommand(&.{ "sh", "qa/lab_smoke.sh" });
-        lab_smoke.step.dependOn(b.getInstallStep());
-        const lab_smoke_step = b.step("lab-smoke", "Headless GUI lab scenarios and snapshots");
-        lab_smoke_step.dependOn(&lab_smoke.step);
-        check.dependOn(&lab_smoke.step);
-
-        const service_smoke = b.addSystemCommand(&.{ "sh", "qa/service_smoke.sh" });
-        service_smoke.step.dependOn(b.getInstallStep());
-        const service_step = b.step("service-smoke", "Root systemd smoke on a disposable Linux VM");
-        service_step.dependOn(&service_smoke.step);
+        const strict_xvfb = requireTools(b, &.{ "sh", "qa/xvfb_smoke.sh" });
+        strict_xvfb.step.dependOn(b.getInstallStep());
+        const strict_native_live = requireTools(b, &.{ "sh", "qa/native_live_smoke.sh" });
+        strict_native_live.step.dependOn(b.getInstallStep());
+        check_ci.dependOn(&strict_xvfb.step);
+        check_ci.dependOn(&strict_native_live.step);
     }
-    if (target.result.os.tag == .macos) {
-        const macos_smoke = b.addSystemCommand(&.{ "sh", "qa/macos_smoke.sh" });
-        macos_smoke.step.dependOn(b.getInstallStep());
-        const macos_smoke_step = b.step("macos-smoke", "Hidden AppKit/Metal window smoke");
-        macos_smoke_step.dependOn(&macos_smoke.step);
-        check.dependOn(&macos_smoke.step);
-    }
+    const strict_a11y = requireTools(b, &.{ "sh", "qa/a11y_smoke.sh" });
+    strict_a11y.step.dependOn(b.getInstallStep());
+    check_ci.dependOn(&strict_a11y.step);
+    check_ci.dependOn(&screenshots_check.step);
+}
+
+/// Mark a script as CI-strict: declared external tools must exist instead of
+/// silently degrading the gate to a SKIP.
+fn requireTools(b: *std.Build, argv: []const []const u8) *std.Build.Step.Run {
+    const run = b.addSystemCommand(argv);
+    run.setEnvironmentVariable("XSPROF_REQUIRE_TOOLS", "1");
+    return run;
 }

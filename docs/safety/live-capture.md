@@ -52,10 +52,10 @@ printable-ASCII comms, increasing ns timestamps, and valid UTF-8 JSON.
 The host (macOS) and any unprivileged Linux host report SKIP and exit 1; this
 is the tested fail-closed behavior.
 
-## Native live view
+## Native live view (optional viewer)
 
-The native console starts one in-process read-only recorder (compact
-`.xsraw` segments) and tails those segments through
+When capture is enabled in Settings, the viewer starts one in-process read-only
+recorder (compact `.xsraw` segments) and tails those segments through
 `src/platform/follow_source.zig` for the live view. It:
 - gates on `live.probe` READY before starting;
 - keeps a bounded feed/index and rebuilds the model at most about 4 times per
@@ -64,11 +64,11 @@ The native console starts one in-process read-only recorder (compact
   remapping selection by stable keys;
 - emits explicit `sample_loss`/`retention_loss` markers on trim, corrupt
   blocks, or caps;
-- never starts a browser/server, never kills an external recorder, and writes
+- never opens a network surface, never kills an external recorder, and writes
   only its state directory.
 
 External recorders are attach-only: `xsprof ui --follow-recorder DIR` tails
 the same compact/legacy segments without opening a capture. The CLI `record`
 remains the full-fidelity evidence path. macOS has no perf backend and reports
 live capture as SKIP; it still supports follow-recorder over an exported state
-directory.
+directory ([macOS viewer](../platforms/macos-viewer.md)).

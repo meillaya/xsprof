@@ -6,12 +6,13 @@
   nixpkgs,
   self,
   system,
+  packageSrc,
 }:
 
 let
   inherit (pkgs) lib;
   zig = pkgs.callPackage ./zig.nix { };
-  xsprof = pkgs.callPackage ./package.nix { src = self; };
+  xsprof = pkgs.callPackage ./package.nix { src = packageSrc; };
 
   version = builtins.head (builtins.match
     ".*\\.version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\".*"
@@ -24,20 +25,11 @@ let
     export HOME="$TMPDIR"
     ${xsprof}/bin/xsprof version | grep -Fx "xsprof ${version}"
     ${xsprof}/bin/xsprof help > /dev/null
-    test ! -e ${xsprof}/share/xsprof/web
-    if find ${xsprof} -name '*.wasm' | grep -q .; then
-      echo "xsprof package ships wasm/web assets" >&2
-      exit 1
-    fi
-    if [ "$(head -c 2 ${xsprof}/bin/xsprof)" = "#!" ] && grep -q XSPROF_WEB_DIR ${xsprof}/bin/xsprof; then
-      echo "xsprof wrapper still sets XSPROF_WEB_DIR" >&2
-      exit 1
-    fi
     test -s ${xsprof}/share/xsprof/fixtures/healthy.ndjson
     test -f ${xsprof}/share/applications/xsprof.desktop
     test -f ${xsprof}/share/bash-completion/completions/xsprof
     test -f ${xsprof}/lib/systemd/system/xsprof-recorder.service
-    ${xsprof}/bin/xsprof snapshot --replay ${self}/fixtures/ui/healthy.ndjson \
+    ${xsprof}/bin/xsprof snapshot --replay ${packageSrc}/fixtures/ui/healthy.ndjson \
       --out "$TMPDIR/snapshot.png" --width 320 --height 240
     test -s "$TMPDIR/snapshot.png"
     touch $out

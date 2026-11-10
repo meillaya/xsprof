@@ -1,165 +1,131 @@
-# Record a rolling window
+# Flight recorder
 
-The recorder keeps one perf capture open, writes bounded append-only segments,
-and lets you extract the recent window after an incident.
+The recorder keeps one read-only perf capture open, writes bounded append-only
+compact segments, and lets you extract the recent window after an incident.
+This is the core product; the viewer is optional.
 
-`--retain` is an upper age bound, not the retained duration: `--max-bytes` can bind
-first. 0.4 raw segments are compact .xsraw (roughly 12-13 bytes/event in the
-projection, versus 159-160 bytes/event canonical), so the default 2 GiB budget
-holds well beyond the 10-minute age cap at the measured 140k events/s. The age
-cap therefore defines the raw window, and the byte budget is the safety
-backstop for higher rates. Raise `--max-bytes` only if the rate or event text
-grows. The Capture screen shows the actual retained wall span
-(`X covered · cap Y`) from the manifest, not the configured cap; an extract
-older than the retained data carries a `retention_loss` marker instead of
-being zero-filled.
+`--retain` is an upper age bound, not the retained duration: `--max-bytes` can
+bind first, and the actual covered span is reported from the manifest.
+Compact `.xsraw` segments cost roughly 12–13 bytes/event (versus ~160 canonical
+NDJSON bytes/event), so the default 2 GiB budget usually lets the ten-minute
+age cap bind. Higher event rates shorten the span; `capture`/`verify` always
+report what was actually retained. See
+[retention](../architecture/retention.md) for the measurement model.
 
-
-## Prerequisites
-
-- Linux with perf tracepoints and tracefs.
-- `CAP_PERFMON` for `perf_event_open`.
-- Read access to tracefs, granted by `CAP_DAC_READ_SEARCH` in the service unit.
-- A real or virtual machine you control. The recorder runs on Linux only.
-
-The unit in `packaging/systemd/xsprof-recorder.service` uses only those two
-capabilities. Create the `xsprof` user and install the unit yourself; the CLI
-never installs services or changes sysctls. Adjust the tracefs mount and
-kernel policy through your normal provisioning.
-
-## Foreground use
+## Start a recorder
 
 ```sh
-./zig-out/bin/xsprof daemon --foreground --dir /var/lib/xsprof \
+sudo xsprof daemon --foreground --dir /var/lib/xsprof \
   --retain 10m --max-bytes 2G
 ```
 
-`--preset scheduler|memory|deep` selects an event mask and ring budget.
-`--duration <ms>` stops after a bounded test run. The daemon writes
-`manifest.json`, `lock`, and compact `segments/*.xsraw` under the state
-directory. Segments rotate at 16 MiB or 30 seconds. Retention drops the oldest
-closed segments when the byte or age budget is exceeded and writes a
-`retention_loss` marker. The manifest records `"raw_codec":"compact_v1"` and a
-per-segment codec; 0.3 .ndjson segments in the same directory stay readable.
+Useful options:
 
+- `--preset scheduler|memory|deep` selects an event mask and ring budget.
+- `--duration <ms>` stops after a bounded test run (0/default: until stopped).
+- `--history-interval 60s` and `--history-retain 24h` control the sidecar tier.
 
-SIGTERM/SIGINT is a cooperative stop: the daemon writes the segment footer,
-writes `capture_stop signal=terminated`, flushes the history bucket, and marks
-the manifest `stopped`. If the process is killed, the next start marks the stale
-segment closed, adds `capture_interrupted previous_session=<id>`, and checks
-the final footer. A missing footer or torn block adds an explicit
-`capture_truncated_tail missing_footer=1 dropped=1` marker to the new segment;
-the complete prefix is kept and never zero-filled.
+The daemon writes `manifest.json`, `lock`, and compact `segments/*.xsraw` under
+the state directory. It is the only long-running process, writes only that
+directory, and never changes host policy. Run it under systemd or the NixOS
+module for a long-lived host ([install](install.md),
+[recording permissions](capture-permissions.md)).
 
+## Rotation and recovery
 
-History sidecars are written from an in-memory metrics accumulator every
+- Segments rotate at 16 MiB or 30 seconds.
+- Retention drops the oldest closed segments when the byte or age budget is
+  exceeded and writes an explicit `retention_loss` marker.
+- SIGTERM/Ctrl-C is cooperative: the daemon closes the segment footer, writes
+  `capture_stop signal=terminated`, flushes the history bucket, and marks the
+  manifest `stopped`.
+- After a SIGKILL, the next start marks the stale segment closed, adds
+  `capture_interrupted previous_session=<id>`, checks the final footer, and
+  records a `capture_truncated_tail` marker when the footer is missing. The
+  complete prefix is kept and never zero-filled.
+- A corrupt block stops decoding at that block and is reported, never guessed.
+
+`xsprof verify --dir <state> [--json]` decodes every segment with the same
+reader extraction uses and reports clean/dirty/corrupt/missing/unsupported. Exit
+0 only when the state verifies READY.
+
+## History tier
+
+Sidecars are written from an in-memory metrics accumulator every
 `--history-interval` (default 60 s) and retained for `--history-retain` (default
-24 h). Each sidecar has CPU busy, switch, wakeup, migration, fault, and top-task
-p95 wait metrics. This keeps the long-term history tier bounded instead of
-creating one file per segment rotation. `xsprof history` queries the sidecars
-across raw retention; the console and advisor still analyze the extracted raw
-window.
+24 h). Each bucket has CPU busy, switch, wakeup, migration, fault, and top-task
+p95 wait metrics. This keeps long-horizon history bounded instead of one file
+per rotation.
+
+```sh
+xsprof history --last 10m --dir /var/lib/xsprof
+xsprof history --last 1h --dir /var/lib/xsprof --json
+```
+
+The history tier survives raw drops, but it does not retract the raw-window
+limit: it is aggregates, not event detail.
 
 ## Extract a window
 
 ```sh
-./zig-out/bin/xsprof capture --last 5m --dir /var/lib/xsprof --out incident.ndjson
-./zig-out/bin/xsprof capture --last 30s --dir /var/lib/xsprof
-./zig-out/bin/xsprof advise --input incident.ndjson --md
+xsprof capture --last 5m --dir /var/lib/xsprof --out incident.ndjson
+xsprof capture --last 30s --dir /var/lib/xsprof
+xsprof advise --input incident.ndjson --md
 ```
 
-The extractor converts the wall-clock cutoff using each segment's wall and
+Extraction converts the wall-clock cutoff using each segment's wall and
 monotonic anchors, decodes compact blocks (or legacy lines), and emits explicit
 markers for missing, corrupt, torn-tail, unsupported, or trimmed history. It
-never fills gaps with zeroes. `--markers-only` emits just the loss/gap rows for
-bounded audits, `--max-events` and `--max-window-bytes` bound huge windows with
-a `capture_truncated` marker, and `incident --max-window-bytes` bounds the
-canonical window artifact. Session metadata (recorder identity, CPU LLC
-topology, and the buddyinfo snapshot) is kept even when its capture-start
-timestamp is older than the window.
+never fills gaps with zeroes. Bounds:
 
+- `--markers-only` emits just loss/gap rows for bounded audits.
+- `--max-events` and `--max-window-bytes` bound huge windows with a
+  `capture_truncated` marker.
+- `incident --max-window-bytes` bounds the canonical window artifact.
 
 ## Bundle the incident
 
 ```sh
-./zig-out/bin/xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
+xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
 ```
 
 The output folder is self-contained and offline:
 
-- `window.ndjson` — the sanitized raw window, including metadata and loss markers
-- `summary.json` — canonical counts, signals, rule statuses, findings, top tasks
-- `report.html` — static report with inline CSS and relative artifact links; no
-  scripts, server, telemetry, or network requests
-- `trace.json` — Chrome Trace export
+- `window.ndjson` — sanitized raw window, including metadata and loss markers;
+- `summary.json` — canonical counts, signals, rule statuses, findings, top
+  tasks;
+- `report.html` — static report with inline CSS, no scripts/server/network;
+- `trace.json` — Chrome Trace export (open in Perfetto or `chrome://tracing`).
 
 The summary records both the requested and the actually retained wall window.
-If the byte budget dropped older history, `window.trimmed` is true and the
-report says so instead of implying full coverage. `window.ndjson` is streamed
-to disk and the summary is computed with a bounded-memory scan over the whole
-window. `trace.json` keeps at most 200,000 events; `summary.json` and the
-report set `trace.truncated` and say so when that prefix is used.
-
-## Query sidecar history
-
-```sh
-./zig-out/bin/xsprof history --last 10m --dir /var/lib/xsprof
-./zig-out/bin/xsprof history --last 1h --dir /var/lib/xsprof --md
-```
-
-This timeline survives raw segment drops, so it can cover a longer period than
-the 2 GiB raw window. It reports switches, wakeups, unnecessary wakeups,
-migrations, faults, loss, and CPU busy time per sidecar. It does not retract
-the raw-window limit; it is the history tier next to the raw tier.
+When the byte budget or age cap trimmed older history, `window.trimmed` is true
+and the report says so. `window.ndjson` is streamed to disk and the summary is
+computed with a bounded-memory scan. The trace keeps at most 200,000 events;
+`summary.json`/the report set `trace.truncated` and say so when that prefix is
+used.
 
 ## Watch over SSH
 
 ```sh
-./zig-out/bin/xsprof watch --dir /var/lib/xsprof --window 30s
-./zig-out/bin/xsprof watch --dir /var/lib/xsprof --once
+xsprof watch --dir /var/lib/xsprof --window 30s
+xsprof watch --dir /var/lib/xsprof --once
 ```
 
-`watch` rebuilds the recent window through the same metrics index as the UI. It
-shows CPU busy/idle, switches, loss, and tasks by p95 wakeup-to-run latency.
-`--once` prints one frame and exits.
+`watch` rebuilds the recent window through the same metrics index as the
+viewer, showing CPU busy/idle, switches, loss, and tasks by p95
+wakeup-to-run latency. It is ANSI-only and never needs a display server.
 
-## Service-level smoke
-
-`qa/service_smoke.sh` runs as root on a disposable Linux VM with systemd. It
-starts a transient unit with the packaged service's user, capability set,
-read-only paths, and state directory; records a bounded window; checks the
-single-writer lock; extracts with `capture --last`; SIGKILLs a session; and
-verifies restart recovery keeps the earlier segments. It never lowers
-`perf_event_paranoid` or changes tracefs policy. It requires `doctor` to report
-`perf` READY through `CAP_PERFMON`.
-
-```sh
-./tools/zig build service-smoke    # Linux host, run as root
-```
-
-## Diagnose
-
-```sh
-./zig-out/bin/xsprof doctor --json
-```
-
-`doctor` reports kernel, `perf_event_paranoid`, tracefs, perf, libbpf, and web
-assets. It reports the reason and never executes a fix.
-
-## State and privacy
+## Privacy
 
 The recorder stores scheduler events and comm names, not argv or environment.
-The compact format stores strings after the same privacy redaction as the
-canonical serializer, so the state directory never holds secrets. Keep the
-state directory private. `host_mutation=false` is in every manifest, summary,
-and extracted row (the binary segment format has no mutation field at all).
-`capture --last` output remains canonical `xsprof/event/v1` NDJSON.
+Rectcompact strings are stored after the same privacy redaction as the
+canonical serializer, so the state directory never holds secrets. Keep it
+private. `host_mutation=false` appears in every manifest, summary, and extracted
+row; the binary segment format has no mutation field at all.
 
-Verify a state directory without starting capture:
+## Verification evidence
 
-```sh
-./zig-out/bin/xsprof verify --dir /var/lib/xsprof --json
-```
-
-It exits 0 only when every segment is clean; dirty/corrupt/missing segments are
-reported as data, never repaired.
+Root-only recorder gates (live capture, service start/SIGKILL recovery,
+retention budget) run in a disposable Linux VM via `./tools/zig build check-vm`
+and are documented in [maintaining](../maintaining.md). Measured evidence is
+attached to releases, not committed to git.

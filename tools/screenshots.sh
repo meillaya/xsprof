@@ -1,15 +1,16 @@
 #!/bin/sh
 # Deterministic light/dark native screenshot evidence renderer + verifier.
 #
-# Renders the eight console routes in both core themes as offscreen CPU
-# snapshots with `xsprof snapshot` (the same draw list the native macOS/Linux
-# window consumes), compresses them with ImageMagick, and records canonical
-# provenance. It never opens, activates, or captures a real window, never needs
-# a display server, and never synthesizes input or mutates host policy.
+# Renders the retained console stills (Home and Overview, dark and light) as
+# offscreen CPU snapshots with `xsprof snapshot` (the same draw list the native
+# macOS/Linux window consumes), compresses them with ImageMagick, and records
+# canonical provenance. It never opens, activates, or captures a real window,
+# never needs a display server, and never synthesizes input or mutates host
+# policy.
 #
 # Committed layout (each PNG is 1280x720):
-#   design/screenshots/native/dark/{home,overview,timeline,advisor,events,recorder,audit,settings}.png
-#   design/screenshots/native/light/{home,overview,timeline,advisor,events,recorder,audit,settings}.png
+#   design/screenshots/native/dark/{home,overview}.png
+#   design/screenshots/native/light/{home,overview}.png
 #   design/screenshots/native/provenance.json
 #
 # Usage:
@@ -31,25 +32,18 @@ KEEP=0
 W=1280
 H=720
 # Scene flags stay repo-relative so provenance is portable; existence checks use
-# the absolute variants below. The overview scene renders the real VM capture
-# (fixtures/real/macos-vm-sched.ndjson), so the committed stills carry the
-# real-capture session identity and metadata; the remaining scenes use the
-# healthy scheduler replay or the design demo model.
+# the absolute variants below. `home` renders the design demo model; `overview`
+# renders the committed real VM capture prefix (fixtures/real/macos-vm-sched.ndjson)
+# so the stills carry the real-capture session identity and metadata.
 DEMO_REL=fixtures/ui/design/demo.json
-HEALTHY_REL=fixtures/ui/healthy.ndjson
 REAL_REL=fixtures/real/macos-vm-sched.ndjson
-RECORDER_DIR_REL=fixtures/ui/design/recorder
 DEMO="$ROOT/$DEMO_REL"
-HEALTHY="$ROOT/$HEALTHY_REL"
 REAL="$ROOT/$REAL_REL"
-RECORDER_DIR="$ROOT/$RECORDER_DIR_REL"
 INPUTS="design demo model|$DEMO_REL
-scheduler replay fixture|$HEALTHY_REL
-real VM capture|$REAL_REL
-recorder manifest fixture|$RECORDER_DIR_REL/manifest.json"
+real VM capture|$REAL_REL"
 
 usage() {
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
     exit "$1"
 }
 
@@ -162,9 +156,7 @@ for key in ("command", "version"):
 if "png:compression-level=9" not in str(convert.get("command", "")):
     fail("convert.command must record the png:compression-level=9 compression")
 
-expected_scene_views = {"home": "home", "overview": "overview", "timeline": "timeline",
-                        "advisor": "advisor", "events": "events", "recorder": "capture",
-                        "audit": "audit", "settings": "settings"}
+expected_scene_views = {"home": "home", "overview": "overview"}
 expected_scenes = list(expected_scene_views)
 expected_themes = {"dark": "dark", "light": "paper"}
 ok_lines = []
@@ -202,9 +194,8 @@ for entry in inputs:
     with open(full, "rb") as handle:
         if digest(handle.read()) != entry.get("sha256"):
             fail("input sha256 mismatch: " + rel)
-for rel in ("fixtures/ui/design/demo.json", "fixtures/ui/healthy.ndjson",
-            "fixtures/real/macos-vm-sched.ndjson",
-            "fixtures/ui/design/recorder/manifest.json"):
+for rel in ("fixtures/ui/design/demo.json",
+            "fixtures/real/macos-vm-sched.ndjson"):
     if rel not in input_paths:
         fail("input fixture not recorded: " + rel)
 
@@ -213,7 +204,7 @@ if not isinstance(files, list):
     fail("provenance.files must be a list")
     files = []
 if len(files) != len(expected_themes) * len(expected_scenes):
-    fail("provenance must describe 16 files, found " + str(len(files)))
+    fail("provenance must describe 4 files, found " + str(len(files)))
 seen = set()
 for entry in files:
     for key in ("path", "sha256", "bytes", "width", "height", "theme", "view", "flags"):
@@ -296,7 +287,7 @@ if failures:
     sys.exit(1)
 for line in ok_lines:
     print(line)
-print("screenshots: check PASS (16 files, 2 themes, 8 routes; sha256, byte size, "
+print("screenshots: check PASS (4 files, 2 themes, 2 scenes; sha256, byte size, "
       "1280x720 dimensions and canonical provenance verified)")
 PY
 }
@@ -308,9 +299,7 @@ fi
 
 [ -x "$BIN" ] || fail "binary missing: $BIN (run ./tools/zig build)"
 [ -f "$DEMO" ] || fail "missing fixture: $DEMO"
-[ -f "$HEALTHY" ] || fail "missing fixture: $HEALTHY"
 [ -f "$REAL" ] || fail "missing fixture: $REAL"
-[ -f "$RECORDER_DIR/manifest.json" ] || fail "missing fixture: $RECORDER_DIR/manifest.json"
 need_cmd "$PYTHON"
 need_cmd "$MAGICK"
 
@@ -351,27 +340,15 @@ render_theme() {
         light) theme_id=paper ;;
         *) fail "unknown theme directory $theme_dir" ;;
     esac
-    # Scene flags mirror tools/showcase.sh render_showcase_frames(); snapshots
-    # stay offscreen and never read user settings or host state.
+    # Scene flags mirror the retained product stills; snapshots stay offscreen
+    # and never read user settings or host state.
     render_shot "$theme_dir" "$theme_id" home home \
         --demo-model "$DEMO_REL" --view home
-    # Overview uses the committed real VM capture so the stills show the
+    # Overview uses the committed real VM capture prefix so the stills show the
     # real-capture session identity and metadata; the fixed topbar truncates it
     # deterministically instead of overlapping the REPLAY/LOSS/safety chips.
     render_shot "$theme_dir" "$theme_id" overview overview \
         --replay "$REAL_REL" --view overview
-    render_shot "$theme_dir" "$theme_id" timeline timeline \
-        --replay "$HEALTHY_REL" --view timeline --playhead 6.0
-    render_shot "$theme_dir" "$theme_id" advisor advisor \
-        --replay "$HEALTHY_REL" --view advisor
-    render_shot "$theme_dir" "$theme_id" events events \
-        --replay "$HEALTHY_REL" --view events
-    render_shot "$theme_dir" "$theme_id" recorder capture \
-        --replay "$HEALTHY_REL" --recorder-dir "$RECORDER_DIR_REL" --view capture
-    render_shot "$theme_dir" "$theme_id" audit audit \
-        --replay "$HEALTHY_REL" --view audit
-    render_shot "$theme_dir" "$theme_id" settings settings \
-        --demo-model "$DEMO_REL" --view settings
 }
 
 render_theme dark
@@ -484,4 +461,4 @@ print("screenshots: wrote " + rel(provenance_path) + " (" + str(len(files)) + " 
       str(len(themes)) + " themes)")
 PY
 
-note "render PASS (16 files, 2 themes, 8 views; provenance rewritten)"
+note "render PASS (4 files, 2 themes, 2 scenes; provenance rewritten)"

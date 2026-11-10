@@ -1,0 +1,88 @@
+name: Real-incident feedback
+description: Tell us whether xsprof helped on a real scheduler/memory incident. Privacy-safe: never attach secrets.
+title: "[incident] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying xsprof on real work. This form is the substitute for
+        telemetry: we only learn what you choose to tell us.
+
+        **Do not attach argv, environment variables, tokens, secrets,
+        unredacted operator paths, or raw event detail that you consider
+        sensitive.** `summary.json` counts and schema keys are usually enough.
+        If in doubt, describe the shape of the data instead of pasting it.
+  - type: textarea
+    id: scenario
+    attributes:
+      label: What were you trying to diagnose?
+      description: The symptom in your words (latency, jitter, wakeup storms, memory pressure, ...). No logs required.
+      placeholder: "p99 latency spikes on a 4-vCPU host during ..."
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host shape
+      description: Distribution, kernel version, CPU count, VM or bare metal. No hostnames or account names.
+      placeholder: "Fedora 44, kernel 7.2, 4 vCPU, KVM guest"
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: Which workflow did you use?
+      options:
+        - record + why (one-shot capture)
+        - daemon + incident bundle (rolling recorder)
+        - daemon + capture/history window
+        - viewer (replay/follow-recorder)
+        - read-only probes only (doctor/top/pressure/cgroup)
+        - other / mixed
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Did the evidence help?
+      options:
+        - "Yes: it explained the incident"
+        - "Partly: I got some signal but the window/permissions were wrong"
+        - "No: wrong signal or missing data"
+        - "It failed before producing evidence"
+    validations:
+      required: true
+  - type: dropdown
+    id: rerun
+    attributes:
+      label: Would you run it again on the next incident?
+      description: This is our only demand signal. Be blunt.
+      options:
+        - "Yes"
+        - "Maybe, if <what> changes"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: rerun_reason
+    attributes:
+      label: If "Maybe" or "No", what would change your mind?
+      description: Gaps in the window, permissions friction, missing fields, output format, install path, ...
+      placeholder: "Needs a longer raw window at high event rates; needs ..."
+  - type: checkboxes
+    id: artifacts
+    attributes:
+      label: Optional sanitized artifacts
+      description: Only share what you have already redacted. We never require an artifact to read the report.
+      options:
+        - label: I can attach a redacted summary.json
+        - label: I can attach a redacted incident folder (window.ndjson/report.html/trace.json) — I removed task names and paths I consider sensitive
+        - label: I ran `xsprof doctor --json` and can attach it (no hostnames/accounts)
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I confirm this report contains no argv, environment variables, tokens, secrets, or sensitive operator paths.
+          required: true

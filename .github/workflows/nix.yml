@@ -8,13 +8,11 @@ on:
       - "nix/**"
       - "tools/**"
       - "packaging/**"
-      - "qa/release_tooling.sh"
-      - "qa/homebrew_dry_run.sh"
-      - "qa/package_layout.sh"
       - "build.zig"
       - "build.zig.zon"
+      - "lib/**"
       - "src/**"
-      - "fixtures/**"
+      - ".github/workflows/nix.yml"
   pull_request:
     paths:
       - "flake.nix"
@@ -22,13 +20,11 @@ on:
       - "nix/**"
       - "tools/**"
       - "packaging/**"
-      - "qa/release_tooling.sh"
-      - "qa/homebrew_dry_run.sh"
-      - "qa/package_layout.sh"
       - "build.zig"
       - "build.zig.zon"
+      - "lib/**"
       - "src/**"
-      - "fixtures/**"
+      - ".github/workflows/nix.yml"
   workflow_dispatch:
     inputs:
       darwin:

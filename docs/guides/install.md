@@ -1,150 +1,145 @@
 # Install
 
-The native GPU console is the only product surface in v0.5.1; there is no
-browser/WASM build and packaged artifacts do not include web assets.
+Releases are **tag-first**: artifacts are published only from a pushed
+`vX.Y.Z` tag that equals the manifest/runtime/CHANGELOG/README version, after
+the full `check-ci` gate passes. Linux is the capture platform; the macOS
+build is a viewer only and is not published as a signed artifact.
 
-## Nix / NixOS (flake)
+## Nix (recommended)
+
+The flake supports `x86_64-linux` and `aarch64-linux` (capture + viewer) and
+`aarch64-darwin` (viewer only).
 
 ```sh
-nix run github:meillaya/xsprof/v<version> -- help
-nix profile install github:meillaya/xsprof/v<version>
-# or from a checkout:
-nix build .#xsprof && ./result/bin/xsprof ui
-nix develop            # pinned Zig 0.17.0 and the packaging tools
+nix run github:meillaya/xsprof -- record --duration 10s --output session.ndjson
+nix profile install github:meillaya/xsprof
+nix develop                                   # pinned Zig + dev tools
+nix build .#xsprof                            # from a checkout
+nix flake check                               # package smoke, Zig pins, version sync, NixOS module
 ```
 
-The flake supports `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, and
-`aarch64-darwin`. Linux and aarch64-darwin use the pinned nixos-unstable
-`nixpkgs`; Intel macOS uses the maintained `nixpkgs-26.05-darwin` input because
-nixpkgs 26.11 dropped x86_64-darwin. Both revisions are committed in
-`flake.lock`. Zig 0.17.0 is fetched from ziglang.org by hash (never nixpkgs'
-Zig) and the xsprof build itself needs no network. Offline/local-nixpkgs
-verification:
+Zig 0.17.0 is fetched by hash from ziglang.org (`nix/zig.nix`, mirrored from
+`tools/bootstrap.sh`); nixpkgs' own Zig is deliberately unused. The zsprof build
+itself is sandboxed and offline. Offline verification after the store is warm:
 
 ```sh
-nix build .#xsprof --offline --option substitute false       # after the store is warm
+nix build .#xsprof --offline --option substitute false
 nix build .#xsprof --no-update-lock-file --override-input nixpkgs path:/path/to/nixpkgs
 ```
 
-NixOS users can enable the optional read-only recorder service:
+## NixOS recorder service (opt-in)
+
+The module creates an unprivileged `xsprof` user and grants only
+`CAP_PERFMON` and `CAP_DAC_READ_SEARCH`. It is disabled by default.
 
 ```nix
 {
   inputs.xsprof.url = "github:meillaya/xsprof";
-  # inputs.xsprof.inputs.nixpkgs.follows = "nixpkgs";
-
-  # in a NixOS configuration:
-  imports = [ inputs.xsprof.nixosModules.default ];
-  services.xsprof.recorder.enable = true;
+  outputs = { self, nixpkgs, xsprof, ... }: {
+    nixosConfigurations.host = nixpkgs.lib.nixosSystem {
+      modules = [
+        xsprof.nixosModules.default
+        {
+          services.xsprof.recorder.enable = true;
+          # hardware.graphics.enable = true;   # only needed for the viewer
+        }
+      ];
+    };
+  };
 }
 ```
 
-The service is disabled by default. When enabled it creates an unprivileged
-`xsprof` user and runs the same hardened unit as the tarball/deb, with only
-`CAP_PERFMON` and `CAP_DAC_READ_SEARCH`. Hardware OpenGL for `xsprof ui` also
-needs `hardware.graphics.enable = true`; mesa provides a software fallback.
+Options: `user`, `group`, `stateDir` (default `/var/lib/xsprof`, must live
+under `/var/lib`), `retain`/`maxBytes` (default `10m`/`2G`),
+`historyInterval`/`historyRetain` (default `60s`/`24h`), `package`, and
+`extraArgs` (checked against unsafe verbs; evaluation fails on a mutation
+verb).
 
-## Linux tarball
+## Release artifacts (Linux)
+
+Each release publishes checksummed x86_64/aarch64 Linux artifacts plus Sigstore
+build provenance; there is no macOS artifact.
+
+| Artifact | Contents |
+|---|---|
+| `xsprof-0.5.1-linux-<arch>.tar.gz` | binary, fixture, desktop entry/icon, completions, systemd unit, sysusers entry |
+| `xsprof_0.5.1-1_<arch>.deb` | same layout under `/usr`; unit installed but not enabled |
+| `Xsprof-0.5.1-<arch>.AppImage` | single-file Linux app; host X11/GL for the viewer |
+
+Verify a download:
 
 ```sh
-tar -xzf xsprof-<version>-linux-<arch>.tar.gz
-cd xsprof-<version>-linux-<arch>
-./bin/xsprof ui
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify Xsprof-0.5.1-x86_64.AppImage -R meillaya/xsprof
 ```
 
-For a system install, copy `bin/xsprof` to `/usr/local/bin`, `share/xsprof` to
-`/usr/local/share/xsprof`, the desktop file to
-`/usr/local/share/applications/`, the icon to
-`/usr/local/share/icons/hicolor/scalable/apps/`, the sysusers file to
-`/usr/local/lib/sysusers.d/`, and the unit to
-`/usr/local/lib/systemd/system/`. Bash/zsh/fish completions and the replay
-fixture are included under `share/`. Packaged builds ship no browser assets;
-`XSPROF_FIXTURES_DIR` overrides the bundled fixture directory if needed.
-
-The recorder needs `CAP_PERFMON` and tracefs read access. Use the provided
-unit or grant equivalent capabilities explicitly. `xsprof doctor --json` names
-the missing piece.
-
-## AppImage (Linux x86_64)
-
-The release publishes `Xsprof-<version>-x86_64.AppImage` plus a `.sha256`.
-The AppImage bundles the native binary, the replay fixture, the desktop entry,
-and the icon. It does **not** bundle X11/GL/mesa driver libraries (the binary
-dlopens the host's `libX11.so.6`/`libGL.so.1`) and it ships no web assets.
+### AppImage
 
 ```sh
-sha256sum -c Xsprof-<version>-x86_64.AppImage.sha256
-chmod +x Xsprof-<version>-x86_64.AppImage
-./Xsprof-<version>-x86_64.AppImage ui       # native console
-./Xsprof-<version>-x86_64.AppImage version  # CLI
+chmod +x Xsprof-0.5.1-x86_64.AppImage
+./Xsprof-0.5.1-x86_64.AppImage version
+./Xsprof-0.5.1-x86_64.AppImage record --duration 10s --output session.ndjson
 ```
 
-Without FUSE (containers, CI, minimal systems):
+The AppImage links the host glibc and does not bundle glibc, X11, or GL
+drivers. Without FUSE (containers, CI):
 
 ```sh
-APPIMAGE_EXTRACT_AND_RUN=1 ./Xsprof-<version>-x86_64.AppImage version
-# or: ./Xsprof-<version>-x86_64.AppImage --appimage-extract-and-run version
+APPIMAGE_EXTRACT_AND_RUN=1 ./Xsprof-0.5.1-x86_64.AppImage version
 ```
 
-The AppImage links the host's glibc (the CI artifact uses the Ubuntu 24.04
-baseline) and does not bundle glibc, X11, or GL drivers. It is built for the
-host architecture; the CI release artifact is x86_64. aarch64 users can build one natively on an aarch64 Linux host with
-`sh tools/package_appimage.sh` or use the tarball/deb.
-
-## Debian package
-
-On Debian or Ubuntu, `./tools/package_deb.sh` builds
-`dist/xsprof_<version>-1_<arch>.deb` with the binary, replay fixture,
-desktop entry, icon, completions, sysusers entry, and systemd unit. The unit is
-installed but not enabled. No web assets are packaged.
-
-## Homebrew
-
-The release workflow renders `Formula/xsprof.rb` from
-`packaging/homebrew/` and pushes it to `meillaya/homebrew-xsprof` for strict
-releases. The formula is Linux-only. The cask is only rendered after a
-notarized, stapled app passes the artifact attestation gate; an ad-hoc app is
-never published as a cask.
+### Debian / Ubuntu
 
 ```sh
-brew tap meillaya/xsprof
-brew install xsprof          # Linux arm64/x86_64 tarball
-```
-
-## macOS app
-
-Strict releases publish `Xsprof-<version>-macos.zip`, a universal
-(arm64 + x86_64) Developer ID signed, notarized, and stapled bundle with a
-`xsprof/macos-notarization/v1` attestation. Unzip it and open `Xsprof.app`.
-
-Local builds without Apple credentials are explicitly different: they are
-ad-hoc signed, named `Xsprof-<version>-macos-unsigned.zip`, and their
-attestation records `notarized:false`. They are for local testing only and are
-not cask-eligible. Verify them structurally with
-`tools/verify_macos_artifact.sh --allow-unnotarized`; run
-`tools/package_macos_app.sh` without `XSPROF_NOTARIZE` to produce one.
-
-Real notarization requires a Developer ID Application certificate, notary
-credentials (`NOTARY_PROFILE` or Apple ID + team ID + app-specific password),
-macOS 14+/Xcode command-line tools, and macOS runner minutes. Without them the
-release workflow fails the strict preflight rather than publishing an unsigned
-build; the `channel=unsigned` dispatch produces only a labelled prerelease and
-never updates the tap.
-
-## Release CI
-
-`.github/workflows/release.yml` builds Linux arm64/x86_64 tarballs and debs,
-the x86_64 AppImage (with a FUSE-free smoke test), the universal macOS app,
-`SHA256SUMS`, and the attestation. Strict tag releases require all Apple and
-tap secrets up front and fail closed; unsigned dispatches are labelled
-`-unsigned` and never publish a cask. `.github/workflows/nix.yml` checks the
-flake and package, and `zig-ci.yml` runs the offline release-tooling gate.
-
-## Verify
-
-```sh
+sudo dpkg -i xsprof_0.5.1-1_amd64.deb
 xsprof version
-xsprof help
-xsprof doctor --json
-xsprof snapshot --replay <fixture.ndjson> --out snapshot.png
 ```
+
+### Tarball
+
+```sh
+tar -xzf xsprof-0.5.1-linux-x86_64.tar.gz
+./xsprof-0.5.1-linux-x86_64/bin/xsprof version
+```
+
+Copy `bin/xsprof` to `/usr/local/bin`, `share/*` to
+`/usr/local/share/xsprof`, and the systemd/sysusers files to their standard
+locations for a system install. `XSPROF_FIXTURES_DIR` overrides the bundled
+fixture path.
+
+## macOS viewer (build from source only)
+
+macOS has no perf backend: the build is a viewer (replay/follow a recorder
+exported from Linux), not a capture tool. It is **not notarized and not
+published**: the binary is ad-hoc signed, Gatekeeper warns, and there is no
+signed app, cask, tap, or `.dmg`.
+
+```sh
+nix build .#xsprof          # aarch64-darwin
+./result/bin/xsprof ui --replay session.ndjson
+```
+
+Hardware OpenGL is needed for the viewer (`hardware.graphics.enable = true` on
+NixOS); macOS uses Metal. The flake evaluates `aarch64-darwin`; Intel macOS is
+out of scope.
+
+## From source
+
+```sh
+git clone https://github.com/meillaya/xsprof && cd xsprof
+./tools/zig build
+./zig-out/bin/xsprof version
+```
+
+Requirements: Linux 5.10+ (viewer needs runtime-loaded X11/GLX and a GL 3.3
+class driver), or macOS 15+ arm64 for the viewer. Zig 0.17.0 is pinned by
+`./tools/zig`; there are no third-party runtime dependencies. `git`, `curl`,
+and `xz` are needed only for the first toolchain bootstrap (`nix develop`
+provides them).
+
+## Enable capture
+
+Live capture is capability-gated. The operator chooses between `setcap`, a
+privileged foreground daemon, systemd, or the NixOS module — see
+[recording permissions](capture-permissions.md). xsprof never elevates, changes
+sysctls, or writes tracefs policy.

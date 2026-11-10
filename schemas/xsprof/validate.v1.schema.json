@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/validate.v1.schema.json",
+  "title": "xsprof validate result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["documents", "file", "host_mutation", "ok", "schema", "schema_name"],
+  "properties": {
+    "documents": { "type": "integer", "minimum": 0 },
+    "error": { "type": "string" },
+    "file": { "type": "string" },
+    "host_mutation": { "const": false },
+    "keyword": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "path": { "type": "string" },
+    "schema": { "const": "xsprof/validate/v1" },
+    "schema_name": { "type": "string" }
+  }
+}

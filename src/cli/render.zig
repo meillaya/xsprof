@@ -2,7 +2,6 @@ const std = @import("std");
 const xsui = @import("xsui");
 const builtin = @import("builtin");
 const frame_mod = xsui.frame;
-const app = @import("../app/app.zig");
 const session_mod = @import("../stream/session.zig");
 const design_model = @import("../app/design/model.zig");
 const design_state = @import("../app/design/state.zig");

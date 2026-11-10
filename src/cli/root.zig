@@ -21,8 +21,8 @@ const doctor_cmd = @import("doctor_cmd.zig");
 const watch_cmd = @import("watch_cmd.zig");
 const analysis_cmd = @import("analysis_cmd.zig");
 const observe_cmd = @import("observe_cmd.zig");
-const lab_cmd = @import("lab_cmd.zig");
 const verify_cmd = @import("verify_cmd.zig");
+const validate_cmd = @import("validate_cmd.zig");
 const help = @import("help.zig");
 
 const Writer = std.Io.Writer;
@@ -53,8 +53,8 @@ const known_commands = [_][]const u8{
     "compare",
     "pressure",
     "cgroup",
-    "lab",
     "verify",
+    "validate",
 };
 
 /// Verbs removed in 0.5.0. They fail closed with an explicit reason instead of
@@ -370,11 +370,11 @@ pub fn runWith(
     if (std.mem.eql(u8, cmd, "cgroup")) {
         return observe_cmd.cmdCgroup(io, allocator, args[2..], out, err);
     }
-    if (std.mem.eql(u8, cmd, "lab")) {
-        return lab_cmd.cmdLab(io, allocator, args[2..], out, err);
-    }
     if (std.mem.eql(u8, cmd, "verify")) {
         return verify_cmd.cmdVerify(io, allocator, args[2..], out, err);
+    }
+    if (std.mem.eql(u8, cmd, "validate")) {
+        return validate_cmd.cmdValidate(io, allocator, args[2..], out, err);
     }
     if (isKnownCommand(cmd)) {
         try err.print("xsprof: {s} is not implemented in this build yet\n", .{cmd});

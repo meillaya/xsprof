@@ -24,11 +24,6 @@ let
       sha256 = "9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8";
       hash = "sha256-no0RZh1K471XcCo4MngeI60VHd5XmOFqXM1QP2UjT/g=";
     };
-    x86_64-darwin = {
-      name = "zig-x86_64-macos-${version}.tar.xz";
-      sha256 = "4f9a1c5269aa17ebda5e6d3c2b89d6cbf36f7d2b22a0306e9ab98f25f95529c6";
-      hash = "sha256-T5ocUmmqF+vaXm08K4nWy/NvfSsioDBumrmPJflVKcY=";
-    };
     aarch64-darwin = {
       name = "zig-aarch64-macos-${version}.tar.xz";
       sha256 = "b607e9b9234790a008116ae5bdb71c6243b84b9fb42a53a9e70fde41c06c536a";

@@ -5,12 +5,11 @@
 //! records a fail-closed refusal/audit entry. This module owns the portable
 //! execution half (source loads, GPU picker listings, exports, settings
 //! persistence); live capture is delegated to a platform `LiveBridge` because
-//! it needs `capture/lab_worker` and the `live.Controller` poll loop.
+//! it needs the owned recorder daemon and the `live.Controller` poll loop.
 //!
-//! Integration hook (app.zig is owned by ui-arch): the shell should call
-//! `App.applyLiveModel(session, model, selection)` when the platform live
-//! controller reports `changed`; until that exists the platform keeps the
-//! recorder state/counters and view-only status honest and reports the hook.
+//! The platform live bridge calls `App.applyLiveModel(session, model, selection)`
+//! whenever the controller reports `changed`, so the recorder state/counters
+//! stay in sync with the model on screen.
 
 const std = @import("std");
 const console_app = @import("../app/design/app.zig");

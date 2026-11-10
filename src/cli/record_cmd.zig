@@ -196,21 +196,75 @@ pub fn cmdRecord(
         return 1;
     }
 
-    try json.write(err, .{ .object = &.{
+    try writeSummary(err, .{
+        .duration_ms = duration_ms,
+        .events = sink.events,
+        .faults_major = sink.faults_major,
+        .faults_minor = sink.faults_minor,
+        .lost = result.lost,
+        .output = if (path) |p| p else "-",
+        .migrations = sink.migrations,
+        .switches = sink.switches,
+        .wakeups = sink.wakeups,
+    });
+    try err.writeByte('\n');
+    return 0;
+}
+
+const Summary = struct {
+    duration_ms: u32,
+    events: u64,
+    faults_major: u64,
+    faults_minor: u64,
+    lost: u64,
+    output: []const u8,
+    migrations: u64,
+    switches: u64,
+    wakeups: u64,
+};
+
+/// Compose the canonical `xsprof/capture-summary/v1` stderr line. Keys are
+/// strictly ascending; `page_faults` is the combined total of the split major
+/// and minor fault counters (the archived `SW_PAGE_FAULTS` count).
+fn writeSummary(w: *Writer, summary: Summary) !void {
+    try json.write(w, .{ .object = &.{
         .{ .key = "capability", .value = .{ .string = "READY" } },
-        .{ .key = "duration_ms", .value = .{ .unsigned = duration_ms } },
-        .{ .key = "events_captured", .value = .{ .unsigned = sink.events } },
-        .{ .key = "faults_major", .value = .{ .unsigned = sink.faults_major } },
-        .{ .key = "faults_minor", .value = .{ .unsigned = sink.faults_minor } },
+        .{ .key = "duration_ms", .value = .{ .unsigned = summary.duration_ms } },
+        .{ .key = "events_captured", .value = .{ .unsigned = summary.events } },
+        .{ .key = "faults_major", .value = .{ .unsigned = summary.faults_major } },
+        .{ .key = "faults_minor", .value = .{ .unsigned = summary.faults_minor } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
-        .{ .key = "lost", .value = .{ .unsigned = result.lost } },
-        .{ .key = "output", .value = .{ .string = if (path) |p| p else "-" } },
-        .{ .key = "sched_migrations", .value = .{ .unsigned = sink.migrations } },
-        .{ .key = "sched_switches", .value = .{ .unsigned = sink.switches } },
-        .{ .key = "sched_wakeups", .value = .{ .unsigned = sink.wakeups } },
+        .{ .key = "lost", .value = .{ .unsigned = summary.lost } },
+        .{ .key = "output", .value = .{ .string = summary.output } },
+        .{ .key = "page_faults", .value = .{ .unsigned = summary.faults_major +| summary.faults_minor } },
+        .{ .key = "sched_migrations", .value = .{ .unsigned = summary.migrations } },
+        .{ .key = "sched_switches", .value = .{ .unsigned = summary.switches } },
+        .{ .key = "sched_wakeups", .value = .{ .unsigned = summary.wakeups } },
         .{ .key = "schema", .value = .{ .string = "xsprof/capture-summary/v1" } },
         .{ .key = "source", .value = .{ .string = "perf_tracepoint" } },
     } });
-    try err.writeByte('\n');
-    return 0;
+}
+
+test "capture summary is canonical, ascending, and includes page_faults" {
+    var buffer: [1024]u8 = undefined;
+    var writer = Writer.fixed(&buffer);
+    try writeSummary(&writer, .{
+        .duration_ms = 300,
+        .events = 73648,
+        .faults_major = 12,
+        .faults_minor = 4959,
+        .lost = 0,
+        .output = "-",
+        .migrations = 3,
+        .switches = 68631,
+        .wakeups = 41,
+    });
+    try std.testing.expectEqualStrings(
+        "{\"capability\":\"READY\",\"duration_ms\":300,\"events_captured\":73648," ++
+            "\"faults_major\":12,\"faults_minor\":4959,\"host_mutation\":false,\"lost\":0," ++
+            "\"output\":\"-\",\"page_faults\":4971,\"sched_migrations\":3," ++
+            "\"sched_switches\":68631,\"sched_wakeups\":41," ++
+            "\"schema\":\"xsprof/capture-summary/v1\",\"source\":\"perf_tracepoint\"}",
+        writer.buffered(),
+    );
 }

@@ -1,71 +1,104 @@
 # Quickstart
 
-`xsprof` is read-only: it opens perf tracepoints, reads `/proc`/`/sys`, and writes
-only its own journals, reports, snapshots, settings, and audit files. Every
-record carries `host_mutation=false`.
+`xsprof` is a read-only Linux scheduler flight recorder: it opens perf
+tracepoints, reads `/proc`/`/sys`, keeps a bounded compact-segment window on
+disk, and writes evidence only to its own files. Every serialized record carries
+`host_mutation=false`. The native viewer is optional.
 
-## 1. Launch the console
+## 1. Get the binary
+
+With Nix:
+
+```sh
+nix run github:meillaya/xsprof -- version
+```
+
+From a checkout:
 
 ```sh
 ./tools/zig build
-./zig-out/bin/xsprof
+./zig-out/bin/xsprof version
 ```
 
-Bare `xsprof` opens the GPU console on an interactive graphical TTY. First run
-shows the four-step onboarding overlay; later runs start at Home. The Home
-source cards are Live, Recorder window, Replay file, and the bundled demo. The
-GPU picker/text fields are part of the same draw list; no native file dialog is
-used. Packaged app bundles set `XSPROF_APP_MODE=1` and always open the console.
+See [install](install.md) for AppImage/deb/tarball artifacts and the NixOS
+module.
 
-For scripts and CI use an explicit verb, or set `XSPROF_NO_UI=1` to force the
-quickstart path. Neither opens a window.
-
-## 2. Try a bundled capture without privileges
+## 2. Check what this host can collect
 
 ```sh
-./zig-out/bin/xsprof demo
+xsprof doctor
+xsprof doctor --json
 ```
 
-This opens the bundled real capture in the native console. Press `0` to return
-Home, or use the route keys shown in the keybar. There is no browser/server
-surface in 0.5.0.
+`doctor` reports kernel, perf, tracefs, cgroup, PSI, and libbpf readiness. A
+`SKIP`/`REFUSE` state always includes a reason; nothing is elevated or changed.
+Live capture needs perf tracepoints plus `CAP_PERFMON` (or
+`perf_event_paranoid <= 1`) and readable tracefs — see
+[recording permissions](capture-permissions.md).
 
-## 3. Live and recorder window
+## 3. Capture 10 seconds and explain it
 
 ```sh
-sudo ./zig-out/bin/xsprof ui --live --duration 0    # Linux perf, until stopped
-./zig-out/bin/xsprof ui --follow-recorder /var/lib/xsprof
-./zig-out/bin/xsprof ui --replay session.ndjson
+xsprof record --duration 10s --output session.ndjson
+xsprof why --input session.ndjson
+xsprof why --input session.ndjson --json
 ```
 
-The native UI starts its own in-process read-only recorder when capture controls
-are enabled in Settings and the probe is READY. It writes compact `.xsraw`
-segments and shows the actual covered span/loss. Without `CAP_PERFMON` or
-readable tracefs the live action shows SKIP/REFUSE with the exact reason.
-macOS has no perf backend; it supports replay and follow-recorder.
+`record` writes canonical `xsprof/event/v1` NDJSON plus a
+`xsprof/capture-summary/v1` line on stderr. Missing permissions produce
+`SKIP`/`REFUSE` with a reason and a non-zero exit; no fake data is written.
 
-## 4. Recorder, verify, and exports
+`top` gives the live ranked view without writing a file:
 
 ```sh
-sudo ./zig-out/bin/xsprof daemon --foreground --dir /var/lib/xsprof \
+xsprof top
+xsprof top --duration 10s --interval 250ms --json
+```
+
+## 4. Run a rolling recorder
+
+The recorder keeps one capture open and rotates compact `.xsraw` segments under
+a bounded retention window. Keep the last ten minutes (age cap and byte budget
+both apply):
+
+```sh
+sudo xsprof daemon --foreground --dir /var/lib/xsprof \
   --retain 10m --max-bytes 2G
-./zig-out/bin/xsprof verify --dir /var/lib/xsprof --json
-./zig-out/bin/xsprof capture --last 10m --dir /var/lib/xsprof --out window.ndjson
-sudo ./zig-out/bin/xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
-./zig-out/bin/xsprof history --last 10m --dir /var/lib/xsprof
 ```
 
-The compact raw tier is designed to keep ten minutes at the configured byte
-budget; the age cap, byte budget, and workload determine the real span. The UI
-and `verify` report that span, never the configured cap. Oversized incident
-windows refuse instead of silently truncating.
+The daemon writes only its state directory. SIGTERM/Ctrl-C is a cooperative
+stop that closes the active segment and marks the manifest `stopped`. Run it
+under systemd or the NixOS module for a long-lived host; see
+[recording permissions](capture-permissions.md) and
+[flight recorder](flight-recorder.md).
 
-## 5. Check this host
+## 5. Bundle the incident
 
 ```sh
-./zig-out/bin/xsprof doctor
-./zig-out/bin/xsprof doctor --json
+sudo xsprof incident --last 10m --dir /var/lib/xsprof --out incident/
+xsprof verify --dir /var/lib/xsprof --json
 ```
 
-A `SKIP`/`REFUSE` state always includes a reason. The tool never elevates or
-changes host policy. `help --all` lists the hidden automation verbs.
+`incident` writes a self-contained offline bundle: `window.ndjson`,
+`summary.json`, `report.html`, and `trace.json` (Chrome Trace; open it in
+Perfetto or `chrome://tracing`). Lost or trimmed data is reported explicitly —
+never zero-filled. `verify` decodes every segment and exits 0 only when the
+state directory verifies READY.
+
+## 6. Viewer (optional)
+
+```sh
+xsprof demo                                      # bundled replay fixture
+xsprof ui --replay session.ndjson
+xsprof ui --follow-recorder /var/lib/xsprof      # read-only attach
+```
+
+The viewer needs a graphical Linux or macOS session. macOS is viewer-only: it
+can replay and follow a recorder but cannot capture scheduler events. There is
+no browser or server surface.
+
+## Next
+
+- [Install](install.md) · [Recording permissions](capture-permissions.md)
+- [Flight recorder](flight-recorder.md) · [top & why](top-why.md)
+- [Compare captures in CI](compare-ci.md) · [Safety invariants](../safety/invariants.md)
