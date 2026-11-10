@@ -18,14 +18,15 @@ routes in both core themes:
 
 Each directory contains `home.png`, `overview.png`, `timeline.png`,
 `advisor.png`, `events.png`, `recorder.png`, `audit.png`, and `settings.png`.
-The scene flags follow `tools/showcase.sh`'s `render_showcase_frames()` (the
-timeline still is sampled at a 6.0 s playhead from the scene it animates from
-0.5 s to 12.0 s):
+The scene flags follow `tools/showcase.sh`'s `render_showcase_frames()` for the
+shared routes (the timeline still is sampled at a 6.0 s playhead from the scene
+it animates from 0.5 s to 12.0 s), with the `overview` still rendered from the
+committed real VM capture:
 
 | Route | Source | Scene flags |
 |---|---|---|
 | `home` | design demo model | `--demo-model fixtures/ui/design/demo.json --view home` |
-| `overview` | healthy scheduler replay | `--replay fixtures/ui/healthy.ndjson --view overview` |
+| `overview` | real VM capture | `--replay fixtures/real/macos-vm-sched.ndjson --view overview` |
 | `timeline` | healthy scheduler replay | `--replay fixtures/ui/healthy.ndjson --view timeline --playhead 6.0` |
 | `advisor` | healthy scheduler replay | `--replay fixtures/ui/healthy.ndjson --view advisor` |
 | `events` | healthy scheduler replay | `--replay fixtures/ui/healthy.ndjson --view events` |
@@ -33,10 +34,13 @@ timeline still is sampled at a 6.0 s playhead from the scene it animates from
 | `audit` | healthy scheduler replay | `--replay fixtures/ui/healthy.ndjson --view audit` |
 | `settings` | design demo model | `--demo-model fixtures/ui/design/demo.json --view settings` |
 
-The real VM capture (`fixtures/real/macos-vm-sched.ndjson`) drives the live
-replay videos and the real-capture stances documented in `fixtures/real/`; it
-is not used for these stills because its long session meta host/kernel string
-overflows the fixed-width topbar chips.
+The real VM capture (`fixtures/real/macos-vm-sched.ndjson`) drives the
+live-replay videos, the real-capture stances documented in `fixtures/real/`, and
+the committed `overview` stills in both themes. Its session identity
+(`localhost.localdomain · 7.2.7-200.fc44.aarch64 · aarch64`) is longer than the
+topbar's remaining width at 1280 px, so the console truncates it deterministically
+with a trailing `…` before the right-aligned `REPLAY`/`LOSS`/safety chips; the
+chips always stay readable and never overlap the identity.
 
 ## Provenance
 
@@ -54,7 +58,7 @@ compact separators, trailing newline) with schema
 
 Raw snapshots are ~3.7 MB RGBA PNGs; they are compressed with
 `magick FILE -strip -define png:compression-level=9 OUT` down to roughly
-90-100 KB each. Do not hand-edit the committed PNGs: regenerate and let the
+90-140 KB each. Do not hand-edit the committed PNGs: regenerate and let the
 provenance change with them.
 
 ## Regenerate and verify

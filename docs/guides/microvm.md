@@ -166,7 +166,7 @@ requested KVM lane on a host without usable `/dev/kvm`.
 `docs/evidence/microvm/` holds a real TCG run from a container host with no
 `/dev/kvm`: `console-tcg.log` (full serial capture), `console-tcg.trimmed.log`
 (markers + qemu fallback excerpt), and `results-tcg.json` (`result: "PASS"`,
-`checks: 10`, `duration_seconds: 45`, `accelerator_observed: "tcg"`,
+`checks: 10`, `duration_seconds: 50`, `accelerator_observed: "tcg"`,
 `tcg_fallback_observed: true`, `host_mutation: false`). The console shows qemu
 reporting `falling back to tcg` before the guest markers, so the evidence never
 claims hardware acceleration it did not get.

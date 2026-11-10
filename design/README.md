@@ -11,8 +11,9 @@ prototype rather than approximating it.
 - Token set version: `1.0.0`
 - Reference viewports: frozen prototype `1440x900 @1` (design input only), native `1280x720 @1`
 - Real capture evidence: [`fixtures/real/macos-vm-sched.ndjson`](../fixtures/real/macos-vm-sched.ndjson)
-  (Linux VM perf, 110,284 events) drives the live-replay video; the committed
-  light/dark stills use the healthy replay fixture (see
+  (Linux VM perf, 110,284 events) drives the live-replay video and the committed
+  light/dark `overview` stills; the remaining stills use the healthy replay or
+  design demo fixture (see
   [`evidence/README.md`](evidence/README.md)).
 - Status: implemented as the primary GPU console (`src/app/design/`,
   `lib/xsui/src/canvas.zig`). The formal contract is

@@ -17,3 +17,7 @@ lib/xsui/assets/fonts/OFL.txt -whitespace
 # them tracked (README/media links depend on them) but out of line diffs and
 # GitHub language statistics.
 design/** -diff linguist-vendored
+
+# Raw serial console evidence keeps its exact bytes (ANSI escapes, CR line
+# endings, boot progress); never normalise line endings or whitespace-check it.
+docs/evidence/**/*.log -diff -text

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 — 2026-11-10
 
 ### Added
 
@@ -12,13 +12,18 @@
   The harness builds the KVM or TCG variant, captures the serial console, and
   writes canonical evidence under `docs/evidence/microvm/`. Root
   perf/live/service/retention gates remain in `qa/vm_acceptance.sh`. The
-  committed TCG run passed all 10 checks in 45 s on a container host with no
+  committed TCG run passed all 10 checks in 50 s on a container host with no
   `/dev/kvm` (qemu fell back to TCG). See
   [docs/guides/microvm.md](docs/guides/microvm.md).
 - A deterministic light/dark native screenshot set
   (`design/screenshots/native/{dark,light}/`, 1280x720, canonical provenance)
   plus `tools/screenshots.sh`, whose `--check` verifies committed bytes,
   sha256, dimensions, and the provenance schema without a renderer.
+- A manual `microvm` GitHub Actions workflow (`workflow_dispatch`) that
+  reproduces the disposable microVM verification on a hosted Linux runner and
+  uploads its evidence, plus `qa/script_syntax.sh` (offline shell-syntax gate)
+  wired into `zig build check` and a CI step that runs the gate together with
+  `tools/screenshots.sh --check`.
 
 ### Changed
 
@@ -30,6 +35,10 @@
   `assets/logo-mark.svg`) and refreshed AppImage/deb/desktop icon
   (`packaging/linux/xsprof.svg`): a sampled X built from two crossing scheduler
   trace lanes.
+- The Overview light/dark stills now render the committed real VM capture
+  instead of the healthy replay, and the topbar ellipsizes long session
+  identities deterministically instead of overlapping the REPLAY/LOSS/safety
+  chips.
 
 ### Fixed
 
@@ -42,6 +51,17 @@
   in-app export/verify actions instead of shell snippets.
 - Capture permission guidance added in docs/guides/capture-permissions.md
   (setcap, privileged daemon + follow-recorder, systemd service).
+- Clock-dependent recorder tests no longer panic or fail on freshly booted CI
+  runners: the torn-tail test uses a deterministic monotonic base instead of
+  subtracting 120 s from the host monotonic clock (u64 underflow), and the
+  window/markers bounds tests timestamp events away from the wall-derived
+  cutoff so scheduling jitter cannot filter them.
+- The topbar truncates long session identity strings with a measured,
+  codepoint-safe trailing ellipsis and keeps the right-aligned status chips
+  readable at 1280 px.
+- The TCG microVM guest uses the q35 machine because the microvm machine type
+  wedges this kernel in early KASLR under qemu TCG; the KVM variant keeps the
+  lighter microvm machine.
 
 ## 0.5.0 — 2026-11-06
 

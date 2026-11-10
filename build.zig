@@ -130,6 +130,10 @@ pub fn build(b: *std.Build) void {
     const version_sync_step = b.step("version-sync", "Check package/runtime version lockstep");
     version_sync_step.dependOn(&version_sync.step);
 
+    const script_syntax = b.addSystemCommand(&.{ "sh", "qa/script_syntax.sh" });
+    const script_syntax_step = b.step("script-syntax", "Syntax-check every tracked shell script");
+    script_syntax_step.dependOn(&script_syntax.step);
+
     const unsafe_matrix = b.addSystemCommand(&.{ "sh", "qa/unsafe_cli_matrix.sh" });
     unsafe_matrix.step.dependOn(b.getInstallStep());
     const no_mutation = b.addSystemCommand(&.{ "sh", "qa/no_host_mutation.sh" });
@@ -175,6 +179,7 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&lines.step);
     check.dependOn(&vendor.step);
     check.dependOn(&version_sync.step);
+    check.dependOn(&script_syntax.step);
     check.dependOn(&privacy_scan.step);
     check.dependOn(&no_mutation.step);
     check.dependOn(&unsafe_matrix.step);

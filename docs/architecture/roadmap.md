@@ -21,7 +21,23 @@ Status is updated only when a phase gate actually passes.
 | M7 | GUI lab: action reducer, source/capture controls, transport, scenarios, headless runner | **complete** |
 | R1 | UI-first console: 8 routes, onboarding, GPU picker/settings/audit, native live/resize, a11y tree, compact raw tier, simplified CLI, Nix/release tooling | **complete locally; VM/macOS/credential lanes external** |
 
-## 0.5.0 native-only removal (current)
+## 0.5.1 maintenance release (current)
+
+- Brand and documentation refresh: Ambxst-style README, new sampled-X logo
+  (dark/light lockups and app icon), and light/dark native screenshot evidence
+  with canonical provenance (`design/screenshots/native/`).
+- Disposable microvm.nix verification lane (KVM and TCG qemu guests) with a
+  boot-time read-only check suite, `qa/microvm_verify.sh`, committed TCG
+  evidence, and a manual `microvm` GitHub Actions workflow.
+- Topbar session-identity truncation fix (measured, codepoint-safe ellipsis)
+  so long host/kernel/arch strings never overlap the status chips; the
+  Overview stills now render the real VM capture.
+- Deterministic test-clock fixes for the recorder torn-tail/window bounds
+  tests that failed on freshly booted CI runners; `zig-ci` is green again.
+- New CI gates: `qa/script_syntax.sh` (in `zig build check`) and committed
+  screenshot-provenance verification (`tools/screenshots.sh --check`).
+
+## 0.5.0 native-only removal
 
 - Removed the shipped browser runtime: `serve`, `/api/*`, SSE, wasm32/
   WebGL2, `web/`, browser assets, web CLI/help/completions, ui-session schema,

@@ -18,6 +18,13 @@ Each theme directory contains `home`, `overview`, `timeline`, `advisor`,
 window with the CPU rasterizer. No window is opened, activated, or captured and
 no synthetic input is used: every still is an offscreen CPU snapshot.
 
+The `overview` stills render the committed real VM capture
+(`fixtures/real/macos-vm-sched.ndjson`), so they cover the real-capture session
+identity and metadata; its long host/kernel/arch string is truncated with a
+trailing `…` at 1280 px so the right-aligned source/loss/safety chips stay
+readable. The other routes render the healthy scheduler replay or the design
+demo model. Provenance records all four inputs with sha256 hashes.
+
 Regenerate both themes and rewrite provenance with:
 
 ```sh
