@@ -45,11 +45,11 @@ else
     esac
 fi
 if [ "$NATIVE" = 1 ]; then
-    ./tools/zig build -Doptimize=ReleaseSafe --prefix "$PREFIX"
+    ./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline --prefix "$PREFIX"
     COMPLETIONS_BIN="$PREFIX/bin/xsprof"
 else
-    ./tools/zig build -Doptimize=ReleaseSafe --prefix "$HOST_PREFIX"
-    ./tools/zig build -Doptimize=ReleaseSafe -Dtarget="$TARGET" --prefix "$PREFIX"
+    ./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline --prefix "$HOST_PREFIX"
+    ./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline -Dtarget="$TARGET" --prefix "$PREFIX"
     COMPLETIONS_BIN="$HOST_PREFIX/bin/xsprof"
 fi
 [ -x "$PREFIX/bin/xsprof" ] || {
