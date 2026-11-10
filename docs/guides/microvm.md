@@ -92,8 +92,10 @@ FAIL.
   `CAP_PERFMON`).
 - No KVM claim is made for a TCG run. The results JSON records the host's
   `/dev/kvm` facts, the requested variant, and the accelerator observed from
-  the guest log (the KVM guest prints a `kvm-clock` line; a TCG fallback does
-  not).
+  the qemu/guest console: qemu's `falling back to tcg` line means emulation,
+  while a readable+writable `/dev/kvm` without a fallback line means KVM
+  acceleration (the `kvm-clock` guest line is only a secondary signal because
+  the console loglevel can filter it).
 - No host mutation: the guest writes only temporary files under its own
   `$TMPDIR` and reboots its disposable VM.
 
@@ -183,6 +185,7 @@ claims hardware acceleration it did not get.
   when iterating locally.
 - Boot hangs: run `nix run .#xsprof-microvm-tcg` directly to watch the serial
   console, then check the raw `console-<variant>.log` and the qemu accelerator
-  warnings. A guest without `kvm-clock` was emulated, not accelerated.
+  warnings. `falling back to tcg` means emulation; a usable `/dev/kvm` without
+  that line means KVM acceleration.
 - `microvm_verify: SKIP`: read `results-<variant>.json` `reason`; the lane never
   upgrades a skip to a pass. Auto selects `tcg` on a host without `/dev/kvm`.

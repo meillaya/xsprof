@@ -22,9 +22,12 @@ case "$ARCH" in
         exit 2 ;;
 esac
 
+# The release asset names do not include the version:
+#   appimagetool-x86_64.AppImage / appimagetool-aarch64.AppImage
+ASSET="appimagetool-${ARCH}.AppImage"
 NAME="appimagetool-${VERSION}-${ARCH}.AppImage"
 CACHE="$ROOT/.tools/downloads/$NAME"
-URL="https://github.com/AppImage/appimagetool/releases/download/$VERSION/$NAME"
+URL="https://github.com/AppImage/appimagetool/releases/download/$VERSION/$ASSET"
 
 sha256_of() {
     if command -v sha256sum >/dev/null 2>&1; then

@@ -406,7 +406,16 @@ CHECK_COUNT=$(wc -l < "$WORK/checks.txt" | tr -d ' ')
 
 ACCEL_OBSERVED=unknown
 if grep -q -F 'XSPROF-VM-BOOT ' "$WORK/console.norm"; then
-    if grep -q -F 'kvm-clock' "$WORK/console.norm"; then
+    # qemu logs an explicit fallback when KVM is unusable. Otherwise a
+    # read/write /dev/kvm on the host means qemu used KVM acceleration even for
+    # the TCG-labelled variant (its machine keeps accel="kvm:tcg"). The guest
+    # kvm-clock line is a secondary signal only: it can be filtered by the
+    # guest console loglevel, so it is not used to claim TCG on its own.
+    if grep -q -i -E 'falling back to tcg|could not access kvm' "$WORK/console.norm"; then
+        ACCEL_OBSERVED=tcg
+    elif [ "$HOST_KVM_READABLE" -eq 1 ] && [ "$HOST_KVM_WRITABLE" -eq 1 ]; then
+        ACCEL_OBSERVED=kvm
+    elif grep -q -F 'kvm-clock' "$WORK/console.norm"; then
         ACCEL_OBSERVED=kvm
     else
         ACCEL_OBSERVED=tcg
