@@ -359,9 +359,9 @@ jobs:
           if [ "$CHANNEL" = "unsigned" ]; then
             notes="AD-HOC SIGNED, NOT NOTARIZED - do not distribute. This run was dispatched as channel=unsigned; no Homebrew cask was published."
             if gh release view "v${VERSION}" >/dev/null 2>&1; then
-              gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/*.AppImage.sha256 dist/SHA256SUMS dist/*-notarization*.json --clobber
+              gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json --clobber
             else
-              gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/*.AppImage.sha256 dist/SHA256SUMS dist/*-notarization*.json \
+              gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json \
                 --prerelease --title "xsprof ${VERSION} (unsigned)" \
                 --notes "$notes" --target "$GITHUB_SHA"
             fi
@@ -369,9 +369,9 @@ jobs:
           fi
           notes="Developer ID signed, notarized, stapled; xsprof/macos-notarization/v1 attestation attached. Homebrew cask publication is gated on that attestation."
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/*.AppImage.sha256 dist/SHA256SUMS dist/*-notarization*.json --clobber
+            gh release upload "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json --clobber
           else
-            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/*.AppImage.sha256 dist/SHA256SUMS dist/*-notarization*.json \
+            gh release create "v${VERSION}" dist/*.tar.gz dist/*.zip dist/*.sha256 dist/*.deb dist/*.AppImage dist/SHA256SUMS dist/*-notarization*.json \
               --title "xsprof ${VERSION}" --notes "$notes" --target "$GITHUB_SHA"
           fi
       - name: Update Homebrew tap (attestation-gated cask)
