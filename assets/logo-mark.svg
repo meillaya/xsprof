@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="xsprof app icon — read-only scheduler and memory profiler">
+  <!-- Full-bleed rounded graphite tile. -->
+  <rect width="256" height="256" rx="52" fill="#10100e"/>
+  <rect x="1" y="1" width="254" height="254" rx="51" fill="none" stroke="#3a332b" stroke-width="2"/>
+  <!-- The mark: two trace lanes crossing at a green sample node. -->
+  <g transform="translate(25.6 25.6) scale(3.2)">
+    <g fill="none" stroke="#58d7e8" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter">
+      <path d="M13 13 L51 51"/>
+      <path d="M10 52 H22 V42 L42 22 V12 H54"/>
+    </g>
+    <rect x="26" y="26" width="12" height="12" fill="#72d487"/>
+  </g>
+</svg>

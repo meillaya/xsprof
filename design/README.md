@@ -11,7 +11,9 @@ prototype rather than approximating it.
 - Token set version: `1.0.0`
 - Reference viewports: frozen prototype `1440x900 @1` (design input only), native `1280x720 @1`
 - Real capture evidence: [`fixtures/real/macos-vm-sched.ndjson`](../fixtures/real/macos-vm-sched.ndjson)
-  (Linux VM perf, 110,284 events) drives the live screenshots and video.
+  (Linux VM perf, 110,284 events) drives the live-replay video; the committed
+  light/dark stills use the healthy replay fixture (see
+  [`evidence/README.md`](evidence/README.md)).
 - Status: implemented as the primary GPU console (`src/app/design/`,
   `lib/xsui/src/canvas.zig`). The formal contract is
   [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/GL are
@@ -185,14 +187,19 @@ Evidence lives in:
 
 - [`screenshots/prototype/`](screenshots/prototype/) — frozen reference
   captures of the design prototype (not a shipped surface).
-- [`screenshots/native/`](screenshots/native/) — native GPU snapshots of the
-  analysis routes.
+- [`screenshots/native/`](screenshots/native/) — committed 1280x720 offscreen
+  CPU snapshots of the eight console routes in both core themes
+  ([`dark/`](screenshots/native/dark/) Graphite and
+  [`light/`](screenshots/native/light/) Paper), with canonical
+  [`provenance.json`](screenshots/native/provenance.json). Regenerate with
+  `sh tools/screenshots.sh`; verify committed bytes with
+  `sh tools/screenshots.sh --check`.
 - [`media/xsprof-native-showcase.mp4`](media/xsprof-native-showcase.mp4) —
   deterministic native offscreen showcase.
 - [`media/xsprof-native-live-replay.mp4`](media/xsprof-native-live-replay.mp4) —
   live-capture replay in the native console.
 - [`evidence/README.md`](evidence/README.md) — method, caveats, and commands.
 
-Regenerate with `sh qa/showcase_smoke.sh` after building the binary. It is
-developer-only and uses the native snapshot renderer plus ffmpeg; no browser,
-Playwright, or real window is involved.
+Regenerate the videos with `sh qa/showcase_smoke.sh` after building the binary.
+Both tools are developer-only and use the native snapshot renderer (plus
+ffmpeg for video); no browser, Playwright, or real window is involved.

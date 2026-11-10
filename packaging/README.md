@@ -32,9 +32,10 @@ nix build .#xsprof --offline --option substitute false   # after the store is wa
 
 Inputs: `nixpkgs` (`nixos-unstable`) for Linux and aarch64-darwin, plus
 `nixpkgs-darwin` (`nixpkgs-26.05-darwin`) for x86_64-darwin, because nixpkgs
-26.11 dropped Intel-mac support. Both revisions are pinned by the committed
-`flake.lock`; the flake never uses the flake registry, so these work offline
-and with a local nixpkgs:
+26.11 dropped Intel-mac support, plus `microvm` (`github:microvm-nix/microvm.nix`,
+nixpkgs followed) for the Linux disposable-VM verification lane. All revisions
+are pinned by the committed `flake.lock`; the flake never uses the flake
+registry, so these work offline and with a local nixpkgs:
 
 ```sh
 nix build .#xsprof --no-update-lock-file --override-input nixpkgs path:/path/to/nixpkgs
@@ -44,6 +45,15 @@ Outputs per system (`x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
 `aarch64-darwin`): `packages.<system>.{xsprof,zig-0.17.0,default}`,
 `devShells.<system>.default`, `checks.<system>.*`, `nixosModules.{default,recorder}`,
 `overlays.default`, `formatter.<system>`.
+
+Linux-only disposable-VM verification lane (microvm.nix; see
+[docs/guides/microvm.md](../docs/guides/microvm.md)):
+`nixosConfigurations.{xsprof-verify-<system>,xsprof-verify-<system>-tcg}`,
+`packages.<system>.{xsprof-microvm,xsprof-microvm-tcg}`, and
+`apps.<system>.{xsprof-microvm,xsprof-microvm-tcg}` (so
+`nix run .#xsprof-microvm-tcg` boots the TCG guest on hosts without `/dev/kvm`).
+The lane is not part of `nix flake check`; run it with
+`sh qa/microvm_verify.sh [--variant auto|kvm|tcg]`.
 
 ### Pinned Zig (no nixpkgs Zig, no network in the build)
 

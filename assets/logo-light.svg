@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="291" height="90" viewBox="0 0 291 90" role="img" aria-label="xsprof — read-only scheduler and memory profiler">
+  <!-- Light lockup: Paper palette — deep teal lane, brand-green sample node, deep ink wordmark. -->
+  <g transform="translate(-2 14)">
+    <g fill="none" stroke="#0c6776" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter">
+      <path d="M13 13 L51 51"/>
+      <path d="M10 52 H22 V42 L42 22 V12 H54"/>
+    </g>
+    <rect x="26" y="26" width="12" height="12" fill="#72d487"/>
+  </g>
+  <text x="80" y="62" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="62" font-weight="700" letter-spacing="-2" fill="#1b1813">xsprof</text>
+</svg>

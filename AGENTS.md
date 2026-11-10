@@ -55,6 +55,7 @@ There is no shipped browser surface.
 ./tools/zig build live-smoke      # root perf/daemon/SIGTERM, disposable VM only
 ./tools/zig build xsui-package    # standalone GPU UI package gate
 ./tools/zig build service-smoke   # Linux root, disposable VM only
+sh qa/microvm_verify.sh           # microvm.nix guest: Nix-packaged binary smoke
 devenv shell                      # git/curl/xz; Zig still comes from tools/zig
 ```
 
@@ -77,6 +78,9 @@ sh qa/vendor_hash.sh
   xsprof imports it as a path dependency and only uses its public API.
 - `src/app/` is platform-neutral; `src/platform/` owns windows and contexts;
   renderers live in `lib/xsui/src/gpu/`. The app uses one draw list everywhere.
+- `nix/microvm/` + `qa/microvm_verify.sh` own the disposable microvm.nix
+  verification lane (packaged-binary smoke, headless); the root
+  perf/live/service/retention gates stay in `qa/vm_acceptance.sh` on a KVM host.
 - `design/` holds the frozen console prototype (`index.html`) and its UI/UX
   token contract: palettes, typography, layout, components, screens, flows,
   keybindings, and the GPU mapping. Validate with `python3 design/validate.py`.
@@ -117,5 +121,8 @@ change. Visual evidence is developer-only under `design/evidence/`
 is canonical and native rendering gates cover Metal. Reference diffs are
 advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
 covered by native snapshot/a11y checks. The committed real capture `fixtures/real/macos-vm-sched.ndjson` comes
-from the podman Linux VM (macOS has no perf/tracepoint capture); live screenshots
-and video replay it, marked `REPLAY` and `host_mutation=false`.
+from the podman Linux VM (macOS has no perf/tracepoint capture); the live-replay
+video replays it, marked `REPLAY` and `host_mutation=false`, while the committed
+light/dark stills use the healthy replay fixture. A disposable microvm.nix lane
+(`qa/microvm_verify.sh`) boots the Nix-packaged binary for headless package smoke
+checks; the root gates stay with `qa/vm_acceptance.sh` on a KVM host.
