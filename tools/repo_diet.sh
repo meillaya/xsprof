@@ -38,11 +38,13 @@ command -v git-filter-repo >/dev/null 2>&1 || {
 }
 
 BACKUP_BRANCH="backup/pre-diet"
+BACKUP_BUNDLE="$ROOT/.zig-cache/repo-diet-backup-$(git rev-parse --short HEAD).bundle"
 if ! git rev-parse --verify "$BACKUP_BRANCH" >/dev/null 2>&1; then
     git branch "$BACKUP_BRANCH" HEAD
 fi
-git bundle create "$ROOT/../xsprof-pre-diet-$(git rev-parse --short HEAD).bundle" --all
-echo "repo_diet: backup branch $BACKUP_BRANCH and bundle written next to the checkout"
+git bundle create "$BACKUP_BUNDLE" --all
+echo "repo_diet: backup branch $BACKUP_BRANCH and bundle $BACKUP_BUNDLE"
+echo "repo_diet: restore with: git clone $BACKUP_BUNDLE restored-xsprof"
 
 git filter-repo --force --invert-paths \
     --path .zig-cache \

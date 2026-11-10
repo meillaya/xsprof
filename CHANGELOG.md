@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.6.0 — 2026-11-10
+
+Brownfield repositioning to a trust-first Linux scheduler flight recorder with
+an optional, frozen native viewer. This release is prepared but not yet tagged:
+the root/VM gates and CI/release lanes must run before a tag is cut.
+
+### Changed
+
+- The product surface is the recorder and its evidence tooling. The lab lane,
+  legacy 5-screen UI, view-only live fallback, microVM verification lane,
+  devenv, Homebrew/notarization tooling, and macOS release artifacts are
+  removed. macOS remains a Nix-built viewer only.
+- Tracked tree dieted from ~59.9 MB to ~11 MB: no vendored stdlib corpus,
+  committed evidence/media/prototype screenshots, or oversized captures. Real
+  captures are deterministic prefixes; the full capture is a release asset.
+- LIVE view no longer round-trips through canonical NDJSON: compact segments
+  decode directly into bounded event batches (no per-event serialize/parse).
+- Retention is planned purely and applied; delete failures emit one
+  `retention_loss` marker and retry. Startup reconciles `segments/` with the
+  manifest (orphan adoption) and fsyncs the state directory. `verify`
+  cross-checks footer counts (`footer_mismatch` => REFUSE).
+- Capability probes report real per-collector coverage: READY only when every
+  declared collector is up, otherwise DEGRADED with exact reasons. Capture
+  summary carries optional `rings`/`reason`.
+- One loss registry (10 kinds) replaces substring accounting; metrics, session,
+  index, and incident counts include every kind (`loss_by_kind` additive wire).
+- Manifest/CLI: one command registry drives dispatch/help/completions and a
+  committed `packaging/cli-manifest.json`; exit codes are an enum; state dirs
+  are resolved from an injected environment and honor `XSPROF_STATE_DIR` for
+  every verb.
+- Wire: canonical JSON schemas stay the source of truth; a bounded validator
+  and 21k-document conformance registry run in `check`; `xsprof validate`
+  validates one document or an NDJSON stream. Five schemas gained optional
+  fields; no required-field or byte-stability changes.
+- Viewer: accessibility is registered while painting and serialized by one
+  bounded tree/writer across snapshot, Linux JSON and the macOS bridge; idle
+  windows block on events instead of polling; the 16 MiB glyph atlas is lazy;
+  screenshots re-render byte-identically in the gate; GL/CPU parity runs under
+  Xvfb fail-closed.
+- Gates are tiered: fast `check` (no display/Python/root), strict `check-ci`
+  (no silent SKIPs), `check-media` (screenshot re-render), `check-vm` (root
+  live/service/retention). CI covers Linux x86_64/aarch64 and macOS; the
+  release workflow is tag-first and attaches its check-ci log + provenance.
+
+### Fixed
+
+- Live store could grow `pending` without bound after a full/corrupt feed and
+  keep a stale LIVE state; ingest now latches one DEGRADED reason, emits one
+  loss marker, and stops the source.
+- `fixtures/ui/healthy.ndjson` rows missing canonical `"c"` were corrected;
+  schemas/`$id`s are canonical and schema-conformance is enforced.
+- `metrics` accepts its documented `--json` flag.
+- Retention delete failures no longer silently stop trimming; crash orphANS
+  are adopted instead of becoming invisible; state-dir rename is fsynced.
+
 ## 0.5.1 — 2026-11-10
 
 ### Added

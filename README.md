@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/meillaya/xsprof/actions/workflows/zig-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/meillaya/xsprof/zig-ci.yml?style=flat-square&label=zig-ci" alt="zig-ci status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-72d487?style=flat-square" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/version-0.5.1-58d7e8?style=flat-square" alt="version 0.5.1">
+  <img src="https://img.shields.io/badge/version-0.6.0-58d7e8?style=flat-square" alt="version 0.6.0">
 </p>
 
 <p align="center">
@@ -81,8 +81,8 @@ NixOS recorder service (disabled by default; unprivileged user with only
 ```
 
 **Release artifacts:** Linux tarballs, Debian packages, and AppImages for
-x86_64 and aarch64 (`Xsprof-0.5.1-x86_64.AppImage`,
-`xsprof_0.5.1-1_amd64.deb`, `xsprof-0.5.1-linux-x86_64.tar.gz`), published with
+x86_64 and aarch64 (`Xsprof-0.6.0-x86_64.AppImage`,
+`xsprof_0.6.0-1_amd64.deb`, `xsprof-0.6.0-linux-x86_64.tar.gz`), published with
 `SHA256SUMS` and Sigstore build provenance. Releases are cut from tags only;
 verify with `sha256sum -c` and `gh attestation verify <file> -R meillaya/xsprof`.
 

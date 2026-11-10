@@ -29,3 +29,5 @@ conflicts with the current docs, the current docs win.
 - Commit hashes in these files refer to commits in this repository's history.
   The repository does not currently use tags; references are for `git show`
   use, not install paths.
+
+> **Note on commit ids.** Historical documents below reference commit hashes from before the one-time pre-0.6 repository history diet; those ids were rewritten and do not resolve in a fresh clone. The content is kept as provenance, not as reproducible checkouts.
