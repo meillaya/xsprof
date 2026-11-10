@@ -469,7 +469,7 @@ test "version is stable" {
         @as(u8, 0),
         try testRun(&args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.5.0\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.5.1\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {

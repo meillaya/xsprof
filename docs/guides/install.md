@@ -1,6 +1,6 @@
 # Install
 
-The native GPU console is the only product surface in v0.5.0; there is no
+The native GPU console is the only product surface in v0.5.1; there is no
 browser/WASM build and packaged artifacts do not include web assets.
 
 ## Nix / NixOS (flake)

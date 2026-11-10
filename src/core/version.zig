@@ -1,4 +1,4 @@
-pub const version = "0.5.0";
+pub const version = "0.5.1";
 pub const program = "xsprof";
 
 pub fn line() []const u8 {
@@ -6,5 +6,5 @@ pub fn line() []const u8 {
 }
 
 test "version line is stable" {
-    try @import("std").testing.expectEqualStrings("xsprof 0.5.0\n", line());
+    try @import("std").testing.expectEqualStrings("xsprof 0.5.1\n", line());
 }

@@ -31,17 +31,21 @@ KEEP=0
 W=1280
 H=720
 # Scene flags stay repo-relative so provenance is portable; existence checks use
-# the absolute variants below. The real VM capture
-# (fixtures/real/macos-vm-sched.ndjson) is not an input here: it drives the
-# design/media live-replay videos, not these stills.
+# the absolute variants below. The overview scene renders the real VM capture
+# (fixtures/real/macos-vm-sched.ndjson), so the committed stills carry the
+# real-capture session identity and metadata; the remaining scenes use the
+# healthy scheduler replay or the design demo model.
 DEMO_REL=fixtures/ui/design/demo.json
 HEALTHY_REL=fixtures/ui/healthy.ndjson
+REAL_REL=fixtures/real/macos-vm-sched.ndjson
 RECORDER_DIR_REL=fixtures/ui/design/recorder
 DEMO="$ROOT/$DEMO_REL"
 HEALTHY="$ROOT/$HEALTHY_REL"
+REAL="$ROOT/$REAL_REL"
 RECORDER_DIR="$ROOT/$RECORDER_DIR_REL"
 INPUTS="design demo model|$DEMO_REL
 scheduler replay fixture|$HEALTHY_REL
+real VM capture|$REAL_REL
 recorder manifest fixture|$RECORDER_DIR_REL/manifest.json"
 
 usage() {
@@ -199,6 +203,7 @@ for entry in inputs:
         if digest(handle.read()) != entry.get("sha256"):
             fail("input sha256 mismatch: " + rel)
 for rel in ("fixtures/ui/design/demo.json", "fixtures/ui/healthy.ndjson",
+            "fixtures/real/macos-vm-sched.ndjson",
             "fixtures/ui/design/recorder/manifest.json"):
     if rel not in input_paths:
         fail("input fixture not recorded: " + rel)
@@ -304,6 +309,7 @@ fi
 [ -x "$BIN" ] || fail "binary missing: $BIN (run ./tools/zig build)"
 [ -f "$DEMO" ] || fail "missing fixture: $DEMO"
 [ -f "$HEALTHY" ] || fail "missing fixture: $HEALTHY"
+[ -f "$REAL" ] || fail "missing fixture: $REAL"
 [ -f "$RECORDER_DIR/manifest.json" ] || fail "missing fixture: $RECORDER_DIR/manifest.json"
 need_cmd "$PYTHON"
 need_cmd "$MAGICK"
@@ -349,8 +355,11 @@ render_theme() {
     # stay offscreen and never read user settings or host state.
     render_shot "$theme_dir" "$theme_id" home home \
         --demo-model "$DEMO_REL" --view home
+    # Overview uses the committed real VM capture so the stills show the
+    # real-capture session identity and metadata; the fixed topbar truncates it
+    # deterministically instead of overlapping the REPLAY/LOSS/safety chips.
     render_shot "$theme_dir" "$theme_id" overview overview \
-        --replay "$HEALTHY_REL" --view overview
+        --replay "$REAL_REL" --view overview
     render_shot "$theme_dir" "$theme_id" timeline timeline \
         --replay "$HEALTHY_REL" --view timeline --playhead 6.0
     render_shot "$theme_dir" "$theme_id" advisor advisor \

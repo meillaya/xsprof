@@ -78,3 +78,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Offline release tooling gate (attestation, tap, layouts)
         run: sh qa/release_tooling.sh
+      - name: Shell script syntax + committed evidence drift (offline)
+        run: sh qa/script_syntax.sh && sh tools/screenshots.sh --check

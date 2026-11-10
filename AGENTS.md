@@ -54,6 +54,7 @@ There is no shipped browser surface.
 ./tools/zig build release-tooling # attestation/tap dry-run gate
 ./tools/zig build live-smoke      # root perf/daemon/SIGTERM, disposable VM only
 ./tools/zig build xsui-package    # standalone GPU UI package gate
+./tools/zig build script-syntax   # offline shell-syntax gate (also in check)
 ./tools/zig build service-smoke   # Linux root, disposable VM only
 sh qa/microvm_verify.sh           # microvm.nix guest: Nix-packaged binary smoke
 devenv shell                      # git/curl/xz; Zig still comes from tools/zig
@@ -97,7 +98,7 @@ sh qa/vendor_hash.sh
 
 ## Current phase
 
-P0–P7 and M0–M4/M6/M7 are complete. v0.5.0 makes the native GPU console the
+P0–P7 and M0–M4/M6/M7 are complete. v0.5.1 makes the native GPU console the
 only product surface (the browser/WASM/WebGL2 lane was removed):
 Home/Recorder/Audit/Settings routes, first-run onboarding,
 GPU picker/text entry, in-process native live capture plus recorder tail,
@@ -122,7 +123,11 @@ is canonical and native rendering gates cover Metal. Reference diffs are
 advisory, not acceptance criteria. Keyboard focus, clipboard, and brush are
 covered by native snapshot/a11y checks. The committed real capture `fixtures/real/macos-vm-sched.ndjson` comes
 from the podman Linux VM (macOS has no perf/tracepoint capture); the live-replay
-video replays it, marked `REPLAY` and `host_mutation=false`, while the committed
-light/dark stills use the healthy replay fixture. A disposable microvm.nix lane
-(`qa/microvm_verify.sh`) boots the Nix-packaged binary for headless package smoke
-checks; the root gates stay with `qa/vm_acceptance.sh` on a KVM host.
+video replays it, marked `REPLAY` and `host_mutation=false`, and the committed
+light/dark `overview` stills render it too (the topbar ellipsizes its long
+session identity). A disposable microvm.nix lane (`qa/microvm_verify.sh`, plus a
+manual `microvm` GitHub Actions workflow) boots the Nix-packaged binary for
+headless package smoke checks; the root gates stay with `qa/vm_acceptance.sh` on
+a KVM host. `qa/script_syntax.sh` (wired into `zig build check`) guards every
+tracked shell script's syntax, and CI also verifies committed screenshot
+provenance with `tools/screenshots.sh --check`.

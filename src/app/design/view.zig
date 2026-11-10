@@ -108,65 +108,25 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     try label(canvas, bar_x + 16 + 7 + measure(canvas, "/", style(text_12, th.faint, .regular)), 14.5, state_mod.screenName(state.screen), bar);
     const bar_end = bar_x + 16 + 7 + measure(canvas, "/", style(text_12, th.faint, .regular)) + measure(canvas, state_mod.screenName(state.screen), bar);
     const meta_x = bar_end + 24;
-    var meta = style(text_11, th.dim, .regular);
-    var mx = meta_x;
-    const parts = [_]struct { text: []const u8, color: Color }{
-        .{ .text = model.meta.host, .color = th.muted },
-        .{ .text = model.meta.kernel, .color = th.muted },
-        .{ .text = model.meta.arch, .color = th.muted },
-    };
-    var first = true;
-    if (width > 780) {
-        for (parts) |part| {
-            if (part.text.len == 0) continue;
-            if (!first) {
-                mx += 7;
-                try label(canvas, mx, 17.25, "·", style(text_11, th.faint, .regular));
-                mx += measure(canvas, "·", style(text_11, th.faint, .regular)) + 7;
-            }
-            meta.color = part.color;
-            try label(canvas, mx, 17.25, part.text, meta);
-            mx += measure(canvas, part.text, meta);
-            first = false;
-        }
-    }
 
-    // Right-aligned actions, mirroring the prototype's flex-end group.
+    // Right-aligned cluster geometry comes first: safety/loss/source and the
+    // palette/theme/help buttons are measured before the session identity, so
+    // the identity has a hard right boundary and can never draw beneath a chip.
     const right: f32 = width - 16;
     const help_rect = Rect{ .x = right - 28, .y = 11.5, .w = 28, .h = 28 };
-    try iconButton(canvas, help_rect, th);
-    try label(canvas, help_rect.x + 10.5, 19.5, "?", style(text_11, th.muted, .regular));
-
     const theme_rect = Rect{ .x = help_rect.x - 8 - 31, .y = 11.5, .w = 31, .h = 28 };
-    try iconButton(canvas, theme_rect, th);
-    try icons.draw(canvas, .sun, .{ .x = theme_rect.x + 8, .y = theme_rect.y + 6.5, .w = 15, .h = 15 }, th.muted);
-
     const palette_key_style = style(text_95, th.muted, .regular);
     const palette_key_w = measure(canvas, "⌘K", palette_key_style) + 8 + 2;
     const palette_w: f32 = if (compact_top) 30 else 16 + 14 + 6 + palette_key_w;
     const palette_rect = Rect{ .x = theme_rect.x - 8 - palette_w, .y = 11.5, .w = palette_w, .h = 28 };
-    try iconButton(canvas, palette_rect, th);
-    try icons.draw(canvas, .menu, .{ .x = palette_rect.x + 8, .y = palette_rect.y + 7, .w = 14, .h = 14 }, th.muted);
-    if (!compact_top) {
-        const pcap = Rect{ .x = palette_rect.x + 8 + 14 + 6, .y = palette_rect.y + 5.875, .w = palette_key_w, .h = 16.25 };
-        try canvas.rounded(pcap, 3, th.raised, th.line, 1);
-        try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
-        _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
-    }
-    canvas.hit(200, palette_rect);
-    canvas.hit(201, theme_rect);
-    canvas.hit(202, help_rect);
-
     var x_right = palette_rect.x - 8;
+
     const safety = "READ-ONLY · HOST_MUTATION=FALSE";
     var chip_font = style(text_105, th.muted, .regular);
     chip_font.tracking = 0.84;
     chip_font.line_height = 1.2;
     const safety_w: f32 = if (compact_top) 25 else 8 + 11 + 5 + measure(canvas, safety, chip_font) + 8;
     const safety_rect = Rect{ .x = x_right - safety_w, .y = 15.2, .w = safety_w, .h = 20.59 };
-    try canvas.rounded(safety_rect, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
-    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + (if (compact_top) @as(f32, 6) else 8), .y = 19, .w = 11, .h = 11 }, th.pass);
-    if (!compact_top) try label(canvas, safety_rect.x + 8 + 11 + 5, 18.2, safety, chip_font);
     x_right = safety_rect.x - 8;
 
     var loss_buf: [32]u8 = undefined;
@@ -179,19 +139,135 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
     loss_font.line_height = 1.2;
     const loss_w = 8 + measure(canvas, loss_text, loss_font) + 8;
     const loss_rect = Rect{ .x = x_right - loss_w, .y = 15.2, .w = loss_w, .h = 20.59 };
-    try canvas.rounded(loss_rect, 3, th.tint_refuse, th.chip_loss_border, 1);
-    try label(canvas, loss_rect.x + 8, 18.2, loss_text, loss_font);
     x_right = loss_rect.x - 8;
 
+    var source_font = style(text_105, th.live, .regular);
+    source_font.tracking = 0.84;
+    source_font.line_height = 1.2;
+    var source_rect: ?Rect = null;
     if (!phone) {
-        const source_text = model.meta.source;
-        var source_font = style(text_105, th.live, .regular);
-        source_font.tracking = 0.84;
-        source_font.line_height = 1.2;
-        const source_w = 8 + measure(canvas, source_text, source_font) + 8;
-        const source_rect = Rect{ .x = x_right - source_w, .y = 15.2, .w = source_w, .h = 20.59 };
-        try canvas.rounded(source_rect, 3, th.tint_live, th.chip_source_border, 1);
-        try label(canvas, source_rect.x + 8, 18.2, source_text, source_font);
+        const source_w = 8 + measure(canvas, model.meta.source, source_font) + 8;
+        source_rect = Rect{ .x = x_right - source_w, .y = 15.2, .w = source_w, .h = 20.59 };
+        x_right = source_rect.?.x - 8;
+    }
+
+    // The identity only occupies what is left: 16px of breathing room before
+    // the leftmost chip, and a deterministic trailing ellipsis when it overflows.
+    const identity_gap: f32 = 16;
+    if (width > 780) try drawSessionIdentity(canvas, model, th, meta_x, x_right - identity_gap);
+
+    try iconButton(canvas, help_rect, th);
+    try label(canvas, help_rect.x + 10.5, 19.5, "?", style(text_11, th.muted, .regular));
+    try iconButton(canvas, theme_rect, th);
+    try icons.draw(canvas, .sun, .{ .x = theme_rect.x + 8, .y = theme_rect.y + 6.5, .w = 15, .h = 15 }, th.muted);
+    try iconButton(canvas, palette_rect, th);
+    try icons.draw(canvas, .menu, .{ .x = palette_rect.x + 8, .y = palette_rect.y + 7, .w = 14, .h = 14 }, th.muted);
+    if (!compact_top) {
+        const pcap = Rect{ .x = palette_rect.x + 8 + 14 + 6, .y = palette_rect.y + 5.875, .w = palette_key_w, .h = 16.25 };
+        try canvas.rounded(pcap, 3, th.raised, th.line, 1);
+        try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
+        _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
+    }
+    canvas.hit(200, palette_rect);
+    canvas.hit(201, theme_rect);
+    canvas.hit(202, help_rect);
+
+    try canvas.rounded(safety_rect, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
+    try icons.draw(canvas, .lock, .{ .x = safety_rect.x + (if (compact_top) @as(f32, 6) else 8), .y = 19, .w = 11, .h = 11 }, th.pass);
+    if (!compact_top) try label(canvas, safety_rect.x + 8 + 11 + 5, 18.2, safety, chip_font);
+
+    try canvas.rounded(loss_rect, 3, th.tint_refuse, th.chip_loss_border, 1);
+    try label(canvas, loss_rect.x + 8, 18.2, loss_text, loss_font);
+
+    if (source_rect) |rect| {
+        try canvas.rounded(rect, 3, th.tint_live, th.chip_source_border, 1);
+        try label(canvas, rect.x + 8, 18.2, model.meta.source, source_font);
+    }
+}
+
+const identity_sep = "·";
+const identity_ellipsis = "…";
+
+const Fit = struct {
+    /// Widest UTF-8 prefix that fits the width budget.
+    prefix: []const u8,
+    /// The whole text fits; nothing is elided.
+    complete: bool,
+    /// The caller draws `identity_ellipsis` after `prefix`.
+    elided: bool,
+};
+
+/// Deterministic, codepoint-safe width clamp for the topbar session identity.
+/// `complete` means the whole text fits its budget; otherwise `prefix` is the
+/// widest prefix whose width plus the measured trailing ellipsis still fits.
+/// When not even the ellipsis fits, the result has an empty prefix and both
+/// flags false: the caller draws nothing and no budget underflows. Pure layout
+/// measurement (canvas text atlas only): no clock, random, or host state.
+fn truncateToWidth(canvas: *Canvas, text: []const u8, base: TextStyle, max_w: f32) Fit {
+    if (text.len == 0) return .{ .prefix = text, .complete = true, .elided = false };
+    if (measure(canvas, text, base) <= max_w) return .{ .prefix = text, .complete = true, .elided = false };
+    const ellipsis_w = measure(canvas, identity_ellipsis, base);
+    if (max_w < ellipsis_w) return .{ .prefix = text[0..0], .complete = false, .elided = false };
+    var end: usize = 0;
+    var best: usize = 0;
+    while (end < text.len) {
+        const codepoint_len: usize = std.unicode.utf8ByteSequenceLength(text[end]) catch 1;
+        end = @min(end + codepoint_len, text.len);
+        if (measure(canvas, text[0..end], base) + ellipsis_w > max_w) break;
+        best = end;
+    }
+    return .{ .prefix = text[0..best], .complete = false, .elided = true };
+}
+
+/// Draws `host · kernel · arch` starting at `start_x` and never past
+/// `hard_right`. Empty fields are omitted; the first field that does not fit is
+/// cut on a codepoint boundary and followed by a measured `…` in the same text
+/// style. Separators keep the faint token color and are only drawn between
+/// fields that are actually rendered.
+fn drawSessionIdentity(canvas: *Canvas, model: *const Model, th: Theme, start_x: f32, hard_right: f32) !void {
+    const parts = [_]struct { text: []const u8, color: Color }{
+        .{ .text = model.meta.host, .color = th.muted },
+        .{ .text = model.meta.kernel, .color = th.muted },
+        .{ .text = model.meta.arch, .color = th.muted },
+    };
+    var meta = style(text_11, th.dim, .regular);
+    const sep_style = style(text_11, th.faint, .regular);
+    const sep_cost: f32 = 7 + measure(canvas, identity_sep, sep_style) + 7;
+    const ellipsis_w = measure(canvas, identity_ellipsis, meta);
+    const y: f32 = 17.25;
+    var mx = start_x;
+    var first = true;
+    for (parts) |part| {
+        if (part.text.len == 0) continue;
+        const gap: f32 = if (first) 0 else sep_cost;
+        if (mx + gap >= hard_right) break;
+        const fit = truncateToWidth(canvas, part.text, meta, hard_right - mx - gap);
+        if (fit.complete) {
+            if (!first) {
+                try label(canvas, mx + 7, y, identity_sep, sep_style);
+                mx += gap;
+            }
+            meta.color = part.color;
+            try label(canvas, mx, y, part.text, meta);
+            mx += measure(canvas, part.text, meta);
+            first = false;
+            continue;
+        }
+        if (fit.elided) {
+            if (!first) {
+                try label(canvas, mx + 7, y, identity_sep, sep_style);
+                mx += gap;
+            }
+            meta.color = part.color;
+            try label(canvas, mx, y, fit.prefix, meta);
+            if (fit.prefix.len != 0) mx += measure(canvas, fit.prefix, meta);
+            try label(canvas, mx, y, identity_ellipsis, meta);
+            return;
+        }
+        // Not even the ellipsis fits after the separator: elide directly after
+        // the last rendered field instead of leaving a dangling "·".
+        if (ellipsis_w <= hard_right - mx) try label(canvas, mx, y, identity_ellipsis, meta);
+        return;
     }
 }
 
@@ -356,4 +432,68 @@ test "switching palette changes the recorded frame colors" {
     canvas.resetHits();
     try view(&model, &state, &canvas);
     try std.testing.expect(frame.list.items.items[0].color != dark_color);
+}
+
+test "topbar identity truncation is deterministic and UTF-8 safe" {
+    var frame: xsui.frame.Frame = undefined;
+    try frame.init(std.testing.allocator, 1280, 720, xsui.themes.paper);
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+    const st = style(text_11, frame.theme.dim, .regular);
+    const ellipsis_w = measure(&canvas, identity_ellipsis, st);
+    try std.testing.expect(ellipsis_w > 0);
+    try std.testing.expectEqual(@as(usize, 3), identity_ellipsis.len);
+
+    // Exact fit keeps the whole string with no ellipsis.
+    const full = "localhost.localdomain";
+    const full_w = measure(&canvas, full, st);
+    const exact = truncateToWidth(&canvas, full, st, full_w);
+    try std.testing.expect(exact.complete);
+    try std.testing.expect(!exact.elided);
+    try std.testing.expectEqualStrings(full, exact.prefix);
+
+    // One unit too long drops codepoints, stays inside the budget, and would
+    // not fit if one more codepoint were kept.
+    const limit = full_w - 1;
+    const tight = truncateToWidth(&canvas, full, st, limit);
+    try std.testing.expect(!tight.complete);
+    try std.testing.expect(tight.elided);
+    try std.testing.expect(tight.prefix.len > 0 and tight.prefix.len < full.len);
+    try std.testing.expect(measure(&canvas, tight.prefix, st) + ellipsis_w <= limit);
+    const next = full[0 .. tight.prefix.len + 1];
+    try std.testing.expect(measure(&canvas, next, st) + ellipsis_w > limit);
+
+    // Empty input is complete and never elided.
+    const empty = truncateToWidth(&canvas, "", st, 100);
+    try std.testing.expect(empty.complete and !empty.elided and empty.prefix.len == 0);
+
+    // Multibyte text: the "·" separator is two bytes and "…" is three, so a
+    // byte-wise cut would break UTF-8. Every clamp must be a codepoint boundary.
+    const multibyte = "host · kernel · arch";
+    var budget: f32 = 40;
+    while (budget < 200) : (budget += 7) {
+        const fit = truncateToWidth(&canvas, multibyte, st, budget);
+        if (fit.complete) {
+            try std.testing.expectEqualStrings(multibyte, fit.prefix);
+            try std.testing.expect(!fit.elided);
+        } else {
+            try std.testing.expect(fit.elided);
+            try std.testing.expect(std.unicode.utf8ValidateSlice(fit.prefix));
+            try std.testing.expect(measure(&canvas, fit.prefix, st) + ellipsis_w <= budget);
+        }
+    }
+
+    // Tiny limits never underflow: below the ellipsis width nothing is drawn.
+    for ([_]f32{ ellipsis_w - 0.5, 0, -10 }) |tiny| {
+        const fit = truncateToWidth(&canvas, multibyte, st, tiny);
+        try std.testing.expect(!fit.complete and !fit.elided);
+        try std.testing.expectEqual(@as(usize, 0), fit.prefix.len);
+    }
+
+    // No wall clock or hidden state: repeated calls are identical.
+    const again = truncateToWidth(&canvas, full, st, limit);
+    try std.testing.expectEqualStrings(tight.prefix, again.prefix);
+    try std.testing.expectEqual(tight.elided, again.elided);
+    try std.testing.expectEqual(tight.complete, again.complete);
 }

@@ -48,7 +48,7 @@ trap finish EXIT
 variant=${XSPROF_VARIANT:-unknown}
 fixtures=${XSPROF_FIXTURES_DIR:-}
 scenario=${XSPROF_SCENARIO:-}
-expected=${XSPROF_EXPECTED_VERSION:-0.5.0}
+expected=${XSPROF_EXPECTED_VERSION:-0.5.1}
 
 printf 'XSPROF-VM-BOOT variant=%s kernel=%s cpus=%s\n' \
   "$variant" "$(uname -r)" "$(nproc)"
