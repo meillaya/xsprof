@@ -62,6 +62,16 @@
 - The TCG microVM guest uses the q35 machine because the microvm machine type
   wedges this kernel in early KASLR under qemu TCG; the KVM variant keeps the
   lighter microvm machine.
+- The release workflow's pinned appimagetool URL now uses the real release
+  asset names (`appimagetool-<arch>.AppImage`, no version in the filename);
+  the previous URL 404'd on the first dispatch. Duplicate
+  `dist/*.AppImage.sha256` globs were also removed from the publish step, which
+  otherwise hit `HTTP 422: ReleaseAsset.name already exists`. The v0.5.1
+  unsigned prerelease now publishes and its `SHA256SUMS` verifies.
+- The microVM harness infers KVM vs TCG from qemu's explicit fallback line and
+  the host `/dev/kvm` writability instead of the guest `kvm-clock` line, which
+  the guest console loglevel can filter (a GitHub runner with usable `/dev/kvm`
+  was previously mislabeled as TCG).
 
 ## 0.5.0 — 2026-11-06
 

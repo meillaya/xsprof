@@ -86,14 +86,16 @@ nix build .#xsprof                            # from a checkout
 chmod +x Xsprof-0.5.1-x86_64.AppImage && ./Xsprof-0.5.1-x86_64.AppImage ui   # AppImage, host X11/GL
 sudo dpkg -i xsprof_0.5.1-1_amd64.deb                                        # Debian / Ubuntu
 tar -xzf xsprof-0.5.1-linux-x86_64.tar.gz && ./xsprof-0.5.1-linux-x86_64/bin/xsprof ui  # tarball
-# macOS: unzip Xsprof-0.5.1-macos.zip, then open Xsprof.app
+# macOS (unsigned preview): unzip Xsprof-0.5.1-macos-unsigned.zip, then open Xsprof.app
 brew tap meillaya/xsprof && brew install xsprof                              # Homebrew, Linux only
 ```
 
 Strict releases publish checksummed Linux artifacts and a notarized macOS
 bundle; local macOS builds without Apple credentials are ad-hoc signed as
-`-unsigned` and are never cask-eligible. Notarization and tap publication are
-credential-gated — see
+`-unsigned` and are never cask-eligible. The published **v0.5.1 pre-release is
+an unsigned preview**: Linux artifacts are checksummed, the macOS app is
+ad-hoc signed and not notarized, and no Homebrew cask is published. Real
+notarization and tap publication are credential-gated — see
 [`packaging/README.md`](packaging/README.md) and [install guide](docs/guides/install.md).
 
 ### From source
