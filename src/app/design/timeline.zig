@@ -78,7 +78,7 @@ fn drawHead(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     const btn_y = y + 10.75;
     var bx = right - 68.2;
     try button(canvas, th, .{ .x = bx, .y = btn_y, .w = 68.2, .h = 30 }, "Advisor");
-    canvas.hit(304, .{ .x = bx, .y = btn_y, .w = 68.2, .h = 30 });
+    _ = canvas.button(304, .{ .x = bx, .y = btn_y, .w = 68.2, .h = 30 }, "Open advisor");
     const clock_w: f32 = 86;
     bx = bx - 8 - clock_w;
     try canvas.rounded(.{ .x = bx, .y = btn_y + 1.75, .w = clock_w, .h = 26.5 }, 4, th.field, th.line, 1);
@@ -87,16 +87,16 @@ fn drawHead(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
 
     bx = bx - 8 - 66.41;
     try button(canvas, th, .{ .x = bx, .y = btn_y, .w = 66.41, .h = 30 }, if (state.timeline_playing) "Pause" else "Play");
-    canvas.hit(303, .{ .x = bx, .y = btn_y, .w = 66.41, .h = 30 });
+    _ = canvas.button(303, .{ .x = bx, .y = btn_y, .w = 66.41, .h = 30 }, if (state.timeline_playing) "Pause" else "Play");
     bx = bx - 8 - 41.81;
     try button(canvas, th, .{ .x = bx, .y = btn_y, .w = 41.81, .h = 30 }, "Fit");
-    canvas.hit(302, .{ .x = bx, .y = btn_y, .w = 41.81, .h = 30 });
+    _ = canvas.button(302, .{ .x = bx, .y = btn_y, .w = 41.81, .h = 30 }, "Fit timeline");
     bx = bx - 8 - 30;
     try button(canvas, th, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 }, "+");
-    canvas.hit(301, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 });
+    _ = canvas.button(301, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 }, "Zoom in");
     bx = bx - 7 - 30;
     try button(canvas, th, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 }, "−");
-    canvas.hit(300, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 });
+    _ = canvas.button(300, .{ .x = bx, .y = btn_y, .w = 30, .h = 30 }, "Zoom out");
 }
 
 fn button(canvas: *Canvas, th: Theme, rect: Rect, text_value: []const u8) !void {
@@ -167,7 +167,11 @@ fn drawPlot(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
             if (state.selected_slice != null and state.selected_slice.? == slice.id) {
                 try canvas.stroke(slice_rect, 1, th.text, 1.5);
             }
-            canvas.hit(1000 + slice.id, slice_rect);
+            var slice_buf: [96]u8 = undefined;
+            const slice_label = std.fmt.bufPrint(&slice_buf, "{s} pid {d} cpu {d} {d:.2} ms", .{
+                slice.comm, slice.pid, slice.cpu, slice.dur,
+            }) catch slice.comm;
+            _ = canvas.listItem(1000 + slice.id, slice_rect, slice_label, state.selected_slice != null and state.selected_slice.? == slice.id);
         }
     }
 
@@ -312,7 +316,7 @@ fn drawFoot(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
     tiny.tracking = 0.95;
     try label(canvas, x, y, "FULL EXCERPT", tiny);
     try canvas.rounded(.{ .x = x, .y = y + 18.25, .w = 300, .h = 34 }, 3, th.field, th.line, 1);
-    canvas.hit(305, .{ .x = x, .y = y + 18.25, .w = 300, .h = 34 });
+    _ = canvas.button(305, .{ .x = x, .y = y + 18.25, .w = 300, .h = 34 }, "Timeline minimap");
     // Density minimap.
     var buckets: [200]u32 = @splat(0);
     const total = @max(1.0, model.summary.windowMs);

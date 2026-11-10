@@ -6,7 +6,6 @@ const session_mod = @import("../stream/session.zig");
 const design_model = @import("../app/design/model.zig");
 const design_state = @import("../app/design/state.zig");
 const design_view = @import("../app/design/view.zig");
-const design_a11y = @import("../app/design/a11y.zig");
 const design_picker = @import("../app/design/picker.zig");
 const native_options = @import("../platform/options.zig");
 
@@ -159,7 +158,7 @@ pub fn cmdSnapshot(
             return .refuse;
         };
         if (a11y_path) |a11y_file| {
-            writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
+            writeA11y(io, allocator, a11y_file, &state, &canvas) catch |a11y_error| {
                 try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
                 return .refuse;
             };
@@ -222,7 +221,7 @@ pub fn cmdSnapshot(
         return .refuse;
     };
     if (a11y_path) |a11y_file| {
-        writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
+        writeA11y(io, allocator, a11y_file, &state, &canvas) catch |a11y_error| {
             try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
             return .refuse;
         };
@@ -521,21 +520,21 @@ fn pickerEntryBefore(a: design_picker.Entry, b: design_picker.Entry) bool {
     return std.mem.order(u8, a.nameSlice(), b.nameSlice()) == .lt;
 }
 
-/// Canonical design a11y tree for `--a11y FILE`; the same schema the native
-/// mirror and macOS bridge consume.
+/// Canonical a11y tree for `--a11y FILE`: built from the same canvas
+/// semantic registration pass that painted the snapshot frame, using the one
+/// shared xsui tree/writer the native bridges consume.
 fn writeA11y(
     io: std.Io,
     allocator: std.mem.Allocator,
     path: []const u8,
-    model: *const design_model.Model,
     state: *const design_state.State,
     canvas: *const xsui.Canvas,
 ) !void {
-    var tree = design_a11y.Tree{};
-    design_a11y.build(model, state, canvas, &tree);
+    var tree = try xsui.A11yTree.build(allocator, canvas, state.focus_id);
+    defer tree.deinit();
     var out = std.Io.Writer.Allocating.init(allocator);
     defer out.deinit();
-    try design_a11y.writeJson(&out.writer, &tree);
+    try tree.writeJson(&out.writer);
     const data = try out.toOwnedSlice();
     defer allocator.free(data);
     const file = if (path.len != 0 and path[0] == '/')

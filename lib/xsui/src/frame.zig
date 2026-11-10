@@ -60,24 +60,23 @@ pub const Frame = struct {
         errdefer atlas.deinit();
         const regular = ttf.Font.init(options.fonts.regular) catch return error.BadFont;
         const bold = ttf.Font.init(options.fonts.bold) catch return error.BadFont;
-        const baked = glyph_atlas.Baked.init(allocator, &atlas) catch glyph_atlas.Baked{
-            .allocator = allocator,
-            .entries = std.AutoHashMap(u64, draw.GlyphEntry).init(allocator),
-        };
-        errdefer {
-            var b = baked;
-            b.deinit();
-        }
         self.* = .{
             .allocator = allocator,
             .width = width,
             .height = height,
             .theme = options.theme,
             .atlas = atlas,
-            .baked = baked,
+            .baked = undefined,
             .list = undefined,
             .regular = regular,
             .bold = bold,
+        };
+        // The baked layer materializes lazily into `self.atlas` on the first
+        // text lookup, so it must point at the frame-embedded atlas rather than
+        // at the local copy above (which dies when this function returns).
+        self.baked = glyph_atlas.Baked.init(allocator, &self.atlas) catch glyph_atlas.Baked{
+            .allocator = allocator,
+            .entries = std.AutoHashMap(u64, draw.GlyphEntry).init(allocator),
         };
         self.list = draw.DrawList.init(allocator, &self.atlas);
     }

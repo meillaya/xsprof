@@ -107,10 +107,10 @@ fn drawScreenHead(model: *const Model, state: *const State, canvas: *Canvas, th:
     try canvas.rounded(.{ .x = open_x, .y = action_y, .w = open_w, .h = 30 }, 4, th.raised, th.line_strong, 1);
     try icons.draw(canvas, .folder, .{ .x = open_x + 10, .y = action_y + 8.5, .w = 13, .h = 13 }, th.text);
     try label(canvas, open_x + 10 + 13 + 6, action_y + 6.75, open_text, btn_font);
-    canvas.hit(203, .{ .x = open_x, .y = action_y, .w = open_w, .h = 30 });
+    _ = canvas.button(203, .{ .x = open_x, .y = action_y, .w = open_w, .h = 30 }, "Open journal");
     try canvas.rounded(.{ .x = reload_x, .y = action_y, .w = reload_w, .h = 30 }, 4, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
     try label(canvas, reload_x + 10, action_y + 6.75, reload_text, style(text_11, th.muted, .regular));
-    canvas.hit(204, .{ .x = reload_x, .y = action_y, .w = reload_w, .h = 30 });
+    _ = canvas.button(204, .{ .x = reload_x, .y = action_y, .w = reload_w, .h = 30 }, "Reload source");
     try borderLine(canvas, x, y + 67.5, w, th.line);
 }
 

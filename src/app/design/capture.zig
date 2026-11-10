@@ -92,7 +92,13 @@ fn drawControls(state: *const State, canvas: *Canvas, th: Theme, x: f32, y: f32,
         };
         try canvas.rounded(rect, 4, th.raised, if (enabled) item.color else th.line, 1);
         try label(canvas, rect.x + 9, rect.y + 7, item.label, style(common.text_11, if (enabled) item.color else th.faint, .regular));
-        canvas.hit(item.id, rect);
+        _ = canvas.node(.{
+            .id = item.id,
+            .rect = rect,
+            .role = .button,
+            .label = item.label,
+            .flags = .{ .interactive = enabled, .focusable = enabled, .disabled = !enabled },
+        });
         cx += bw + 6;
     }
     var meta_buf: [96]u8 = undefined;
@@ -212,7 +218,7 @@ fn drawActions(canvas: *Canvas, th: Theme, rect: Rect) !void {
         var detail_style = style(common.text_95, th.dim, .regular);
         detail_style.ellipsis = true;
         try label(canvas, bx + 10, by + 40, action.detail, detail_style);
-        canvas.hit(action.id, button);
+        _ = canvas.button(action.id, button, action.label);
     }
     try borderLine(canvas, rect.x + 1, rect.y + 310, rect.w - 2, th.line);
     try labelWrapped(canvas, .{ .x = rect.x + 14, .y = rect.y + 320, .w = rect.w - 28, .h = 30 }, style(common.text_10, th.dim, .regular), "Outputs are written under the configured export directory. No host mutation.");

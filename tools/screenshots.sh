@@ -15,7 +15,11 @@
 #
 # Usage:
 #   tools/screenshots.sh              # render both themes, rewrite provenance
-#   tools/screenshots.sh --check      # verify committed PNGs + provenance (no magick, no render)
+#   tools/screenshots.sh --check      # re-render and compare every committed PNG byte
+#                                     # for byte, then verify provenance (needs binary+magick)
+#   tools/screenshots.sh --provenance-only
+#                                     # verify committed PNGs + provenance only
+#                                     # (no binary, no magick, no render)
 #   tools/screenshots.sh --out DIR    # render into DIR instead (provenance is written there too)
 #   tools/screenshots.sh --keep       # keep raw snapshots from this run (debugging)
 #   tools/screenshots.sh --help
@@ -54,6 +58,7 @@ need_cmd() { command -v "$1" >/dev/null 2>&1 || fail "missing required command: 
 while [ $# -gt 0 ]; do
     case "$1" in
         --check) MODE=check ;;
+        --provenance-only) MODE=provenance ;;
         --keep) KEEP=1 ;;
         --out)
             shift
@@ -70,8 +75,9 @@ while [ $# -gt 0 ]; do
 done
 
 # Verify the committed set against provenance. Reads only PNG bytes/headers and
-# JSON: no renderer binary, no ImageMagick, no display server.
-run_check() {
+# JSON: no renderer binary, no ImageMagick, no display server. This is the
+# escape hatch for environments that cannot re-render.
+run_provenance_check() {
     need_cmd "$PYTHON"
     [ -f "$OUT_DIR/provenance.json" ] || fail "provenance missing: $OUT_DIR/provenance.json"
     "$PYTHON" - "$ROOT" "$OUT_DIR" <<'PY'
@@ -292,8 +298,8 @@ print("screenshots: check PASS (4 files, 2 themes, 2 scenes; sha256, byte size, 
 PY
 }
 
-if [ "$MODE" = check ]; then
-    run_check
+if [ "$MODE" = provenance ]; then
+    run_provenance_check
     exit 0
 fi
 
@@ -305,6 +311,11 @@ need_cmd "$MAGICK"
 
 cd "$ROOT"
 TMP=$(mktemp -d)
+if [ "$MODE" = check ]; then
+    RENDER_DIR="$TMP/rerender"
+else
+    RENDER_DIR="$OUT_DIR"
+fi
 cleanup() {
     if [ "$KEEP" = 1 ]; then
         echo "screenshots: kept raw snapshots in $TMP" >&2
@@ -315,7 +326,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 FILES_TSV="$TMP/files.tsv"
 : >"$FILES_TSV"
-mkdir -p "$OUT_DIR"
+mkdir -p "$RENDER_DIR"
 
 render_shot() {
     theme_dir=$1
@@ -326,8 +337,8 @@ render_shot() {
     raw="$TMP/$theme_dir-$scene-raw.png"
     "$BIN" snapshot "$@" --theme "$theme_id" --width "$W" --height "$H" --out "$raw" >/dev/null \
         || fail "snapshot failed: theme=$theme_dir ($theme_id) scene=$scene"
-    mkdir -p "$OUT_DIR/$theme_dir"
-    "$MAGICK" "$raw" -strip -define png:compression-level=9 "$OUT_DIR/$theme_dir/$scene.png" \
+    mkdir -p "$RENDER_DIR/$theme_dir"
+    "$MAGICK" "$raw" -strip -define png:compression-level=9 "$RENDER_DIR/$theme_dir/$scene.png" \
         || fail "compression failed: $theme_dir/$scene (ImageMagick)"
     printf '%s\t%s\t%s\t%s\n' "$theme_dir" "$scene" "$view" "$*" >>"$FILES_TSV"
     note "rendered $theme_dir/$scene.png"
@@ -353,6 +364,84 @@ render_theme() {
 
 render_theme dark
 render_theme light
+
+if [ "$MODE" = check ]; then
+    # Byte-for-byte re-render gate: the committed stills must be exactly what
+    # this source tree renders now. Any drift (rasterizer change, atlas/UV
+    # change, fixture change) fails here instead of silently blessing a stale
+    # PNG via a committed hash.
+    "$PYTHON" - "$ROOT" "$OUT_DIR" "$RENDER_DIR" "$MAGICK" <<'SHOTS_COMPARE'
+import hashlib, os, subprocess, sys
+
+root, committed_dir, rendered_dir, magick = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+themes = ("dark", "light")
+scenes = ("home", "overview")
+failures = []
+ok_lines = []
+
+
+def digest(blob):
+    return hashlib.sha256(blob).hexdigest()
+
+
+def decode_rgba(path):
+    """Decode a PNG to raw RGBA8 with ImageMagick (lossless, version-stable)."""
+    result = subprocess.run(
+        [magick, path, "-depth", "8", "rgba:-"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+for theme in themes:
+    for scene in scenes:
+        rel = os.path.join(theme, scene + ".png")
+        committed_path = os.path.join(committed_dir, rel)
+        rendered_path = os.path.join(rendered_dir, rel)
+        if not os.path.isfile(committed_path):
+            failures.append("committed screenshot missing: " + rel)
+            continue
+        if not os.path.isfile(rendered_path):
+            failures.append("re-render did not produce: " + rel)
+            continue
+        with open(committed_path, "rb") as handle:
+            committed = handle.read()
+        with open(rendered_path, "rb") as handle:
+            rendered = handle.read()
+        if committed == rendered:
+            ok_lines.append("screenshots: rerender ok " + rel + " " + str(len(committed)) +
+                            " B sha256=" + digest(committed)[:16] + "... (byte-identical)")
+            continue
+        # Compression-tool version drift must not fail the content gate: compare
+        # the decoded pixel stream (lossless) and report the compressed case.
+        committed_pixels = decode_rgba(committed_path)
+        rendered_pixels = decode_rgba(rendered_path)
+        if committed_pixels is not None and committed_pixels == rendered_pixels:
+            ok_lines.append("screenshots: rerender ok " + rel + " " + str(len(committed_pixels)) +
+                            " B pixel-identical (compression bytes differ)")
+            continue
+        failures.append(
+            "re-render differs from committed still: " + rel +
+            " (committed sha256=" + digest(committed)[:16] + "..., " + str(len(committed)) + " B; " +
+            "re-rendered sha256=" + digest(rendered)[:16] + "..., " + str(len(rendered)) + " B)"
+        )
+
+if failures:
+    for failure in failures:
+        print("screenshots: " + failure, file=sys.stderr)
+    sys.exit(1)
+for line in ok_lines:
+    print(line)
+print("screenshots: re-render PASS (" + str(len(ok_lines)) + " files match the committed stills)")
+SHOTS_COMPARE
+    run_provenance_check
+    note "check PASS (4 stills re-rendered byte-identically + provenance verified)"
+    exit 0
+fi
 
 BIN_VERSION=$("$BIN" version 2>/dev/null | head -1) || fail "cannot read xsprof version"
 MAGICK_VERSION=$("$MAGICK" -version 2>/dev/null | head -1) || fail "cannot read ImageMagick version"

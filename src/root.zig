@@ -8,6 +8,7 @@ pub const version = @import("core/version.zig");
 pub const event = @import("core/event.zig");
 pub const privacy = @import("core/privacy.zig");
 pub const safety = @import("core/safety.zig");
+pub const loss = @import("core/loss.zig");
 pub const session_meta = @import("core/session_meta.zig");
 pub const proc = @import("os/linux/proc.zig");
 pub const topology = @import("os/linux/topology.zig");
@@ -56,6 +57,7 @@ test {
     _ = event;
     _ = privacy;
     _ = safety;
+    _ = loss;
     _ = session_meta;
     _ = proc;
     _ = topology;

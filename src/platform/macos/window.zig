@@ -36,9 +36,61 @@ pub const App = struct {
     scale: f64 = 1.0,
     dirty: bool = true,
     last_tick_ns: i96 = 0,
+    /// One-shot frame timer. AppKit only fires it while a tick is needed;
+    /// idle means no timer on the run loop at all.
+    timer: ?objc.Object = null,
     a11y_enabled: bool = false,
     a11y: ?a11y_mod.Bridge = null,
     a11y_buffer: [a11y_mod.max_nodes]objc.Object = undefined,
+
+    /// Inputs to the idle policy. Mirrors the Linux surface policy: the run
+    /// loop only runs a timer while live/playback/toast/dirty work is pending.
+    pub const TimerState = struct {
+        live: bool = false,
+        animation: bool = false,
+        toast: bool = false,
+        dirty: bool = false,
+    };
+
+    /// Pure idle policy shared by the tests: false means "no wakeups needed".
+    pub fn needsTimerTick(state: TimerState) bool {
+        return state.live or state.animation or state.toast or state.dirty;
+    }
+
+    fn wantsTimerTick(self: *const App) bool {
+        const state = &self.design.state;
+        return needsTimerTick(.{
+            // The macOS shell never owns a capture controller (viewer only);
+            // playback/toast/dirty are its tick sources.
+            .live = false,
+            .animation = state.timeline_playing,
+            .toast = state.toast != null,
+            .dirty = self.dirty,
+        });
+    }
+
+    /// Arm one non-repeating 33 ms timer if none is armed. Coalesces bursts of
+    /// input events into a single follow-up tick.
+    fn scheduleTick(self: *App) void {
+        if (self.timer != null) return;
+        self.timer = objc.msg(
+            objc.Object,
+            objc.class("NSTimer"),
+            "scheduledTimerWithTimeInterval:target:selector:userInfo:repeats:",
+            .{
+                @as(f64, 1.0 / 30.0),
+                self.delegate,
+                objc.sel("tick:"),
+                @as(?objc.Object, null),
+                objc.NO,
+            },
+        );
+    }
+
+    fn cancelTimer(self: *App) void {
+        if (self.timer) |timer| objc.msg(void, timer, "invalidate", .{});
+        self.timer = null;
+    }
 
     /// Draws the shared console and presents it. Returns false when no drawable
     /// is available (the tick retries) or the draw failed.
@@ -98,8 +150,10 @@ pub const App = struct {
             if (delta_ms == 0) delta_ms = 1;
         }
         self.last_tick_ns = now;
+        const toast_was_visible = self.design.state.toast != null;
         self.design.tick(delta_ms);
-        if (self.design.state.timeline_playing) self.dirty = true;
+        if (self.design.state.timeline_playing or
+            (toast_was_visible and self.design.state.toast == null)) self.dirty = true;
     }
 
     fn updateA11y(self: *App) void {
@@ -116,6 +170,8 @@ pub const App = struct {
         self.syncClipboard();
         self.dirty = true;
         _ = self.render();
+
+        self.scheduleTick();
     }
 
     /// Hidden smoke: proves the AX object tree exists without ordering the
@@ -213,13 +269,9 @@ pub const App = struct {
         }
 
         if (!hidden) {
-            _ = objc.msg(objc.Object, objc.class("NSTimer"), "scheduledTimerWithTimeInterval:target:selector:userInfo:repeats:", .{
-                @as(f64, 1.0 / 30.0),
-                self.delegate,
-                objc.sel("tick:"),
-                @as(?objc.Object, null),
-                objc.YES,
-            });
+            // One startup tick drains the initial session effects; the tick
+            // re-arms itself only while playback/toast/dirty work remains.
+            self.scheduleTick();
             objc.msg(void, self.window, "makeKeyAndOrderFront:", .{@as(?objc.Object, null)});
             objc.msg(void, nsapp, "activateIgnoringOtherApps:", .{objc.YES});
         }
@@ -240,7 +292,7 @@ pub const App = struct {
     }
 
     fn close(self: *App) void {
-        _ = self;
+        self.cancelTimer();
         const nsapp = objc.msg(objc.Object, objc.class("NSApplication"), "sharedApplication", .{});
         objc.msg(void, nsapp, "terminate:", .{@as(?objc.Object, null)});
     }
@@ -297,6 +349,9 @@ fn localPoint(target: objc.Object, event: objc.Object) objc.CGPoint {
 
 fn tick(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
     const self = objc.getZig(App, target) orelse return;
+    // This NSTimer is one-shot: it is invalidated by firing. Re-arm below only
+    // when another tick is genuinely needed.
+    self.timer = null;
     self.tickDelta();
     var session = session_mod.Session{ .allocator = self.allocator, .io = self.io, .app = &self.design };
     session.drain();
@@ -305,6 +360,7 @@ fn tick(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
         return;
     }
     if (self.dirty) _ = self.render();
+    if (self.wantsTimerTick()) self.scheduleTick();
 }
 
 fn mouseDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -315,6 +371,8 @@ fn mouseDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) 
     self.syncClipboard();
     self.dirty = true;
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn mouseUp(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -325,6 +383,8 @@ fn mouseUp(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     self.syncClipboard();
     self.dirty = true;
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn mouseMoved(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -333,6 +393,8 @@ fn mouseMoved(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c)
     pointer_mod.pointerMove(&self.design, @floatCast(point.x), @floatCast(point.y));
     self.dirty = true;
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn mouseDragged(target: objc.Object, sel: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -343,12 +405,16 @@ fn viewDidChangeBackingProperties(target: objc.Object, _: objc.SEL) callconv(.c)
     const self = objc.getZig(App, target) orelse return;
     self.syncSizeFromWindow();
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn windowDidResize(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
     const self = objc.getZig(App, target) orelse return;
     self.syncSizeFromWindow();
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn windowWillResize(
@@ -372,6 +438,8 @@ fn windowDidChangeBackingProperties(target: objc.Object, _: objc.SEL, _: objc.Ob
     const self = objc.getZig(App, target) orelse return;
     self.syncSizeFromWindow();
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn scrollWheel(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -380,6 +448,8 @@ fn scrollWheel(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c
     self.design.scrollBy(@floatCast(-delta * 12.0));
     self.dirty = true;
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) void {
@@ -421,6 +491,8 @@ fn keyDown(target: objc.Object, _: objc.SEL, event: objc.Object) callconv(.c) vo
     self.syncClipboard();
     self.dirty = true;
     _ = self.render();
+
+    self.scheduleTick();
 }
 
 fn windowWillClose(target: objc.Object, _: objc.SEL, _: objc.Object) callconv(.c) void {
@@ -565,4 +637,12 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: options_mod.Options) 
     }
     const nsapp = objc.msg(objc.Object, objc.class("NSApplication"), "sharedApplication", .{});
     objc.msg(void, nsapp, "run", .{});
+}
+
+test "macos idle policy only schedules a timer when work is pending" {
+    try std.testing.expect(!App.needsTimerTick(.{}));
+    try std.testing.expect(App.needsTimerTick(.{ .dirty = true }));
+    try std.testing.expect(App.needsTimerTick(.{ .animation = true }));
+    try std.testing.expect(App.needsTimerTick(.{ .toast = true }));
+    try std.testing.expect(App.needsTimerTick(.{ .live = true }));
 }

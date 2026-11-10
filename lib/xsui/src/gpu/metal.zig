@@ -86,6 +86,9 @@ pub const Renderer = struct {
 
     fn syncAtlas(self: *Renderer, atlas: *const draw.Atlas) !void {
         if (self.atlas_texture != null and self.atlas_version == atlas.version) return;
+        // The atlas texture is allocated lazily on first text use; until then
+        // there is nothing to upload (never hand an empty slice to Metal).
+        if (atlas.pixels.len == 0) return;
         if (self.atlas_texture == null) {
             const desc = objc.msg(
                 objc.Object,

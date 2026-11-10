@@ -42,12 +42,22 @@ const GL = struct {
     uniform_1i: *const fn (i32, i32) callconv(.c) void,
     uniform_2f: *const fn (i32, f32, f32) callconv(.c) void,
     gen_textures: *const fn (i32, *u32) callconv(.c) void,
+    delete_textures: ?*const fn (i32, *const u32) callconv(.c) void,
     bind_texture: *const fn (u32, u32) callconv(.c) void,
     active_texture: *const fn (u32) callconv(.c) void,
     tex_parameter_i: *const fn (u32, u32, i32) callconv(.c) void,
     tex_image_2d: *const fn (u32, i32, i32, i32, i32, i32, u32, u32, ?*const anyopaque) callconv(.c) void,
     pixel_store_i: *const fn (u32, i32) callconv(.c) void,
     draw_arrays_instanced: *const fn (u32, i32, i32, i32) callconv(.c) void,
+    /// Framebuffer/readback entry points. They are optional: a driver without
+    /// them keeps the GUI path and `readback` is reported unsupported instead
+    /// of crashing or faking pixels.
+    gen_framebuffers: ?*const fn (i32, *u32) callconv(.c) void = null,
+    bind_framebuffer: ?*const fn (u32, u32) callconv(.c) void = null,
+    framebuffer_texture_2d: ?*const fn (u32, u32, u32, u32, i32) callconv(.c) void = null,
+    check_framebuffer_status: ?*const fn (u32) callconv(.c) u32 = null,
+    delete_framebuffers: ?*const fn (i32, *const u32) callconv(.c) void = null,
+    read_pixels: ?*const fn (i32, i32, i32, i32, u32, u32, *anyopaque) callconv(.c) void = null,
 
     fn load() !GL {
         var lib = std.DynLib.open("libGL.so.1") catch return error.NoGL;
@@ -87,12 +97,19 @@ const GL = struct {
             .uniform_1i = undefined,
             .uniform_2f = undefined,
             .gen_textures = undefined,
+            .delete_textures = null,
             .bind_texture = undefined,
             .active_texture = undefined,
             .tex_parameter_i = undefined,
             .tex_image_2d = undefined,
             .pixel_store_i = undefined,
             .draw_arrays_instanced = undefined,
+            .gen_framebuffers = null,
+            .bind_framebuffer = null,
+            .framebuffer_texture_2d = null,
+            .check_framebuffer_status = null,
+            .delete_framebuffers = null,
+            .read_pixels = null,
         };
         try self.bind("glClearColor", @ptrCast(&self.clear_color));
         try self.bind("glClear", @ptrCast(&self.clear));
@@ -130,7 +147,32 @@ const GL = struct {
         try self.bind("glTexImage2D", @ptrCast(&self.tex_image_2d));
         try self.bind("glPixelStorei", @ptrCast(&self.pixel_store_i));
         try self.bind("glDrawArraysInstanced", @ptrCast(&self.draw_arrays_instanced));
+        // Optional offscreen readback lane (Xvfb parity + future captures).
+        self.delete_textures = self.optional("glDeleteTextures", @TypeOf(self.delete_textures));
+        self.gen_framebuffers = self.optional("glGenFramebuffers", @TypeOf(self.gen_framebuffers));
+        self.bind_framebuffer = self.optional("glBindFramebuffer", @TypeOf(self.bind_framebuffer));
+        self.framebuffer_texture_2d = self.optional("glFramebufferTexture2D", @TypeOf(self.framebuffer_texture_2d));
+        self.check_framebuffer_status = self.optional("glCheckFramebufferStatus", @TypeOf(self.check_framebuffer_status));
+        self.delete_framebuffers = self.optional("glDeleteFramebuffers", @TypeOf(self.delete_framebuffers));
+        self.read_pixels = self.optional("glReadPixels", @TypeOf(self.read_pixels));
         return self;
+    }
+
+    /// Look up an optional symbol; null means the readback lane is unavailable.
+    fn optional(self: *GL, comptime name: [:0]const u8, comptime T: type) T {
+        const address = self.get_proc(name) orelse self.lib.lookup(*anyopaque, name) orelse return null;
+        const typed: T = @ptrCast(@alignCast(address));
+        return typed;
+    }
+
+    fn readbackReady(self: *const GL) bool {
+        return self.gen_framebuffers != null and
+            self.bind_framebuffer != null and
+            self.framebuffer_texture_2d != null and
+            self.check_framebuffer_status != null and
+            self.delete_framebuffers != null and
+            self.read_pixels != null and
+            self.delete_textures != null;
     }
 
     fn bind(self: *GL, comptime name: [:0]const u8, target: *anyopaque) !void {
@@ -247,7 +289,8 @@ pub const Renderer = struct {
             1,
         );
         self.gl.clear(0x4000);
-        if (self.atlas_version != atlas.version) {
+        // The atlas texture is allocated lazily: no glyphs means no upload.
+        if (self.atlas_version != atlas.version and atlas.pixels.len != 0) {
             self.gl.bind_texture(0x0DE1, self.atlas_texture);
             self.gl.tex_image_2d(
                 0x0DE1,
@@ -273,7 +316,77 @@ pub const Renderer = struct {
         self.gl.bind_texture(0x0DE1, self.atlas_texture);
         self.gl.draw_arrays_instanced(5, 0, 4, @intCast(instances.len));
     }
+
+    /// Offscreen render + readback for CPU-vs-GL parity. The host must have a
+    /// current GL context; the hidden Xvfb smoke is the only caller. Pixels are
+    /// returned as BGRA8 to match the CPU reference and Metal contract.
+    pub fn readback(
+        self: *Renderer,
+        allocator: std.mem.Allocator,
+        list: *const draw.DrawList,
+        target: xsui.gpu.Target,
+        background: draw.Color,
+    ) ![]u8 {
+        if (!self.gl.readbackReady()) return error.ReadbackUnsupported;
+        if (target.width == 0 or target.height == 0) return error.InvalidTarget;
+        const gen_framebuffers = self.gl.gen_framebuffers.?;
+        const bind_framebuffer = self.gl.bind_framebuffer.?;
+        const framebuffer_texture_2d = self.gl.framebuffer_texture_2d.?;
+        const check_framebuffer_status = self.gl.check_framebuffer_status.?;
+        const delete_framebuffers = self.gl.delete_framebuffers.?;
+        const read_pixels = self.gl.read_pixels.?;
+        const delete_textures = self.gl.delete_textures.?;
+        const width: i32 = @intCast(target.width);
+        const height: i32 = @intCast(target.height);
+        var texture: u32 = 0;
+        self.gl.gen_textures(1, &texture);
+        errdefer delete_textures(1, &texture);
+        self.gl.bind_texture(0x0DE1, texture);
+        // NEAREST everywhere keeps the parity metric about geometry/blending,
+        // not driver filtering differences.
+        self.gl.tex_parameter_i(0x0DE1, 0x2801, 0x2600);
+        self.gl.tex_parameter_i(0x0DE1, 0x2800, 0x2600);
+        self.gl.tex_parameter_i(0x0DE1, 0x2802, 0x812F);
+        self.gl.tex_parameter_i(0x0DE1, 0x2803, 0x812F);
+        self.gl.tex_image_2d(
+            0x0DE1,
+            0,
+            0x8058,
+            width,
+            height,
+            0,
+            0x1908,
+            0x1401,
+            null,
+        );
+        var framebuffer: u32 = 0;
+        gen_framebuffers(1, &framebuffer);
+        errdefer delete_framebuffers(1, &framebuffer);
+        bind_framebuffer(0x8D40, framebuffer);
+        errdefer bind_framebuffer(0x8D40, 0);
+        framebuffer_texture_2d(0x8D40, 0x8CE0, 0x0DE1, texture, 0);
+        if (check_framebuffer_status(0x8D40) != 0x8CD5) return error.FramebufferIncomplete;
+        self.paint(list.items.items, list.atlas, target.width, target.height, background);
+        const pixels = try allocator.alloc(u8, @as(usize, @intCast(width * height)) * 4);
+        errdefer allocator.free(pixels);
+        read_pixels(0, 0, width, height, 0x1908, 0x1401, pixels.ptr);
+        rgbaToBgra(pixels);
+        bind_framebuffer(0x8D40, 0);
+        delete_framebuffers(1, &framebuffer);
+        delete_textures(1, &texture);
+        return pixels;
+    }
 };
+
+/// Reorder RGBA8 to the BGRA8 layout the CPU reference and Metal readback use.
+pub fn rgbaToBgra(pixels: []u8) void {
+    var at: usize = 0;
+    while (at + 3 < pixels.len) : (at += 4) {
+        const red = pixels[at];
+        pixels[at] = pixels[at + 2];
+        pixels[at + 2] = red;
+    }
+}
 
 /// Probes the dynamic GL loader. A missing library or GLX entry point is
 /// SKIP with a reason; no context is created here.
@@ -317,16 +430,28 @@ fn interfaceDraw(
     return true;
 }
 
-const interface_vtable: xsui.gpu.Renderer.VTable = .{
-    .backend = .gl,
-    .deinit = interfaceDeinit,
-    .resize = interfaceResize,
-    .draw = interfaceDraw,
-};
+fn interfaceReadback(
+    context: *anyopaque,
+    allocator: std.mem.Allocator,
+    list: *const draw.DrawList,
+    target: xsui.gpu.Target,
+    background: draw.Color,
+) anyerror![]u8 {
+    const self: *Renderer = @ptrCast(@alignCast(context));
+    return self.readback(allocator, list, target, background);
+}
 
 /// Adapts a concrete renderer to the public `xsui.gpu.Renderer` contract.
+/// Readback is advertised only when the driver exposes the framebuffer/read
+/// entry points, so callers can fail closed instead of trusting fake pixels.
 pub fn interfaceFor(self: *Renderer) xsui.gpu.Renderer {
-    return .{ .context = self, .vtable = &interface_vtable };
+    return .{ .context = self, .vtable = &.{
+        .backend = .gl,
+        .deinit = interfaceDeinit,
+        .resize = interfaceResize,
+        .draw = interfaceDraw,
+        .readback = if (self.gl.readbackReady()) &interfaceReadback else null,
+    } };
 }
 
 test "gl capability reports an explicit state" {
@@ -334,6 +459,12 @@ test "gl capability reports an explicit state" {
     try std.testing.expectEqual(xsui.gpu.Backend.gl, cap.backend);
     try std.testing.expect(cap.status == .ready or cap.status == .skip);
     try std.testing.expect(cap.reason.len != 0);
+}
+
+test "readback conversion reorders RGBA to BGRA in place" {
+    var pixels = [_]u8{ 1, 2, 3, 4, 5, 6, 7, 8 };
+    rgbaToBgra(&pixels);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 3, 2, 1, 4, 7, 6, 5, 8 }, &pixels);
 }
 
 test "gl shader sources are bundled" {

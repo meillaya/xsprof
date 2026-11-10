@@ -233,6 +233,11 @@ if gen_path.exists() and atlas_meta.get("sha256"):
 backends = spec.get("render", {}).get("backends", [])
 metal_gate = spec.get("acceptance", {}).get("cross_surface", {}).get("cpu_vs_metal", {})
 check(metal_gate.get("mae_max", 0) > 0 and metal_gate.get("over24_max", 0) > 0, "ui-spec.json: cpu-vs-metal gate")
+gl_gate = spec.get("acceptance", {}).get("cross_surface", {}).get("cpu_vs_gl", {})
+check(gl_gate.get("mae_max", 0) > 0 and gl_gate.get("over24_max", 0) > 0, "ui-spec.json: cpu-vs-gl gate")
+check(gl_gate.get("routes") == ["home", "overview"], "ui-spec.json: cpu-vs-gl routes")
+check(all(route in ROUTE_IDS for route in gl_gate.get("routes", [])),
+      "ui-spec.json: cpu-vs-gl routes must be product routes")
 check(spec.get("acceptance", {}).get("reference", {}).get("pixel_gate") is False,
       "ui-spec.json: reference must be advisory")
 

@@ -31,14 +31,16 @@ hidden file-input utility is shipped.
 
 ## Hit ids
 
-Ids <1000 are frozen. 1000-2999 stay the slice/data range (implementation uses
-`Hit.data` where xsui exposes it; see TODO in `src/app/design/a11y.zig`). All new
-controls use >=3000: 3000-3099 home, 3100-3199 recents, 3150-3153 onboarding,
-3200-3299 recorder/confirm, 3300-3399 audit, 3400-3499 settings, 3500-3599 picker,
-3600-3699 text fields, 3700-3799 dialogs, 3800-3899 shell extras. The authoritative
-catalogue is [`src/app/design/hits.zig`](../src/app/design/hits.zig); its test
-enforces non-overlap. Palette rows are modal (700-739), so legacy theme option ids
-720-725 are only live inside the appearance dialog.
+Ids <1000 are frozen. 1000-2999 stay the slice/data range (`Hit.data` is used
+where xsui exposes it). All new controls use >=3000: 3000-3099 home,
+3100-3199 recents, 3150-3153 onboarding, 3200-3299 recorder/confirm,
+3300-3399 audit, 3400-3499 settings, 3500-3599 picker, 3600-3699 text fields,
+3700-3799 dialogs, 3800-3899 shell extras. The authoritative catalogue is
+[`src/app/design/hits.zig`](../src/app/design/hits.zig); its test enforces
+non-overlap. Palette rows are modal (700-739), so legacy theme option ids
+720-725 are only live inside the appearance dialog. Accessibility semantics are
+registered at paint time with the `Canvas.button/choice/checkbox/textField/
+listItem/tabItem/semanticText` helpers, keyed by the same hit ids.
 
 ## Architecture
 
@@ -69,12 +71,16 @@ enforces non-overlap. Palette rows are modal (700-739), so legacy theme option i
 
 ## Accessibility
 
-`src/app/design/a11y.zig` builds a platform-neutral node tree from Canvas hits
-(role, label, value, selected/disabled, focusability) and serializes canonical
-`xsprof/a11y-tree/v1` JSON for tests, snapshots and native bridges. macOS bridges
-it to NSAccessibility; Linux reports an explicit AT-SPI SKIP reason and ships the
-JSON dump. Every focusable node must have a label (tested).
-TODO(native-runtime): adopt `Canvas.node()`/`Hit.data` once xsui exposes them.
+Route painters register semantics while they paint (`Canvas.node`/`button`/
+`choice`/`checkbox`/`textField`/`listItem`/`tabItem`/`semanticText`); labels and
+values are copied into the per-frame arena, so hit ids, focus order and the
+accessibility tree come from the same draw pass. `lib/xsui` owns one bounded
+`A11yTree` (512 nodes) and one canonical `xsprof/a11y-tree/v1` writer used by
+snapshot `--a11y`, the Linux JSON/DEGRADED path and the macOS NSAccessibility
+bridge. Every registered interactive node has a role and rendered label (tested);
+the dense timeline is explicitly truncated at the node cap. There is no separate
+design-side id-switch reconstruction: the `src/app/design/a11y.zig` module was
+deleted in the flight-recorder repositioning.
 
 ## Fail-closed matrix
 

@@ -8,6 +8,7 @@ const metrics_mod = @import("../../analyze/metrics.zig");
 const advisor_mod = @import("../../analyze/advisor.zig");
 const rules_mod = @import("../../analyze/rules.zig");
 const event_mod = @import("../../core/event.zig");
+const loss = @import("../../core/loss.zig");
 const privacy = @import("../../core/privacy.zig");
 const model_mod = @import("model.zig");
 
@@ -179,7 +180,9 @@ pub fn fromSession(allocator: std.mem.Allocator, session: *const Session, ctx: C
     var lost_list: std.ArrayList(f64) = .empty;
     var events = try allocator.alloc(model_mod.Event, session.events.len);
     for (session.events, 0..) |e, index| {
-        const is_loss = e.kind == .marker and (std.mem.indexOf(u8, e.detail, "loss") != null or std.mem.indexOf(u8, e.detail, "dropped") != null or std.mem.indexOf(u8, e.detail, "lost") != null);
+        // Loss is whatever the shared registry classifies as a loss marker:
+        // sample loss, retention gaps, truncation, corruption, unsupported.
+        const is_loss = e.kind == .marker and loss.classify(e.detail) != null;
         events[index] = .{
             .id = @intCast(index),
             .ts = @as(f64, @floatFromInt(e.ts_ns -| session.first_us * 1000)) / 1_000_000.0,

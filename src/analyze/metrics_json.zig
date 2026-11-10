@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const json = @import("../core/json.zig");
+const loss = @import("../core/loss.zig");
 const metrics_mod = @import("metrics.zig");
 const Metrics = metrics_mod.Metrics;
 
@@ -97,6 +98,18 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
         pair_values[index] = .{ .object = entries };
     }
 
+    // Loss breakdown: nonzero kinds only, enum (alphabetical) order so the
+    // object keys are canonical ascending.
+    var loss_entries: [loss.kind_count]json.Entry = undefined;
+    var loss_count: usize = 0;
+    inline for (@typeInfo(loss.ByKind).@"struct".field_names) |field_name| {
+        const value = @field(metrics.loss_by_kind, field_name);
+        if (value != 0) {
+            loss_entries[loss_count] = .{ .key = field_name, .value = .{ .unsigned = value } };
+            loss_count += 1;
+        }
+    }
+
     try json.write(w, .{ .object = &.{
         .{ .key = "cpus", .value = .{ .array = cpu_values } },
         .{ .key = "events", .value = .{ .unsigned = metrics.events } },
@@ -105,6 +118,7 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
         .{ .key = "first_us", .value = .{ .unsigned = metrics.first_us } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
         .{ .key = "last_us", .value = .{ .unsigned = metrics.last_us } },
+        .{ .key = "loss_by_kind", .value = .{ .object = loss_entries[0..loss_count] } },
         .{ .key = "lost", .value = .{ .unsigned = metrics.lost } },
         .{ .key = "migrations", .value = .{ .unsigned = metrics.migrations } },
         .{ .key = "out_of_order", .value = .{ .unsigned = metrics.out_of_order } },
@@ -123,4 +137,27 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
         .{ .key = "wakeup_pairs", .value = .{ .array = pair_values } },
         .{ .key = "wakeups", .value = .{ .unsigned = metrics.wakeups } },
     } });
+}
+
+// Checks the additive loss breakdown is canonical and only lists nonzero kinds.
+test "metrics json reports loss_by_kind in ascending key order" {
+    var metrics: Metrics = .{};
+    metrics.lost = 9;
+    metrics.loss_by_kind.sample_loss = 5;
+    metrics.loss_by_kind.retention_loss = 2;
+    metrics.loss_by_kind.capture_corrupt_segment = 2;
+    var buf: [4096]u8 = undefined;
+    var w = std.Io.Writer.fixed(&buf);
+    try writeJson(&w, metrics, 10);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        w.buffered(),
+        "\"loss_by_kind\":{\"capture_corrupt_segment\":2,\"retention_loss\":2,\"sample_loss\":5}",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "\"lost\":9") != null);
+    // The breakdown precedes "lost" and no zero-kind key leaks in.
+    const loss_by_kind = std.mem.indexOf(u8, w.buffered(), "\"loss_by_kind\"").?;
+    const lost = std.mem.indexOf(u8, w.buffered(), "\"lost\"").?;
+    try std.testing.expect(loss_by_kind < lost);
+    try std.testing.expect(std.mem.indexOf(u8, w.buffered(), "\"capture_missing_segment\"") == null);
 }

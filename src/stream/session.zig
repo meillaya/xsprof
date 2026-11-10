@@ -4,6 +4,7 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const journal = @import("journal.zig");
+const loss = @import("../core/loss.zig");
 const session_meta = @import("../core/session_meta.zig");
 const aggregates = @import("../analyze/aggregates.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
@@ -41,6 +42,8 @@ pub const Session = struct {
     migrations: u32 = 0,
     faults: u32 = 0,
     lost: u32 = 0,
+    /// Per-kind breakdown of `lost`, from the shared loss registry.
+    loss_by_kind: loss.ByKind = .{},
     refusals: u32 = 0,
     cpu_count: u8 = 1,
     metrics: metrics_mod.Metrics = .{},
@@ -132,10 +135,13 @@ pub const Session = struct {
                 },
                 .page_fault => session.faults += 1,
                 .marker => {
-                    if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
-                        std.mem.indexOf(u8, e.detail, "lost") != null)
-                    {
-                        session.lost += event.lossMagnitude(e.detail);
+                    // Every registered loss kind counts (sample loss, retention
+                    // gaps, truncation, corruption); classification is a
+                    // prefix-token match, not a substring scan.
+                    if (loss.classify(e.detail)) |kind| {
+                        const amount = loss.magnitude(e.detail);
+                        session.lost +|= @intCast(@min(amount, std.math.maxInt(u32)));
+                        session.loss_by_kind.add(kind, amount);
                     }
                 },
                 .refusal, .incident => session.refusals += 1,
@@ -342,4 +348,24 @@ test "real metadata fixture records buddyinfo and the recorder pid" {
     const agg = session.aggregate();
     try std.testing.expect(agg.signals.allocator);
     try std.testing.expectApproxEqAbs(@as(f64, 0.614654), agg.buddy_fragmentation, 0.000001);
+}
+
+// Checks the replay session counts every loss kind, not only sample_loss rows.
+test "session counts retention, truncation, and corruption loss kinds" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const data =
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":1,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"sample_loss perf_ring lost=3\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":2,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"retention_loss requested_from_wall_ns=1 oldest_wall_ns=2\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":3,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"capture_corrupt_segment offset=0 dropped=1\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":4,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"capture_truncated_tail missing_footer=1 dropped=1\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":5,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"capture_owner\",\"host_mutation\":false}\n";
+    const session = try Session.fromData(allocator, "loss-test", data);
+    try std.testing.expectEqual(@as(u32, 6), session.lost);
+    try std.testing.expectEqual(@as(u64, 3), session.loss_by_kind.get(.sample_loss));
+    try std.testing.expectEqual(@as(u64, 1), session.loss_by_kind.get(.retention_loss));
+    try std.testing.expectEqual(@as(u64, 1), session.loss_by_kind.get(.capture_corrupt_segment));
+    try std.testing.expectEqual(@as(u64, 1), session.loss_by_kind.get(.capture_truncated_tail));
+    try std.testing.expectEqual(@as(u64, 6), loss.sum(session.loss_by_kind));
 }

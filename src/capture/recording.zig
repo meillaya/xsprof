@@ -29,8 +29,8 @@ pub fn recordWithOptions(
     if (!live.live_linux) {
         return .{ .state = .SKIP, .reason = "non-Linux host: perf_event_open unavailable" };
     }
-    var probe_result = try live.probe(io, allocator);
-    if (probe_result.state != .READY) return probe_result;
+    var probe_result = try live.probeWithOptions(io, allocator, opts);
+    if (probe_result.state != .READY and probe_result.state != .DEGRADED) return probe_result;
     const root = live.tracefsRoot(io) orelse return .{
         .state = .REFUSE,
         .reason = "tracefs disappeared",
@@ -55,6 +55,9 @@ pub fn recordWithOptions(
     errdefer output.deinit(allocator);
     const meta = session_meta.collect(io, allocator) catch &.{};
     try output.appendSlice(allocator, meta);
+    const now_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.awake, io).nanoseconds)));
+    const coverage_events = capture.coverage.events(allocator, now_ns) catch &.{};
+    try output.appendSlice(allocator, coverage_events);
 
     while (std.Io.Clock.now(.awake, io).nanoseconds < deadline) {
         const remaining_ns = deadline - std.Io.Clock.now(.awake, io).nanoseconds;
@@ -74,6 +77,8 @@ pub fn recordWithOptions(
     probe_result.lost = capture.lost;
     probe_result.cpus = capture.cpus;
     probe_result.duration_ms = duration_ms;
+    probe_result.coverage = capture.coverage;
+    if (capture.coverage.state() == .DEGRADED) probe_result.state = .DEGRADED;
     return probe_result;
 }
 
@@ -89,8 +94,8 @@ pub fn recordStream(
     if (!live.live_linux) {
         return .{ .state = .SKIP, .reason = "non-Linux host: perf_event_open unavailable" };
     }
-    var probe_result = try live.probe(io, allocator);
-    if (probe_result.state != .READY) return probe_result;
+    var probe_result = try live.probeWithOptions(io, allocator, opts);
+    if (probe_result.state != .READY and probe_result.state != .DEGRADED) return probe_result;
     const root = live.tracefsRoot(io) orelse return .{
         .state = .REFUSE,
         .reason = "tracefs disappeared",
@@ -107,6 +112,9 @@ pub fn recordStream(
 
     const meta = session_meta.collect(io, allocator) catch &.{};
     for (meta) |entry| try sink.emit(entry);
+    const now_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.awake, io).nanoseconds)));
+    const coverage_events = capture.coverage.events(allocator, now_ns) catch &.{};
+    for (coverage_events) |entry| try sink.emit(entry);
 
     const deadline = std.Io.Clock.now(.awake, io).nanoseconds +
         @as(i96, duration_ms) * std.time.ns_per_ms;
@@ -124,6 +132,8 @@ pub fn recordStream(
     probe_result.lost = capture.lost;
     probe_result.cpus = capture.cpus;
     probe_result.duration_ms = duration_ms;
+    probe_result.coverage = capture.coverage;
+    if (capture.coverage.state() == .DEGRADED) probe_result.state = .DEGRADED;
     return probe_result;
 }
 

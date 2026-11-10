@@ -204,7 +204,8 @@ pub fn build(b: *std.Build) void {
     defer platform_steps.deinit(b.allocator);
 
     const screenshots_check = b.addSystemCommand(&.{ "sh", "tools/screenshots.sh", "--check" });
-    const screenshots_check_step = b.step("screenshots-check", "Verify committed screenshot bytes/provenance");
+    screenshots_check.step.dependOn(b.getInstallStep());
+    const screenshots_check_step = b.step("screenshots-check", "Re-render committed stills and verify bytes/provenance");
     screenshots_check_step.dependOn(&screenshots_check.step);
 
     if (target.result.os.tag == .linux) {

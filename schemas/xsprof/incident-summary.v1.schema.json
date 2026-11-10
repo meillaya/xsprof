@@ -137,6 +137,52 @@
       ],
       "type": "object"
     },
+    "loss_by_kind": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_corrupt_segment": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_invalid_segment_path": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_missing_segment": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_segment_unreadable": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_truncated": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_truncated_tail": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_unknown_segment_codec": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_unsupported_segment": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retention_loss": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sample_loss": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "requested_ms": {
       "type": "integer"
     },

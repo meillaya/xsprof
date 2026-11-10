@@ -193,7 +193,7 @@ fn button(canvas: *Canvas, th: Theme, rect: Rect, text_value: []const u8, id: u3
     _ = th;
     try canvas.rounded(rect, 4, fill, border, 1);
     try label(canvas, rect.x + 9, rect.y + 6.5, text_value, style(text_11, text_color, .regular));
-    canvas.hit(id, rect);
+    _ = canvas.button(id, rect, text_value);
 }
 
 test "audit view renders with and without an action ring" {

@@ -17,6 +17,7 @@
 
 const std = @import("std");
 const event_mod = @import("../../core/event.zig");
+const loss = @import("../../core/loss.zig");
 const live_feed = @import("../../stream/live_feed.zig");
 const stream_store = @import("../../stream/store.zig");
 const stream_index = @import("../../stream/index.zig");
@@ -430,9 +431,9 @@ pub const Controller = struct {
         if (self.loss_markers >= self.options.max_loss_markers) return self.suppressLoss(dropped);
         const text = std.fmt.bufPrint(
             &self.loss_buf,
-            "sample_loss live_ui dropped={d} reason={s}",
-            .{ dropped, reason },
-        ) catch "sample_loss live_ui dropped=1";
+            "{s} live_ui dropped={d} reason={s}",
+            .{ loss.marker.sample_loss, dropped, reason },
+        ) catch loss.marker.sample_loss ++ " live_ui dropped=1";
         const owned = self.allocator.dupe(u8, text) catch return self.suppressLoss(dropped);
         self.loss_allocations.append(self.allocator, owned) catch {
             self.allocator.free(owned);

@@ -79,7 +79,7 @@ fn drawAppearance(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !
         try canvas.rounded(card, 4, if (active) th.raised else th.field, if (active) th.live else th.line, 1);
         try label(canvas, card.x + 8, card.y + 8, preset.name, style(text_10, if (active) th.text else th.muted, .regular));
         if (active) try labelRight(canvas, card.x + card.w - 8, card.y + 8, "✓", style(text_10, th.live, .regular));
-        canvas.hit(hits.settings_theme_base + @as(u32, @intCast(index)), card);
+        _ = canvas.choice(hits.settings_theme_base + @as(u32, @intCast(index)), card, preset.name, active);
     }
     try toggleRow(state, canvas, th, .{ .x = rect.x + 14, .y = y + 120, .w = rect.w - 28, .h = 32 }, "Reduced motion", "snaps animations and transitions", state.settings.reduced_motion, hits.settings_reduced_motion);
     try label(canvas, rect.x + 14, y + 162, "Six palettes share the same 33 semantic tokens; state is never carried by colour alone.", style(text_10, th.faint, .regular));
@@ -102,7 +102,7 @@ fn drawCapture(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !voi
     try canvas.rounded(field, 4, th.field, if (state.text_focus == .recorder_dir) th.live else th.line, 1);
     const dir = state.settings.recorderDirSlice();
     try label(canvas, field.x + 9, field.y + 8, if (dir.len > 0) dir else "default state directory (not set)", style(text_11, if (dir.len > 0) th.text else th.faint, .regular));
-    canvas.hit(hits.settings_recorder_dir, field);
+    _ = canvas.textField(hits.settings_recorder_dir, field, "Recorder state directory", dir);
     var buf: [128]u8 = undefined;
     const preset_text = std.fmt.bufPrint(&buf, "preset {s} · max {d} MiB · age cap {d} min", .{
         if (state.settings.recorder_preset == 1) "memory" else if (state.settings.recorder_preset == 2) "deep" else "scheduler",
@@ -165,7 +165,7 @@ fn drawAbout(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !void 
     const reset = Rect{ .x = rect.x + rect.w - 116, .y = rect.y + rect.h - 38, .w = 102, .h = 26 };
     try canvas.rounded(reset, 4, th.panel, th.refuse_chip_border, 1);
     try label(canvas, reset.x + 12, reset.y + 5.5, "reset settings", style(text_10, th.refuse, .regular));
-    canvas.hit(hits.settings_reset, reset);
+    _ = canvas.button(hits.settings_reset, reset, "Reset settings");
 }
 
 fn toggleRow(state: *const State, canvas: *Canvas, th: Theme, rect: Rect, title: []const u8, detail: []const u8, value: bool, id: u32) !void {
@@ -175,7 +175,7 @@ fn toggleRow(state: *const State, canvas: *Canvas, th: Theme, rect: Rect, title:
     try canvas.rounded(track, 9, if (value) th.tint_live else th.field, if (value) th.live else th.line, 1);
     const knob = Rect{ .x = if (value) track.x + track.w - 16 else track.x + 1, .y = track.y + 1, .w = 16, .h = 16 };
     try canvas.rounded(knob, 8, if (value) th.live else th.dim, null, 0);
-    canvas.hit(id, rect);
+    _ = canvas.checkbox(id, rect, title, value);
     _ = state;
 }
 

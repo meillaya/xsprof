@@ -52,15 +52,20 @@ pub fn step(app: *App, canvas: *xsui.Canvas, backwards: bool) void {
         } else {
             index = (index + 1) % canvas.hits.items.len;
         }
-        const id = canvas.hits.items[index].id;
-        if (validHit(id, app)) {
-            app.state.focus_id = id;
+        const hit = canvas.hits.items[index];
+        // Structural/semantic nodes (route group, headings, status) are in the
+        // hit list for AX and pointer clipping but must never take keyboard
+        // focus; the tree's focusOrder uses the same predicate.
+        if (!hit.flags.focusable or hit.flags.disabled) continue;
+        if (validHit(hit.id, app)) {
+            app.state.focus_id = hit.id;
             app.state.focus_visible = true;
             return;
         }
         if (current_index == null and guard == 0) {
-            if (validHit(canvas.hits.items[0].id, app)) {
-                app.state.focus_id = canvas.hits.items[0].id;
+            const first = canvas.hits.items[0];
+            if (first.flags.focusable and !first.flags.disabled and validHit(first.id, app)) {
+                app.state.focus_id = first.id;
                 app.state.focus_visible = true;
                 return;
             }
@@ -160,4 +165,26 @@ test "rail focus arrows change screens in display order" {
     try std.testing.expectEqual(@as(?u32, hits.railId(1)), app.state.focus_id);
     _ = key(&app, &canvas, 0x12, false);
     try std.testing.expectEqual(@as(?u32, hits.railId(2)), app.state.focus_id);
+}
+
+test "focus traversal skips non-focusable semantic nodes" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.frame.Frame = undefined;
+    try frame.init(std.testing.allocator, 1280, 720, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+    const view_mod = @import("view.zig");
+    try view_mod.view(&app.model, &app.state, &canvas);
+    // The route group (id 1) is semantic-only and must never take focus.
+    try std.testing.expect(canvas.hitIndex(1) != null);
+    try std.testing.expect(!canvas.hits.items[canvas.hitIndex(1).?].flags.focusable);
+    step(&app, &canvas, false);
+    try std.testing.expect(app.state.focus_id != null);
+    try std.testing.expect(app.state.focus_id.? != 1);
+    const index = canvas.hitIndex(app.state.focus_id.?) orelse return error.TestUnexpectedResult;
+    try std.testing.expect(canvas.hits.items[index].flags.focusable);
+    try std.testing.expect(!canvas.hits.items[index].flags.disabled);
 }

@@ -76,8 +76,10 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
     var meta_arena = std.heap.ArenaAllocator.init(runtime_allocator);
     defer meta_arena.deinit();
     const meta_events = capture_meta.collect(io, meta_arena.allocator()) catch &.{};
-    const probe = try live.probe(io, allocator);
-    if (probe.state != .READY) return .{ .state = probe.state, .reason = probe.reason };
+    const probe = try live.probeWithOptions(io, allocator, opts.live_options);
+    if (probe.state != .READY and probe.state != .DEGRADED) {
+        return .{ .state = probe.state, .reason = probe.reason };
+    }
 
     const dir = try resolveDir(allocator, opts.dir);
     try ensureLayout(io, dir);
@@ -169,6 +171,13 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         };
     };
     defer capture.deinit();
+    // Actual ring coverage is part of the session evidence: capability markers
+    // in every segment, so an extracted window states which collectors ran.
+    const coverage_events = capture.coverage.events(
+        meta_arena.allocator(),
+        @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+    ) catch &.{};
+    const degraded_capture = probe.state == .DEGRADED or capture.coverageState() == .DEGRADED;
 
     if (previous_session) |session_id| {
         var detail_buf: [128]u8 = undefined;
@@ -217,6 +226,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         });
     }
     try writeMeta(&segment, &segment_metrics, meta_events);
+    try writeMeta(&segment, &segment_metrics, coverage_events);
     try segment.writeEvent(.{
         .kind = .marker,
         .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
@@ -288,6 +298,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             // would accumulate one 16 KiB encoder table per segment.
             segment = try segment_mod.Writer.create(io, runtime_allocator, dir, sequence, wall, now);
             try writeMeta(&segment, &segment_metrics, meta_events);
+            try writeMeta(&segment, &segment_metrics, coverage_events);
             try segments.append(allocator, .{
                 .path = try allocator.dupe(u8, segment.path),
                 .start_wall_ns = wall,
@@ -362,7 +373,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
 
     const bytes = totalBytes(segments.items);
     return .{
-        .state = .READY,
+        .state = if (degraded_capture) .DEGRADED else .READY,
         .reason = if (stopped_by_signal) "stopped by signal" else "recording stopped",
         .dir = dir,
         .session_id = manifest.session_id,

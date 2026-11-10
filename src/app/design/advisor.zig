@@ -123,7 +123,7 @@ fn drawFilters(model: *const Model, state: *const State, canvas: *Canvas, th: Th
         const on = state.advisor_filter == filters[i];
         try canvas.rounded(.{ .x = cx, .y = y + 24.5, .w = widths[i], .h = 26 }, 3, if (on) th.tint_live else .{ .r = 0, .g = 0, .b = 0, .a = 0 }, if (on) th.control_pressed_border else th.line, 1);
         try label(canvas, cx + 9, y + 30.75, text_value, style(common.text_105, if (on) th.live else th.muted, .regular));
-        canvas.hit(400 + @as(u32, @intCast(i)), .{ .x = cx, .y = y + 24.5, .w = widths[i], .h = 26 });
+        _ = canvas.choice(400 + @as(u32, @intCast(i)), .{ .x = cx, .y = y + 24.5, .w = widths[i], .h = 26 }, text_value, on);
         cx += widths[i] + 4;
     }
 }
@@ -195,6 +195,8 @@ fn drawCard(canvas: *Canvas, th: Theme, card: model_mod.AdvisorCard, rect: Rect,
         const button = Rect{ .x = left, .y = button_y, .w = 121, .h = 30 };
         try canvas.rounded(button, 4, th.raised, th.line_strong, 1);
         try label(canvas, left + 10, button_y + 6.5, "Show evidence →", style(common.text_11, th.text, .regular));
-        canvas.hit(900 + @as(u32, @intCast(card_index)), button);
+        var evidence_buf: [128]u8 = undefined;
+        const evidence_label = std.fmt.bufPrint(&evidence_buf, "Show evidence for {s}", .{card.id}) catch "Show evidence";
+        _ = canvas.button(900 + @as(u32, @intCast(card_index)), button, evidence_label);
     }
 }

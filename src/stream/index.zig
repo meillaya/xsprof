@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const loss = @import("../core/loss.zig");
 const session_meta = @import("../core/session_meta.zig");
 const session = @import("session.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
@@ -46,6 +47,8 @@ pub const Index = struct {
     migrations: u32 = 0,
     faults: u32 = 0,
     lost: u32 = 0,
+    /// Per-kind breakdown of `lost`, from the shared loss registry.
+    loss_by_kind: loss.ByKind = .{},
     refusals: u32 = 0,
     cpu_count: u8 = 1,
     out_of_order: u32 = 0,
@@ -135,10 +138,12 @@ pub const Index = struct {
                 },
                 .page_fault => self.faults += 1,
                 .marker => {
-                    if (std.mem.indexOf(u8, e.detail, "sample_loss") != null or
-                        std.mem.indexOf(u8, e.detail, "lost") != null)
-                    {
-                        self.lost += event.lossMagnitude(e.detail);
+                    // The shared registry decides what counts as loss; the
+                    // incremental index must match a full Session build.
+                    if (loss.classify(e.detail)) |kind| {
+                        const amount = loss.magnitude(e.detail);
+                        self.lost +|= @intCast(@min(amount, std.math.maxInt(u32)));
+                        self.loss_by_kind.add(kind, amount);
                     }
                 },
                 .refusal, .incident => self.refusals += 1,
@@ -194,6 +199,7 @@ pub const Index = struct {
             .migrations = self.migrations,
             .faults = self.faults,
             .lost = self.lost,
+            .loss_by_kind = self.loss_by_kind,
             .refusals = self.refusals,
             .cpu_count = self.cpu_count,
             .meta = self.meta,
@@ -232,6 +238,7 @@ test "incremental index matches full build on the healthy fixture" {
     try std.testing.expectEqual(expected.migrations, actual.migrations);
     try std.testing.expectEqual(expected.faults, actual.faults);
     try std.testing.expectEqual(expected.lost, actual.lost);
+    try std.testing.expectEqualDeep(expected.loss_by_kind, actual.loss_by_kind);
     try std.testing.expectEqual(expected.refusals, actual.refusals);
     try std.testing.expectEqual(expected.cpu_count, actual.cpu_count);
     try std.testing.expectEqual(expected.self_switches, actual.self_switches);
@@ -280,4 +287,27 @@ test "incremental index keeps metadata, self, and churn parity" {
     try std.testing.expectEqual(expected.metrics.self_wakeups, actual.metrics.self_wakeups);
     try std.testing.expectEqual(expected.metrics.unnecessary_wakeups, actual.metrics.unnecessary_wakeups);
     try std.testing.expectApproxEqAbs(expected.meta.buddy_fragmentation, actual.meta.buddy_fragmentation, 0.000001);
+}
+
+// Checks the incremental index counts every loss kind like a full build, so the
+// live viewer cannot under-report retention/truncation/corruption gaps.
+test "incremental index counts every loss kind" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const events = [_]event.RawEvent{
+        .{ .kind = .marker, .detail = "sample_loss live_follow dropped=2 reason=trim" },
+        .{ .kind = .marker, .detail = "retention_loss requested_from_wall_ns=1 oldest_wall_ns=2" },
+        .{ .kind = .marker, .detail = "capture_truncated reason=max_bytes limit=9 dropped=1" },
+        .{ .kind = .marker, .detail = "capture_owner" },
+    };
+    var index = Index.init(allocator);
+    defer index.deinit();
+    try index.append(&events);
+    const snapshot = try index.snapshot(allocator, "loss-index");
+    try std.testing.expectEqual(@as(u32, 4), snapshot.lost);
+    try std.testing.expectEqual(@as(u64, 2), snapshot.loss_by_kind.get(.sample_loss));
+    try std.testing.expectEqual(@as(u64, 1), snapshot.loss_by_kind.get(.retention_loss));
+    try std.testing.expectEqual(@as(u64, 1), snapshot.loss_by_kind.get(.capture_truncated));
+    try std.testing.expectEqualDeep(snapshot.loss_by_kind, index.loss_by_kind);
 }

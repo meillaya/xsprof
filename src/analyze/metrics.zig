@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const loss = @import("../core/loss.zig");
 const session_meta = @import("../core/session_meta.zig");
 
 const max_cpus = 256;
@@ -86,6 +87,8 @@ pub const Metrics = struct {
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
     lost: u64 = 0,
+    /// Per-kind breakdown of `lost`; every loss marker kind is counted.
+    loss_by_kind: loss.ByKind = .{},
     out_of_order: u64 = 0,
     pairs_truncated: bool = false,
     wait: Histogram = .{},
@@ -145,7 +148,7 @@ pub const Index = struct {
     migrations: u64 = 0,
     faults_minor: u64 = 0,
     faults_major: u64 = 0,
-    lost: u64 = 0,
+    loss_counter: loss.Counter = .{},
     wait: Histogram = .{},
     offcpu: Histogram = .{},
     events: u64 = 0,
@@ -264,11 +267,10 @@ pub const Index = struct {
                         self.self_pid = pid;
                         self.self_seen = true;
                     }
-                    if (std.mem.indexOf(u8, entry.detail, "sample_loss") != null or
-                        std.mem.indexOf(u8, entry.detail, "lost") != null)
-                    {
-                        self.lost += event.lossMagnitude(entry.detail);
-                    }
+                    // Loss accounting is centralized: every registered kind
+                    // counts, not just the sample_loss markers the old
+                    // substring scan happened to match.
+                    _ = self.loss_counter.add(entry.detail);
                 },
                 else => {},
             }
@@ -429,7 +431,8 @@ pub const Index = struct {
             .migrations = self.migrations,
             .faults_minor = self.faults_minor,
             .faults_major = self.faults_major,
-            .lost = self.lost,
+            .lost = self.loss_counter.total(),
+            .loss_by_kind = self.loss_counter.totals,
             .out_of_order = self.out_of_order,
             .pairs_truncated = pairs_truncated,
             .wait = self.wait,
@@ -563,4 +566,35 @@ test "metrics own comm strings" {
         }
     }
     try std.testing.expect(found);
+}
+
+// Checks the shared loss registry counts every kind, including retention gaps
+// and segment corruption/truncation that the old substring scan missed.
+test "metrics count every loss kind through the registry" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var index = Index.init(allocator);
+    defer index.deinit();
+    const events = [_]event.RawEvent{
+        .{ .kind = .marker, .detail = "sample_loss perf_ring lost=3" },
+        .{ .kind = .marker, .detail = "sample_loss live_ui dropped=2 reason=trim" },
+        .{ .kind = .marker, .detail = "retention_loss requested_from_wall_ns=1 oldest_wall_ns=2" },
+        .{ .kind = .marker, .detail = "capture_corrupt_segment offset=0 dropped=1" },
+        .{ .kind = .marker, .detail = "capture_truncated_tail missing_footer=1 dropped=1" },
+        .{ .kind = .marker, .detail = "capture_truncated reason=max_events limit=5 dropped=1" },
+        // Non-loss markers must not move the counters.
+        .{ .kind = .marker, .detail = "capture_owner" },
+        .{ .kind = .marker, .detail = "capture_start" },
+        .{ .kind = .marker, .detail = "capture_interrupted previous_session=abc" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(allocator);
+    try std.testing.expectEqual(@as(u64, 9), metrics.lost);
+    try std.testing.expectEqual(@as(u64, 5), metrics.loss_by_kind.get(.sample_loss));
+    try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.retention_loss));
+    try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.capture_corrupt_segment));
+    try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.capture_truncated_tail));
+    try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.capture_truncated));
+    try std.testing.expectEqual(@as(u64, 0), metrics.loss_by_kind.get(.capture_missing_segment));
 }

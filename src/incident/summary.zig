@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const json = @import("../core/json.zig");
+const loss = @import("../core/loss.zig");
 const session_mod = @import("../stream/session.zig");
 const advisor = @import("../analyze/advisor.zig");
 const report = @import("../analyze/report.zig");
@@ -96,7 +97,9 @@ pub fn writeJson(
     try json.write(w, .{ .unsigned = session.lost });
     try w.writeAll(",\"retention_trimmed\":");
     try json.write(w, .{ .boolean = trimmed });
-    try w.print("}},\"requested_ms\":{d},\"rules\":[", .{ctx.requested_ms});
+    try w.writeAll("},\"loss_by_kind\":");
+    try loss.writeJson(w, session.loss_by_kind);
+    try w.print(",\"requested_ms\":{d},\"rules\":[", .{ctx.requested_ms});
     for (report_list, 0..) |item, index| {
         if (index != 0) try w.writeByte(',');
         try report.writeRule(w, item);

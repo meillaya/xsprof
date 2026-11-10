@@ -55,8 +55,8 @@ fn palette(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {
     const esc_rect = Rect{ .x = rect.x + rect.w - 40, .y = rect.y + 13, .w = 27, .h = 20 };
     try canvas.rounded(esc_rect, 3, th.raised, th.line, 1);
     try label(canvas, rect.x + rect.w - 33, rect.y + 15.5, "esc", style(common.text_95, th.muted, .regular));
-    canvas.hit(742, .{ .x = rect.x + 1, .y = rect.y + 1, .w = rect.w - 2, .h = 45.5 });
-    canvas.hit(743, esc_rect);
+    _ = canvas.textField(742, .{ .x = rect.x + 1, .y = rect.y + 1, .w = rect.w - 2, .h = 45.5 }, "Command query", query);
+    _ = canvas.button(743, esc_rect, "Close palette");
 
     canvas.pushClip(.{ .x = rect.x + 1, .y = rect.y + 47.5, .w = rect.w - 2, .h = 414 });
     var shown: usize = 0;
@@ -73,7 +73,7 @@ fn palette(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {
             try canvas.rounded(.{ .x = rect.x + rect.w - 34, .y = row_y + 8, .w = 18, .h = 18 }, 3, th.raised, th.line, 1);
             try label(canvas, rect.x + rect.w - 29, row_y + 10, command.key, style(common.text_10, th.muted, .regular));
         }
-        canvas.hit(700 + @as(u32, @intCast(shown)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 35 });
+        _ = canvas.choice(700 + @as(u32, @intCast(shown)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 35 }, command.label, selected);
         row_y += 35;
         shown += 1;
     }
@@ -92,7 +92,7 @@ fn appearance(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void
     try modalFrame(canvas, th, rect);
     try label(canvas, rect.x + 16, rect.y + 16, "APPEARANCE", style(common.text_12, th.text, .bold));
     try closeButton(canvas, th, rect.x + rect.w - 42, rect.y + 12);
-    canvas.hit(740, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 });
+    _ = canvas.button(740, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 }, "Close appearance");
     const opt_w = if (phone) rect.w - 32 else (rect.w - 40) * 0.5;
     const col2 = rect.x + 16 + opt_w + 8;
     try labelWrapped(canvas, .{ .x = rect.x + 16, .y = rect.y + 53, .w = rect.w - 32, .h = if (phone) 50 else 36 }, style(common.text_11, th.muted, .regular), "Graphite and Paper are the console defaults. Catppuccin flavours remap the same semantic tokens — state is still carried by labels, not colour alone.");
@@ -132,7 +132,7 @@ fn themeOption(canvas: *Canvas, th: Theme, state: *const State, rect: Rect, inde
     try label(canvas, rect.x + 66, rect.y + 8, name, style(common.text_12, th.text, .regular));
     try label(canvas, rect.x + 66, rect.y + 25, if (std.mem.eql(u8, preset.kind, "dark")) "dark" else "light", style(common.text_95, th.dim, .regular));
     if (active) try labelRight(canvas, rect.x + rect.w - 12, rect.y + 16, "✓", style(common.text_11, th.live, .regular));
-    canvas.hit(720 + @as(u32, @intCast(index)), rect);
+    _ = canvas.choice(720 + @as(u32, @intCast(index)), rect, name, active);
 }
 
 fn help(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {
@@ -141,7 +141,7 @@ fn help(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {
     try modalFrame(canvas, th, rect);
     try label(canvas, rect.x + 16, rect.y + 16, "Keyboard", style(common.text_12, th.text, .bold));
     try closeButton(canvas, th, rect.x + rect.w - 42, rect.y + 12);
-    canvas.hit(741, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 });
+    _ = canvas.button(741, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 }, "Close keyboard help");
     try borderLine(canvas, rect.x + 1, rect.y + 48, rect.w - 2, th.line);
     const rows = [_][2][]const u8{
         .{ "1 – 5", "Switch screen: Overview, Timeline, Advisor, Events, Capture" },
@@ -174,14 +174,14 @@ fn pickerOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32, he
     try modalFrame(canvas, th, rect);
     try label(canvas, rect.x + 16, rect.y + 14, if (state.picker.mode == .directory) "CHOOSE A DIRECTORY" else "CHOOSE A JOURNAL", style(common.text_12, th.text, .bold));
     try closeButton(canvas, th, rect.x + rect.w - 42, rect.y + 12);
-    canvas.hit(hits.picker_cancel, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 });
+    _ = canvas.button(hits.picker_cancel, .{ .x = rect.x + rect.w - 42, .y = rect.y + 12, .w = 26, .h = 26 }, "Close picker");
     try borderLine(canvas, rect.x + 1, rect.y + 48, rect.w - 2, th.line);
     try label(canvas, rect.x + 16, rect.y + 58, "PATH", style(common.text_95, th.faint, .regular));
     try label(canvas, rect.x + 56, rect.y + 58, if (state.picker.cwd_len > 0) state.picker.cwdSlice() else ".", style(common.text_11, th.text, .regular));
     const field = Rect{ .x = rect.x + 16, .y = rect.y + 76, .w = rect.w - 32, .h = 30 };
     try canvas.rounded(field, 4, th.field, if (state.text_focus == .picker_filter) th.live else th.line, 1);
     try label(canvas, field.x + 9, field.y + 8, if (state.picker.filter.len > 0) state.picker.filter.slice() else "filter…", style(common.text_11, if (state.picker.filter.len > 0) th.text else th.faint, .regular));
-    canvas.hit(hits.picker_filter, field);
+    _ = canvas.textField(hits.picker_filter, field, "Filter entries", state.picker.filter.slice());
     canvas.pushClip(.{ .x = rect.x + 1, .y = rect.y + 114, .w = rect.w - 2, .h = 292 });
     if (state.picker.phase == .error_state) {
         try labelWrapped(canvas, .{ .x = rect.x + 16, .y = rect.y + 126, .w = rect.w - 32, .h = 44 }, style(common.text_11, th.refuse, .regular), state.picker.reasonSlice());
@@ -199,7 +199,7 @@ fn pickerOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32, he
             if (index == state.picker.selected) try canvas.fill(row, th.tint_live);
             try label(canvas, rect.x + 16, y + 8, if (entry.is_dir) "▸" else "·", style(common.text_11, th.live, .regular));
             try label(canvas, rect.x + 34, y + 8, entry.nameSlice(), style(common.text_11, if (index == state.picker.selected) th.text else th.muted, .regular));
-            canvas.hit(hits.picker_row_base + @as(u32, @intCast(index)), row);
+            _ = canvas.listItem(hits.picker_row_base + @as(u32, @intCast(index)), row, entry.nameSlice(), index == state.picker.selected);
             y += 30;
         }
     }
@@ -221,8 +221,10 @@ fn confirmOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32) !
     try label(canvas, cancel.x + 14, cancel.y + 7, "cancel", style(common.text_11, th.muted, .regular));
     try canvas.rounded(confirm, 4, th.raised, th.refuse, 1);
     try label(canvas, confirm.x + 12, confirm.y + 7, pending.confirmLabel(), style(common.text_11, th.refuse, .regular));
-    canvas.hit(hits.confirm_no, cancel);
-    canvas.hit(hits.confirm_yes, confirm);
+    var confirm_buf: [64]u8 = undefined;
+    const confirm_label = std.fmt.bufPrint(&confirm_buf, "Confirm {s}", .{pending.confirmLabel()}) catch "Confirm";
+    _ = canvas.button(hits.confirm_no, cancel, "Cancel");
+    _ = canvas.button(hits.confirm_yes, confirm, confirm_label);
 }
 
 fn onboardingOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32) !void {
@@ -250,15 +252,17 @@ fn onboardingOverlay(state: *const State, canvas: *Canvas, th: Theme, width: f32
     const next = Rect{ .x = rect.x + rect.w - 112, .y = rect.y + rect.h - 44, .w = 94, .h = 28 };
     try canvas.rounded(skip, 4, th.panel, th.line, 1);
     try label(canvas, skip.x + 14, skip.y + 6, "skip", style(common.text_11, th.dim, .regular));
-    canvas.hit(hits.onboarding_skip, skip);
+    _ = canvas.button(hits.onboarding_skip, skip, "Skip onboarding");
     if (state.onboarding.step.index() > 0) {
         try canvas.rounded(back, 4, th.panel, th.line_strong, 1);
         try label(canvas, back.x + 16, back.y + 6, "back", style(common.text_11, th.muted, .regular));
-        canvas.hit(hits.onboarding_back, back);
+        _ = canvas.button(hits.onboarding_back, back, "Onboarding back");
     }
     try canvas.rounded(next, 4, th.raised, th.line_strong, 1);
     try label(canvas, next.x + 16, next.y + 6, if (state.onboarding.isLast()) "finish" else "next", style(common.text_11, th.text, .regular));
-    canvas.hit(if (state.onboarding.isLast()) hits.onboarding_finish else hits.onboarding_next, next);
+    const next_id = if (state.onboarding.isLast()) hits.onboarding_finish else hits.onboarding_next;
+    const next_label = if (state.onboarding.isLast()) "Finish onboarding" else "Onboarding next";
+    _ = canvas.button(next_id, next, next_label);
 }
 
 pub fn drawToast(state: *const State, canvas: *Canvas, th: Theme, width: f32, height: f32) !void {
@@ -267,5 +271,7 @@ pub fn drawToast(state: *const State, canvas: *Canvas, th: Theme, width: f32, he
         const rect = Rect{ .x = width - tw - 16, .y = height - 48 - 30, .w = tw, .h = 30 };
         try canvas.rounded(rect, 4, th.raised2, th.line_strong, 1);
         try label(canvas, rect.x + 12, rect.y + 6.5, toast, style(common.text_11, th.text, .regular));
+        // Toast is a polite AX live-region status, not a control.
+        _ = canvas.semanticText(9100, rect, .status, toast, "");
     }
 }

@@ -140,11 +140,13 @@ pub fn cmdRecord(
         return .refuse;
     }
 
-    const probe = live.probe(io, allocator) catch |probe_error| {
+    const probe = live.probeWithOptions(io, allocator, live_options) catch |probe_error| {
         try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(probe_error));
         return .refuse;
     };
-    if (probe.state != .READY) {
+    // DEGRADED proceeds: the capture is useful and the summary carries the
+    // exact per-collector coverage. Only SKIP/REFUSE fail closed.
+    if (probe.state != .READY and probe.state != .DEGRADED) {
         try capability.writeCapabilityEvent(
             out,
             "live_capture",
@@ -187,7 +189,7 @@ pub fn cmdRecord(
         try err.print("record: cannot flush output: {s}\n", .{@errorName(flush_error)});
         return .refuse;
     };
-    if (result.state != .READY) {
+    if (result.state != .READY and result.state != .DEGRADED) {
         try capability.writeCapabilityEvent(
             out,
             "live_capture",
@@ -198,6 +200,8 @@ pub fn cmdRecord(
     }
 
     try writeSummary(err, .{
+        .capability = @tagName(result.state),
+        .coverage = result.coverage,
         .duration_ms = duration_ms,
         .events = sink.events,
         .faults_major = sink.faults_major,
@@ -205,6 +209,7 @@ pub fn cmdRecord(
         .lost = result.lost,
         .output = if (path) |p| p else "-",
         .migrations = sink.migrations,
+        .reason = if (result.state == .DEGRADED) result.reason else "",
         .switches = sink.switches,
         .wakeups = sink.wakeups,
     });
@@ -213,6 +218,8 @@ pub fn cmdRecord(
 }
 
 const Summary = struct {
+    capability: []const u8 = "READY",
+    coverage: live.Coverage = .{},
     duration_ms: u32,
     events: u64,
     faults_major: u64,
@@ -220,36 +227,71 @@ const Summary = struct {
     lost: u64,
     output: []const u8,
     migrations: u64,
+    reason: []const u8 = "",
     switches: u64,
     wakeups: u64,
 };
 
 /// Compose the canonical `xsprof/capture-summary/v1` stderr line. Keys are
 /// strictly ascending; `page_faults` is the combined total of the split major
-/// and minor fault counters (the archived `SW_PAGE_FAULTS` count).
+/// and minor fault counters (the archived `SW_PAGE_FAULTS` count). `reason` and
+/// `rings` are additive: present when the capture degraded.
 fn writeSummary(w: *Writer, summary: Summary) !void {
-    try json.write(w, .{ .object = &.{
-        .{ .key = "capability", .value = .{ .string = "READY" } },
-        .{ .key = "duration_ms", .value = .{ .unsigned = summary.duration_ms } },
-        .{ .key = "events_captured", .value = .{ .unsigned = summary.events } },
-        .{ .key = "faults_major", .value = .{ .unsigned = summary.faults_major } },
-        .{ .key = "faults_minor", .value = .{ .unsigned = summary.faults_minor } },
-        .{ .key = "host_mutation", .value = .{ .boolean = false } },
-        .{ .key = "lost", .value = .{ .unsigned = summary.lost } },
-        .{ .key = "output", .value = .{ .string = summary.output } },
-        .{ .key = "page_faults", .value = .{ .unsigned = summary.faults_major +| summary.faults_minor } },
-        .{ .key = "sched_migrations", .value = .{ .unsigned = summary.migrations } },
-        .{ .key = "sched_switches", .value = .{ .unsigned = summary.switches } },
-        .{ .key = "sched_wakeups", .value = .{ .unsigned = summary.wakeups } },
-        .{ .key = "schema", .value = .{ .string = "xsprof/capture-summary/v1" } },
-        .{ .key = "source", .value = .{ .string = "perf_tracepoint" } },
-    } });
+    var ring_outer: [live.collector_count]json.Entry = undefined;
+    var ring_inner: [live.collector_count][3]json.Entry = undefined;
+    const ring_count = summary.coverage.fillJson(&ring_outer, &ring_inner);
+
+    var entries: [17]json.Entry = undefined;
+    var n: usize = 0;
+    entries[n] = .{ .key = "capability", .value = .{ .string = summary.capability } };
+    n += 1;
+    entries[n] = .{ .key = "duration_ms", .value = .{ .unsigned = summary.duration_ms } };
+    n += 1;
+    entries[n] = .{ .key = "events_captured", .value = .{ .unsigned = summary.events } };
+    n += 1;
+    entries[n] = .{ .key = "faults_major", .value = .{ .unsigned = summary.faults_major } };
+    n += 1;
+    entries[n] = .{ .key = "faults_minor", .value = .{ .unsigned = summary.faults_minor } };
+    n += 1;
+    entries[n] = .{ .key = "host_mutation", .value = .{ .boolean = false } };
+    n += 1;
+    entries[n] = .{ .key = "lost", .value = .{ .unsigned = summary.lost } };
+    n += 1;
+    entries[n] = .{ .key = "output", .value = .{ .string = summary.output } };
+    n += 1;
+    entries[n] = .{ .key = "page_faults", .value = .{ .unsigned = summary.faults_major +| summary.faults_minor } };
+    n += 1;
+    if (summary.reason.len != 0) {
+        entries[n] = .{ .key = "reason", .value = .{ .string = summary.reason } };
+        n += 1;
+    }
+    if (ring_count != 0) {
+        entries[n] = .{ .key = "rings", .value = .{ .object = ring_outer[0..ring_count] } };
+        n += 1;
+    }
+    entries[n] = .{ .key = "sched_migrations", .value = .{ .unsigned = summary.migrations } };
+    n += 1;
+    entries[n] = .{ .key = "sched_switches", .value = .{ .unsigned = summary.switches } };
+    n += 1;
+    entries[n] = .{ .key = "sched_wakeups", .value = .{ .unsigned = summary.wakeups } };
+    n += 1;
+    entries[n] = .{ .key = "schema", .value = .{ .string = "xsprof/capture-summary/v1" } };
+    n += 1;
+    entries[n] = .{ .key = "source", .value = .{ .string = "perf_tracepoint" } };
+    n += 1;
+    try json.write(w, .{ .object = entries[0..n] });
 }
 
 test "capture summary is canonical, ascending, and includes page_faults" {
-    var buffer: [1024]u8 = undefined;
+    var full: live.Coverage = .{};
+    full.sched_switch = .{ .cpus = 4, .expected = 4 };
+    full.sched_wakeup = .{ .cpus = 4, .expected = 4 };
+    full.sched_migrate = .{ .cpus = 4, .expected = 4 };
+    full.page_faults = .{ .cpus = 4, .expected = 4 };
+    var buffer: [2048]u8 = undefined;
     var writer = Writer.fixed(&buffer);
     try writeSummary(&writer, .{
+        .coverage = full,
         .duration_ms = 300,
         .events = 73648,
         .faults_major = 12,
@@ -263,9 +305,57 @@ test "capture summary is canonical, ascending, and includes page_faults" {
     try std.testing.expectEqualStrings(
         "{\"capability\":\"READY\",\"duration_ms\":300,\"events_captured\":73648," ++
             "\"faults_major\":12,\"faults_minor\":4959,\"host_mutation\":false,\"lost\":0," ++
-            "\"output\":\"-\",\"page_faults\":4971,\"sched_migrations\":3," ++
-            "\"sched_switches\":68631,\"sched_wakeups\":41," ++
+            "\"output\":\"-\",\"page_faults\":4971,\"rings\":{" ++
+            "\"page_faults\":{\"cpus\":4,\"expected\":4}," ++
+            "\"sched_migrate\":{\"cpus\":4,\"expected\":4}," ++
+            "\"sched_switch\":{\"cpus\":4,\"expected\":4}," ++
+            "\"sched_wakeup\":{\"cpus\":4,\"expected\":4}}," ++
+            "\"sched_migrations\":3,\"sched_switches\":68631,\"sched_wakeups\":41," ++
             "\"schema\":\"xsprof/capture-summary/v1\",\"source\":\"perf_tracepoint\"}",
         writer.buffered(),
     );
+}
+
+// Checks a partially covered capture reports DEGRADED with the exact shortfall
+// and keeps the summary canonical and schema-valid.
+test "capture summary reports DEGRADED coverage and reason" {
+    var degraded: live.Coverage = .{};
+    degraded.sched_switch = .{ .cpus = 4, .expected = 4 };
+    degraded.sched_wakeup = .{ .expected = 4 };
+    degraded.sched_wakeup.setReason("tracepoint unavailable");
+    degraded.sched_migrate = .{ .cpus = 4, .expected = 4 };
+    var buffer: [2048]u8 = undefined;
+    var writer = Writer.fixed(&buffer);
+    try writeSummary(&writer, .{
+        .capability = "DEGRADED",
+        .coverage = degraded,
+        .duration_ms = 300,
+        .events = 100,
+        .faults_major = 0,
+        .faults_minor = 0,
+        .lost = 1,
+        .output = "session.ndjson",
+        .migrations = 0,
+        .reason = "partial capture: sched_wakeup tracepoint unavailable",
+        .switches = 99,
+        .wakeups = 0,
+    });
+    const text = writer.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"capability\":\"DEGRADED\"") != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        text,
+        "\"reason\":\"partial capture: sched_wakeup tracepoint unavailable\"",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        text,
+        "\"sched_wakeup\":{\"cpus\":0,\"expected\":4,\"reason\":\"tracepoint unavailable\"}",
+    ) != null);
+    // Undeclared page_faults is omitted, and canonical key order holds.
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"page_faults\":{\"cpus\"") == null);
+    const reason_at = std.mem.indexOf(u8, text, "\"reason\"").?;
+    const rings_at = std.mem.indexOf(u8, text, "\"rings\"").?;
+    const sched_at = std.mem.indexOf(u8, text, "\"sched_migrations\"").?;
+    try std.testing.expect(reason_at < rings_at and rings_at < sched_at);
 }

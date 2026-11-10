@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const event = @import("../core/event.zig");
+const loss = @import("../core/loss.zig");
 const session_meta = @import("../core/session_meta.zig");
 const session_mod = @import("../stream/session.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
@@ -72,7 +73,7 @@ pub fn analyzeFile(
     var wakeups: u32 = 0;
     var migrations: u32 = 0;
     var faults: u32 = 0;
-    var lost: u32 = 0;
+    var loss_counter: loss.Counter = .{};
     var refusals: u32 = 0;
     var cpu_count: u8 = 1;
     var self_switches: u32 = 0;
@@ -136,13 +137,9 @@ pub fn analyzeFile(
                 });
             },
             .marker => {
-                if (std.mem.indexOf(u8, entry.detail, "retention_loss") != null) {
-                    retention_trimmed = true;
-                }
-                if (std.mem.indexOf(u8, entry.detail, "sample_loss") != null or
-                    std.mem.indexOf(u8, entry.detail, "lost") != null)
-                {
-                    lost += event.lossMagnitude(entry.detail);
+                if (loss.classify(entry.detail)) |kind| {
+                    if (kind == .retention_loss) retention_trimmed = true;
+                    _ = loss_counter.add(entry.detail);
                 }
             },
             else => {},
@@ -163,7 +160,8 @@ pub fn analyzeFile(
         .wakeups = wakeups,
         .migrations = migrations,
         .faults = faults,
-        .lost = lost,
+        .lost = @intCast(@min(loss_counter.total(), std.math.maxInt(u32))),
+        .loss_by_kind = loss_counter.totals,
         .refusals = refusals,
         .cpu_count = cpu_count,
         .metrics = metrics,
@@ -209,4 +207,29 @@ test "streamed analysis keeps counters and a trace prefix" {
     try std.testing.expectEqual(@as(i32, 7), result.session.meta.self_pid);
     try std.testing.expectEqual(@as(usize, 0), result.session.capabilities.len);
     std.Io.Dir.deleteFileAbsolute(std.testing.io, path) catch {};
+}
+
+// Checks incident window analysis counts every loss kind and marks retention.
+test "incident analysis counts all loss kinds and retention trim" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const path = try std.fmt.allocPrint(allocator, "/tmp/xsprof-incident-loss-{d}.ndjson", .{std.testing.random_seed});
+    const body =
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":1,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"sample_loss perf_ring lost=2\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":2,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"retention_loss requested_from_wall_ns=1 oldest_wall_ns=2\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"marker\",\"ts_ns\":3,\"cpu\":-1,\"pid\":-1,\"tid\":-1,\"detail\":\"capture_corrupt_segment offset=0 dropped=1\",\"host_mutation\":false}\n";
+    {
+        const file = try std.Io.Dir.createFileAbsolute(std.testing.io, path, .{});
+        defer file.close(std.testing.io);
+        try file.writeStreamingAll(std.testing.io, body);
+    }
+    defer std.Io.Dir.deleteFileAbsolute(std.testing.io, path) catch {};
+    const result = try analyzeFile(std.testing.io, allocator, path, .{});
+    try std.testing.expect(result.retention_trimmed);
+    try std.testing.expectEqual(@as(u32, 4), result.session.lost);
+    try std.testing.expectEqual(@as(u64, 2), result.session.loss_by_kind.get(.sample_loss));
+    try std.testing.expectEqual(@as(u64, 1), result.session.loss_by_kind.get(.retention_loss));
+    try std.testing.expectEqual(@as(u64, 1), result.session.loss_by_kind.get(.capture_corrupt_segment));
+    try std.testing.expectEqual(@as(u64, 4), loss.sum(result.session.loss_by_kind));
 }

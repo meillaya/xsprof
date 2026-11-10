@@ -1,14 +1,21 @@
 //! Platform-neutral accessibility tree for xsui.
 //!
-//! The tree is built from the same `Canvas` draw/hit pass that pointer input
-//! uses, so roles, labels, focus order, and hit testing cannot drift from the
-//! drawn UI. This module is target-neutral: no OS, window, or profiler imports.
-//! Platform bridges (macOS NSAccessibility, Linux JSON/DEGRADED) copy whatever
-//! they need and must not hold borrowed slices past the next frame.
+//! The tree is built from the same `Canvas` semantic registration pass that
+//! pointer input and focus use (`Canvas.node`, `Canvas.button`, `Canvas.choice`,
+//! `Canvas.textField`, `Canvas.checkbox`, `Canvas.listItem`, `Canvas.tabItem`,
+//! `Canvas.semanticText`). Roles, labels, values, state, and focus order are
+//! therefore authored at paint time and cannot drift from what was drawn.
+//!
+//! This module is target-neutral: no OS, window, or profiler imports. Platform
+//! bridges (macOS NSAccessibility, Linux JSON/DEGRADED) consume this one tree
+//! type and copy whatever they need before the next frame.
 //!
 //! Canonical JSON (`xsprof/a11y-tree/v1`) is deterministic: keys strictly
-//! ascending, compact separators, rect/clip rounded to whole pixels, labels
-//! escaped, nodes in draw order.
+//! ascending, compact separators, root `host_mutation=false`, nodes in draw
+//! order, labels/values escaped. The wire role vocabulary is the stable
+//! viewer-facing one used by snapshots and `ui --a11y`: `button`, `textbox`,
+//! `list`, `listitem`, `tab`, `tabpanel`, `tablist`, `dialog`, `status`,
+//! `heading`, `window`, `progressbar`-free (no progress nodes are registered).
 
 const std = @import("std");
 const canvas_mod = @import("canvas.zig");
@@ -17,7 +24,7 @@ const layout = @import("layout.zig");
 pub const Rect = layout.Rect;
 
 /// Semantics of an accessible node. `.none` marks a legacy pointer-only hit
-/// with no accessibility content (kept during migration; bridges hide it).
+/// with no accessibility content (bridges and JSON hide it).
 pub const Role = enum(u8) {
     none = 0,
     window,
@@ -40,6 +47,28 @@ pub const Role = enum(u8) {
 
 pub fn roleName(role: Role) []const u8 {
     return @tagName(role);
+}
+
+/// Stable wire role for `xsprof/a11y-tree/v1`. Returns null for roles that are
+/// structural-only and never serialized. The mapping keeps the pre-existing
+/// viewer contract (`textbox`/`heading`/`tabpanel`/`listitem`) while the richer
+/// internal roles drive NSAccessibility.
+pub fn wireRole(role: Role) ?[]const u8 {
+    return switch (role) {
+        .none, .scroll_area, .graphic => null,
+        .window => "window",
+        .group => "tabpanel",
+        .tab_list => "tablist",
+        .tab => "tab",
+        .button => "button",
+        .toggle, .radio => "button",
+        .text_field => "textbox",
+        .list => "list",
+        .list_item, .row => "listitem",
+        .static_text => "heading",
+        .status => "status",
+        .dialog => "dialog",
+    };
 }
 
 /// Static state carried by a node. Dynamic focus is resolved by `build`.
@@ -76,14 +105,19 @@ pub const Node = struct {
 pub const Tree = struct {
     allocator: std.mem.Allocator,
     nodes: []Node,
+    /// Tree-owned label/value/hint bytes for `buildOwned`; empty for `build`.
+    strings: []u8 = &.{},
     focused: ?u32 = null,
     truncated: bool = false,
 
-    /// Builds a bounded tree from the canvas hit pass. Returned labels borrow
-    /// the caller's strings; the tree itself is owned by `allocator`.
-    /// Builds a bounded tree from the canvas hit pass. Legacy pointer-only hits
-    /// (`.none` role) and unlabeled nodes are omitted so native AX never exposes
-    /// unlabeled controls; the canvas still hit-tests them for pointer input.
+    pub fn empty(allocator: std.mem.Allocator) Tree {
+        return .{ .allocator = allocator, .nodes = &.{} };
+    }
+
+    /// Builds a bounded tree from the canvas registration pass. Returned
+    /// labels borrow the canvas strings, so the caller must consume or copy the
+    /// tree before those strings die (snapshots, macOS bridge). Use
+    /// `buildOwned` when the tree must outlive the frame.
     pub fn build(
         allocator: std.mem.Allocator,
         canvas: *const canvas_mod.Canvas,
@@ -120,13 +154,51 @@ pub const Tree = struct {
         };
     }
 
+    /// `build` plus a tree-owned copy of every label/value/hint, so the tree
+    /// remains valid after the canvas is reset (used by the cached App tree
+    /// that Linux serializes after the frame and that snapshots may hold).
+    pub fn buildOwned(
+        allocator: std.mem.Allocator,
+        canvas: *const canvas_mod.Canvas,
+        focused: ?u32,
+    ) !Tree {
+        var tree = try build(allocator, canvas, focused);
+        errdefer tree.deinit();
+        var string_bytes: usize = 0;
+        for (tree.nodes) |node| {
+            string_bytes += node.label.len + node.value.len + node.hint.len;
+        }
+        if (string_bytes == 0) return tree;
+        const owned = try allocator.alloc(u8, string_bytes);
+        errdefer allocator.free(owned);
+        var cursor: usize = 0;
+        for (tree.nodes) |*node| {
+            node.label = copyInto(owned, &cursor, node.label);
+            node.value = copyInto(owned, &cursor, node.value);
+            node.hint = copyInto(owned, &cursor, node.hint);
+        }
+        tree.strings = owned;
+        return tree;
+    }
+
     pub fn deinit(self: *Tree) void {
-        self.allocator.free(self.nodes);
+        if (self.nodes.len != 0) self.allocator.free(self.nodes);
+        if (self.strings.len != 0) self.allocator.free(self.strings);
         self.nodes = &.{};
+        self.strings = &.{};
     }
 
     pub fn count(self: *const Tree) usize {
         return self.nodes.len;
+    }
+
+    pub fn focusableCount(self: *const Tree) usize {
+        var focusables: usize = 0;
+        for (self.nodes) |node| {
+            if (!node.flags.focusable or node.flags.disabled) continue;
+            focusables += 1;
+        }
+        return focusables;
     }
 
     pub fn findIndex(self: *const Tree, id: u32) ?usize {
@@ -167,20 +239,43 @@ pub const Tree = struct {
         return null;
     }
 
-    /// Writes canonical `xsprof/a11y-tree/v1` JSON to `w`.
+    /// Writes canonical `xsprof/a11y-tree/v1` JSON to `w`. Node shape is the
+    /// stable viewer contract: disabled/focusable/id/label/role/selected/value.
     pub fn writeJson(self: *const Tree, w: *std.Io.Writer) !void {
-        try w.writeAll("{\"focused\":");
-        if (self.focused) |id| try w.print("{d}", .{id}) else try w.writeAll("null");
-        try w.writeAll(",\"nodes\":[");
-        for (self.nodes, 0..) |node, index| {
-            if (index != 0) try w.writeByte(',');
-            try writeNode(w, self, node);
+        try w.writeAll("{\"host_mutation\":false,\"nodes\":[");
+        var first = true;
+        for (self.nodes) |node| {
+            if (node.label.len == 0) continue;
+            const role = wireRole(node.role) orelse continue;
+            if (!first) try w.writeByte(',');
+            first = false;
+            try w.writeAll("{\"disabled\":");
+            try w.writeAll(if (node.flags.disabled) "true" else "false");
+            try w.writeAll(",\"focusable\":");
+            try w.writeAll(if (node.flags.focusable) "true" else "false");
+            try w.print(",\"id\":{d},\"label\":", .{node.id});
+            try writeString(w, node.label);
+            try w.writeAll(",\"role\":");
+            try writeString(w, role);
+            try w.writeAll(",\"selected\":");
+            try w.writeAll(if (node.flags.selected or node.flags.checked) "true" else "false");
+            try w.writeAll(",\"value\":");
+            try writeString(w, node.value);
+            try w.writeByte('}');
         }
         try w.writeAll("],\"schema\":\"" ++ schema ++ "\",\"truncated\":");
         try w.writeAll(if (self.truncated) "true" else "false");
         try w.writeByte('}');
     }
 };
+
+fn copyInto(buffer: []u8, cursor: *usize, text: []const u8) []const u8 {
+    if (text.len == 0) return "";
+    const start = cursor.*;
+    @memcpy(buffer[start .. start + text.len], text);
+    cursor.* = start + text.len;
+    return buffer[start .. start + text.len];
+}
 
 fn findNodeIndex(nodes: []const Node, id: u32) ?usize {
     if (id == 0) return null;
@@ -196,57 +291,6 @@ fn findHitIndex(hits: []const canvas_mod.Hit, id: u32) ?usize {
         if (hit.id == id) return index;
     }
     return null;
-}
-
-fn writeNode(w: *std.Io.Writer, tree: *const Tree, node: Node) !void {
-    try w.writeAll("{\"children\":[");
-    var first = true;
-    for (tree.nodes) |child| {
-        if (child.parent != node.id or child.id == node.id) continue;
-        if (!first) try w.writeByte(',');
-        try w.print("{d}", .{child.id});
-        first = false;
-    }
-    try w.writeAll("],\"clip\":[");
-    try writeRect(w, node.clip);
-    try w.writeAll("],\"flags\":[");
-    try writeFlags(w, node.flags);
-    try w.writeAll("],\"focused\":");
-    try w.writeAll(if (node.focused) "true" else "false");
-    try w.writeAll(",\"hint\":");
-    try writeString(w, node.hint);
-    try w.print(",\"id\":{d},\"label\":", .{node.id});
-    try writeString(w, node.label);
-    try w.print(",\"parent\":{d},\"rect\":[", .{node.parent});
-    try writeRect(w, .{ node.rect.x, node.rect.y, node.rect.w, node.rect.h });
-    try w.writeAll("],\"role\":");
-    try writeString(w, roleName(node.role));
-    try w.writeAll(",\"value\":");
-    try writeString(w, node.value);
-    try w.writeByte('}');
-}
-
-fn writeRect(w: *std.Io.Writer, values: [4]f32) !void {
-    for (values, 0..) |value, index| {
-        if (index != 0) try w.writeByte(',');
-        const rounded: i64 = @intFromFloat(@round(value));
-        try w.print("{d}", .{rounded});
-    }
-}
-
-fn writeFlags(w: *std.Io.Writer, flags: Flags) !void {
-    var first = true;
-    const flag_order = [_][]const u8{
-        "interactive", "focusable", "disabled", "selected",
-        "checked",     "modal",     "live",     "expanded",
-    };
-    inline for (flag_order) |name| {
-        if (@field(flags, name)) {
-            if (!first) try w.writeByte(',');
-            try writeString(w, name);
-            first = false;
-        }
-    }
 }
 
 fn writeString(w: *std.Io.Writer, text: []const u8) !void {
@@ -277,31 +321,18 @@ fn testCanvas(frame: *@import("frame.zig").Frame) canvas_mod.Canvas {
     return canvas_mod.Canvas.init(frame);
 }
 
-test "tree mirrors hits with roles, parents, focus order, and focus" {
+test "tree mirrors canvas semantics with roles, parents, and focus" {
     var frame: @import("frame.zig").Frame = undefined;
     try frame.init(std.testing.allocator, 100, 80, .{});
     defer frame.deinit();
     var canvas = testCanvas(&frame);
     defer canvas.deinit();
 
-    _ = canvas.node(.{ .id = 10, .rect = .{ .x = 0, .y = 0, .w = 10, .h = 10 }, .role = .button, .label = "Go" });
+    _ = canvas.button(10, .{ .x = 0, .y = 0, .w = 10, .h = 10 }, "Go");
     canvas.pushGroup(.{ .id = 5, .rect = .{ .x = 0, .y = 0, .w = 100, .h = 80 }, .role = .group, .label = "Main" });
-    _ = canvas.node(.{
-        .id = 11,
-        .rect = .{ .x = 20, .y = 20, .w = 30, .h = 10 },
-        .role = .tab,
-        .label = "Timeline",
-        .value = "selected",
-        .flags = .{ .interactive = true, .focusable = true, .selected = true },
-    });
+    _ = canvas.tabItem(11, .{ .x = 20, .y = 20, .w = 30, .h = 10 }, "Timeline", true);
     canvas.popGroup();
-    _ = canvas.node(.{
-        .id = 12,
-        .rect = .{ .x = 0, .y = 60, .w = 10, .h = 10 },
-        .role = .static_text,
-        .label = "caption",
-        .flags = .{},
-    });
+    _ = canvas.textField(12, .{ .x = 0, .y = 60, .w = 40, .h = 10 }, "Filter events", "worker");
     _ = canvas.node(.{
         .id = 13,
         .rect = .{ .x = 40, .y = 0, .w = 10, .h = 10 },
@@ -322,11 +353,26 @@ test "tree mirrors hits with roles, parents, focus order, and focus" {
     try std.testing.expectEqual(@as(u32, 5), tab.parent);
     try std.testing.expect(tab.focused);
     try std.testing.expect(!go.focused);
-    try std.testing.expectEqual(Role.static_text, tree.find(12).?.role);
+    try std.testing.expectEqualStrings("worker", tree.find(12).?.value);
+    try std.testing.expectEqual(@as(usize, 3), tree.focusableCount());
 
     const order = try tree.focusOrder(std.testing.allocator);
     defer std.testing.allocator.free(order);
-    try std.testing.expectEqualSlices(u32, &.{ 10, 11 }, order);
+    try std.testing.expectEqualSlices(u32, &.{ 10, 11, 12 }, order);
+}
+
+test "buildOwned copies labels so the tree outlives the frame" {
+    var frame: @import("frame.zig").Frame = undefined;
+    try frame.init(std.testing.allocator, 64, 48, .{});
+    defer frame.deinit();
+    var canvas = testCanvas(&frame);
+    defer canvas.deinit();
+    var label_buffer = [_]u8{ 'h', 'e', 'l', 'l', 'o' };
+    _ = canvas.button(7, .{ .x = 0, .y = 0, .w = 10, .h = 10 }, label_buffer[0..]);
+    var tree = try Tree.buildOwned(std.testing.allocator, &canvas, null);
+    defer tree.deinit();
+    @memset(&label_buffer, 'x');
+    try std.testing.expectEqualStrings("hello", tree.find(7).?.label);
 }
 
 test "hitTest matches canvas.hitAt and honors clip and disabled" {
@@ -337,9 +383,9 @@ test "hitTest matches canvas.hitAt and honors clip and disabled" {
     defer canvas.deinit();
 
     canvas.pushClip(.{ .x = 0, .y = 0, .w = 50, .h = 50 });
-    _ = canvas.node(.{ .id = 22, .rect = .{ .x = 10, .y = 60, .w = 20, .h = 10 }, .role = .button, .label = "offscreen" });
+    _ = canvas.button(22, .{ .x = 10, .y = 60, .w = 20, .h = 10 }, "offscreen");
     canvas.popClip();
-    _ = canvas.node(.{ .id = 20, .rect = .{ .x = 10, .y = 10, .w = 20, .h = 20 }, .role = .button, .label = "on" });
+    _ = canvas.button(20, .{ .x = 10, .y = 10, .w = 20, .h = 20 }, "on");
     _ = canvas.node(.{
         .id = 21,
         .rect = .{ .x = 40, .y = 10, .w = 20, .h = 20 },
@@ -362,22 +408,15 @@ test "hitTest matches canvas.hitAt and honors clip and disabled" {
     try std.testing.expectEqual(@as(?u32, null), tree.hitTest(45, 15));
 }
 
-test "canonical a11y JSON golden" {
+test "canonical a11y JSON golden keeps the stable node shape" {
     var frame: @import("frame.zig").Frame = undefined;
     try frame.init(std.testing.allocator, 100, 80, .{});
     defer frame.deinit();
     var canvas = testCanvas(&frame);
     defer canvas.deinit();
-    _ = canvas.node(.{ .id = 10, .rect = .{ .x = 0, .y = 0, .w = 10, .h = 10 }, .role = .button, .label = "Go" });
+    _ = canvas.button(10, .{ .x = 0, .y = 0, .w = 10, .h = 10 }, "Go");
     canvas.pushGroup(.{ .id = 5, .rect = .{ .x = 0, .y = 0, .w = 100, .h = 80 }, .role = .group, .label = "Main \"q\"" });
-    _ = canvas.node(.{
-        .id = 11,
-        .rect = .{ .x = 20, .y = 20, .w = 30, .h = 10 },
-        .role = .tab,
-        .label = "Timeline",
-        .value = "selected",
-        .flags = .{ .interactive = true, .focusable = true, .selected = true },
-    });
+    _ = canvas.tabItem(11, .{ .x = 20, .y = 20, .w = 30, .h = 10 }, "Timeline", true);
     canvas.popGroup();
     var tree = try Tree.build(std.testing.allocator, &canvas, 11);
     defer tree.deinit();
@@ -386,15 +425,30 @@ test "canonical a11y JSON golden" {
     var writer = std.Io.Writer.fixed(&buffer);
     try tree.writeJson(&writer);
     const expected =
-        "{\"focused\":11,\"nodes\":[" ++
-        "{\"children\":[],\"clip\":[0,0,100,80],\"flags\":[\"interactive\",\"focusable\"],\"focused\":false," ++
-        "\"hint\":\"\",\"id\":10,\"label\":\"Go\",\"parent\":0,\"rect\":[0,0,10,10],\"role\":\"button\",\"value\":\"\"}," ++
-        "{\"children\":[11],\"clip\":[0,0,100,80],\"flags\":[],\"focused\":false," ++
-        "\"hint\":\"\",\"id\":5,\"label\":\"Main \\\"q\\\"\",\"parent\":0,\"rect\":[0,0,100,80],\"role\":\"group\",\"value\":\"\"}," ++
-        "{\"children\":[],\"clip\":[0,0,100,80],\"flags\":[\"interactive\",\"focusable\",\"selected\"],\"focused\":true," ++
-        "\"hint\":\"\",\"id\":11,\"label\":\"Timeline\",\"parent\":5,\"rect\":[20,20,30,10],\"role\":\"tab\",\"value\":\"selected\"}]," ++
+        "{\"host_mutation\":false,\"nodes\":[" ++
+        "{\"disabled\":false,\"focusable\":true,\"id\":10,\"label\":\"Go\",\"role\":\"button\",\"selected\":false,\"value\":\"\"}," ++
+        "{\"disabled\":false,\"focusable\":false,\"id\":5,\"label\":\"Main \\\"q\\\"\",\"role\":\"tabpanel\",\"selected\":false,\"value\":\"\"}," ++
+        "{\"disabled\":false,\"focusable\":true,\"id\":11,\"label\":\"Timeline\",\"role\":\"tab\",\"selected\":true,\"value\":\"\"}]," ++
         "\"schema\":\"xsprof/a11y-tree/v1\",\"truncated\":false}";
     try std.testing.expectEqualStrings(expected, writer.buffered());
+}
+
+test "a11y JSON is deterministic across repeated writes" {
+    var frame: @import("frame.zig").Frame = undefined;
+    try frame.init(std.testing.allocator, 100, 80, .{});
+    defer frame.deinit();
+    var canvas = testCanvas(&frame);
+    defer canvas.deinit();
+    _ = canvas.button(10, .{ .x = 0, .y = 0, .w = 10, .h = 10 }, "Go");
+    var tree = try Tree.build(std.testing.allocator, &canvas, 10);
+    defer tree.deinit();
+    var first: [1024]u8 = undefined;
+    var first_writer = std.Io.Writer.fixed(&first);
+    try tree.writeJson(&first_writer);
+    var second: [1024]u8 = undefined;
+    var second_writer = std.Io.Writer.fixed(&second);
+    try tree.writeJson(&second_writer);
+    try std.testing.expectEqualStrings(first_writer.buffered(), second_writer.buffered());
 }
 
 test "tree truncates at the bounded node cap" {
@@ -405,12 +459,7 @@ test "tree truncates at the bounded node cap" {
     defer canvas.deinit();
     var index: u32 = 0;
     while (index < 600) : (index += 1) {
-        _ = canvas.node(.{
-            .id = 1000 + index,
-            .rect = .{ .x = 0, .y = 0, .w = 4, .h = 4 },
-            .role = .button,
-            .label = "bounded",
-        });
+        _ = canvas.button(1000 + index, .{ .x = 0, .y = 0, .w = 4, .h = 4 }, "bounded");
     }
     try std.testing.expect(canvas.truncated);
     var tree = try Tree.build(std.testing.allocator, &canvas, null);
@@ -425,14 +474,14 @@ test "frame resize and canvas resetViewport track new dimensions" {
     defer frame.deinit();
     var canvas = testCanvas(&frame);
     defer canvas.deinit();
-    _ = canvas.node(.{ .id = 7, .rect = .{ .x = 0, .y = 0, .w = 5, .h = 5 }, .role = .button, .label = "a" });
+    _ = canvas.button(7, .{ .x = 0, .y = 0, .w = 5, .h = 5 }, "a");
     try std.testing.expectEqual(@as(u32, 100), frame.width);
     frame.resize(200, 150);
     try std.testing.expectEqual(@as(u32, 200), frame.width);
     try std.testing.expectEqual(@as(u32, 150), frame.height);
     canvas.resetViewport();
     try std.testing.expectEqual(@as(f32, 200), canvas.clip_rect.w);
-    _ = canvas.node(.{ .id = 8, .rect = .{ .x = 150, .y = 120, .w = 5, .h = 5 }, .role = .button, .label = "b" });
+    _ = canvas.button(8, .{ .x = 150, .y = 120, .w = 5, .h = 5 }, "b");
     try std.testing.expectEqual(@as(?u32, 8), canvas.hitAt(151, 121));
     frame.resize(0, 0);
     try std.testing.expectEqual(@as(u32, 200), frame.width);

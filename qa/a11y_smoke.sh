@@ -47,7 +47,7 @@ DEMO="$ROOT/fixtures/ui/design/demo.json"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
-for view in home audit settings; do
+for view in home overview timeline advisor events capture audit settings; do
     "$BIN" snapshot --demo-model "$DEMO" --view "$view" --theme dark \
         --width 1280 --height 720 --out "$TMP/$view.png" --a11y "$TMP/$view.json" >/dev/null
     "$BIN" snapshot --demo-model "$DEMO" --view "$view" --theme dark \
@@ -82,4 +82,4 @@ for node in nodes:
     }, node["role"]
 PY
 done
-echo "a11y_smoke: PASS (deterministic home/audit/settings trees)"
+echo "a11y_smoke: PASS (deterministic eight-route trees)"

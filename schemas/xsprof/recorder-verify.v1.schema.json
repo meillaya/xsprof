@@ -25,6 +25,7 @@
     "decoded_events": { "type": "integer", "minimum": 0 },
     "dirty": { "type": "integer", "minimum": 0 },
     "events": { "type": "integer", "minimum": 0 },
+    "footer_mismatch": { "type": "integer", "minimum": 0 },
     "host_mutation": { "const": false },
     "missing": { "type": "integer", "minimum": 0 },
     "schema": { "const": "xsprof/recorder-verify/v1" },
@@ -38,6 +39,9 @@
           "bytes": { "type": "integer", "minimum": 0 },
           "codec": { "enum": ["ndjson", "compact_v1", "unknown"] },
           "events": { "type": "integer", "minimum": 0 },
+          "footer_blocks": { "type": "integer", "minimum": 0 },
+          "footer_events": { "type": "integer", "minimum": 0 },
+          "footer_mismatch": { "const": true },
           "offset": { "type": "integer", "minimum": 0 },
           "path": { "type": "string" },
           "status": { "enum": ["clean", "dirty", "corrupt", "missing", "unsupported"] }

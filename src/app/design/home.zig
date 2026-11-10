@@ -83,7 +83,7 @@ fn drawOnboardingCta(state: *const State, canvas: *Canvas, th: Theme, rect: Rect
     const button = Rect{ .x = rect.x + rect.w - 128, .y = rect.y + 14, .w = 114, .h = 27 };
     try canvas.rounded(button, 4, th.raised, th.line_strong, 1);
     try label(canvas, button.x + 11, button.y + 6.5, "start tour", style(text_11, th.text, .regular));
-    canvas.hit(hits.onboarding_next, button);
+    _ = canvas.button(hits.onboarding_next, button, "Start tour");
 }
 
 fn drawSourceCards(state: *const State, canvas: *Canvas, th: Theme, rect: Rect, compact: bool) !void {
@@ -111,7 +111,7 @@ fn drawSourceCards(state: *const State, canvas: *Canvas, th: Theme, rect: Rect, 
         try label(canvas, card.x + 14, card.y + 10, item.glyph, style(text_95, if (selected) th.live else th.faint, .regular));
         try label(canvas, card.x + 14, card.y + 26, item.kind.label(), style(text_12, if (selected) th.text else th.muted, .regular));
         try labelWrapped(canvas, .{ .x = card.x + 14, .y = card.y + 45, .w = card.w - 28, .h = 32 }, style(text_10, th.dim, .regular), item.detail);
-        canvas.hit(item.id, card);
+        _ = canvas.choice(item.id, card, item.kind.label(), selected);
     }
 }
 
@@ -125,7 +125,7 @@ fn drawTimeFrame(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !v
         const chip = Rect{ .x = cx, .y = rect.y + 45, .w = tw, .h = 26 };
         try canvas.rounded(chip, 3, if (active) th.tint_live else th.panel, if (active) th.live else th.line, 1);
         try label(canvas, chip.x + 9, chip.y + 6.5, preset.label(), style(text_105, if (active) th.live else th.muted, .regular));
-        canvas.hit(hits.home_window_base + @as(u32, @intCast(index)), chip);
+        _ = canvas.choice(hits.home_window_base + @as(u32, @intCast(index)), chip, preset.label(), active);
         cx += tw + 6;
     }
     var note_buf: [96]u8 = undefined;
@@ -155,12 +155,12 @@ fn drawRecorderStrip(state: *const State, canvas: *Canvas, th: Theme, rect: Rect
         const stop = Rect{ .x = rect.x + rect.w - 90, .y = rect.y + 78, .w = 76, .h = 26 };
         try canvas.rounded(stop, 4, th.raised, th.refuse, 1);
         try label(canvas, stop.x + 16, stop.y + 5.5, "stop", style(text_11, th.refuse, .regular));
-        canvas.hit(hits.recorder_stop, stop);
+        _ = canvas.button(hits.recorder_stop, stop, "Stop capture");
     } else {
         const start = Rect{ .x = rect.x + rect.w - 90, .y = rect.y + 78, .w = 76, .h = 26 };
         try canvas.rounded(start, 4, th.raised, th.line_strong, 1);
         try label(canvas, start.x + 14, start.y + 5.5, "start", style(text_11, th.text, .regular));
-        canvas.hit(hits.recorder_start, start);
+        _ = canvas.button(hits.recorder_start, start, "Start capture");
     }
 }
 
@@ -204,7 +204,7 @@ fn drawRecents(state: *const State, canvas: *Canvas, th: Theme, rect: Rect) !voi
         try label(canvas, rect.x + 14, y + 6, entry.kind.tag(), style(text_95, th.faint, .regular));
         try label(canvas, rect.x + 76, y + 6, entry.baseName(), style(text_11, th.text, .regular));
         try labelRight(canvas, rect.x + rect.w - 14, y + 6, "open", style(text_10, th.live, .regular));
-        canvas.hit(hits.recents_base + @as(u32, @intCast(index)), row);
+        _ = canvas.listItem(hits.recents_base + @as(u32, @intCast(index)), row, entry.baseName(), false);
         y += 26;
     }
 }

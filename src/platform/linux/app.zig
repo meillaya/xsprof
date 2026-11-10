@@ -21,6 +21,26 @@ const linux_live_source = @import("live_source.zig");
 const events = @import("events.zig");
 const xlib = @import("xlib.zig");
 
+/// Inputs to the idle-loop policy. A frame tick is only scheduled when one of
+/// these is pending; otherwise the surface blocks on the next host event.
+pub const TimerState = struct {
+    /// A live/recorder-tail controller is attached and must be polled.
+    live: bool = false,
+    /// Timeline playback or another design animation is advancing time.
+    animation: bool = false,
+    /// A transient toast still has to expire and clear itself.
+    toast: bool = false,
+    /// A frame is pending and must be presented.
+    dirty: bool = false,
+};
+
+/// Pure idle policy: true when the event loop must run a timer tick instead of
+/// blocking for the next event. When this is false the surface is idle — no
+/// frames, no polling, no fixed-rate wakeups.
+pub fn needsTimerTick(state: TimerState) bool {
+    return state.live or state.animation or state.toast or state.dirty;
+}
+
 pub const App = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -54,6 +74,22 @@ pub const App = struct {
     live_preset_name: []const u8 = "scheduler",
     live_label: []const u8 = "live capture",
     live_dir_buf: [512]u8 = @splat(0),
+
+    /// Current idle-policy inputs, derived from the surface and console state.
+    pub fn timerState(self: *const App) TimerState {
+        const state = &self.design.state;
+        return .{
+            .live = self.live_controller != null,
+            .animation = state.timeline_playing,
+            .toast = state.toast != null,
+            .dirty = self.dirty,
+        };
+    }
+
+    /// True when the event loop must keep ticking; false means block on X.
+    pub fn wantsTimerTick(self: *const App) bool {
+        return needsTimerTick(self.timerState());
+    }
 
     /// Draws the shared console and swaps. Clears per-frame hits first, so the
     /// tree and pointer hit test always describe the frame just drawn.
@@ -98,8 +134,13 @@ pub const App = struct {
             if (delta_ms == 0) delta_ms = 1;
         }
         self.last_tick_ns = now;
+        const toast_was_visible = self.design.state.toast != null;
         self.design.tick(delta_ms);
-        if (self.design.state.timeline_playing) self.dirty = true;
+        // Playback advances every tick; a toast expiring is a one-shot repaint
+        // (otherwise the event-driven loop would stop ticking with the toast
+        // still painted until the next input event).
+        if (self.design.state.timeline_playing or
+            (toast_was_visible and self.design.state.toast == null)) self.dirty = true;
     }
 
     /// One idle step: monotonic tick, host-effect drain, and live poll. Blocking
@@ -245,6 +286,141 @@ pub const App = struct {
             .{ tree.len, tree.focusableCount(), if (tree.truncated) "true" else "false" },
         );
         std.debug.print("{s}\n", .{json});
+    }
+
+    /// Thresholds for the hidden CPU-vs-GL parity smoke, read from the formal
+    /// `design/ui-spec.json` contract so the gate and the spec cannot drift.
+    pub const ParityThresholds = struct {
+        mae_max: f64 = 4.0,
+        over24_max_pct: f64 = 3.0,
+    };
+
+    pub const ParityStats = struct {
+        mae: f64 = 0,
+        over24_pct: f64 = 0,
+        pixels: usize = 0,
+    };
+
+    /// Pure parity metric: compare CPU RGBA against GL BGRA readback. Null when
+    /// the two buffers do not describe the same pixel count.
+    pub fn measureParity(cpu_rgba: []const u8, gl_bgra: []const u8) ?ParityStats {
+        if (cpu_rgba.len != gl_bgra.len or cpu_rgba.len == 0 or cpu_rgba.len % 4 != 0) return null;
+        var sum: u64 = 0;
+        var over: u64 = 0;
+        var at: usize = 0;
+        while (at < cpu_rgba.len) : (at += 4) {
+            const dr = absDiff(cpu_rgba[at], gl_bgra[at + 2]);
+            const dg = absDiff(cpu_rgba[at + 1], gl_bgra[at + 1]);
+            const db = absDiff(cpu_rgba[at + 2], gl_bgra[at]);
+            sum += dr + dg + db;
+            if (@max(dr, @max(dg, db)) > 24) over += 1;
+        }
+        const pixels = cpu_rgba.len / 4;
+        return .{
+            .mae = @as(f64, @floatFromInt(sum)) / @as(f64, @floatFromInt(pixels * 3)),
+            .over24_pct = 100.0 * @as(f64, @floatFromInt(over)) / @as(f64, @floatFromInt(pixels)),
+            .pixels = pixels,
+        };
+    }
+
+    fn absDiff(a: u8, b: u8) u64 {
+        return if (a > b) a - b else b - a;
+    }
+
+    fn loadParityThresholds(self: *App) ?ParityThresholds {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+        const path = "design/ui-spec.json";
+        const data = std.Io.Dir.cwd().readFileAlloc(self.io, path, allocator, .limited(1024 * 1024)) catch return null;
+        const parsed = std.json.parseFromSliceLeaky(std.json.Value, allocator, data, .{ .max_value_len = data.len }) catch return null;
+        const acceptance = switch (parsed) {
+            .object => |o| o.get("acceptance") orelse return null,
+            else => return null,
+        };
+        const cross = switch (acceptance) {
+            .object => |o| o.get("cross_surface") orelse return null,
+            else => return null,
+        };
+        const gate = switch (cross) {
+            .object => |o| o.get("cpu_vs_gl") orelse return null,
+            else => return null,
+        };
+        const fields = switch (gate) {
+            .object => |o| o,
+            else => return null,
+        };
+        return .{
+            .mae_max = numberField(fields.get("mae_max")) orelse return null,
+            .over24_max_pct = numberField(fields.get("over24_max")) orelse return null,
+        };
+    }
+
+    fn numberField(value: ?std.json.Value) ?f64 {
+        const found = value orelse return null;
+        return switch (found) {
+            .float => |f| f,
+            .integer => |i| @floatFromInt(i),
+            else => null,
+        };
+    }
+
+    /// Hidden smoke: renders two product routes through the CPU reference and
+    /// the GL offscreen readback, then enforces the ui-spec parity gate. A
+    /// driver without framebuffer readback reports an explicit SKIP; it never
+    /// pretends to have compared pixels.
+    pub fn runGlParity(self: *App) !void {
+        const renderer = self.renderer.interface();
+        if (!renderer.supportsReadback()) {
+            std.debug.print("gl parity: SKIP reason=\"gl framebuffer readback unavailable\"\n", .{});
+            return;
+        }
+        const thresholds = self.loadParityThresholds() orelse {
+            std.debug.print("gl parity: SKIP reason=\"design/ui-spec.json cpu_vs_gl gate unavailable\"\n", .{});
+            return;
+        };
+        const Screen = @TypeOf(self.design.state.screen);
+        const routes = [_]struct { name: []const u8, screen: Screen }{
+            .{ .name = "home", .screen = .home },
+            .{ .name = "overview", .screen = .overview },
+        };
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+        const previous = self.design.state.screen;
+        defer self.design.state.screen = previous;
+        var failed = false;
+        for (routes) |route| {
+            self.design.state.screen = route.screen;
+            self.frame.theme = self.design.theme();
+            self.frame.list.clear();
+            self.canvas.resetHits();
+            self.design.draw(&self.canvas) catch {
+                std.debug.print("gl parity: route={s} result=SKIP reason=\"draw failed\"\n", .{route.name});
+                continue;
+            };
+            const target = xsui.gpu.Target{ .width = self.width, .height = self.height };
+            const cpu = self.frame.render() catch {
+                std.debug.print("gl parity: route={s} result=SKIP reason=\"cpu render failed\"\n", .{route.name});
+                continue;
+            };
+            const bgra = renderer.readPixels(allocator, &self.frame.list, target, self.design.theme().bg) catch |err| {
+                std.debug.print("gl parity: SKIP reason=\"readback failed: {s}\"\n", .{@errorName(err)});
+                return;
+            };
+            const stats = measureParity(cpu, bgra) orelse {
+                std.debug.print("gl parity: route={s} result=FAIL reason=\"pixel count mismatch\"\n", .{route.name});
+                failed = true;
+                continue;
+            };
+            const pass = stats.mae <= thresholds.mae_max and stats.over24_pct <= thresholds.over24_max_pct;
+            if (!pass) failed = true;
+            std.debug.print(
+                "gl parity: route={s} mae={d:.2} over24={d:.2}% pixels={d} gate_mae={d:.2} gate_over24={d:.2}% result={s}\n",
+                .{ route.name, stats.mae, stats.over24_pct, stats.pixels, thresholds.mae_max, thresholds.over24_max_pct, if (pass) "PASS" else "FAIL" },
+            );
+        }
+        if (failed) return error.GlParityRegression;
     }
 
     pub fn sessionContext(self: *App) session_mod.Session {
@@ -459,3 +635,28 @@ pub const App = struct {
         }
     }
 };
+
+test "idle policy only ticks when work is pending" {
+    try std.testing.expect(!needsTimerTick(.{}));
+    try std.testing.expect(!needsTimerTick(.{ .dirty = false, .live = false, .animation = false, .toast = false }));
+    try std.testing.expect(needsTimerTick(.{ .dirty = true }));
+    try std.testing.expect(needsTimerTick(.{ .live = true }));
+    try std.testing.expect(needsTimerTick(.{ .animation = true }));
+    try std.testing.expect(needsTimerTick(.{ .toast = true }));
+}
+
+test "parity metric compares CPU RGBA with GL BGRA" {
+    const cpu = [_]u8{ 10, 20, 30, 255, 40, 50, 60, 255 };
+    const gl_pixels = [_]u8{ 30, 20, 10, 255, 60, 50, 40, 255 };
+    const stats = App.measureParity(&cpu, &gl_pixels) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(usize, 2), stats.pixels);
+    try std.testing.expectEqual(@as(f64, 0), stats.mae);
+    try std.testing.expectEqual(@as(f64, 0), stats.over24_pct);
+
+    const drifted = [_]u8{ 200, 20, 10, 255, 60, 50, 40, 255 };
+    const drift_stats = App.measureParity(&cpu, &drifted) orelse return error.TestUnexpectedResult;
+    try std.testing.expect(drift_stats.mae > 0);
+    try std.testing.expect(drift_stats.over24_pct > 0);
+
+    try std.testing.expect(App.measureParity(&cpu, cpu[0..4]) == null);
+}

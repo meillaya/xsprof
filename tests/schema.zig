@@ -505,3 +505,138 @@ test "capture-summary requires page_faults (record drift regression)" {
         \\"schema":"xsprof/capture-summary/v1","source":"perf_tracepoint"}
     ));
 }
+
+// Checks the additive capture-summary `rings`/`reason` fields: a DEGRADED
+// summary with per-collector coverage validates, while unknown collectors and
+// a ring without `expected` fail closed.
+test "capture summary validates degraded ring coverage" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var documents: [schema_files.len]schema.Schema = undefined;
+    try loadSchemas(allocator, &documents);
+    defer for (&documents) |*document| document.deinit();
+    const document = &documents[try contractIndex("xsprof/capture-summary/v1")];
+
+    try validateDocument(document,
+        \\{"capability":"DEGRADED","duration_ms":300,"events_captured":100,
+        \\"faults_major":0,"faults_minor":0,"host_mutation":false,"lost":1,
+        \\"output":"session.ndjson","page_faults":0,
+        \\"reason":"partial capture: sched_wakeup tracepoint unavailable",
+        \\"rings":{"sched_migrate":{"cpus":4,"expected":4},
+        \\"sched_switch":{"cpus":4,"expected":4},
+        \\"sched_wakeup":{"cpus":0,"expected":4,"reason":"tracepoint unavailable"}},
+        \\"sched_migrations":0,"sched_switches":99,"sched_wakeups":0,
+        \\"schema":"xsprof/capture-summary/v1","source":"perf_tracepoint"}
+    , "capture-summary-degraded", 1);
+
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"capability":"READY","duration_ms":1,"events_captured":0,"faults_major":0,
+        \\"faults_minor":0,"host_mutation":false,"lost":0,"output":"-","page_faults":0,
+        \\"rings":{"unknown_collector":{"cpus":1,"expected":1}},
+        \\"sched_migrations":0,"sched_switches":0,"sched_wakeups":0,
+        \\"schema":"xsprof/capture-summary/v1","source":"perf_tracepoint"}
+    ));
+    try std.testing.expectEqualStrings("additionalProperties", document.failure.keyword);
+
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"capability":"READY","duration_ms":1,"events_captured":0,"faults_major":0,
+        \\"faults_minor":0,"host_mutation":false,"lost":0,"output":"-","page_faults":0,
+        \\"rings":{"sched_switch":{"cpus":1}},
+        \\"sched_migrations":0,"sched_switches":0,"sched_wakeups":0,
+        \\"schema":"xsprof/capture-summary/v1","source":"perf_tracepoint"}
+    ));
+    try std.testing.expectEqualStrings("required", document.failure.keyword);
+}
+
+// Checks the additive loss_by_kind breakdown in metrics and incident summaries:
+// known kinds validate, an unregistered kind fails additionalProperties.
+test "loss_by_kind breakdowns validate against both schemas" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var documents: [schema_files.len]schema.Schema = undefined;
+    try loadSchemas(allocator, &documents);
+    defer for (&documents) |*document| document.deinit();
+
+    const metrics_document = &documents[try contractIndex("xsprof/metrics/v1")];
+    try validateDocument(metrics_document,
+        \\{"cpus":[],"events":1,"faults_major":0,"faults_minor":0,"first_us":0,
+        \\"host_mutation":false,"last_us":1,"loss_by_kind":{"retention_loss":1,"sample_loss":3},
+        \\"lost":4,"migrations":0,"out_of_order":0,"pairs_truncated":false,
+        \\"quantiles":{},"schema":"xsprof/metrics/v1","self_unnecessary_wakeups":0,
+        \\"self_wakeups":0,"switches":0,"tasks":[],"unnecessary_wakeups":0,
+        \\"unresolved_wakeups":0,"wakeup_pairs":[],"wakeups":0}
+    , "metrics-loss-by-kind", 1);
+    try std.testing.expectError(error.ValidationFailed, metrics_document.validateText(
+        \\{"cpus":[],"events":1,"faults_major":0,"faults_minor":0,"first_us":0,
+        \\"host_mutation":false,"last_us":1,"loss_by_kind":{"not_a_loss_kind":1},
+        \\"lost":1,"migrations":0,"out_of_order":0,"pairs_truncated":false,
+        \\"quantiles":{},"schema":"xsprof/metrics/v1","self_unnecessary_wakeups":0,
+        \\"self_wakeups":0,"switches":0,"tasks":[],"unnecessary_wakeups":0,
+        \\"unresolved_wakeups":0,"wakeup_pairs":[],"wakeups":0}
+    ));
+    try std.testing.expectEqualStrings("additionalProperties", metrics_document.failure.keyword);
+
+    const incident_document = &documents[try contractIndex("xsprof/incident-summary/v1")];
+    try validateDocument(incident_document,
+        \\{"artifacts":{"report":"r","summary":"s","trace":"t","window":"w"},
+        \\"capabilities":[],"events":1,"findings":[],"host_mutation":false,
+        \\"loss":{"lost":2,"retention_trimmed":false},
+        \\"loss_by_kind":{"capture_corrupt_segment":1,"sample_loss":1},
+        \\"requested_ms":1000,"rules":[],
+        \\"schema":"xsprof/incident-summary/v1","self":{"share":0,"switches":0},
+        \\"signals":{"allocator":false,"cpu_topology":false,"lock_contention":false,
+        \\"numa_fault":false,"page_fault":false,"pmu_hitm":false,
+        \\"priority_inversion":false,"sched_migrate":false,"sched_switch":false,
+        \\"sched_wakeup":false},
+        \\"source":{"dir":"/tmp","window":"w"},"tasks":[],
+        \\"trace":{"events":1,"truncated":false},
+        \\"window":{"duration_ms":1,"first_us":0,"last_us":1,"retained_ms":1,
+        \\"trimmed":false}}
+    , "incident-loss-by-kind", 1);
+}
+
+// Checks the two A3-deferred recorder wire extensions: recovered_orphans in
+// recorder-result and machine-readable footer_mismatch in recorder-verify.
+test "recorder result and verify extensions validate" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var documents: [schema_files.len]schema.Schema = undefined;
+    try loadSchemas(allocator, &documents);
+    defer for (&documents) |*document| document.deinit();
+
+    const result_document = &documents[try contractIndex("xsprof/recorder-result/v1")];
+    try validateDocument(result_document,
+        \\{"bytes":128,"bytes_per_sec":0,"cpu_ms":0,"dir":"/var/lib/xsprof","events":10,
+        \\"events_per_sec":0,"history_dropped":0,"history_sidecars":1,
+        \\"host_mutation":false,"overhead_available":false,"overhead_bp":0,
+        \\"reason":"recording stopped","recovered_orphans":3,"rss_kb":0,
+        \\"schema":"xsprof/recorder-result/v1","session_id":"abc","sidecar_errors":0,
+        \\"state":"DEGRADED","wall_ms":0}
+    , "recorder-result-orphans", 1);
+
+    const verify_document = &documents[try contractIndex("xsprof/recorder-verify/v1")];
+    try validateDocument(verify_document,
+        \\{"bytes":900,"clean":0,"corrupt":1,"decoded_events":100,"dirty":0,"events":100,
+        \\"footer_mismatch":1,"host_mutation":false,"missing":0,
+        \\"schema":"xsprof/recorder-verify/v1",
+        \\"segments":[{"bytes":900,"codec":"compact_v1","events":100,
+        \\"footer_blocks":2,"footer_events":101,"footer_mismatch":true,
+        \\"offset":0,"path":"segments/a.xsraw","status":"corrupt"}],
+        \\"state":"REFUSE","unsupported":0}
+    , "recorder-verify-footer-mismatch", 1);
+
+    // A segment footer mismatch marker is a boolean const true: false fails.
+    try std.testing.expectError(error.ValidationFailed, verify_document.validateText(
+        \\{"bytes":1,"clean":1,"corrupt":0,"decoded_events":1,"dirty":0,"events":1,
+        \\"footer_mismatch":0,"host_mutation":false,"missing":0,
+        \\"schema":"xsprof/recorder-verify/v1",
+        \\"segments":[{"bytes":1,"codec":"compact_v1","events":1,
+        \\"footer_mismatch":false,
+        \\"offset":0,"path":"segments/a.xsraw","status":"clean"}],
+        \\"state":"READY","unsupported":0}
+    ));
+    try std.testing.expectEqualStrings("const", verify_document.failure.keyword);
+}

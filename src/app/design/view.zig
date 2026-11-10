@@ -53,6 +53,14 @@ pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
     try drawTopbar(model, state, canvas, th, width);
     if (!bottom_rail) try drawRail(model, state, canvas, th, height);
     canvas.pushClip(.{ .x = active_rail, .y = shell_top, .w = width - active_rail, .h = height - shell_top - active_keybar });
+    // One semantic group per route: native AX exposes the screen as a group
+    // (wire role `tabpanel`) and every control painted inside it nests under it.
+    canvas.pushGroup(.{
+        .id = 1,
+        .rect = .{ .x = active_rail, .y = shell_top, .w = width - active_rail, .h = height - shell_top - active_keybar },
+        .role = .group,
+        .label = state_mod.screenName(state.screen),
+    });
     switch (state.screen) {
         .overview => try overview.draw(model, state, canvas, th, active_rail, shell_top, width),
         .timeline => try timeline.draw(model, state, canvas, th, active_rail, shell_top, width),
@@ -63,6 +71,7 @@ pub fn view(model: *const Model, state: *const State, canvas: *Canvas) !void {
         .audit => try audit_view.draw(model, state, canvas, th, active_rail, shell_top, width),
         .settings => try settings_view.draw(model, state, canvas, th, active_rail, shell_top, width),
     }
+    canvas.popGroup();
     canvas.popClip();
     if (bottom_rail) {
         try drawBottomRail(model, state, canvas, th, width, height);
@@ -168,9 +177,9 @@ fn drawTopbar(model: *const Model, state: *const State, canvas: *Canvas, th: The
         try canvas.fill(.{ .x = pcap.x + 1, .y = pcap.y + pcap.h - 2, .w = pcap.w - 2, .h = 1 }, th.line_strong);
         _ = try canvas.textIn(.{ .x = pcap.x + 5, .y = pcap.y + 1, .w = pcap.w - 8, .h = pcap.h - 2 }, palette_key_style, "⌘K");
     }
-    canvas.hit(200, palette_rect);
-    canvas.hit(201, theme_rect);
-    canvas.hit(202, help_rect);
+    _ = canvas.button(200, palette_rect, "Command palette");
+    _ = canvas.button(201, theme_rect, "Appearance");
+    _ = canvas.button(202, help_rect, "Keyboard help");
 
     try canvas.rounded(safety_rect, 3, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
     try icons.draw(canvas, .lock, .{ .x = safety_rect.x + (if (compact_top) @as(f32, 6) else 8), .y = 19, .w = 11, .h = 11 }, th.pass);
@@ -297,7 +306,7 @@ fn drawRail(model: *const Model, state: *const State, canvas: *Canvas, th: Theme
         try labelRight(canvas, rail_width - 9, y + 9, item.key, style(text_95, th.faint, .regular));
         try icons.draw(canvas, item.icon, .{ .x = 15, .y = y + 13, .w = 17, .h = 17 }, if (active) th.live else th.dim);
         try label(canvas, 15, y + 36, state_mod.screenName(item.screen), style(text_105, if (active) th.text else th.muted, .regular));
-        canvas.hit(@as(u32, @backingInt(item.screen)) + 100, rect);
+        _ = canvas.tabItem(@as(u32, @backingInt(item.screen)) + 100, rect, state_mod.screenName(item.screen), active);
         y += 63.75;
         _ = index;
     }
@@ -336,7 +345,7 @@ fn drawBottomRail(model: *const Model, state: *const State, canvas: *Canvas, th:
         var lbl = style(text_105, if (active) th.text else th.muted, .regular);
         lbl.text_align = .center;
         _ = try canvas.textIn(.{ .x = x, .y = y + 31.5, .w = item_w, .h = 16 }, lbl, item.label);
-        canvas.hit(@as(u32, @backingInt(item.screen)) + 100, .{ .x = x, .y = y, .w = item_w, .h = bar_h });
+        _ = canvas.tabItem(@as(u32, @backingInt(item.screen)) + 100, .{ .x = x, .y = y, .w = item_w, .h = bar_h }, item.label, active);
     }
     _ = model;
 }

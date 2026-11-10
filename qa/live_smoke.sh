@@ -20,7 +20,9 @@ fail() { say "FAIL: $*" >&2; exit 1; }
 say "capture 1s"
 "$BIN" record --duration 1s --output "$TMP/rec.ndjson" >"$TMP/record.out" 2>"$TMP/record.summary" ||
     fail "record failed"
-grep -q '"capability":"READY"' "$TMP/record.summary" || fail "record summary missing READY"
+# DEGRADED is an explicit, honest partial-capture state (per-collector rings);
+# only SKIP/REFUSE fail the gate. The summary carries the exact reason.
+grep -qE '"capability":"(READY|DEGRADED)"' "$TMP/record.summary" || fail "record summary missing READY/DEGRADED capability"
 grep -q '"host_mutation":false' "$TMP/record.summary" || fail "record summary missing host_mutation=false"
 LINES=$(wc -l <"$TMP/rec.ndjson" | tr -d ' ')
 [ "$LINES" -gt 100 ] || fail "record produced only $LINES lines"

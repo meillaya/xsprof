@@ -54,8 +54,53 @@ command -v xvfb-run >/dev/null 2>&1 || unavailable "required tool unavailable: x
 XSPROF_STATE_DIR=${XSPROF_STATE_DIR:-${TMPDIR:-/tmp}/xsprof-smoke-state}
 export XSPROF_STATE_DIR
 cd "$ROOT" 2>/dev/null || true
-xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" \
-    "$BIN" ui --smoke --resize 900x600 --a11y
+smoke_log=$(xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" \
+    "$BIN" ui --smoke --resize 900x600 --a11y 2>&1) && smoke_rc=0 || smoke_rc=$?
+printf '%s\n' "$smoke_log"
+if [ "$smoke_rc" != 0 ]; then
+    case "$smoke_log" in
+        *NoDisplay* | *NoGLXExtension* | *NoVisual* | *NoGLContext* | *NoCurrentContext* | *NoGL*)
+            if [ "$REQUIRE_TOOLS" = 1 ]; then
+                echo "xvfb_smoke: FAIL (X11/GLX smoke unavailable: exit $smoke_rc)" >&2
+                exit 1
+            fi
+            echo "xvfb_smoke: SKIP (X11/GLX smoke unavailable: exit $smoke_rc)"
+            exit 0
+            ;;
+        *)
+            echo "xvfb_smoke: FAIL (hidden X11/GLX smoke exited $smoke_rc)" >&2
+            exit 1
+            ;;
+    esac
+fi
+printf '%s' "$smoke_log" | grep -q "linux smoke:" || {
+    echo "xvfb_smoke: FAIL (no hidden X11/GLX smoke status line)" >&2
+    exit 1
+}
+# CPU-vs-GL offscreen parity for two product routes. Thresholds live in
+# design/ui-spec.json (acceptance.cross_surface.cpu_vs_gl). A driver without
+# framebuffer readback reports an explicit SKIP; strict CI treats that as a
+# failure instead of silently dropping the parity gate.
+if printf '%s' "$smoke_log" | grep -q "gl parity: result=FAIL"; then
+    echo "xvfb_smoke: FAIL (CPU-vs-GL parity above the ui-spec gate)" >&2
+    exit 1
+fi
+if printf '%s' "$smoke_log" | grep -q "gl parity: SKIP"; then
+    skip_reason=$(printf '%s' "$smoke_log" | grep -m1 "gl parity: SKIP")
+    if [ "$REQUIRE_TOOLS" = 1 ]; then
+        echo "xvfb_smoke: FAIL (CPU-vs-GL parity unavailable: $skip_reason)" >&2
+        exit 1
+    fi
+    echo "xvfb_smoke: gl-parity SKIP ($skip_reason)"
+    GL_PARITY=skipped
+else
+    routes=$(printf '%s' "$smoke_log" | grep -c "gl parity: route=.* result=PASS")
+    if [ "$routes" -lt 2 ]; then
+        echo "xvfb_smoke: FAIL (expected CPU-vs-GL parity PASS for home and overview, got $routes)" >&2
+        exit 1
+    fi
+    GL_PARITY=pass
+fi
 # Quickstart must stay terminal-only: XSPROF_NO_UI=1 prints usage and exits 0
 # instead of opening (or trying to open) a window.
 no_ui=$(XSPROF_NO_UI=1 "$BIN" 2>&1 || true)
@@ -63,4 +108,8 @@ printf '%s' "$no_ui" | grep -q "Open the console:" || {
     echo "xvfb_smoke: FAIL (XSPROF_NO_UI quickstart missing)"
     exit 1
 }
-echo "xvfb_smoke: PASS"
+if [ "${GL_PARITY:-pass}" = "pass" ]; then
+    echo "xvfb_smoke: PASS (hidden surface + CPU-vs-GL parity for home and overview)"
+else
+    echo "xvfb_smoke: PASS (hidden surface; CPU-vs-GL parity SKIPPED: no readback)"
+fi

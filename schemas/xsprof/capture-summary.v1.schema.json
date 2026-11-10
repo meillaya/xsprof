@@ -1,6 +1,29 @@
 {
   "$id": "https://xsprof.dev/schemas/capture-summary.v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "ring": {
+      "additionalProperties": false,
+      "properties": {
+        "cpus": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expected": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cpus",
+        "expected"
+      ],
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "properties": {
     "capability": {
@@ -56,6 +79,27 @@
     },
     "output": {
       "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "rings": {
+      "additionalProperties": false,
+      "properties": {
+        "page_faults": {
+          "$ref": "#/$defs/ring"
+        },
+        "sched_migrate": {
+          "$ref": "#/$defs/ring"
+        },
+        "sched_switch": {
+          "$ref": "#/$defs/ring"
+        },
+        "sched_wakeup": {
+          "$ref": "#/$defs/ring"
+        }
+      },
+      "type": "object"
     }
   },
   "required": [

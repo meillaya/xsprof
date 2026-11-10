@@ -6,6 +6,7 @@ const std = @import("std");
 const xsui = @import("xsui");
 const model_mod = @import("model.zig");
 const state_mod = @import("state.zig");
+const route = @import("route.zig");
 const derive = @import("derive.zig");
 const view_mod = @import("view.zig");
 const effect = @import("effect.zig");
@@ -16,7 +17,6 @@ const input_mod = @import("input.zig");
 const click_mod = @import("click.zig");
 const settings_mod = @import("settings.zig");
 const audit_mod = @import("audit.zig");
-const design_a11y = @import("a11y.zig");
 const source_mod = @import("source.zig");
 const session_mod = @import("../../stream/session.zig");
 const extract = @import("../../recorder/extract.zig");
@@ -38,10 +38,10 @@ pub const App = struct {
     session: ?session_mod.Session = null,
     model: Model = .{},
     state: State = .{},
-    /// Stable labels/roles for the current frame. The canvas hits below point
-    /// into this tree until the next draw, so native a11y bridges never borrow
-    /// a freed frame arena.
-    a11y_tree: design_a11y.Tree = .{},
+    /// Accessibility tree built from the canvas semantic registration pass.
+    /// `buildOwned` copies labels/values, so the tree stays valid after the
+    /// frame settles for Linux JSON dumps and later inspection.
+    a11y_tree: xsui.A11yTree,
     source_path: ?[]const u8 = null,
     recorder_dir: ?[]const u8 = null,
     open_requested: bool = false,
@@ -63,11 +63,13 @@ pub const App = struct {
         return .{
             .backing = backing,
             .arena = std.heap.ArenaAllocator.init(backing),
+            .a11y_tree = xsui.A11yTree.empty(backing),
             .model = .{ .meta = .{ .host = "no source", .source = "EMPTY", .fixture = "" } },
         };
     }
 
     pub fn deinit(self: *App) void {
+        self.a11y_tree.deinit();
         self.arena.deinit();
         if (self.source_path) |path| self.backing.free(path);
     }
@@ -249,43 +251,10 @@ pub const App = struct {
         self.viewport_w = canvas.frame.width;
         self.viewport_h = canvas.frame.height;
         try view_mod.view(&self.model, &self.state, canvas);
-        self.enrichA11y(canvas);
-    }
-
-    /// Give the canvas hit pass the same semantic labels as the accessibility
-    /// tree. The canvas remains the single source for pointer, focus, and AX.
-    fn enrichA11y(self: *App, canvas: *xsui.Canvas) void {
-        design_a11y.build(&self.model, &self.state, canvas, &self.a11y_tree);
-        for (canvas.hits.items) |*hit| {
-            const node = self.a11y_tree.find(hit.id) orelse continue;
-            hit.role = mapRole(node.role);
-            hit.label = node.labelSlice();
-            hit.value = node.valueSlice();
-            hit.flags = .{
-                .interactive = node.focusable,
-                .focusable = node.focusable,
-                .disabled = node.disabled,
-                .selected = node.selected,
-                .expanded = node.expanded,
-            };
-        }
-    }
-
-    fn mapRole(role: design_a11y.Role) xsui.a11y.Role {
-        return switch (role) {
-            .window => .window,
-            .tablist => .tab_list,
-            .tab => .tab,
-            .tabpanel => .group,
-            .button => .button,
-            .textbox => .text_field,
-            .list => .list,
-            .listitem => .list_item,
-            .dialog => .dialog,
-            .status => .status,
-            .heading => .static_text,
-            .progressbar => .status,
-        };
+        // Painters register role/name/value/state at draw time; the tree is a
+        // projection of that single pass, never reconstructed from hit ids.
+        self.a11y_tree.deinit();
+        self.a11y_tree = try xsui.A11yTree.buildOwned(self.backing, canvas, self.state.focus_id);
     }
 
     pub fn scrollBy(self: *App, delta: f32) void {
@@ -530,16 +499,34 @@ pub const App = struct {
         click_mod.handle(self, canvas, x, y);
     }
 
-    /// The last frame's accessibility tree. The macOS bridge and snapshots
-    /// consume this; it is rebuilt by draw() and owns bounded label copies.
-    pub fn accessibility(self: *App) *const design_a11y.Tree {
+    /// The last frame's accessibility tree (owned by App, rebuilt by draw()).
+    pub fn accessibilityTree(self: *const App) *const xsui.A11yTree {
         return &self.a11y_tree;
+    }
+
+    /// Bounded summary used by the Linux JSON/DEGRADED bridge.
+    pub const AccessibilitySummary = struct {
+        len: usize,
+        truncated: bool,
+        focusable: usize,
+
+        pub fn focusableCount(self: AccessibilitySummary) usize {
+            return self.focusable;
+        }
+    };
+
+    pub fn accessibility(self: *const App) AccessibilitySummary {
+        return .{
+            .len = self.a11y_tree.count(),
+            .truncated = self.a11y_tree.truncated,
+            .focusable = self.a11y_tree.focusableCount(),
+        };
     }
 
     pub fn accessibilityJson(self: *App, allocator: std.mem.Allocator) ![]u8 {
         var out = std.Io.Writer.Allocating.init(allocator);
         errdefer out.deinit();
-        try design_a11y.writeJson(&out.writer, &self.a11y_tree);
+        try self.a11y_tree.writeJson(&out.writer);
         return out.toOwnedSlice();
     }
 
@@ -556,3 +543,96 @@ pub const App = struct {
         if (self.state.timeline_playhead < start) self.state.timeline_playhead = start;
     }
 };
+
+test "a11y tree is authored by the draw pass on every route" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+
+    var frame: xsui.Frame = undefined;
+    try frame.init(std.testing.allocator, 1280, 720, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+
+    for (route.order) |target| {
+        app.state.screen = target;
+        app.state.scroll_y = 0;
+        frame.list.clear();
+        canvas.resetHits();
+        try app.draw(&canvas);
+
+        try std.testing.expect(canvas.hits.items.len > 1);
+        try std.testing.expect(app.a11y_tree.count() > 1);
+        try std.testing.expect(app.a11y_tree.focusableCount() > 0);
+        var labeled: usize = 0;
+        for (canvas.hits.items) |hit| {
+            // Every registered node carries a role and a rendered label: the
+            // tree is authored at paint time, not reconstructed from ids.
+            try std.testing.expect(hit.role != .none);
+            try std.testing.expect(hit.label.len != 0);
+            labeled += 1;
+        }
+        if (app.a11y_tree.truncated) {
+            // The bounded hit/node cap is explicit and only the dense demo
+            // timeline (1040 fixture slices) reaches it.
+            try std.testing.expectEqual(state_mod.Route.timeline, target);
+            try std.testing.expectEqual(xsui.a11y.max_nodes, app.a11y_tree.count());
+        } else {
+            try std.testing.expectEqual(labeled, app.a11y_tree.count());
+        }
+    }
+}
+
+test "overlay controls register their own semantics" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.Frame = undefined;
+    try frame.init(std.testing.allocator, 1280, 720, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+
+    app.state.dialog = .palette;
+    frame.list.clear();
+    canvas.resetHits();
+    try app.draw(&canvas);
+
+    var saw_text_field = false;
+    var saw_button = false;
+    for (app.a11y_tree.nodes) |node| {
+        if (node.role == .text_field) saw_text_field = true;
+        if (node.role == .button) saw_button = true;
+    }
+    try std.testing.expect(saw_text_field);
+    try std.testing.expect(saw_button);
+}
+
+test "a11y JSON is deterministic and keeps the canonical shape" {
+    var app = App.init(std.testing.allocator);
+    defer app.deinit();
+    try app.loadDemo(std.testing.io, "fixtures/ui/design/demo.json");
+    var frame: xsui.Frame = undefined;
+    try frame.init(std.testing.allocator, 1280, 720, .{});
+    defer frame.deinit();
+    var canvas = xsui.Canvas.init(&frame);
+    defer canvas.deinit();
+    app.state.screen = .overview;
+    frame.list.clear();
+    canvas.resetHits();
+    try app.draw(&canvas);
+
+    var first: [64 * 1024]u8 = undefined;
+    var first_writer = std.Io.Writer.fixed(&first);
+    try app.a11y_tree.writeJson(&first_writer);
+    var second: [64 * 1024]u8 = undefined;
+    var second_writer = std.Io.Writer.fixed(&second);
+    try app.a11y_tree.writeJson(&second_writer);
+
+    try std.testing.expectEqualStrings(first_writer.buffered(), second_writer.buffered());
+    const text = first_writer.buffered();
+    try std.testing.expect(std.mem.startsWith(u8, text, "{\"host_mutation\":false,\"nodes\":["));
+    try std.testing.expect(std.mem.endsWith(u8, text, "\"schema\":\"xsprof/a11y-tree/v1\",\"truncated\":false}"));
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"role\":\"none\"") == null);
+}

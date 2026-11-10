@@ -7,6 +7,7 @@ const compact = @import("compact.zig");
 const event = @import("../core/event.zig");
 const json = @import("../core/json.zig");
 const safety = @import("../core/safety.zig");
+const schema_mod = @import("../core/schema.zig");
 const manifest_mod = @import("manifest.zig");
 const reader_mod = @import("segment_reader.zig");
 
@@ -200,15 +201,32 @@ pub fn writeJson(w: *std.Io.Writer, report: Report) !void {
         allocator.free(segment_entries);
     }
     for (report.segments, 0..) |segment, index| {
-        const entries = try allocator.alloc(json.Entry, 6);
-        entries[0] = .{ .key = "bytes", .value = .{ .unsigned = segment.bytes } };
-        entries[1] = .{ .key = "codec", .value = .{ .string = segment.codec } };
-        entries[2] = .{ .key = "events", .value = .{ .unsigned = segment.events } };
-        entries[3] = .{ .key = "offset", .value = .{ .unsigned = segment.offset } };
-        entries[4] = .{ .key = "path", .value = .{ .string = segment.path } };
-        entries[5] = .{ .key = "status", .value = .{ .string = segment.status } };
-        segment_entries[index] = entries;
-        segment_values[index] = .{ .object = entries };
+        const entries = try allocator.alloc(json.Entry, 9);
+        var n: usize = 0;
+        entries[n] = .{ .key = "bytes", .value = .{ .unsigned = segment.bytes } };
+        n += 1;
+        entries[n] = .{ .key = "codec", .value = .{ .string = segment.codec } };
+        n += 1;
+        entries[n] = .{ .key = "events", .value = .{ .unsigned = segment.events } };
+        n += 1;
+        if (segment.footer_mismatch) {
+            // Machine-readable per-segment detail only when the file's own
+            // close record disagrees with its decoded payload.
+            entries[n] = .{ .key = "footer_blocks", .value = .{ .unsigned = segment.footer_blocks } };
+            n += 1;
+            entries[n] = .{ .key = "footer_events", .value = .{ .unsigned = segment.footer_events } };
+            n += 1;
+            entries[n] = .{ .key = "footer_mismatch", .value = .{ .boolean = true } };
+            n += 1;
+        }
+        entries[n] = .{ .key = "offset", .value = .{ .unsigned = segment.offset } };
+        n += 1;
+        entries[n] = .{ .key = "path", .value = .{ .string = segment.path } };
+        n += 1;
+        entries[n] = .{ .key = "status", .value = .{ .string = segment.status } };
+        n += 1;
+        segment_entries[index] = entries[0..n];
+        segment_values[index] = .{ .object = entries[0..n] };
     }
     try json.write(w, .{ .object = &.{
         .{ .key = "bytes", .value = .{ .unsigned = report.bytes } },
@@ -217,6 +235,7 @@ pub fn writeJson(w: *std.Io.Writer, report: Report) !void {
         .{ .key = "decoded_events", .value = .{ .unsigned = report.decoded_events } },
         .{ .key = "dirty", .value = .{ .unsigned = report.dirty } },
         .{ .key = "events", .value = .{ .unsigned = report.events } },
+        .{ .key = "footer_mismatch", .value = .{ .unsigned = report.footer_mismatch } },
         .{ .key = "host_mutation", .value = .{ .boolean = false } },
         .{ .key = "missing", .value = .{ .unsigned = report.missing } },
         .{ .key = "schema", .value = .{ .string = "xsprof/recorder-verify/v1" } },
@@ -481,11 +500,27 @@ test "verify refuses footer count mismatches" {
     try std.testing.expect(std.mem.indexOf(u8, text.buffered(), "footer_mismatch:") != null);
     try std.testing.expect(std.mem.indexOf(u8, text.buffered(), "footer_events=101") != null);
 
-    // Canonical JSON stays schema-compatible: the detail is in the human report
-    // until the recorder-verify schema is extended (an out-of-scope follow-up).
+    // The machine-readable report carries the count and per-segment detail,
+    // and must satisfy the committed recorder-verify schema.
     var json_buffer: [16 * 1024]u8 = undefined;
     var out = std.Io.Writer.fixed(&json_buffer);
     try writeJson(&out, report);
-    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"state\":\"REFUSE\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "footer_mismatch") == null);
+    const json_text = out.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"state\":\"REFUSE\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"footer_mismatch\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"footer_events\":101") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"footer_blocks\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"footer_mismatch\":true") != null);
+
+    var schema_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer schema_arena.deinit();
+    const schema_text = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
+        "schemas/xsprof/recorder-verify.v1.schema.json",
+        schema_arena.allocator(),
+        .limited(schema_mod.max_schema_bytes),
+    );
+    var validator = try schema_mod.Schema.parse(schema_arena.allocator(), schema_text);
+    defer validator.deinit();
+    try validator.validateText(json_text);
 }

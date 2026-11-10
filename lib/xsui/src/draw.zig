@@ -120,7 +120,10 @@ pub const Atlas = struct {
     allocator: std.mem.Allocator,
     width: usize = atlas_width,
     height: usize = atlas_height,
-    pixels: []u8,
+    /// Zero-filled mask texture. Empty until the first mask is written, so a
+    /// frame that never draws text costs no atlas memory at all. Backends must
+    /// treat `pixels.len == 0` as "no atlas texture yet" and skip uploads.
+    pixels: []u8 = &.{},
     shelf_x: usize = 0,
     shelf_y: usize = 0,
     shelf_h: usize = 0,
@@ -128,18 +131,26 @@ pub const Atlas = struct {
     entries: std.AutoHashMap(u64, GlyphEntry),
 
     pub fn init(allocator: std.mem.Allocator) !Atlas {
-        const pixels = try allocator.alloc(u8, atlas_width * atlas_height);
-        @memset(pixels, 0);
         return .{
             .allocator = allocator,
-            .pixels = pixels,
             .entries = std.AutoHashMap(u64, GlyphEntry).init(allocator),
         };
     }
 
+    /// Allocate and clear the full mask texture on first write. Deterministic
+    /// sampling needs untouched texels to read as zero, so this is the one
+    /// place that pays the 16 MiB zero-fill — and only when text is drawn.
+    fn ensurePixels(self: *Atlas) !void {
+        if (self.pixels.len != 0) return;
+        const pixels = try self.allocator.alloc(u8, self.width * self.height);
+        @memset(pixels, 0);
+        self.pixels = pixels;
+    }
+
     pub fn deinit(self: *Atlas) void {
         self.entries.deinit();
-        self.allocator.free(self.pixels);
+        if (self.pixels.len != 0) self.allocator.free(self.pixels);
+        self.pixels = &.{};
     }
 
     /// Insert a pre-rasterized alpha mask (used by the browser-matched text
@@ -154,6 +165,7 @@ pub const Atlas = struct {
         }
         if (self.shelf_x + w + 1 > self.width) return error.AtlasFull;
         if (self.shelf_y + h + 1 > self.height) return error.AtlasFull;
+        try self.ensurePixels();
         const x = self.shelf_x;
         const y = self.shelf_y;
         var row: usize = 0;
@@ -237,6 +249,7 @@ pub const Atlas = struct {
         }
         if (self.shelf_x + w + 1 > self.width) return error.AtlasFull;
         if (self.shelf_y + h + 1 > self.height) return error.AtlasFull;
+        try self.ensurePixels();
         const x = self.shelf_x;
         const y = self.shelf_y;
         var row: usize = 0;
@@ -398,4 +411,22 @@ test "glyph atlas rasterizes and packs ASCII" {
     var ink: u32 = 0;
     for (atlas.pixels) |p| ink += p;
     try std.testing.expect(ink > 0);
+}
+
+test "atlas texture is allocated lazily on the first real mask" {
+    var atlas = try Atlas.init(std.testing.allocator);
+    defer atlas.deinit();
+    // No text drawn yet: the 16 MiB mask texture does not exist.
+    try std.testing.expectEqual(@as(usize, 0), atlas.pixels.len);
+    try std.testing.expectEqual(@as(u32, 0), atlas.version);
+
+    var font = try regularFont();
+    // A zero-area glyph (space) never writes texels and must not allocate.
+    const space = try atlas.glyph(0, &font, font.glyphIndex(' '), 12);
+    try std.testing.expectEqual(@as(u32, 0), space.height);
+    try std.testing.expectEqual(@as(usize, 0), atlas.pixels.len);
+
+    _ = try atlas.glyph(0, &font, font.glyphIndex('A'), 12);
+    try std.testing.expectEqual(atlas_width * atlas_height, atlas.pixels.len);
+    try std.testing.expect(atlas.version > 0);
 }

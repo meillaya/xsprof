@@ -104,6 +104,17 @@ pub fn cmdDaemon(
         try err.print("daemon: {s}\n", .{@errorName(run_error)});
         return .refuse;
     };
+    try writeDaemonResult(out, result);
+    try out.writeByte('\n');
+    // DEGRADED means the recorder ran with partial collector coverage; the JSON
+    // state and per-ring session markers carry the shortfall. It is not a
+    // failure to record, so only SKIP/REFUSE exit non-zero.
+    return if (result.state == .READY or result.state == .DEGRADED) .ok else .refuse;
+}
+
+/// Canonical `xsprof/recorder-result/v1` document. Keys are strictly ascending.
+/// `recovered_orphans` is additive: orphan segments adopted at daemon start.
+fn writeDaemonResult(out: *Writer, result: daemon.Result) !void {
     try json.write(out, .{ .object = &.{
         .{ .key = "bytes", .value = .{ .unsigned = result.bytes } },
         .{ .key = "bytes_per_sec", .value = .{ .unsigned = result.overhead.bytes_per_sec } },
@@ -117,6 +128,7 @@ pub fn cmdDaemon(
         .{ .key = "overhead_available", .value = .{ .boolean = result.overhead.available } },
         .{ .key = "overhead_bp", .value = .{ .unsigned = result.overhead.overhead_bp } },
         .{ .key = "reason", .value = .{ .string = result.reason } },
+        .{ .key = "recovered_orphans", .value = .{ .unsigned = result.recovered_orphans } },
         .{ .key = "rss_kb", .value = .{ .unsigned = result.overhead.rss_kb } },
         .{ .key = "schema", .value = .{ .string = "xsprof/recorder-result/v1" } },
         .{ .key = "session_id", .value = .{ .string = result.session_id } },
@@ -124,8 +136,43 @@ pub fn cmdDaemon(
         .{ .key = "state", .value = .{ .string = @tagName(result.state) } },
         .{ .key = "wall_ms", .value = .{ .unsigned = result.overhead.wall_ms } },
     } });
-    try out.writeByte('\n');
-    return if (result.state == .READY) .ok else .refuse;
+}
+
+test "daemon result serializes recovered orphans canonically" {
+    const result: daemon.Result = .{
+        .state = .DEGRADED,
+        .reason = "recording stopped",
+        .dir = "/var/lib/xsprof",
+        .session_id = "abc123",
+        .events = 10,
+        .bytes = 128,
+        .history_sidecars = 1,
+        .history_dropped = 0,
+        .sidecar_errors = 0,
+        .recovered_orphans = 3,
+    };
+    var buffer: [2048]u8 = undefined;
+    var out = Writer.fixed(&buffer);
+    try writeDaemonResult(&out, result);
+    const text = out.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"recovered_orphans\":3") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "\"state\":\"DEGRADED\"") != null);
+    // Canonical ascending keys: reason < recovered_orphans < rss_kb.
+    const reason_at = std.mem.indexOf(u8, text, "\"reason\"").?;
+    const orphans_at = std.mem.indexOf(u8, text, "\"recovered_orphans\"").?;
+    const rss_at = std.mem.indexOf(u8, text, "\"rss_kb\"").?;
+    try std.testing.expect(reason_at < orphans_at and orphans_at < rss_at);
+    // The recovered-orphans count survives a JSON round-trip.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const parsed = try std.json.parseFromSlice(std.json.Value, arena.allocator(), text, .{});
+    defer parsed.deinit();
+    const object = switch (parsed.value) {
+        .object => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqual(@as(i64, 3), object.get("recovered_orphans").?.integer);
+    try std.testing.expect(!object.get("host_mutation").?.bool);
 }
 
 pub fn cmdCapture(

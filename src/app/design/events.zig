@@ -57,7 +57,7 @@ fn drawFilterField(canvas: *Canvas, th: Theme, rect: Rect, query: []const u8) !v
     try label(canvas, rect.x + 57, rect.y + 8, if (query.len > 0) query else "comm, pid, type…", style(common.text_11, if (query.len > 0) th.text else th.faint, .regular));
     try canvas.rounded(.{ .x = rect.x + rect.w - 21.5, .y = rect.y + 9.75, .w = 14.5, .h = 14.5 }, 3, th.raised, th.line, 1);
     try label(canvas, rect.x + rect.w - 18.5, rect.y + 11, "/", style(common.text_10, th.muted, .regular));
-    canvas.hit(520, rect);
+    _ = canvas.textField(520, rect, "Filter events", query);
     try borderLine(canvas, rect.x, rect.y + rect.h, rect.w, th.line);
 }
 
@@ -93,7 +93,7 @@ fn typeChip(canvas: *Canvas, th: Theme, x: *f32, y: f32, text_value: []const u8,
     const color = if (loss) th.refuse else if (active) th.live else th.line;
     try canvas.rounded(.{ .x = x.*, .y = y, .w = tw, .h = 26 }, 3, if (active) th.tint_live else th.panel, color, 1);
     try label(canvas, x.* + 9, y + 6.5, text_value, style(common.text_105, if (active) th.live else if (loss) th.refuse else th.muted, .regular));
-    canvas.hit(hit_id, .{ .x = x.*, .y = y, .w = tw, .h = 26 });
+    _ = canvas.choice(hit_id, .{ .x = x.*, .y = y, .w = tw, .h = 26 }, text_value, active);
     x.* += tw + 6;
 }
 
@@ -144,7 +144,11 @@ fn drawLedger(model: *const Model, state: *const State, canvas: *Canvas, th: The
         try label(canvas, rect.x + cols[3].x, row_y + 5, comm_pid, style(common.text_11, th.text, .regular));
         try label(canvas, rect.x + cols[4].x, row_y + 5, event.detail, style(common.text_11, th.muted, .regular));
         try borderLine(canvas, rect.x + 1, row_y + 27, rect.w - 2, th.line);
-        canvas.hit(500 + @as(u32, @intCast(i)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 27 });
+        var row_buf: [96]u8 = undefined;
+        const row_label = std.fmt.bufPrint(&row_buf, "{s} {s} pid {d} cpu {d}", .{
+            fullTypeLabel(event.type), event.comm, event.pid, event.cpu,
+        }) catch event.comm;
+        _ = canvas.listItem(500 + @as(u32, @intCast(i)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 27 }, row_label, false);
         row_y += 27;
     }
     canvas.popClip();
@@ -180,7 +184,11 @@ fn drawLedgerCompact(model: *const Model, state: *const State, canvas: *Canvas, 
         try label(canvas, rect.x + 12, row_y + 24, comm_pid, style(common.text_12, th.text, .regular));
         try label(canvas, rect.x + 12, row_y + 42, event.detail, style(common.text_105, th.muted, .regular));
         try borderLine(canvas, rect.x + 1, row_y + 60, rect.w - 2, th.line);
-        canvas.hit(500 + @as(u32, @intCast(i)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 60 });
+        var row_buf: [96]u8 = undefined;
+        const row_label = std.fmt.bufPrint(&row_buf, "{s} {s} pid {d} cpu {d}", .{
+            fullTypeLabel(event.type), event.comm, event.pid, event.cpu,
+        }) catch event.comm;
+        _ = canvas.listItem(500 + @as(u32, @intCast(i)), .{ .x = rect.x + 1, .y = row_y, .w = rect.w - 2, .h = 60 }, row_label, false);
         row_y += 60;
     }
     canvas.popClip();
@@ -213,8 +221,8 @@ fn drawDetail(model: *const Model, state: *const State, canvas: *Canvas, th: The
             try label(canvas, timeline_btn.x + 9, actions_y + 5.5, "Timeline", style(common.text_11, th.text, .regular));
             try canvas.rounded(filter_btn, 4, .{ .r = 0, .g = 0, .b = 0, .a = 0 }, th.line_strong, 1);
             try label(canvas, filter_btn.x + 9, actions_y + 5.5, "Filter task", style(common.text_11, th.muted, .regular));
-            canvas.hit(610, timeline_btn);
-            canvas.hit(611, filter_btn);
+            _ = canvas.button(610, timeline_btn, "Open event in timeline");
+            _ = canvas.button(611, filter_btn, "Filter by task");
             return;
         }
     }

@@ -61,6 +61,10 @@
     "reason": {
       "type": "string"
     },
+    "recovered_orphans": {
+      "minimum": 0,
+      "type": "integer"
+    },
     "rss_kb": {
       "type": "integer",
       "minimum": 0

@@ -137,6 +137,9 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: options_mod.Options) 
         }
         app.dumpA11y();
         if (opts.live or opts.follow_recorder != null) app.smokeLive(opts);
+        // Hidden CPU-vs-GL parity for two product routes; explicit SKIP when the
+        // driver has no framebuffer readback (never a fabricated PASS).
+        try app.runGlParity();
         std.debug.print("linux smoke: X11/GLX context and one console frame rendered offscreen\n", .{});
         return;
     }
@@ -148,6 +151,9 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: options_mod.Options) 
     app.dumpA11y();
     var keep_running = true;
     while (keep_running) {
+        // Event-driven: handle everything X has queued, then decide between a
+        // timer tick (live/playback/toast/dirty) and blocking for the next
+        // event. Idle means no frames and no fixed-rate wakeups.
         while (x.pending(display) != 0) {
             var event: events.Event = undefined;
             _ = x.next_event(display, @ptrCast(&event));
@@ -155,10 +161,19 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: options_mod.Options) 
             if (!keep_running) break;
         }
         if (!keep_running) break;
-        try app.idle();
-        if (app.design.quit_requested) keep_running = false;
+        if (app.design.quit_requested) break;
         if (app.dirty) try app.present();
-        std.Io.sleep(io, .fromMilliseconds(33), .awake) catch {};
+        if (app.wantsTimerTick()) {
+            try app.idle();
+            if (app.design.quit_requested) break;
+            if (app.dirty) try app.present();
+            std.Io.sleep(io, .fromMilliseconds(33), .awake) catch {};
+        } else {
+            // Block until the next host event; zero timer wakeups while idle.
+            var event: events.Event = undefined;
+            _ = x.next_event(display, @ptrCast(&event));
+            keep_running = try app.handleEvent(&event);
+        }
     }
 }
 

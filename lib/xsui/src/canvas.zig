@@ -138,6 +138,24 @@ pub fn measureText(font: *const ttf.Font, size: f32, tracking: f32, text_value: 
     return width;
 }
 
+/// Bounded semantic string lengths copied into the per-frame arena.
+pub const max_label_bytes: usize = 160;
+pub const max_value_bytes: usize = 160;
+pub const max_hint_bytes: usize = 64;
+
+/// Copies at most `limit` bytes, backing off to a UTF-8 code-point boundary so
+/// canonical JSON never receives a split sequence.
+fn copyBounded(allocator: std.mem.Allocator, text: []const u8, limit: usize) ![]const u8 {
+    if (text.len == 0) return "";
+    var len = @min(text.len, limit);
+    if (len < text.len) {
+        while (len > 0 and (text[len] & 0xc0) == 0x80) len -= 1;
+    }
+    const owned = try allocator.alloc(u8, len);
+    @memcpy(owned, text[0..len]);
+    return owned;
+}
+
 pub const Canvas = struct {
     frame: *frame_mod.Frame,
     allocator: std.mem.Allocator,
@@ -146,6 +164,11 @@ pub const Canvas = struct {
     clip_depth: usize = 0,
     hits: std.ArrayList(Hit) = .empty,
     max_hits: usize = 512,
+    /// Per-frame copies of semantic labels/values. Hits are registered during
+    /// paint with caller-owned (often stack) strings; copying here keeps the
+    /// draw/hit/AX pass self-contained for snapshots and native bridges that
+    /// read the hit list after the painting functions return.
+    semantic_arena: std.heap.ArenaAllocator,
     /// Semantic nesting for the current frame (region -> control groups).
     group_stack: [16]u32 = undefined,
     group_depth: usize = 0,
@@ -156,6 +179,7 @@ pub const Canvas = struct {
         return .{
             .frame = frame,
             .allocator = frame.allocator,
+            .semantic_arena = std.heap.ArenaAllocator.init(frame.allocator),
             .clip_rect = .{
                 .x = 0,
                 .y = 0,
@@ -167,10 +191,12 @@ pub const Canvas = struct {
 
     pub fn deinit(self: *Canvas) void {
         self.hits.deinit(self.allocator);
+        self.semantic_arena.deinit();
     }
 
     pub fn resetHits(self: *Canvas) void {
         self.hits.clearRetainingCapacity();
+        _ = self.semantic_arena.reset(.retain_capacity);
         self.group_depth = 0;
         self.truncated = false;
     }
@@ -441,19 +467,37 @@ pub const Canvas = struct {
 
     /// Registers one semantic hit node in the current group. Returns its id,
     /// or 0 when the bounded hit list is full (`truncated` is set).
+    ///
+    /// Label/value/hint are copied into a per-frame arena (bounded lengths) so
+    /// the hit pass owns its semantic strings: paint functions may pass stack
+    /// buffers, and readers of `hits` after the frame stay valid until the
+    /// next `resetHits`.
     pub fn node(self: *Canvas, spec: NodeSpec) u32 {
         if (self.hits.items.len >= self.max_hits) {
             self.truncated = true;
             return 0;
         }
+        const arena_alloc = self.semantic_arena.allocator();
+        const label = copyBounded(arena_alloc, spec.label, max_label_bytes) catch {
+            self.truncated = true;
+            return 0;
+        };
+        const value = copyBounded(arena_alloc, spec.value, max_value_bytes) catch {
+            self.truncated = true;
+            return 0;
+        };
+        const hint = copyBounded(arena_alloc, spec.hint, max_hint_bytes) catch {
+            self.truncated = true;
+            return 0;
+        };
         const parent = if (self.group_depth > 0) self.group_stack[self.group_depth - 1] else 0;
         self.hits.append(self.allocator, .{
             .rect = spec.rect,
             .id = spec.id,
             .role = spec.role,
-            .label = spec.label,
-            .value = spec.value,
-            .hint = spec.hint,
+            .label = label,
+            .value = value,
+            .hint = hint,
             .data = spec.data,
             .flags = spec.flags,
             .clip = self.clipArray(),
@@ -468,6 +512,81 @@ pub const Canvas = struct {
     /// Legacy pointer-only hit. Prefer `node` so accessibility content is kept.
     pub fn hit(self: *Canvas, id: u32, rect: Rect) void {
         _ = self.node(.{ .id = id, .rect = rect, .role = .none });
+    }
+
+    /// Registers an accessible button (interactive + focusable).
+    pub fn button(self: *Canvas, id: u32, rect: Rect, name: []const u8) u32 {
+        return self.node(.{ .id = id, .rect = rect, .role = .button, .label = name });
+    }
+
+    /// Registers a selectable button (menu row, filter chip, source card,
+    /// theme option) and carries its selected state to AX.
+    pub fn choice(self: *Canvas, id: u32, rect: Rect, name: []const u8, selected: bool) u32 {
+        return self.node(.{
+            .id = id,
+            .rect = rect,
+            .role = .button,
+            .label = name,
+            .flags = .{ .interactive = true, .focusable = true, .selected = selected },
+        });
+    }
+
+    /// Registers a switch/toggle and carries its checked state to AX.
+    pub fn checkbox(self: *Canvas, id: u32, rect: Rect, name: []const u8, checked: bool) u32 {
+        return self.node(.{
+            .id = id,
+            .rect = rect,
+            .role = .toggle,
+            .label = name,
+            .flags = .{ .interactive = true, .focusable = true, .checked = checked },
+        });
+    }
+
+    /// Registers a text input with its current (bounded) value.
+    pub fn textField(self: *Canvas, id: u32, rect: Rect, name: []const u8, value: []const u8) u32 {
+        return self.node(.{ .id = id, .rect = rect, .role = .text_field, .label = name, .value = value });
+    }
+
+    /// Registers a selectable list row (ledger row, picker entry, slice).
+    pub fn listItem(self: *Canvas, id: u32, rect: Rect, name: []const u8, selected: bool) u32 {
+        return self.node(.{
+            .id = id,
+            .rect = rect,
+            .role = .list_item,
+            .label = name,
+            .flags = .{ .interactive = true, .focusable = true, .selected = selected },
+        });
+    }
+
+    /// Registers a navigation tab (rail item) with its selected state.
+    pub fn tabItem(self: *Canvas, id: u32, rect: Rect, name: []const u8, selected: bool) u32 {
+        return self.node(.{
+            .id = id,
+            .rect = rect,
+            .role = .tab,
+            .label = name,
+            .flags = .{ .interactive = true, .focusable = true, .selected = selected },
+        });
+    }
+
+    /// Registers non-interactive semantic text (`static_text`, `status`, ...)
+    /// so AX exposes headings and live status without making them hittable.
+    pub fn semanticText(
+        self: *Canvas,
+        id: u32,
+        rect: Rect,
+        role: a11y.Role,
+        name: []const u8,
+        value: []const u8,
+    ) u32 {
+        return self.node(.{
+            .id = id,
+            .rect = rect,
+            .role = role,
+            .label = name,
+            .value = value,
+            .flags = .{},
+        });
     }
 
     /// Starts a semantic group; following `node` calls nest under `spec.id`.
