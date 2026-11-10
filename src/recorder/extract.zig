@@ -406,8 +406,12 @@ test "torn compact tail is an explicit gap marker" {
     defer allocator.free(root);
     defer cleanup(allocator, root);
     try makeDirs(allocator, root);
+    // Deterministic monotonic base: the segment starts 120 s before its events,
+    // so pick a fixed base comfortably above that instead of the host
+    // monotonic clock. A freshly booted CI runner can report a monotonic uptime
+    // below 120 s, which made `mono - 120s` underflow u64 and panic.
     const started = nowWall(std.testing.io) - 120 * std.time.ns_per_s;
-    const mono = @as(u64, @intCast(@max(0, std.Io.Clock.now(.awake, std.testing.io).nanoseconds)));
+    const mono: u64 = 300 * std.time.ns_per_s;
     var writer = try segment_mod.Writer.create(std.testing.io, allocator, root, 0, started, mono - 120 * std.time.ns_per_s);
     defer writer.deinit();
     var index: u64 = 0;
@@ -446,10 +450,13 @@ test "markers only and max events are bounded" {
     const started = nowWall(std.testing.io) - 120 * std.time.ns_per_s;
     var writer = try segment_mod.Writer.create(std.testing.io, allocator, root, 0, started, 0);
     defer writer.deinit();
+    // Timestamps are far enough above the wall-derived cutoff that a slow CI
+    // runner's setup jitter cannot filter the two sched events the bounds rely
+    // on; the metadata marker itself is always retained.
     try writer.writeEvent(.{ .kind = .marker, .ts_ns = 0, .detail = "capture_owner", .comm = "xsprof", .pid = 7, .tid = 7 });
-    try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 1_000_000, .cpu = 0, .pid = 7, .tid = 7, .a = 1, .comm = "worker" });
-    try writer.writeEvent(.{ .kind = .marker, .ts_ns = 2_000_000, .detail = "sample_loss dropped=5" });
-    try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 3_000_000, .cpu = 0, .pid = 7, .tid = 7, .a = 1, .comm = "worker" });
+    try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 60 * std.time.ns_per_s, .cpu = 0, .pid = 7, .tid = 7, .a = 1, .comm = "worker" });
+    try writer.writeEvent(.{ .kind = .marker, .ts_ns = 61 * std.time.ns_per_s, .detail = "sample_loss dropped=5" });
+    try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 62 * std.time.ns_per_s, .cpu = 0, .pid = 7, .tid = 7, .a = 1, .comm = "worker" });
     try writer.close();
     try writeManifest(std.testing.io, allocator, root, &.{
         .{ .path = writer.path, .start_wall_ns = started, .start_mono_ns = 0, .end_wall_ns = nowWall(std.testing.io), .end_mono_ns = 70 * std.time.ns_per_s, .bytes = writer.stats.bytes, .events = 4, .closed = true },

@@ -119,10 +119,14 @@ test "window load is bounded and reports coverage" {
     const started = now - 120 * std.time.ns_per_s;
     var writer = try segment_mod.Writer.create(std.testing.io, allocator, root, 0, started, 0);
     defer writer.deinit();
+    // Keep event timestamps well above the test's wall-derived cutoff: the
+    // loader maps the 120 s wall window into segment monotonic time, and a
+    // few milliseconds of scheduling jitter between setup and load must not
+    // drop the events the test asserts on (CI failed on exactly that race).
     try writer.writeEvent(.{ .kind = .marker, .ts_ns = 0, .detail = "capture_owner", .comm = "xsprof", .pid = 7, .tid = 7 });
     var index: u64 = 0;
     while (index < 5) : (index += 1) {
-        try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 1_000_000 + index * 1000, .cpu = 0, .pid = 7, .tid = 7, .a = index, .comm = "worker" });
+        try writer.writeEvent(.{ .kind = .sched_switch, .ts_ns = 60 * std.time.ns_per_s + index * 1000, .cpu = 0, .pid = 7, .tid = 7, .a = index, .comm = "worker" });
     }
     try writer.close();
     const manifest_path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{root});
