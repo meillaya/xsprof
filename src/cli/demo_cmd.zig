@@ -9,10 +9,11 @@ const render_cmd = @import("render.zig");
 const state_paths = @import("../platform/state_paths.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
-fn nativeDisplayAvailable() bool {
+fn nativeDisplayAvailable(env: state_paths.Env) bool {
     if (comptime builtin.os.tag == .linux) {
-        return std.c.getenv("DISPLAY") != null or std.c.getenv("WAYLAND_DISPLAY") != null;
+        return env.get("DISPLAY") != null or env.get("WAYLAND_DISPLAY") != null;
     }
     if (comptime builtin.os.tag == .macos) return true;
     return false;
@@ -21,27 +22,28 @@ fn nativeDisplayAvailable() bool {
 pub fn cmdDemo(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
-    const fixture = state_paths.demoFixture(io, allocator) catch |fixture_error| {
+) !Exit {
+    const fixture = state_paths.demoFixtureWith(env, io, allocator) catch |fixture_error| {
         switch (fixture_error) {
             error.DemoFixtureMissing => try err.writeAll(
                 "demo: bundled capture fixture is not installed beside the binary (set XSPROF_FIXTURES_DIR)\n",
             ),
             else => try err.print("demo: {s}\n", .{@errorName(fixture_error)}),
         }
-        return 1;
+        return .refuse;
     };
     defer allocator.free(fixture);
 
-    if (!nativeDisplayAvailable()) {
+    if (!nativeDisplayAvailable(env)) {
         try err.writeAll(
             "demo: the bundled replay needs the native console (display unavailable); " ++
                 "use `xsprof snapshot --replay FILE` or `xsprof ui --smoke` for headless output\n",
         );
-        return 1;
+        return .refuse;
     }
 
     var call_args: std.ArrayList([]const u8) = .empty;
@@ -55,14 +57,17 @@ pub fn cmdDemo(
 // skipped when a DISPLAY is present so no window can open in automated work.
 test "demo explains headless mode without a display" {
     if (comptime builtin.os.tag != .linux) return;
-    if (nativeDisplayAvailable()) return;
+    var empty_map = std.process.Environ.Map.init(std.testing.allocator);
+    defer empty_map.deinit();
+    const env = state_paths.Env.fromMap(&empty_map);
+    if (nativeDisplayAvailable(env)) return;
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     var out_buffer: [512]u8 = undefined;
     var err_buffer: [1024]u8 = undefined;
     var out = Writer.fixed(&out_buffer);
     var err = Writer.fixed(&err_buffer);
-    const code = cmdDemo(std.testing.io, arena.allocator(), &.{}, &out, &err) catch 1;
-    try std.testing.expectEqual(@as(u8, 1), code);
+    const code = cmdDemo(std.testing.io, arena.allocator(), env, &.{}, &out, &err) catch .refuse;
+    try std.testing.expectEqual(Exit.refuse, code);
     try std.testing.expect(std.mem.indexOf(u8, err.buffered(), "display unavailable") != null);
 }

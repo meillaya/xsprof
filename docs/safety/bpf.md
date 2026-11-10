@@ -28,8 +28,8 @@ path for users.
 
 The gate was validated once in a disposable Fedora aarch64 podman VM with a
 hypervisor marker, libbpf present, and tracefs mounted: `READY`,
-`attached:true`, `libbpf:true`, `host_mutation:false`. That run's evidence is
-attached to the release, not committed to git. On macOS/Linux hosts without a
+`attached:true`, `libbpf:true`, `host_mutation:false`. That run's evidence was kept outside
+the tracked tree (a release/CI artifact); evidence is not committed to git. On macOS/Linux hosts without a
 hypervisor marker the same command returns `capability:"SKIP"` or `"REFUSE"` and
 exits 1.
 

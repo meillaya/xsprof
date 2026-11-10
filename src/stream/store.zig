@@ -5,6 +5,7 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const journal = @import("journal.zig");
+const live_feed = @import("live_feed.zig");
 
 const default_max_bytes = 256 * 1024 * 1024;
 
@@ -98,6 +99,27 @@ pub const Store = struct {
     }
 
     pub fn eventCount(self: *const Store) usize {
+        return self.events.items.len;
+    }
+
+    /// Commit a decoded event batch (the live path). The batch arena owns every
+    /// `comm`/`detail` string, so the store adopts the arena instead of copying
+    /// text; the committed events keep pointing into it for their whole life.
+    ///
+    /// All-or-nothing like `append`: the budget and every allocation are
+    /// checked/reserved before the first mutation, so a `StoreFull` or OOM error
+    /// leaves events, bytes, and arenas untouched. On success the store owns the
+    /// batch (arena and events) and frees the batch handle; on error the caller
+    /// still owns it and must `deinit` it.
+    pub fn commitBatch(self: *Store, batch: *live_feed.Batch) !usize {
+        const batch_bytes = batch.byteSize() + batch.count() * @sizeOf(event.RawEvent);
+        if (self.stored_bytes + batch_bytes > self.max_bytes) return error.StoreFull;
+        try self.arenas.ensureUnusedCapacity(self.allocator, 1);
+        try self.events.ensureUnusedCapacity(self.allocator, batch.count());
+        self.arenas.appendAssumeCapacity(batch.arena);
+        self.events.appendSliceAssumeCapacity(batch.events.items);
+        self.stored_bytes += batch_bytes;
+        batch.release();
         return self.events.items.len;
     }
 
@@ -207,4 +229,34 @@ test "partial line is bounded by the parse line limit" {
     try std.testing.expectEqual(@as(usize, 0), store.eventCount());
     try std.testing.expectEqual(@as(usize, 0), store.byteCount());
     try std.testing.expectEqual(@as(usize, 0), store.pending.items.len);
+}
+
+// A committed batch keeps its arena-owning strings alive across later batches,
+// and a refused batch is left to the caller with the store unchanged.
+test "batch commit keeps strings and is all-or-nothing" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const first = try live_feed.Batch.create(std.testing.allocator);
+    try first.push(.{ .kind = .sched_switch, .ts_ns = 1, .comm = "first" });
+    _ = try store.commitBatch(first);
+    try std.testing.expectEqual(@as(usize, 1), store.eventCount());
+    try std.testing.expect(store.byteCount() > 0);
+
+    store.max_bytes = store.byteCount() + 1;
+    const refused = try live_feed.Batch.create(std.testing.allocator);
+    try refused.push(.{ .kind = .sched_switch, .ts_ns = 2, .comm = "second" });
+    try std.testing.expectError(error.StoreFull, store.commitBatch(refused));
+    refused.deinit();
+    try std.testing.expectEqual(@as(usize, 1), store.eventCount());
+    try std.testing.expectEqual(@as(usize, 1), store.arenas.items.len);
+
+    store.max_bytes = 4096;
+    const third = try live_feed.Batch.create(std.testing.allocator);
+    try third.push(.{ .kind = .sched_switch, .ts_ns = 3, .comm = "third" });
+    _ = try store.commitBatch(third);
+    try std.testing.expectEqual(@as(usize, 2), store.eventCount());
+    try std.testing.expectEqualStrings("first", store.events.items[0].comm);
+    try std.testing.expectEqualStrings("third", store.events.items[1].comm);
+    try std.testing.expectEqual(@as(usize, 2), store.arenas.items.len);
 }

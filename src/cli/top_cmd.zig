@@ -9,6 +9,7 @@ const dashboard = @import("../tui/dashboard.zig");
 const capability = @import("capability.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 const max_cpus = 256;
 
 const Options = struct {
@@ -99,12 +100,12 @@ pub fn cmdTop(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
-    const options = (try parseArgs(args, out, err)) orelse return 2;
-    if (options.help) return 0;
+) !Exit {
+    const options = (try parseArgs(args, out, err)) orelse return .usage;
+    if (options.help) return .ok;
     const probe = live.probe(io, allocator) catch |probe_error| {
         try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(probe_error));
-        return 1;
+        return .refuse;
     };
     if (probe.state != .READY) {
         try capability.writeCapabilityEvent(
@@ -113,12 +114,12 @@ pub fn cmdTop(
             capability.stateName(probe.state),
             probe.reason,
         );
-        return 1;
+        return .refuse;
     }
 
     var capture = live.Capture.open(io, allocator, options.live) catch |open_error| {
         try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(open_error));
-        return 1;
+        return .refuse;
     };
     defer capture.deinit();
 
@@ -170,7 +171,7 @@ pub fn cmdTop(
     }
     const metrics = snapshot orelse {
         try err.writeAll("top: no metric snapshot\n");
-        return 1;
+        return .refuse;
     };
     if (options.json) {
         try metrics_json.writeJson(out, metrics, options.top_n);
@@ -181,7 +182,7 @@ pub fn cmdTop(
             .window_ms = options.duration_ms,
         });
     }
-    return 0;
+    return .ok;
 }
 
 test "top options parse durations and top count" {

@@ -1,10 +1,14 @@
+//! Human help rendering over the command table in `registry.zig`.
+//!
+//! No command list lives here: plain help shows visible commands grouped by
+//! area, `help --all` shows every command grouped by area, and
+//! `help <command>` prints the registry usage text. Unsafe verbs are listed in
+//! their own REFUSED section from the same table.
+
 const std = @import("std");
+const registry = @import("registry.zig");
 
 const Writer = std.Io.Writer;
-
-/// Primary UI-first surface: the console plus the few verbs an operator types
-/// directly. Everything else stays valid but is listed by `help --all`.
-pub const primary_verbs = [_][]const u8{ "ui", "record", "top", "why", "incident", "doctor" };
 
 pub fn writeQuickstart(w: *Writer) Writer.Error!void {
     try w.writeAll(
@@ -21,125 +25,24 @@ pub fn writeQuickstart(w: *Writer) Writer.Error!void {
         \\  xsprof incident --last 10m      offline incident bundle
         \\  xsprof doctor                   human-readable host readiness
         \\
-        \\Automation verbs (daemon, capture, history, verify, ...) are hidden
-        \\from this list: xsprof help --all shows every command.
+        \\Every command, grouped by area: xsprof help --all
         \\Safety: read-only; every record has host_mutation=false.
         \\
     );
 }
 
-pub fn writeCommand(w: *Writer, command: []const u8) Writer.Error!void {
-    if (std.mem.eql(u8, command, "ui")) {
-        return w.writeAll(
-            \\xsprof [ui] [--replay FILE] [--recorder-dir DIR] [--view NAME]
-            \\  [--theme NAME] [--smoke]
-            \\Open one native console window. Bare xsprof does this when stdout is a
-            \\terminal and a display is available; use XSPROF_NO_UI=1 for scripts.
-            \\
-        );
+pub fn writeCommand(w: *Writer, requested: []const u8, command: *const registry.Command) Writer.Error!void {
+    if (!std.mem.eql(u8, requested, command.name)) {
+        try w.print("xsprof {s}: alias of `xsprof {s}`\n\n", .{ requested, command.name });
     }
-    if (std.mem.eql(u8, command, "top")) {
-        return w.writeAll(
-            \\xsprof top [--duration 5s] [--interval 500ms]
-            \\  [--preset scheduler|memory|deep] [--top N] [--json] [--once]
-            \\Open one read-only perf capture and print a ranked terminal view.
-            \\Exits 1 with a SKIP/REFUSE reason when perf is unavailable.
-            \\
-        );
+    try w.writeAll(command.usage);
+    if (command.unsafe) {
+        try w.writeAll("\nREFUSED before dispatch: xsprof is read-only and never elevates.\n");
     }
-    if (std.mem.eql(u8, command, "why")) {
-        return w.writeAll(
-            \\xsprof why [--input FILE | --last 10m --dir DIR]
-            \\  [--json] [--pid N] [--comm NAME]
-            \\Stream a journal or recorder window and explain the dominant waits,
-            \\wakeup chains, faults, and advisor findings.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "record")) {
-        return w.writeAll(
-            \\xsprof record [--duration 1s] [--output FILE|-] [--preset NAME] [--force]
-            \\Capture scheduler tracepoints read-only. Default output is
-            \\session-<timestamp>.ndjson; use '-' for stdout.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "capture")) {
-        return w.writeAll(
-            \\xsprof capture --last 5m [--dir DIR] [--out FILE|-] [--force]
-            \\  [--markers-only] [--max-events N] [--max-window-bytes N]
-            \\Stream a recorder window to canonical NDJSON. Compact .xsraw segments
-            \\are decoded; loss/truncation is always an explicit marker.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "incident") or std.mem.eql(u8, command, "report")) {
-        return w.writeAll(
-            \\xsprof incident|report --last 10m [--dir DIR] [--out DIR] [--force]
-            \\  [--max-window-bytes N]
-            \\Write window.ndjson, summary.json, report.html, and trace.json.
-            \\Default output is ./xsprof-incident-<timestamp>/.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "demo")) {
-        return w.writeAll(
-            \\xsprof demo [--view NAME] [--theme NAME] [--smoke]
-            \\Open the bundled capture in the native console. Native-only: it fails
-            \\with an explicit reason when no display is available. Headless output
-            \\uses `xsprof snapshot` / `xsprof ui --smoke`.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "daemon")) {
-        return w.writeAll(
-            \\xsprof daemon --foreground [--dir DIR] [--retain 10m] [--max-bytes 2G]
-            \\  [--history-interval 60s] [--history-retain 24h] [--duration MS]
-            \\Foreground read-only flight recorder writing compact .xsraw segments.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "history")) {
-        return w.writeAll(
-            \\xsprof history --last 10m [--dir DIR] [--json|--md]
-            \\Aggregate sidecar buckets that survive raw retention.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "watch")) {
-        return w.writeAll(
-            \\xsprof watch [--dir DIR] [--window 30s] [--duration MS] [--once]
-            \\Bounded ANSI recorder view over .xsraw or legacy segments.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "verify")) {
-        return w.writeAll(
-            \\xsprof verify [--dir DIR] [--json]
-            \\Decode every segment and report clean/dirty/corrupt/missing state.
-            \\Exit 0 only when the state directory verifies READY.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "validate")) {
-        return w.writeAll(
-            \\xsprof validate --schema NAME|PATH --file PATH [--json] [--ndjson]
-            \\Validate one canonical wire document (or every non-empty NDJSON line)
-            \\against the committed JSON schema. Exit 0 only when all documents pass.
-            \\
-        );
-    }
-    if (std.mem.eql(u8, command, "doctor")) {
-        return w.writeAll(
-            \\xsprof doctor [--json]
-            \\Report kernel, perf, tracefs, cgroup, PSI, and libbpf readiness.
-            \\Never executes a fix or suggests privilege escalation.
-            \\
-        );
-    }
-    return writeHelp(w);
 }
 
+/// Plain help: usage, visible commands grouped by area, and the refusal/safety
+/// contract. Secret-free and deterministic.
 pub fn writeHelp(w: *Writer) Writer.Error!void {
     try w.writeAll(
         \\xsprof, read-only Linux scheduler & memory profiler
@@ -147,19 +50,73 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
         \\  xsprof                 open the console when a terminal + display exist
         \\  xsprof <command> ...   run a specific workflow
         \\PRIMARY COMMANDS:
-        \\  ui                      Native console (same as bare xsprof)
-        \\  record                  One bounded capture (default file)
-        \\  top                     Live ranked scheduler view (no daemon)
-        \\  why                     Explain a journal or recorder window
-        \\  incident                Offline incident bundle (alias: report)
-        \\  doctor                  Check what this host can collect
+        \\
+    );
+    try writeVisibleGroups(w);
+    try w.writeAll(
         \\MORE:
-        \\  demo                    Bundled capture in the native console
-        \\  snapshot                Headless PNG of the console
-        \\  help --all              List every command, including automation verbs
-        \\  help <command>          Detailed help for one command
-        \\REFUSED (unsafe verbs; non-zero exit on host by design):
-        \\  load attach enable mutate apply sched-ext-attach setaffinity setpriority bind
+        \\  help --all              every command, grouped by area
+        \\  help <command>          detailed usage for one command
+        \\  help --json --all       canonical CLI manifest (xsprof/cli-manifest/v1)
+        \\
+    );
+    try writeSafety(w);
+}
+
+/// Full help: every dispatchable command grouped by area, then refused verbs.
+pub fn writeAllHelp(w: *Writer) Writer.Error!void {
+    try w.writeAll(
+        \\xsprof, read-only Linux scheduler & memory profiler
+        \\USAGE:
+        \\  xsprof [<command>|ui] [options]
+        \\COMMANDS:
+        \\
+    );
+    for (registry.groups) |group| {
+        try w.print("  {s}:\n", .{group.label()});
+        for (registry.commands) |command| {
+            if (command.group != group) continue;
+            try w.print("    {s:<24}{s}\n", .{ command.name, command.summary });
+        }
+    }
+    try writeSafety(w);
+}
+
+fn writeVisibleGroups(w: *Writer) Writer.Error!void {
+    for (registry.groups) |group| {
+        var printed_header = false;
+        for (registry.commands) |command| {
+            if (command.group != group or !command.visible) continue;
+            if (!printed_header) {
+                try w.print("  {s}:\n", .{group.label()});
+                printed_header = true;
+            }
+            try w.print("    {s:<24}{s}\n", .{ command.name, command.summary });
+        }
+    }
+}
+
+fn writeSafety(w: *Writer) Writer.Error!void {
+    try w.writeAll("REFUSED (unsafe verbs; non-zero exit on host by design):\n  ");
+    var line_len: usize = 2;
+    var first = true;
+    for (registry.all_commands) |command| {
+        if (!command.unsafe) continue;
+        if (!first) {
+            if (line_len + command.name.len + 1 > 78) {
+                try w.writeAll("\n  ");
+                line_len = 2;
+            } else {
+                try w.writeByte(' ');
+                line_len += 1;
+            }
+        }
+        try w.writeAll(command.name);
+        line_len += command.name.len;
+        first = false;
+    }
+    try w.writeAll(
+        \\
         \\SAFETY:
         \\  Observation is read-only. Every record carries host_mutation=false.
         \\  Runtime samples never expose argv, environment, secrets, or tokens.
@@ -167,45 +124,31 @@ pub fn writeHelp(w: *Writer) Writer.Error!void {
     );
 }
 
-pub fn writeAllHelp(w: *Writer) Writer.Error!void {
-    try w.writeAll(
-        \\xsprof, read-only Linux scheduler & memory profiler
-        \\USAGE:
-        \\  xsprof [<command>|ui] [options]
-        \\CONSOLE:
-        \\  ui                      Native console (bare xsprof default)
-        \\  demo                    Bundled capture in the native console
-        \\  snapshot                Headless PNG of the console
-        \\CAPTURE / ANALYSIS:
-        \\  record                  One bounded capture (NDJSON)
-        \\  top                     Live ranked scheduler view
-        \\  why                     Streaming root-cause report
-        \\  advise                  Seven-rule advisor (--json|--md)
-        \\  metrics                 Canonical scheduler metrics
-        \\  compare                 Baseline/candidate regression report
-        \\  timeline                Chrome Trace export
-        \\RECORDER:
-        \\  daemon                  Foreground compact-segment flight recorder
-        \\  capture                 Stream a recorder window (canonical NDJSON)
-        \\  incident                Offline bundle (alias: report)
-        \\  history                 Sidecar history beyond raw retention
-        \\  watch                   Bounded ANSI recorder view
-        \\  verify                  Read-only segment/state verification
-        \\  validate                Validate wire documents against schemas
-        \\HOST / SAFETY:
-        \\  preflight --json        Host facts and capability probes
-        \\  capabilities --json     perf/tracepoint/BPF/PMU/sched_ext states
-        \\  pressure --json         PSI CPU/memory/IO stalls
-        \\  cgroup --json           Read-only cgroup task attribution
-        \\  bpf-gate --json         VM-marker-gated no-op BPF gate
-        \\  doctor                  Human or --json host readiness
-        \\  version                 Print version
-        \\  completions bash|zsh|fish [--all]
-        \\  help [command|--all]    This help, command help, or full list
-        \\REFUSED (unsafe verbs; non-zero exit on host by design):
-        \\  load attach enable mutate apply sched-ext-attach setaffinity setpriority bind
-        \\SAFETY:
-        \\  Observation is read-only. Every record carries host_mutation=false.
-        \\
-    );
+test "plain help shows visible commands and hides automation-only verbs" {
+    var buffer: [8 * 1024]u8 = undefined;
+    var writer = Writer.fixed(&buffer);
+    try writeHelp(&writer);
+    const text = writer.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, text, "PRIMARY COMMANDS") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "advise") == null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "serve") == null);
+    for (registry.commands) |command| {
+        if (!command.visible) continue;
+        try std.testing.expect(std.mem.indexOf(u8, text, command.name) != null);
+    }
+}
+
+test "all help lists every command grouped by area and refuses unsafe verbs" {
+    var buffer: [16 * 1024]u8 = undefined;
+    var writer = Writer.fixed(&buffer);
+    try writeAllHelp(&writer);
+    const text = writer.buffered();
+    for (registry.groups) |group| {
+        try std.testing.expect(std.mem.indexOf(u8, text, group.label()) != null);
+    }
+    for (registry.commands) |command| {
+        try std.testing.expect(std.mem.indexOf(u8, text, command.name) != null);
+    }
+    try std.testing.expect(std.mem.indexOf(u8, text, "REFUSED") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "serve") == null);
 }

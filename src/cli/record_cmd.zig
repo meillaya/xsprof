@@ -10,6 +10,7 @@ const extract = @import("../recorder/extract.zig");
 const capability = @import("capability.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 const Sink = struct {
     io: std.Io,
@@ -81,7 +82,7 @@ pub fn cmdRecord(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var duration_ms: u32 = 1000;
     var output: ?[]const u8 = null;
     var force = false;
@@ -93,29 +94,29 @@ pub fn cmdRecord(
         if (std.mem.eql(u8, arg, "--duration")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("record: --duration requires a value\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             duration_ms = parseDuration(args[i]) catch {
                 try err.writeAll("record: invalid --duration\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--output")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("record: --output requires a path\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             output = args[i];
         } else if (std.mem.eql(u8, arg, "--preset")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("record: --preset requires a value\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             const preset = live.parsePreset(args[i]) orelse {
                 try err.writeAll("record: unknown preset\n");
-                return 2;
+                return .usage;
             };
             live_options = live.presetOptions(preset);
         } else if (std.mem.eql(u8, arg, "--force")) {
@@ -126,7 +127,7 @@ pub fn cmdRecord(
             continue;
         } else {
             try err.print("record: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     if (bpf) {
@@ -136,12 +137,12 @@ pub fn cmdRecord(
             "SKIP",
             "BPF lane is VM-marker-gated; no host BPF capture is available",
         );
-        return 1;
+        return .refuse;
     }
 
     const probe = live.probe(io, allocator) catch |probe_error| {
         try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(probe_error));
-        return 1;
+        return .refuse;
     };
     if (probe.state != .READY) {
         try capability.writeCapabilityEvent(
@@ -150,7 +151,7 @@ pub fn cmdRecord(
             capability.stateName(probe.state),
             probe.reason,
         );
-        return 1;
+        return .refuse;
     }
 
     const stdout_mode = if (output) |path| std.mem.eql(u8, path, "-") else false;
@@ -170,7 +171,7 @@ pub fn cmdRecord(
     if (path) |output_path| {
         file = openOutput(io, output_path, force) catch |open_error| {
             try err.print("record: cannot open {s}: {s}\n", .{ output_path, @errorName(open_error) });
-            return 1;
+            return .refuse;
         };
     }
     defer if (file) |opened| opened.close(io);
@@ -180,11 +181,11 @@ pub fn cmdRecord(
     const result = recording.recordStream(io, allocator, duration_ms, live_options, &sink) catch |record_error| {
         sink.flush() catch {};
         try capability.writeCapabilityEvent(out, "live_capture", "SKIP", @errorName(record_error));
-        return 1;
+        return .refuse;
     };
     sink.flush() catch |flush_error| {
         try err.print("record: cannot flush output: {s}\n", .{@errorName(flush_error)});
-        return 1;
+        return .refuse;
     };
     if (result.state != .READY) {
         try capability.writeCapabilityEvent(
@@ -193,7 +194,7 @@ pub fn cmdRecord(
             capability.stateName(result.state),
             result.reason,
         );
-        return 1;
+        return .refuse;
     }
 
     try writeSummary(err, .{
@@ -208,7 +209,7 @@ pub fn cmdRecord(
         .wakeups = sink.wakeups,
     });
     try err.writeByte('\n');
-    return 0;
+    return .ok;
 }
 
 const Summary = struct {

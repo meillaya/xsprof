@@ -10,17 +10,13 @@ let
   cfg = config.services.xsprof.recorder;
   system = pkgs.stdenv.hostPlatform.system;
   defaultPackage = self.packages.${system}.xsprof;
-  unsafeVerbs = [
-    "load"
-    "attach"
-    "enable"
-    "mutate"
-    "apply"
-    "sched-ext-attach"
-    "setaffinity"
-    "setpriority"
-    "bind"
-  ];
+  # The unsafe-verb refusal matrix is owned by the CLI command registry and
+  # committed as packaging/cli-manifest.json (`xsprof help --json --all`).
+  # Reading it here keeps the NixOS assertion and the binary in lockstep.
+  cliManifest = builtins.fromJSON (builtins.readFile ../packaging/cli-manifest.json);
+  unsafeVerbs = map (command: command.name) (
+    builtins.filter (command: command.unsafe) cliManifest.commands
+  );
   unsafeArgs = builtins.filter (arg: builtins.elem arg unsafeVerbs) cfg.extraArgs;
   extraArgs = lib.concatMapStrings (arg: " " + lib.escapeShellArg arg) cfg.extraArgs;
   stateDirectory = lib.removePrefix "/var/lib/" cfg.stateDir;
@@ -80,6 +76,10 @@ in
       {
         assertion = unsafeArgs == [ ];
         message = "services.xsprof.recorder.extraArgs contains unsafe/mutating verbs: ${lib.concatStringsSep ", " unsafeArgs}";
+      }
+      {
+        assertion = cliManifest.schema == "xsprof/cli-manifest/v1";
+        message = "packaging/cli-manifest.json must declare schema xsprof/cli-manifest/v1";
       }
       {
         assertion = lib.hasPrefix "/var/lib/" cfg.stateDir;

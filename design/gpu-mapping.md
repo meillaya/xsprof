@@ -5,7 +5,8 @@ runtime contract is [`ui-spec.json`](ui-spec.json): CPU is the reference
 rasterizer and native Metal/GL consume the same draw list, fractional geometry,
 and staged text atlas. The HTML prototype is the design source; its
 pixel diff is advisory. Formal cross-surface results live in
-[`evidence/cross_surface.json`](evidence/cross_surface.json).
+the committed stills under `screenshots/native/` and the CPU rasterizer's
+deterministic framebuffer hashes.
 
 The token values live in [`tokens.json`](tokens.json),
 [`palettes.json`](palettes.json), and the generated [`tokens.css`](tokens.css).
@@ -241,8 +242,11 @@ spacing.
   their labels and glyphs; color is supplemental.
 - Loss rows use `tint-refuse` plus a `■ LOSS` chip; gaps are explicit.
 - Missing memory signals read `uncollected`, never `0`.
-- Capture is read-only; the UI has no start/stop/attach controls.
-- The hidden file input accepts `.ndjson`, `.jsonl`, `.json`.
+- Capture is read-only: the viewer may start/stop only its own read-only
+  recorder, gated on a READY probe plus the Settings opt-in; external recorders
+  are attach-only and the viewer never changes host policy.
+- The native GPU picker accepts `.ndjson`, `.jsonl`, and `.json` paths; there is
+  no OS file dialog and no web file input.
 - The UI never writes `/proc` or `/sys`, never elevates, and sends no network
   request. All data is local replay data.
 - Runtime samples never include argv, environment variables, secrets, or
@@ -264,8 +268,9 @@ Recommended capture set for every token change:
 
 For CPU rendering, compare framebuffer hashes exactly. For Metal/GL, compare
 against the CPU reference using the thresholds in `ui-spec.json` (Metal/GL:
-MAE ≤ 4.0, >24 ≤ 3%). The formal gate is `qa/ui_cross_surface.py`; reference
-diffs are advisory.
+MAE ≤ 4.0, >24 ≤ 3%). CPU raster is canonical: committed stills are verified
+by `./tools/zig build screenshots-check` in CI, while Metal/GL reference diffs
+are advisory and not a CI gate.
 
 ## 11. Implementation checklist
 
@@ -289,18 +294,20 @@ diffs are advisory.
       partial.
 - [x] Add explicit SKIP/REFUSE/loss fallbacks and live-vs-replay source labels.
 - [x] Add snapshot fixtures for all screens, all six palettes, and overlays.
-- [x] Replace platform text rasterization with a browser-generated glyph mask
-      atlas at the measured ¼ px x / ½ px y subpixel grid; TTF remains a
-      documented fallback for unknown glyphs/phases.
-- [x] Make CPU the canonical backend and gate native Metal/GL against it through
-      `design/ui-spec.json` and `qa/ui_cross_surface.py`.
+- [x] Replace platform text rasterization with the generated glyph mask atlas
+      (`tools/gen_chromium_text_atlas.cjs`, checked-in binary asset) at the
+      measured ¼ px x / ½ px y subpixel grid; TTF remains a documented fallback
+      for unknown glyphs/phases.
+- [x] Make CPU the canonical backend; native Metal/GL consume the same draw
+      list and are smoke-tested with a hidden window (`qa/macos_smoke.sh`,
+      `qa/xvfb_smoke.sh`), with reference diffs advisory.
 - [x] Wire the 1320/1140/1024/780/420 shell, compact topbar, bottom rail,
       one-column Overview/Capture/Advisor, and stacked Events/Timeline.
 - [x] Emit bounded clipboard requests; macOS uses NSPasteboard and X11 owns
       CLIPBOARD. Brush drag/zoom is wired natively.
 - [x] Mobile ledger/thread rows, phone theme grid/stat sizes, focus
       traversal/trapping/return, skip-link focus, and X11 clipboard selection.
-- [x] Native GPU open-journal and recorder-window picker; no web file input.
+- [x] Native GPU open-journal and recorder-window picker; no OS file dialog.
 
 The cross-surface report records actual pixel metrics and pass/fail against the
 formal thresholds. Reference-progress is reported separately and is advisory.

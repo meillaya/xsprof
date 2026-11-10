@@ -1,40 +1,45 @@
 # xsprof UI/UX design tokens
 
-This folder is the design-side contract for the operator console prototype in
-[`index.html`](index.html) in this folder. It captures every token,
-screen, flow, keybinding, palette, and GPU mapping needed to reproduce the
-prototype rather than approximating it.
+This folder is the frozen design-side contract for the optional native viewer.
+The prototype [`index.html`](index.html) is design input only: it is never built
+or served, and the viewer is not allowed to grow new routes/palettes without an
+explicit product decision. The token set, screens, flows, keybindings, and GPU
+mapping here are what the existing eight-route viewer implements.
 
 - Source: `design/index.html` (this folder)
 - Source sha256: `0823328b3261b89ce2d8c2af53ebc61adfedd49f19706239e437b7fdb6a3de62`
 - Source size: 221,754 bytes
 - Token set version: `1.0.0`
-- Reference viewports: frozen prototype `1440x900 @1` (design input only), native `1280x720 @1`
-- Real capture evidence: [`fixtures/real/macos-vm-sched.ndjson`](../fixtures/real/macos-vm-sched.ndjson)
-  (Linux VM perf, 110,284 events) drives the live-replay video and the committed
-  light/dark `overview` stills; the remaining stills use the healthy replay or
-  design demo fixture (see
-  [`evidence/README.md`](evidence/README.md)).
-- Status: implemented as the primary GPU console (`src/app/design/`,
-  `lib/xsui/src/canvas.zig`). The formal contract is
-  [`ui-spec.json`](ui-spec.json); CPU is canonical and CPU/Metal/GL are
-  gated by [`qa/ui_cross_surface.py`](../qa/ui_cross_surface.py). The prototype
-  remains the design source, and its pixel diff is advisory.
+- Reference viewports: frozen prototype `1440x900 @1` (design input only),
+  native `1280x720 @1`
+- Status: implemented by the optional viewer (`src/app/design/`,
+  `lib/xsui/src/canvas.zig`). The formal runtime contract is
+  [`ui-spec.json`](ui-spec.json). CPU raster is canonical; Metal/GL are smoke
+  tested (hidden window) and reference diffs are advisory, not a CI gate.
+- Committed stills: four offscreen CPU snapshots —
+  [`dark/home.png`](screenshots/native/dark/home.png),
+  [`light/home.png`](screenshots/native/light/home.png),
+  [`dark/overview.png`](screenshots/native/dark/overview.png),
+  [`light/overview.png`](screenshots/native/light/overview.png) — with canonical
+  [`provenance.json`](screenshots/native/provenance.json). Regenerate with
+  `sh tools/screenshots.sh`; verify committed bytes with
+  `./tools/zig build screenshots-check`. Stills render the committed real
+  capture prefix; they are never window captures.
 
 ## Files
 
 | File | Contents |
 |---|---|
-| [`ui-spec.json`](ui-spec.json) | canonical runtime contract: draw list, text atlas/hash, palettes, breakpoints, shell, components, interactions, cross-surface gates |
+| [`ui-spec.json`](ui-spec.json) | canonical runtime contract: draw list, text atlas/hash, palettes, breakpoints, shell, components, interactions |
 | [`tokens.json`](tokens.json) | canonical shared tokens: meta, typography, spacing, radii, borders, focus, layout, components, motion, GPU ABI |
 | [`palettes.json`](palettes.json) | canonical color source: six palettes, semantic roles, state contract, color-mix recipes, per-theme derived colors |
 | [`tokens.css`](tokens.css) | generated CSS custom properties for Graphite, Paper, and four Catppuccin flavours |
-| [`screens.json`](screens.json) | shell, eight routes (five analysis screens plus product shell), overlays, regions, content contracts, states, responsive behavior |
-| [`flows.json`](flows.json) | lifecycle, navigation, overlays, journal, timeline, advisor, events, capture, feedback, and responsive flows |
+| [`screens.json`](screens.json) | shell, eight routes, overlays, regions, content contracts, states, responsive behavior |
+| [`flows.json`](flows.json) | lifecycle, navigation, overlays, journal, timeline, advisor, events, capture, feedback, responsive flows |
 | [`keybindings.json`](keybindings.json) | global, dialog, palette, rail, timeline-pointer, and native-port key/gesture maps |
-| [`command-palette.json`](command-palette.json) | 35 exact palette commands (product shell v2), appearance options, help sheet, grouping and search rules |
-| [`product-shell.md`](product-shell.md) | product shell v2 extension: Home/Audit/Settings routes, picker/confirm/onboarding overlays, hit-id policy, persistence/audit/a11y contract, fail-closed matrix and integration hooks |
-| [`gpu-mapping.md`](gpu-mapping.md) | token-to-instance mapping, color/text/layout requirements, parity harness, known gaps |
+| [`command-palette.json`](command-palette.json) | palette commands, appearance options, help sheet, grouping and search rules |
+| [`product-shell.md`](product-shell.md) | product shell contract: routes, overlays, hit-id policy, persistence/audit/a11y, fail-closed matrix, integration hooks |
+| [`gpu-mapping.md`](gpu-mapping.md) | token-to-instance mapping, color/text/layout requirements, parity notes, known gaps |
 | [`index.html`](index.html) | the console prototype itself; self-contained, source of truth for all tokens |
 | [`validate.py`](validate.py) | checks source hash, JSON validity, palette coverage, CSS parity, screens/flows presence, atlas hash, and the formal spec |
 
@@ -57,8 +62,8 @@ Each palette carries the same 33 color tokens: 5 surfaces, 4 inks, 2 strokes,
 6 semantic states, 4 tints, 9 lanes + idle + grid, and the focus ring. The
 `derived` object in each theme contains the 8-bit values for the nine
 `color-mix(in srgb, …)` borders and hover surfaces. The recipes in
-`colorMixRecipes` are the canonical form; the derived hex values are rounded
-convenience values.
+`colorMixRecipes` are the canonical form; derived hex values are convenience
+values rounded from the same recipe.
 
 Semantic state is never color-only. READY/DEGRADED/SKIP/REFUSE/CLEAR/WARNING/
 INFO/LIVE/VM always pair a color with a label and often a glyph (`● ◐ ○ ■`).
@@ -80,22 +85,13 @@ Loss rows are `LOSS` + `■` with a `tint-refuse` background.
 Shared shell: skip link, topbar (brand, current route, session meta, source/
 loss/safety chips, palette/theme/help buttons), vertical route rail or bottom
 route bar, stage, keybar with status. Overlays: command palette, appearance,
-keyboard help, onboarding, GPU picker, confirm, toast. The native GPU picker is the only source-picker surface. Home/Recorder/Audit/Settings and
-their overlays are the product-shell extension documented in
-[`product-shell.md`](product-shell.md); the pinned prototype remains the
-visual source for the five analysis screens.
+keyboard help, onboarding, GPU picker, confirm, toast. The native GPU picker is
+the only source-picker surface.
 
 `design/index.html` is responsive at 1320, 1140, 1024, 780, and 420 CSS px. The
-1024px breakpoint turns the rail into a bottom bar and hides the keybar.
-
-## Flows
-
-`flows.json` covers boot, screen navigation, command palette, appearance,
-keyboard help, journal open (picker and drag/drop), fixture reload, playback,
-zoom/fit, brush, selection/inspector, advisor filter/evidence, events filter,
-events detail actions, capture command copy, toast feedback, and responsive
-relayout. Each flow lists triggers, preconditions, steps, outcomes, failures,
-and source function names.
+1024px breakpoint turns the rail into a bottom bar and hides the keybar. The
+native viewer implements the 1280 two-column and 1440 three-column states; the
+1024 bottom-rail state is not pixel-verified.
 
 ## Keyboard
 
@@ -111,10 +107,6 @@ The core map (full contexts in [`keybindings.json`](keybindings.json)):
 - events filter: typing filters; `esc` clears and blurs
 - timeline: drag >4px brush; release >20ms zooms; click selects; double-click
   fits; minimap click centers
-
-The command palette has exactly 17 commands in three display groups
-(`screen`, `action`, `theme`). Appearance has two core themes and four
-Catppuccin flavours; selection applies immediately and announces via toast.
 
 ## Pixel rules
 
@@ -146,13 +138,14 @@ runtime must use the same sRGB recipe, not a linear-light approximation.
 ## Validate
 
 ```sh
-python3 design/validate.py
+./tools/zig build design-check     # runs: python3 design/validate.py
+sh tools/screenshots.sh --check    # committed stills + provenance (also in check-ci)
 ```
 
 The validator checks that the source hash in the JSON matches `design/index.html`,
 every JSON parses, all six palettes expose the same 33 color tokens, the CSS
-export matches each palette token, and the five screens and required flows are
-present. It prints `design: PASS` on success.
+export matches each palette token, and the screens/flows are present. It prints
+`design: PASS` on success.
 
 ## Updating
 
@@ -164,6 +157,7 @@ present. It prints `design: PASS` on success.
    `command-palette.json`.
 4. Run `python3 design/validate.py`.
 5. Update `gpu-mapping.md` if the change affects ABI, text, layout, or parity.
+6. Regenerate the four committed stills and provenance (`sh tools/screenshots.sh`).
 
 Do not add a token that only exists in this folder but not in the prototype
 without marking it as a proposed extension. The design folder describes the
@@ -171,36 +165,9 @@ desired UI; it is not a second source of truth for behavior.
 
 ## Relationship to `lib/xsui`
 
-The GPU UI package lives in [`lib/xsui`](../lib/xsui/README.md). This folder
-is design input for that package: palette maps are generated into
+The GPU UI package lives in [`lib/xsui`](../lib/xsui/README.md). This folder is
+design input for that package: palette maps are generated into
 `lib/xsui/src/design_palettes.zig` by `tools/gen_design_tokens.py`, component
 metrics are encoded in `src/app/design/`, and `gpu-mapping.md` tracks renderer
-parity. Run `python3 design/validate.py` after changing the prototype or
-tokens.
-
-## Implemented console and evidence
-
-The production surface is the native AppKit/X11 console under
-`src/platform/` and `xsprof snapshot`. The old lab rail is not
-part of the console; `xsprof lab` remains a headless developer tool.
-
-Evidence lives in:
-
-- [`screenshots/prototype/`](screenshots/prototype/) — frozen reference
-  captures of the design prototype (not a shipped surface).
-- [`screenshots/native/`](screenshots/native/) — committed 1280x720 offscreen
-  CPU snapshots of the eight console routes in both core themes
-  ([`dark/`](screenshots/native/dark/) Graphite and
-  [`light/`](screenshots/native/light/) Paper), with canonical
-  [`provenance.json`](screenshots/native/provenance.json). Regenerate with
-  `sh tools/screenshots.sh`; verify committed bytes with
-  `sh tools/screenshots.sh --check`.
-- [`media/xsprof-native-showcase.mp4`](media/xsprof-native-showcase.mp4) —
-  deterministic native offscreen showcase.
-- [`media/xsprof-native-live-replay.mp4`](media/xsprof-native-live-replay.mp4) —
-  live-capture replay in the native console.
-- [`evidence/README.md`](evidence/README.md) — method, caveats, and commands.
-
-Regenerate the videos with `sh qa/showcase_smoke.sh` after building the binary.
-Both tools are developer-only and use the native snapshot renderer (plus
-ffmpeg for video); no browser, Playwright, or real window is involved.
+mapping. There is no WebGL/WASM backend and no browser target; `lib/xsui` is
+native-only (CPU, Metal, GL).

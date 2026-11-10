@@ -1,28 +1,35 @@
-//! Static shell completions. No generated files or runtime dependencies. The
-//! default set is the UI-first primary surface; --all adds automation verbs.
+//! Static shell completions generated from the command table in `registry.zig`.
+//! No generated files, no runtime dependencies, and no hand-maintained list:
+//! plain completion offers visible operator commands, `--all` offers every
+//! command (dispatchable and refused).
 
 const std = @import("std");
+const exit = @import("exit.zig");
+const registry = @import("registry.zig");
 
 const Writer = std.Io.Writer;
+const Exit = exit.Exit;
 
-const primary_commands =
-    "ui demo record top why incident doctor help version";
-
-const all_commands =
-    "preflight capabilities advise incident report history timeline record " ++
-    "snapshot ui bpf-gate daemon capture doctor demo watch top why metrics compare " ++
-    "pressure cgroup verify validate completions version help";
-
-fn commandList(args: []const []const u8) []const u8 {
-    for (args) |arg| {
-        if (std.mem.eql(u8, arg, "--all")) return all_commands;
+fn commandList(buffer: []u8, include_all: bool) []const u8 {
+    var writer = Writer.fixed(buffer);
+    var first = true;
+    for (registry.all_commands) |command| {
+        if (!include_all and !command.visible) continue;
+        if (!first) writer.writeByte(' ') catch unreachable;
+        writer.writeAll(command.name) catch unreachable;
+        first = false;
     }
-    return primary_commands;
+    return writer.buffered();
 }
 
-pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !u8 {
+pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !Exit {
     const shell = if (args.len == 0) "bash" else args[0];
-    const commands = commandList(args);
+    var include_all = false;
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--all")) include_all = true;
+    }
+    var command_buffer: [2048]u8 = undefined;
+    const commands = commandList(&command_buffer, include_all);
     if (std.mem.eql(u8, shell, "bash")) {
         try out.print(
             \\_xsprof() {{
@@ -34,7 +41,7 @@ pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !u8 
             \\complete -F _xsprof xsprof
             \\
         , .{commands});
-        return 0;
+        return .ok;
     }
     if (std.mem.eql(u8, shell, "zsh")) {
         try out.print(
@@ -47,37 +54,47 @@ pub fn cmdCompletions(args: []const []const u8, out: *Writer, err: *Writer) !u8 
             \\_xsprof "$@"
             \\
         , .{commands});
-        return 0;
+        return .ok;
     }
     if (std.mem.eql(u8, shell, "fish")) {
         var it = std.mem.tokenizeScalar(u8, commands, ' ');
         while (it.next()) |command| {
             try out.print("complete -c xsprof -f -n '__fish_use_subcommand' -a {s}\n", .{command});
         }
-        return 0;
+        return .ok;
     }
     try err.writeAll("completions: supported shells are bash, zsh, fish\n");
-    return 2;
+    return .usage;
 }
 
-// Checks the primary set leads with ui and that --all exposes automation verbs.
-test "completions primary set is UI-first and --all is complete" {
-    var buffer: [2048]u8 = undefined;
+// The completion sets are derived from the registry, so the assertions compare
+// against registry data rather than a second command list.
+test "completions follow the registry visibility split" {
+    var buffer: [4096]u8 = undefined;
     var writer = Writer.fixed(&buffer);
     var err_buffer: [128]u8 = undefined;
     var err = Writer.fixed(&err_buffer);
-    try std.testing.expectEqual(@as(u8, 0), try cmdCompletions(&.{"bash"}, &writer, &err));
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "ui") != null);
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "top") != null);
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "demo") != null);
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "advise") == null);
+    try std.testing.expectEqual(Exit.ok, try cmdCompletions(&.{"bash"}, &writer, &err));
+    const primary = writer.buffered();
+    try std.testing.expect(std.mem.indexOf(u8, primary, "ui") != null);
+    try std.testing.expect(std.mem.indexOf(u8, primary, "top") != null);
+    try std.testing.expect(std.mem.indexOf(u8, primary, "demo") != null);
+    try std.testing.expect(std.mem.indexOf(u8, primary, "advise") == null);
 
-    var all_buffer: [2048]u8 = undefined;
+    var all_buffer: [4096]u8 = undefined;
     var all_writer = Writer.fixed(&all_buffer);
     try std.testing.expectEqual(
-        @as(u8, 0),
+        Exit.ok,
         try cmdCompletions(&.{ "bash", "--all" }, &all_writer, &err),
     );
-    try std.testing.expect(std.mem.indexOf(u8, all_writer.buffered(), "advise") != null);
-    try std.testing.expect(std.mem.indexOf(u8, all_writer.buffered(), "verify") != null);
+    const all = all_writer.buffered();
+    for (registry.all_commands) |command| {
+        try std.testing.expect(std.mem.indexOf(u8, all, command.name) != null);
+    }
+    try std.testing.expect(std.mem.indexOf(u8, all, "advise") != null);
+    try std.testing.expect(std.mem.indexOf(u8, all, "verify") != null);
+
+    var bad_err_buffer: [128]u8 = undefined;
+    var bad_err = Writer.fixed(&bad_err_buffer);
+    try std.testing.expectEqual(Exit.usage, try cmdCompletions(&.{"elvish"}, &all_writer, &bad_err));
 }

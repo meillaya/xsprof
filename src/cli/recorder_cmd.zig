@@ -6,6 +6,8 @@ const recording = @import("../capture/recording.zig");
 const extract = @import("../recorder/extract.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
+const state_paths = @import("../platform/state_paths.zig");
 
 fn parseSize(text: []const u8) !u64 {
     const trimmed = std.mem.trim(u8, text, " \t");
@@ -29,10 +31,11 @@ fn parseSize(text: []const u8) !u64 {
 pub fn cmdDaemon(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var options: daemon.Options = .{};
     var live_options: live.Options = .{};
     var i: usize = 0;
@@ -45,55 +48,61 @@ pub fn cmdDaemon(
             i += 1;
             options.max_age_ms = extract.parseDuration(args[i]) catch {
                 try err.writeAll("daemon: invalid --retain\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--max-bytes") and i + 1 < args.len) {
             i += 1;
             options.max_bytes = parseSize(args[i]) catch {
                 try err.writeAll("daemon: invalid --max-bytes\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--history-interval") and i + 1 < args.len) {
             i += 1;
             options.history_interval_ms = extract.parseDuration(args[i]) catch {
                 try err.writeAll("daemon: invalid --history-interval\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--history-retain") and i + 1 < args.len) {
             i += 1;
             options.history_retain_ms = extract.parseDuration(args[i]) catch {
                 try err.writeAll("daemon: invalid --history-retain\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--duration") and i + 1 < args.len) {
             i += 1;
             const duration = extract.parseDuration(args[i]) catch {
                 try err.writeAll("daemon: invalid --duration\n");
-                return 2;
+                return .usage;
             };
             if (duration > std.math.maxInt(u32)) {
                 try err.writeAll("daemon: --duration too large\n");
-                return 2;
+                return .usage;
             }
             options.duration_ms = @intCast(duration);
         } else if (std.mem.eql(u8, arg, "--preset") and i + 1 < args.len) {
             i += 1;
             const preset = live.parsePreset(args[i]) orelse {
                 try err.writeAll("daemon: unknown preset\n");
-                return 2;
+                return .usage;
             };
             live_options = live.presetOptions(preset);
         } else if (std.mem.eql(u8, arg, "--foreground")) {
             continue;
         } else {
             try err.print("daemon: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     options.live_options = live_options;
+    if (options.dir == null or options.dir.?.len == 0) {
+        options.dir = state_paths.stateDirWith(env, allocator) catch |dir_error| {
+            try err.print("daemon: cannot resolve state dir: {s}\n", .{@errorName(dir_error)});
+            return .refuse;
+        };
+    }
     const result = daemon.run(io, allocator, options) catch |run_error| {
         try err.print("daemon: {s}\n", .{@errorName(run_error)});
-        return 1;
+        return .refuse;
     };
     try json.write(out, .{ .object = &.{
         .{ .key = "bytes", .value = .{ .unsigned = result.bytes } },
@@ -116,16 +125,17 @@ pub fn cmdDaemon(
         .{ .key = "wall_ms", .value = .{ .unsigned = result.overhead.wall_ms } },
     } });
     try out.writeByte('\n');
-    return if (result.state == .READY) 0 else 1;
+    return if (result.state == .READY) .ok else .refuse;
 }
 
 pub fn cmdCapture(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var dir: ?[]const u8 = null;
     var last_text: ?[]const u8 = null;
     var output: ?[]const u8 = null;
@@ -152,37 +162,37 @@ pub fn cmdCapture(
         } else if (std.mem.eql(u8, arg, "--max-events")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("capture: --max-events requires a number\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             max_events = std.fmt.parseInt(u64, args[i], 10) catch {
                 try err.writeAll("capture: invalid --max-events\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--max-window-bytes")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("capture: --max-window-bytes requires a size\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             max_window_bytes = parseSize(args[i]) catch {
                 try err.writeAll("capture: invalid --max-window-bytes\n");
-                return 2;
+                return .usage;
             };
         } else {
             try err.print("capture: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const last = last_text orelse {
         try err.writeAll("capture: --last <duration> is required\n");
-        return 2;
+        return .usage;
     };
     const last_ms = extract.parseDuration(last) catch {
         try err.writeAll("capture: invalid --last duration\n");
-        return 2;
+        return .usage;
     };
-    const resolved_dir = if (dir) |value| value else try defaultDir(allocator);
+    const resolved_dir = if (dir) |value| value else try state_paths.stateDirWith(env, allocator);
     const stdout_mode = if (output) |path| std.mem.eql(u8, path, "-") else true;
 
     var file: ?std.Io.File = null;
@@ -195,12 +205,12 @@ pub fn cmdCapture(
         file = if (path.len != 0 and path[0] == '/')
             std.Io.Dir.createFileAbsolute(io, path, options) catch |open_error| {
                 try err.print("capture: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
-                return 1;
+                return .refuse;
             }
         else
             std.Io.Dir.cwd().createFile(io, path, options) catch |open_error| {
                 try err.print("capture: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
-                return 1;
+                return .refuse;
             };
     }
     defer if (file) |opened| opened.close(io);
@@ -217,18 +227,8 @@ pub fn cmdCapture(
         .max_bytes = max_window_bytes,
     }, writer) catch |extract_error| {
         try err.print("capture: {s}\n", .{@errorName(extract_error)});
-        return 1;
+        return .refuse;
     };
     try writer.flush();
-    return 0;
-}
-
-fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.c.getenv("XDG_STATE_HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/xsprof", .{std.mem.span(value)});
-    }
-    if (std.c.getenv("HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{std.mem.span(value)});
-    }
-    return error.NoStateDirectory;
+    return .ok;
 }

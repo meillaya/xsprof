@@ -10,16 +10,44 @@ pub const settings_file = "ui-settings.json";
 pub const max_settings_bytes = 64 * 1024;
 pub const max_path_bytes = 512;
 
-fn env(name: [:0]const u8) ?[]const u8 {
+/// Environment access for path resolution. The CLI threads the process
+/// `std.process.Init.environ_map` through `runWith`, so verbs never call libc
+/// `getenv` themselves. In-process viewers use `.process()`, the single
+/// documented libc fallback.
+pub const Env = struct {
+    map: ?*const std.process.Environ.Map = null,
+
+    pub fn get(self: Env, name: [:0]const u8) ?[]const u8 {
+        if (self.map) |map| return map.get(name);
+        return libcEnv(name);
+    }
+
+    /// Environment of the current process (libc fallback).
+    pub fn process() Env {
+        return .{};
+    }
+
+    /// Environment from `std.process.Init.environ_map`.
+    pub fn fromMap(map: *const std.process.Environ.Map) Env {
+        return .{ .map = map };
+    }
+};
+
+fn libcEnv(name: [:0]const u8) ?[]const u8 {
     if (std.c.getenv(name)) |value| return std.mem.span(value);
     return null;
 }
 
-pub fn stateDir(allocator: std.mem.Allocator) ![]u8 {
-    if (env("XSPROF_STATE_DIR")) |value| return allocator.dupe(u8, value);
-    if (env("XDG_STATE_HOME")) |value| return std.fmt.allocPrint(allocator, "{s}/xsprof", .{value});
-    if (env("HOME")) |value| return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{value});
+/// Resolves the state dir from `env`; `XSPROF_STATE_DIR` wins over XDG/HOME.
+pub fn stateDirWith(env: Env, allocator: std.mem.Allocator) ![]u8 {
+    if (env.get("XSPROF_STATE_DIR")) |value| return allocator.dupe(u8, value);
+    if (env.get("XDG_STATE_HOME")) |value| return std.fmt.allocPrint(allocator, "{s}/xsprof", .{value});
+    if (env.get("HOME")) |value| return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{value});
     return error.NoStateDirectory;
+}
+
+pub fn stateDir(allocator: std.mem.Allocator) ![]u8 {
+    return stateDirWith(.process(), allocator);
 }
 
 pub fn settingsPath(allocator: std.mem.Allocator) ![]u8 {
@@ -80,8 +108,8 @@ pub fn saveSettings(io: std.Io, allocator: std.mem.Allocator, data: []const u8) 
 
 /// Packaged bundled capture used by Effect.load_demo. Checks an explicit
 /// fixtures root first, then the source tree and XDG install locations.
-pub fn demoFixture(io: std.Io, allocator: std.mem.Allocator) ![]u8 {
-    if (env("XSPROF_FIXTURES_DIR")) |base| {
+pub fn demoFixtureWith(env: Env, io: std.Io, allocator: std.mem.Allocator) ![]u8 {
+    if (env.get("XSPROF_FIXTURES_DIR")) |base| {
         const full = try std.fmt.allocPrint(allocator, "{s}/ui/design/demo.json", .{base});
         if (fileExists(io, full)) return full;
         allocator.free(full);
@@ -95,6 +123,10 @@ pub fn demoFixture(io: std.Io, allocator: std.mem.Allocator) ![]u8 {
         if (fileExists(io, candidate)) return allocator.dupe(u8, candidate);
     }
     return error.DemoFixtureMissing;
+}
+
+pub fn demoFixture(io: std.Io, allocator: std.mem.Allocator) ![]u8 {
+    return demoFixtureWith(.process(), io, allocator);
 }
 
 fn fileExists(io: std.Io, path: []const u8) bool {
@@ -118,8 +150,9 @@ pub fn pathIsWritableTarget(allocator: std.mem.Allocator, path: []const u8) bool
     if (path.len == 0 or path.len > max_path_bytes) return false;
     if (std.mem.indexOf(u8, path, "..") != null) return false;
     if (path[0] != '/') return safety.isSafeRelative(path);
-    if (env("HOME")) |home| if (startsWithBoundary(path, home)) return true;
-    if (env("XSPROF_STATE_DIR")) |state| if (startsWithBoundary(path, state)) return true;
+    const process_env = Env.process();
+    if (process_env.get("HOME")) |home| if (startsWithBoundary(path, home)) return true;
+    if (process_env.get("XSPROF_STATE_DIR")) |state| if (startsWithBoundary(path, state)) return true;
     const state = stateDir(allocator) catch return startsWithBoundary(path, "/tmp/");
     defer allocator.free(state);
     if (startsWithBoundary(path, state)) return true;
@@ -161,4 +194,38 @@ test "state paths honor overrides and reject traversal" {
     const dir = exportDir(std.testing.allocator, "") catch return error.TestUnexpectedResult;
     defer std.testing.allocator.free(dir);
     try std.testing.expect(std.mem.endsWith(u8, dir, "exports"));
+}
+
+test "stateDirWith honors the injected environment and XSPROF_STATE_DIR first" {
+    var map = std.process.Environ.Map.init(std.testing.allocator);
+    defer map.deinit();
+    try map.put("HOME", "/home/tester");
+    try map.put("XDG_STATE_HOME", "/xdg/state");
+    const env = Env.fromMap(&map);
+
+    const xdg = try stateDirWith(env, std.testing.allocator);
+    defer std.testing.allocator.free(xdg);
+    try std.testing.expectEqualStrings("/xdg/state/xsprof", xdg);
+
+    // The explicit override wins over XDG/HOME and reaches every CLI verb.
+    try map.put("XSPROF_STATE_DIR", "/tmp/xsprof-override");
+    const override = try stateDirWith(env, std.testing.allocator);
+    defer std.testing.allocator.free(override);
+    try std.testing.expectEqualStrings("/tmp/xsprof-override", override);
+}
+
+test "stateDirWith falls back to HOME and fails closed with no environment" {
+    var map = std.process.Environ.Map.init(std.testing.allocator);
+    defer map.deinit();
+    try map.put("HOME", "/home/tester");
+    const home = try stateDirWith(Env.fromMap(&map), std.testing.allocator);
+    defer std.testing.allocator.free(home);
+    try std.testing.expectEqualStrings("/home/tester/.local/state/xsprof", home);
+
+    var empty = std.process.Environ.Map.init(std.testing.allocator);
+    defer empty.deinit();
+    try std.testing.expectError(
+        error.NoStateDirectory,
+        stateDirWith(Env.fromMap(&empty), std.testing.allocator),
+    );
 }

@@ -2,6 +2,7 @@
 //! canonical JSON; readers accept only the matching schema.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const json = @import("../core/json.zig");
 const safety = @import("../core/safety.zig");
 
@@ -166,16 +167,41 @@ pub fn writeAtomic(
 ) !void {
     const temp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(temp);
-    const file = try std.Io.Dir.createFileAbsolute(io, temp, .{});
-    var write_buffer: [16 * 1024]u8 = undefined;
-    var writer = file.writer(io, &write_buffer);
-    errdefer file.close(io);
-    try writeJson(&writer.interface, manifest);
-    try writer.interface.writeByte('\n');
-    try writer.interface.flush();
-    try file.sync(io);
-    file.close(io);
+    {
+        const file = try std.Io.Dir.createFileAbsolute(io, temp, .{});
+        errdefer file.close(io);
+        var write_buffer: [16 * 1024]u8 = undefined;
+        var writer = file.writer(io, &write_buffer);
+        try writeJson(&writer.interface, manifest);
+        try writer.interface.writeByte('\n');
+        try writer.interface.flush();
+        try file.sync(io);
+        file.close(io);
+    }
     try std.Io.Dir.renameAbsolute(temp, path, io);
+    // The rename is only durable once the directory entry itself is flushed.
+    try syncParentDirectory(io, path);
+}
+
+/// Flush the directory holding `path` after the manifest rename. Directory
+/// fsync is unsupported on some filesystems (EINVAL/ROFS/ENOSYS); the file
+/// contents are already synced, so those are tolerated. Real IO errors fail.
+fn syncParentDirectory(io: std.Io, path: []const u8) !void {
+    if (builtin.os.tag != .linux) return;
+    const parent = std.fs.path.dirname(path) orelse return;
+    // `.iterate` keeps a real read fd: without it Linux opens the directory
+    // with O_PATH, and fsync on an O_PATH descriptor fails with EBADF.
+    const dir = if (std.fs.path.isAbsolute(parent))
+        std.Io.Dir.openDirAbsolute(io, parent, .{ .iterate = true }) catch
+            return error.ManifestDirectorySyncFailed
+    else
+        std.Io.Dir.cwd().openDir(io, parent, .{ .iterate = true }) catch
+            return error.ManifestDirectorySyncFailed;
+    defer dir.close(io);
+    switch (std.os.linux.errno(std.os.linux.fsync(dir.handle))) {
+        .SUCCESS, .INVAL, .ROFS, .NOSYS, .OPNOTSUPP => {},
+        else => return error.ManifestDirectorySyncFailed,
+    }
 }
 
 // Checks manifest JSON round-trips with sorted keys and all segment fields.
@@ -278,4 +304,44 @@ test "manifest rejects traversal and mutation" {
         "\"session_id\":\"s\",\"started_mono_ns\":0,\"started_wall_ns\":0," ++
         "\"state\":\"stopped\",\"updated_wall_ns\":0}";
     try std.testing.expectError(error.InvalidManifest, parse(arena.allocator(), mutated));
+}
+
+// Checks the rename is durable: the staged `.tmp` file is gone, the manifest
+// re-reads, and the state directory sync runs on the test filesystem.
+test "manifest atomic write syncs the state directory" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const io = std.testing.io;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var root_buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const root_len = try tmp.dir.realPath(io, &root_buffer);
+    const root = root_buffer[0..root_len];
+    const path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{root});
+
+    try writeAtomic(io, allocator, path, .{
+        .session_id = "sync",
+        .started_wall_ns = 1,
+        .started_mono_ns = 2,
+    });
+    try syncParentDirectory(io, path);
+    const parsed = (try read(io, allocator, path)) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("sync", parsed.session_id);
+
+    // The staging file was renamed, never left behind.
+    const temp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
+    try std.testing.expectError(
+        error.FileNotFound,
+        std.Io.Dir.openFileAbsolute(io, temp, .{}),
+    );
+
+    // A second write replaces the first atomically and stays readable.
+    try writeAtomic(io, allocator, path, .{
+        .session_id = "sync2",
+        .started_wall_ns = 3,
+        .started_mono_ns = 4,
+    });
+    const second = (try read(io, allocator, path)) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("sync2", second.session_id);
 }

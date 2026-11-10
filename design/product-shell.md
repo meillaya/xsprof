@@ -5,14 +5,16 @@ screens in [`index.html`](index.html) remain the frozen design input and are
 unchanged (ids 100-104, keys 1-5, in-screen hit ids). This document defines the
 UI-first product shell around them; the prototype will not be updated. The formal
 contract is [`ui-spec.json`](ui-spec.json) v2, and `python3 design/validate.py`
-gates this folder. The browser/WASM/WebGL2 lane was removed in 0.5.0: every
-runtime surface here is native (macOS AppKit/Metal, Linux X11/GL, CPU snapshot).
+gates this folder. There is no browser/WASM/WebGL2 lane: every runtime surface
+here is native (macOS AppKit/Metal viewer, Linux X11/GL viewer, CPU snapshot).
+The viewer is optional and frozen; the recorder and CLI are the product.
 
 ## Why
 
-The product is the UI: every operator action must be discoverable and usable from
-the GPU-rendered native console. Startup/onboarding, source selection, management,
-audit and settings are first-class routes, not command-line side effects.
+The viewer must stay a discoverable consumer of the same evidence: startup/
+onboarding, source selection, management, audit and settings are routes, not
+hidden shell steps. Every route must remain reproducible from the CLI and from
+`snapshot`, so the viewer is never the only way to see a state.
 
 ## Routes
 
@@ -89,8 +91,9 @@ TODO(native-runtime): adopt `Canvas.node()`/`Hit.data` once xsui exposes them.
 
 - `src/platform/*`: drain `App.takeEffect()`: load path/demo/list_dir,
   start/stop capture, extract window, export, save settings, append audit,
-  open journal, reload. Use workspace `src/capture/lab_worker.zig` +
+  open journal, reload. Use `src/recorder/daemon.zig` +
   `src/stream/live_feed.zig` for the in-process capture (no child processes).
 - `src/cli/render.zig`: snapshot flags for home/audit/settings, overlays and
   `--a11y` JSON; snapshots must not read user settings.
-- No `web/`, serve, WebGL2, or WASM lane is part of the runtime contract.
+- No `web/`, serve, WebGL2, WASM, or network lane is part of the runtime
+  contract. macOS is viewer-only; Linux owns capture.

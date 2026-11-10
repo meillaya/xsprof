@@ -9,6 +9,8 @@ const why_mod = @import("../analyze/why.zig");
 const extract = @import("../recorder/extract.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
+const state_paths = @import("../platform/state_paths.zig");
 
 const Options = struct {
     input: ?[]const u8 = null,
@@ -75,16 +77,6 @@ fn parseArgs(args: []const []const u8, err: *Writer) !?Options {
     return options;
 }
 
-fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.c.getenv("XDG_STATE_HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/xsprof", .{std.mem.span(value)});
-    }
-    if (std.c.getenv("HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{std.mem.span(value)});
-    }
-    return error.NoStateDirectory;
-}
-
 fn tempPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
     const now = std.Io.Clock.now(.real, io).nanoseconds;
     return std.fmt.allocPrint(allocator, "/tmp/xsprof-why-{d}.ndjson", .{now});
@@ -93,10 +85,11 @@ fn tempPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
 fn explain(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     options: Options,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var temp: ?[]const u8 = null;
     defer if (temp) |path| std.Io.Dir.deleteFileAbsolute(io, path) catch {};
     var source: []const u8 = "";
@@ -106,15 +99,15 @@ fn explain(
     } else blk: {
         const last_ms = extract.parseDuration(options.last_text) catch {
             try err.writeAll("why: invalid --last duration\n");
-            return 2;
+            return .usage;
         };
-        const dir = options.dir orelse try defaultDir(allocator);
+        const dir = options.dir orelse try state_paths.stateDirWith(env, allocator);
         const path = try tempPath(allocator, io);
         temp = path;
         source = try std.fmt.allocPrint(allocator, "recorder:{s}", .{dir});
         const file = std.Io.Dir.createFileAbsolute(io, path, .{ .exclusive = true }) catch |open_error| {
             try err.print("why: cannot create temporary window: {s}\n", .{@errorName(open_error)});
-            return 1;
+            return .refuse;
         };
         {
             defer file.close(io);
@@ -122,7 +115,7 @@ fn explain(
             var writer = file.writer(io, &buffer);
             extract.writeTo(io, allocator, .{ .dir = dir, .last_ms = last_ms }, &writer.interface) catch |extract_error| {
                 try err.print("why: cannot extract window: {s}\n", .{@errorName(extract_error)});
-                return 1;
+                return .refuse;
             };
             try writer.interface.flush();
         }
@@ -133,17 +126,17 @@ fn explain(
         .max_trace_events = 0,
     }) catch |analyze_error| {
         try err.print("why: cannot analyze {s}: {s}\n", .{ source, @errorName(analyze_error) });
-        return 1;
+        return .refuse;
     };
     const session = analyzed.session;
     const agg = session.aggregate();
     const findings = advisor.analyze(allocator, agg, .{}) catch |advisor_error| {
         try err.print("why: advisor failed: {s}\n", .{@errorName(advisor_error)});
-        return 1;
+        return .refuse;
     };
     const rule_reports = rules.reports(allocator, agg, findings) catch |rules_error| {
         try err.print("why: rule reports failed: {s}\n", .{@errorName(rules_error)});
-        return 1;
+        return .refuse;
     };
     const window_ms = if (session.last_us > session.first_us)
         (session.last_us - session.first_us) / 1000
@@ -167,17 +160,18 @@ fn explain(
     } else {
         try why_mod.writeText(out, &report);
     }
-    return 0;
+    return .ok;
 }
 
 pub fn cmdWhy(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
-    const options = (parseArgs(args, err) catch null) orelse return 2;
+) !Exit {
+    const options = (parseArgs(args, err) catch null) orelse return .usage;
     if (options.help) {
         try out.writeAll(
             \\xsprof why [--input FILE | --last 10m --dir DIR] [--json]
@@ -186,9 +180,9 @@ pub fn cmdWhy(
             \\The input is streamed; no multi-GB journal is materialized.
             \\
         );
-        return 0;
+        return .ok;
     }
-    return explain(io, allocator, options, out, err);
+    return explain(io, allocator, env, options, out, err);
 }
 
 test "why defaults to the last ten minutes" {

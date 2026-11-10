@@ -92,8 +92,9 @@ and not notarized. There is no signed app, cask, tap, or `.dmg`, and Gatekeeper
 will warn.
 
 **From source:** `./tools/zig build`, then `./zig-out/bin/xsprof`. Zig 0.17.0 is
-pinned by `./tools/zig`. Linux 5.10+ with runtime-loaded X11/GLX for the
-viewer; no third-party runtime dependencies.
+pinned by `./tools/zig`. Linux with perf tracepoints (the project tests recent
+7.x kernels; run `xsprof doctor` on older ones) and runtime-loaded X11/GLX for
+the viewer; no third-party runtime dependencies.
 
 ## Verification
 

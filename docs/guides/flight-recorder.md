@@ -39,9 +39,12 @@ module for a long-lived host ([install](install.md),
 - SIGTERM/Ctrl-C is cooperative: the daemon closes the segment footer, writes
   `capture_stop signal=terminated`, flushes the history bucket, and marks the
   manifest `stopped`.
-- After a SIGKILL, the next start marks the stale segment closed, adds
-  `capture_interrupted previous_session=<id>`, checks the final footer, and
-  records a `capture_truncated_tail` marker when the footer is missing. The
+- After a SIGKILL, the next start scans `segments/` and reconciles it with the
+  manifest: an unmanifested `.xsraw` segment written before a crash (between
+  create and manifest rename) is adopted and counted in one
+  `capture_recovered_orphan adopted=…` marker. The stale segment is marked
+  closed, `capture_interrupted previous_session=<id>` is added, and a
+  `capture_truncated_tail` marker is written when the footer is missing. The
   complete prefix is kept and never zero-filled.
 - A corrupt block stops decoding at that block and is reported, never guessed.
 
@@ -118,7 +121,7 @@ wakeup-to-run latency. It is ANSI-only and never needs a display server.
 ## Privacy
 
 The recorder stores scheduler events and comm names, not argv or environment.
-Rectcompact strings are stored after the same privacy redaction as the
+Compact strings are stored after the same privacy redaction as the
 canonical serializer, so the state directory never holds secrets. Keep it
 private. `host_mutation=false` appears in every manifest, summary, and extracted
 row; the binary segment format has no mutation field at all.

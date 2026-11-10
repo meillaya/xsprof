@@ -5,14 +5,17 @@ const extract = @import("../recorder/extract.zig");
 const history = @import("../recorder/history.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
+const state_paths = @import("../platform/state_paths.zig");
 
 pub fn cmdHistory(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var dir: ?[]const u8 = null;
     var last_text: []const u8 = "10m";
     var markdown = false;
@@ -22,14 +25,14 @@ pub fn cmdHistory(
         if (std.mem.eql(u8, arg, "--dir")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("history: --dir requires a path\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             dir = args[i];
         } else if (std.mem.eql(u8, arg, "--last")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("history: --last requires a duration\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             last_text = args[i];
@@ -39,34 +42,24 @@ pub fn cmdHistory(
             continue;
         } else {
             try err.print("history: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const last_ms = extract.parseDuration(last_text) catch {
         try err.writeAll("history: invalid --last duration\n");
-        return 2;
+        return .usage;
     };
-    const source_dir = if (dir) |value| value else try defaultDir(allocator);
+    const source_dir = if (dir) |value| value else try state_paths.stateDirWith(env, allocator);
     const report = history.scan(io, allocator, source_dir, last_ms) catch |scan_error| {
         try err.print("history: {s}\n", .{@errorName(scan_error)});
-        return 1;
+        return .refuse;
     };
     if (markdown) {
         try history.writeMarkdown(out, report);
     } else {
         try history.writeJson(out, report);
     }
-    return 0;
-}
-
-fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.c.getenv("XDG_STATE_HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/xsprof", .{std.mem.span(value)});
-    }
-    if (std.c.getenv("HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{std.mem.span(value)});
-    }
-    return error.NoStateDirectory;
+    return .ok;
 }
 
 test "history requires a valid duration" {
@@ -78,7 +71,7 @@ test "history requires a valid duration" {
     defer arena.deinit();
     const args = [_][]const u8{ "--last", "nope" };
     try std.testing.expectEqual(
-        @as(u8, 2),
-        try cmdHistory(std.testing.io, arena.allocator(), &args, &out, &err),
+        Exit.usage,
+        try cmdHistory(std.testing.io, arena.allocator(), state_paths.Env.process(), &args, &out, &err),
     );
 }

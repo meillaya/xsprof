@@ -1,18 +1,21 @@
-//! xsprof verify: read-only recorder state verification. Hidden automation
-//! verb (not part of the primary UI-first surface).
+//! xsprof verify: read-only recorder state verification (automation verb,
+//! documented by `xsprof help --all`).
 
 const std = @import("std");
 const verify = @import("../recorder/verify.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
+const state_paths = @import("../platform/state_paths.zig");
 
 pub fn cmdVerify(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var dir: ?[]const u8 = null;
     var as_json = false;
     var i: usize = 0;
@@ -25,13 +28,13 @@ pub fn cmdVerify(
             as_json = true;
         } else {
             try err.print("verify: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
-    const resolved = dir orelse try defaultDir(allocator);
+    const resolved = dir orelse try state_paths.stateDirWith(env, allocator);
     const report = verify.run(io, allocator, .{ .dir = resolved }) catch |run_error| {
         try err.print("verify: {s}: {s}\n", .{ resolved, @errorName(run_error) });
-        return 1;
+        return .refuse;
     };
     if (as_json) {
         try verify.writeJson(out, report);
@@ -39,17 +42,7 @@ pub fn cmdVerify(
     } else {
         try verify.writeText(out, report);
     }
-    return if (std.mem.eql(u8, report.state, "READY")) 0 else 1;
-}
-
-fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.c.getenv("XDG_STATE_HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/xsprof", .{std.mem.span(value)});
-    }
-    if (std.c.getenv("HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{std.mem.span(value)});
-    }
-    return error.NoStateDirectory;
+    return if (std.mem.eql(u8, report.state, "READY")) .ok else .refuse;
 }
 
 // Checks unknown flags are usage errors, not silent no-ops.
@@ -61,7 +54,7 @@ test "verify rejects unknown options" {
     var out = Writer.fixed(&out_buffer);
     var err = Writer.fixed(&err_buffer);
     try std.testing.expectEqual(
-        @as(u8, 2),
-        try cmdVerify(std.testing.io, arena.allocator(), &.{"--nope"}, &out, &err),
+        Exit.usage,
+        try cmdVerify(std.testing.io, arena.allocator(), state_paths.Env.process(), &.{"--nope"}, &out, &err),
     );
 }

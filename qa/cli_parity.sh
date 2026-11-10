@@ -120,6 +120,20 @@ if "$BIN" advise --input "$TMP/does-not-exist.ndjson" >/dev/null 2>&1; then
     fail=1
 fi
 
+# Wire-schema validation: committed canonical evidence validates against its
+# schema; a wrong contract fails closed with a canonical failure document.
+"$BIN" validate --schema event.v1 --file "$ROOT/fixtures/ui/healthy.ndjson" --json >"$TMP/validate-ok"
+check_contains "$TMP/validate-ok" '"schema":"xsprof/validate/v1"' "validate-schema"
+check_contains "$TMP/validate-ok" '"ok":true' "validate-ok"
+check_contains "$TMP/validate-ok" '"host_mutation":false' "validate-safety"
+if "$BIN" validate --schema event.v1 --file "$ROOT/tests/golden/root/advise_vm_fragmented.json" --json >"$TMP/validate-bad"; then
+    echo "cli_parity: validate accepted a document from the wrong schema" >&2
+    fail=1
+fi
+check_contains "$TMP/validate-bad" '"ok":false' "validate-fail-closed"
+check_contains "$TMP/validate-bad" '"schema":"xsprof/validate/v1"' "validate-fail-schema"
+check_contains "$TMP/help-all" "validate" "help-all-validate"
+
 # Legacy NDJSON state (pre-0.4) must stay readable.
 STATE="$TMP/state"
 mkdir -p "$STATE/segments"

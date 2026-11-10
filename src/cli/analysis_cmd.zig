@@ -5,6 +5,7 @@ const metrics_json = @import("../analyze/metrics_json.zig");
 const compare_mod = @import("../analyze/compare.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 fn loadMetrics(
     io: std.Io,
@@ -24,7 +25,7 @@ pub fn cmdMetrics(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var input: ?[]const u8 = null;
     var top: usize = 64;
     var i: usize = 0;
@@ -37,24 +38,24 @@ pub fn cmdMetrics(
             i += 1;
             top = std.fmt.parseInt(usize, args[i], 10) catch {
                 try err.writeAll("metrics: invalid --top\n");
-                return 2;
+                return .usage;
             };
         } else {
             try err.print("metrics: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const path = input orelse {
         try err.writeAll("metrics: --input <journal> is required\n");
-        return 2;
+        return .usage;
     };
     const values = loadMetrics(io, allocator, path) catch |load_error| {
         try err.print("metrics: {s}\n", .{@errorName(load_error)});
-        return 1;
+        return .refuse;
     };
     try metrics_json.writeJson(out, values, top);
     try out.writeByte('\n');
-    return 0;
+    return .ok;
 }
 
 fn parseThreshold(text: []const u8) !f64 {
@@ -74,7 +75,7 @@ pub fn cmdCompare(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var base: ?[]const u8 = null;
     var candidate: ?[]const u8 = null;
     var html_path: ?[]const u8 = null;
@@ -99,31 +100,31 @@ pub fn cmdCompare(
             i += 1;
             threshold = parseThreshold(args[i]) catch {
                 try err.writeAll("compare: --fail-on supports wait.p95=<percent>\n");
-                return 2;
+                return .usage;
             };
             threshold_set = true;
         } else if (std.mem.eql(u8, arg, "--json")) {
             continue;
         } else {
             try err.print("compare: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const base_path = base orelse {
         try err.writeAll("compare: --base <journal> is required\n");
-        return 2;
+        return .usage;
     };
     const candidate_path = candidate orelse {
         try err.writeAll("compare: --candidate <journal> is required\n");
-        return 2;
+        return .usage;
     };
     const base_metrics = loadMetrics(io, allocator, base_path) catch |load_error| {
         try err.print("compare: base: {s}\n", .{@errorName(load_error)});
-        return 1;
+        return .refuse;
     };
     const candidate_metrics = loadMetrics(io, allocator, candidate_path) catch |load_error| {
         try err.print("compare: candidate: {s}\n", .{@errorName(load_error)});
-        return 1;
+        return .refuse;
     };
     const report = compare_mod.build(
         allocator,
@@ -134,7 +135,7 @@ pub fn cmdCompare(
         threshold,
     ) catch |build_error| {
         try err.print("compare: {s}\n", .{@errorName(build_error)});
-        return 1;
+        return .refuse;
     };
     if (html_path) |path| {
         var allocating = std.Io.Writer.Allocating.init(allocator);
@@ -142,7 +143,7 @@ pub fn cmdCompare(
         try compare_mod.writeHtml(&allocating.writer, report);
         const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch |open_error| {
             try err.print("compare: cannot open {s}: {s}\n", .{ path, @errorName(open_error) });
-            return 1;
+            return .refuse;
         };
         defer file.close(io);
         try file.writeStreamingAll(io, allocating.written());
@@ -152,6 +153,6 @@ pub fn cmdCompare(
         try compare_mod.writeJson(out, report);
         try out.writeByte('\n');
     }
-    if (threshold_set and report.regressions > 0) return 3;
-    return 0;
+    if (threshold_set and report.regressions > 0) return .internal;
+    return .ok;
 }

@@ -3,6 +3,7 @@ const pressure = @import("../os/linux/pressure.zig");
 const cgroup = @import("../os/linux/cgroup.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 fn hasJson(args: []const []const u8) bool {
     for (args) |arg| {
@@ -17,15 +18,15 @@ pub fn cmdPressure(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     if (!hasJson(args)) {
         try err.writeAll("pressure expects --json and remains read-only\n");
-        return 2;
+        return .usage;
     }
     const snapshot = pressure.collect(io, allocator);
     try pressure.writeJson(out, snapshot);
     try out.writeByte('\n');
-    return if (snapshot.available) 0 else 1;
+    return if (snapshot.available) .ok else .refuse;
 }
 
 pub fn cmdCgroup(
@@ -34,13 +35,13 @@ pub fn cmdCgroup(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     if (!hasJson(args)) {
         try err.writeAll("cgroup expects --json and remains read-only\n");
-        return 2;
+        return .usage;
     }
     const snapshot = cgroup.collect(io, allocator);
     try cgroup.writeJson(out, snapshot);
     try out.writeByte('\n');
-    return if (std.mem.eql(u8, snapshot.state, "READY")) 0 else 1;
+    return if (std.mem.eql(u8, snapshot.state, "READY")) .ok else .refuse;
 }

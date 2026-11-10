@@ -8,6 +8,7 @@ const report = @import("../analyze/report.zig");
 const session_mod = @import("../stream/session.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 pub fn cmdAdvise(
     io: std.Io,
@@ -15,7 +16,7 @@ pub fn cmdAdvise(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var input: ?[]const u8 = null;
     var markdown = false;
     var i: usize = 0;
@@ -24,7 +25,7 @@ pub fn cmdAdvise(
         if (std.mem.eql(u8, arg, "--input")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("advise: --input requires a path\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             input = args[i];
@@ -34,14 +35,14 @@ pub fn cmdAdvise(
             continue;
         } else {
             try err.print("advise: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
 
     const agg: aggregates.Aggregates = if (input) |path| blk: {
         const session = session_mod.Session.load(io, allocator, path) catch |load_error| {
             try err.print("advise: cannot read {s}: {s}\n", .{ path, @errorName(load_error) });
-            return 1;
+            return .refuse;
         };
         break :blk session.aggregate();
     } else blk: {
@@ -54,7 +55,7 @@ pub fn cmdAdvise(
     } else {
         try report.writeReportJson(out, allocator, agg, .{});
     }
-    return 0;
+    return .ok;
 }
 
 fn runForTest(
@@ -63,7 +64,7 @@ fn runForTest(
     err_buffer: []u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     out.* = Writer.fixed(out_buffer);
@@ -78,7 +79,7 @@ test "advise input reports a real finding and explicit skips" {
     var err: Writer = undefined;
     const args = [_][]const u8{ "--input", "fixtures/real/vm-fragmented.ndjson" };
     try std.testing.expectEqual(
-        @as(u8, 0),
+        Exit.ok,
         try runForTest(&args, &out_buffer, &err_buffer, &out, &err),
     );
     const text = out.buffered();
@@ -95,7 +96,7 @@ test "advise input on an empty journal skips every rule" {
     var err: Writer = undefined;
     const args = [_][]const u8{ "--input", "fixtures/ui/empty.ndjson" };
     try std.testing.expectEqual(
-        @as(u8, 0),
+        Exit.ok,
         try runForTest(&args, &out_buffer, &err_buffer, &out, &err),
     );
     try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"status\":\"clear\"") == null);
@@ -109,7 +110,7 @@ test "advise rejects a missing input file" {
     var err: Writer = undefined;
     const args = [_][]const u8{ "--input", "fixtures/does-not-exist.ndjson" };
     try std.testing.expectEqual(
-        @as(u8, 1),
+        Exit.refuse,
         try runForTest(&args, &out_buffer, &err_buffer, &out, &err),
     );
     try std.testing.expect(std.mem.indexOf(u8, err.buffered(), "cannot read") != null);
@@ -122,7 +123,7 @@ test "advise requires a value after --input" {
     var err: Writer = undefined;
     const args = [_][]const u8{"--input"};
     try std.testing.expectEqual(
-        @as(u8, 2),
+        Exit.usage,
         try runForTest(&args, &out_buffer, &err_buffer, &out, &err),
     );
 }
@@ -136,7 +137,7 @@ test "advise input matches the canonical golden" {
     var err: Writer = undefined;
     const args = [_][]const u8{ "--input", "fixtures/real/vm-fragmented.ndjson" };
     try std.testing.expectEqual(
-        @as(u8, 0),
+        Exit.ok,
         try runForTest(&args, &out_buffer, &err_buffer, &out, &err),
     );
     const golden = try std.Io.Dir.cwd().readFileAlloc(

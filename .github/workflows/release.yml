@@ -100,7 +100,12 @@ jobs:
       - name: Full CI gate (no silent SKIPs)
         env:
           XSPROF_REQUIRE_TOOLS: "1"
-        run: ./tools/zig build check-ci --summary all
+        run: ./tools/zig build check-ci --summary all 2>&1 | tee gate-check-ci.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-evidence
+          path: gate-check-ci.log
+          if-no-files-found: error
 
   linux:
     name: linux ${{ matrix.arch }}
@@ -198,6 +203,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-evidence
+          path: dist
       - name: Verify per-artifact checksums
         run: |
           set -eu
@@ -235,8 +244,8 @@ jobs:
         run: |
           set -eu
           cd dist
-          files=(*.tar.gz *.deb *.AppImage *.sha256 SHA256SUMS)
+          files=(*.tar.gz *.deb *.AppImage *.sha256 SHA256SUMS gate-check-ci.log)
           gh release create "v${VERSION}" --verify-tag \
             --title "xsprof ${VERSION}" \
-            --notes "Linux x86_64/aarch64 tarballs, Debian packages, and AppImages. The SHA256SUMS file lists every artifact and the build provenance is attested with Sigstore (verify with: gh attestation verify <file> -R ${GITHUB_REPOSITORY})." \
+            --notes "Linux x86_64/aarch64 tarballs, Debian packages, and AppImages. The SHA256SUMS file lists every artifact; build provenance is attested with Sigstore (verify with: gh attestation verify <file> -R ${GITHUB_REPOSITORY}); gate-check-ci.log is the output of the release-blocking check-ci run that preceded these artifacts." \
             "${files[@]}"

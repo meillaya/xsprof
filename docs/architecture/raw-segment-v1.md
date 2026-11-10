@@ -50,8 +50,12 @@ committed golden pair under `tests/golden/recorder/` pins this identity.
   There is no resync and no interpolation.
 - An unsupported version is refused loudly (`capture_unsupported_segment`),
   never guessed.
-- The daemon restart path checks only the final footer block (see
-  `segment_reader.tailStatus`), so recovery does not re-read the segment.
+- The daemon restart path checks the final footer block (see
+  `segment_reader.tailStatus`) and reconciles the segment directory against the
+  manifest, so recovery does not need to re-read clean segments. `verify`
+  decodes the payload and rejects a segment whose footer event/block counts
+  disagree with it (`footer_mismatch`, state REFUSE); a CRC-valid footer alone
+  is never treated as proof of a clean segment.
 
 Worst torn-write loss is one block (at most ~2.5k events at the measured
 compact size); a corrupted block loses the remainder of that segment, which

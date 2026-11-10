@@ -2,6 +2,7 @@ const std = @import("std");
 const doctor = @import("../recorder/doctor.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 pub fn cmdDoctor(
     io: std.Io,
@@ -9,19 +10,19 @@ pub fn cmdDoctor(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var json_output = false;
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--json")) {
             json_output = true;
         } else {
             try err.print("doctor: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const result = doctor.run(io, allocator) catch |run_error| {
         try err.print("doctor: {s}\n", .{@errorName(run_error)});
-        return 1;
+        return .refuse;
     };
     if (json_output) {
         try doctor.writeJson(out, result);
@@ -35,5 +36,5 @@ pub fn cmdDoctor(
             "\nThis host remains read-only. Fixes are not executed; see docs/guides/flight-recorder.md.\n",
         );
     }
-    return if (std.mem.eql(u8, result.status, "REFUSE")) 1 else 0;
+    return if (std.mem.eql(u8, result.status, "REFUSE")) .refuse else .ok;
 }

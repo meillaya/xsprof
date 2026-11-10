@@ -13,6 +13,7 @@ const native_options = @import("../platform/options.zig");
 const design_derive = @import("../app/design/derive.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 pub fn cmdSnapshot(
     io: std.Io,
@@ -20,7 +21,7 @@ pub fn cmdSnapshot(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var path: []const u8 = "xsprof-snapshot.png";
     var width: u32 = 1280;
     var height: u32 = 720;
@@ -49,13 +50,13 @@ pub fn cmdSnapshot(
             i += 1;
             width = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("snapshot: invalid --width\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--height") and i + 1 < args.len) {
             i += 1;
             height = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("snapshot: invalid --height\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--theme") and i + 1 < args.len) {
             i += 1;
@@ -91,23 +92,23 @@ pub fn cmdSnapshot(
             i += 1;
             now_ms = std.fmt.parseInt(u64, args[i], 10) catch {
                 try err.writeAll("snapshot: invalid --now\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--focus") and i + 1 < args.len) {
             i += 1;
             focus_id = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("snapshot: invalid --focus id\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--onboarding-step") and i + 1 < args.len) {
             i += 1;
             onboarding_step = std.fmt.parseInt(u8, args[i], 10) catch {
                 try err.writeAll("snapshot: invalid --onboarding-step\n");
-                return 2;
+                return .usage;
             };
             if (onboarding_step.? > 3) {
                 try err.writeAll("snapshot: --onboarding-step must be 0..3\n");
-                return 2;
+                return .usage;
             }
         } else if (std.mem.eql(u8, arg, "--picker-dir") and i + 1 < args.len) {
             i += 1;
@@ -119,83 +120,83 @@ pub fn cmdSnapshot(
     }
     if (!std.mem.eql(u8, settings_mode, "none")) {
         try err.writeAll("snapshot: never reads user settings; only --settings none is accepted\n");
-        return 2;
+        return .usage;
     }
     if (width < 64 or height < 64 or width > 4096 or height > 4096) {
         try err.writeAll("snapshot: width/height must be 64..4096\n");
-        return 2;
+        return .usage;
     }
     const theme_index = xsui.themes.indexOf(theme_name) orelse 0;
     var frame: frame_mod.Frame = undefined;
     frame.init(allocator, width, height, xsui.themes.presets[theme_index].theme) catch {
         try err.writeAll("snapshot: cannot initialize UI frame\n");
-        return 1;
+        return .refuse;
     };
     defer frame.deinit();
     if (demo_model) |model_path| {
         const model = design_model.loadDemo(io, allocator, model_path) catch |load_error| {
             try err.print("snapshot: cannot load demo model {s}: {s}\n", .{ model_path, @errorName(load_error) });
-            return 1;
+            return .refuse;
         };
         const screen = design_state.parseScreen(screen_name) orelse {
             try err.print("snapshot: unknown view {s}\n", .{screen_name});
-            return 2;
+            return .usage;
         };
         var state = design_state.State{ .screen = screen, .theme_index = theme_index, .timeline_playhead = playhead_s * 1000.0 };
         state.now_ms = now_ms;
         if (!applyOverlay(&state, overlay_name)) {
             try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
-            return 2;
+            return .usage;
         }
         applySnapshotExtras(&state, io, focus_id, onboarding_step, picker_dir, palette_query) catch |extras_error| {
             try err.print("snapshot: cannot apply snapshot extras: {s}\n", .{@errorName(extras_error)});
-            return 1;
+            return .refuse;
         };
         var canvas = xsui.Canvas.init(&frame);
         defer canvas.deinit();
         design_view.view(&model, &state, &canvas) catch {
             try err.writeAll("snapshot: cannot build console view\n");
-            return 1;
+            return .refuse;
         };
         if (a11y_path) |a11y_file| {
             writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
                 try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
-                return 1;
+                return .refuse;
             };
         }
         saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
             try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
-            return 1;
+            return .refuse;
         };
         try out.print("{s}\n", .{path});
-        return 0;
+        return .ok;
     }
     const screen = design_state.parseScreen(screen_name) orelse {
         try err.print("snapshot: unknown view {s}\n", .{screen_name});
-        return 2;
+        return .usage;
     };
     var state = design_state.State{ .screen = screen, .theme_index = theme_index, .timeline_playhead = playhead_s * 1000.0 };
     state.now_ms = now_ms;
     if (!applyOverlay(&state, overlay_name)) {
         try err.print("snapshot: unknown overlay {s}\n", .{overlay_name});
-        return 2;
+        return .usage;
     }
     applySnapshotExtras(&state, io, focus_id, onboarding_step, picker_dir, palette_query) catch |extras_error| {
         try err.print("snapshot: cannot apply snapshot extras: {s}\n", .{@errorName(extras_error)});
-        return 1;
+        return .refuse;
     };
     var model: design_model.Model = undefined;
     if (replay) |journal_path| {
         const session = session_mod.Session.load(io, allocator, journal_path) catch |load_error| {
             try err.print("snapshot: cannot load {s}: {s}\n", .{ journal_path, @errorName(load_error) });
-            return 1;
+            return .refuse;
         };
         model = design_derive.fromSession(allocator, &session, .{
             .fixture = journal_path,
             .source = "REPLAY",
         }) catch |derive_error| {
             try err.print("snapshot: cannot derive console model: {s}\n", .{@errorName(derive_error)});
-            return 1;
+            return .refuse;
         };
         if (recorder_dir) |dir| {
             const manifest_path = std.fmt.allocPrint(allocator, "{s}/manifest.json", .{dir}) catch null;
@@ -218,20 +219,20 @@ pub fn cmdSnapshot(
     defer canvas.deinit();
     design_view.view(&model, &state, &canvas) catch {
         try err.writeAll("snapshot: cannot build console view\n");
-        return 1;
+        return .refuse;
     };
     if (a11y_path) |a11y_file| {
         writeA11y(io, allocator, a11y_file, &model, &state, &canvas) catch |a11y_error| {
             try err.print("snapshot: cannot write a11y tree {s}: {s}\n", .{ a11y_file, @errorName(a11y_error) });
-            return 1;
+            return .refuse;
         };
     }
     saveFrame(io, allocator, &frame, path, backend_name) catch |save_error| {
         try err.print("snapshot: cannot write {s}: {s}\n", .{ path, @errorName(save_error) });
-        return 1;
+        return .refuse;
     };
     try out.print("{s}\n", .{path});
-    return 0;
+    return .ok;
 }
 
 fn saveFrame(io: std.Io, allocator: std.mem.Allocator, frame: *frame_mod.Frame, path: []const u8, backend: []const u8) !void {
@@ -276,7 +277,7 @@ pub fn cmdUi(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     _ = out;
     var replay: ?[]const u8 = null;
     var demo_model: ?[]const u8 = null;
@@ -315,19 +316,19 @@ pub fn cmdUi(
             i += 1;
             width = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("ui: invalid --width\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, args[i], "--height") and i + 1 < args.len) {
             i += 1;
             height = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("ui: invalid --height\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, args[i], "--resize") and i + 1 < args.len) {
             i += 1;
             resize = native_options.parseSize(args[i]) orelse {
                 try err.writeAll("ui: invalid --resize (expected WxH, e.g. 900x600)\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, args[i], "--a11y")) {
             a11y = true;
@@ -337,7 +338,7 @@ pub fn cmdUi(
             i += 1;
             duration_ms = std.fmt.parseInt(u32, args[i], 10) catch {
                 try err.writeAll("ui: invalid --duration\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, args[i], "--preset") and i + 1 < args.len) {
             i += 1;
@@ -347,7 +348,7 @@ pub fn cmdUi(
             follow_recorder = args[i];
         } else {
             try err.print("ui: unknown option {s}\n", .{args[i]});
-            return 2;
+            return .usage;
         }
     }
     if (width < native_options.min_width or height < native_options.min_height) {
@@ -355,15 +356,15 @@ pub fn cmdUi(
             native_options.min_width,
             native_options.min_height,
         });
-        return 2;
+        return .usage;
     }
     if (live and follow_recorder != null) {
         try err.writeAll("ui: --live and --follow-recorder are mutually exclusive\n");
-        return 2;
+        return .usage;
     }
     const screen = design_state.parseScreen(screen_name) orelse {
         try err.writeAll("ui: unknown view\n");
-        return 2;
+        return .usage;
     };
     const theme_index = xsui.themes.indexOf(theme_name) orelse 0;
     const native_opts = native_options.Options{
@@ -386,20 +387,20 @@ pub fn cmdUi(
         const native = @import("../platform/linux/x11.zig");
         native.run(io, allocator, native_opts) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
-            return 1;
+            return .refuse;
         };
-        return 0;
+        return .ok;
     }
     if (comptime builtin.os.tag == .macos) {
         const native = @import("../platform/macos/window.zig");
         native.run(io, allocator, native_opts) catch |run_error| {
             try err.print("ui: {s}\n", .{@errorName(run_error)});
-            return 1;
+            return .refuse;
         };
-        return 0;
+        return .ok;
     }
     try err.writeAll("ui: this build has no native window surface\n");
-    return 2;
+    return .usage;
 }
 
 /// Applies a deterministic snapshot overlay. The state is built directly from

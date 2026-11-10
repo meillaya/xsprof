@@ -19,7 +19,7 @@ nix flake check                               # package smoke, Zig pins, version
 ```
 
 Zig 0.17.0 is fetched by hash from ziglang.org (`nix/zig.nix`, mirrored from
-`tools/bootstrap.sh`); nixpkgs' own Zig is deliberately unused. The zsprof build
+`tools/bootstrap.sh`); nixpkgs' own Zig is deliberately unused. The xsprof build
 itself is sandboxed and offline. Offline verification after the store is warm:
 
 ```sh
@@ -131,9 +131,11 @@ git clone https://github.com/meillaya/xsprof && cd xsprof
 ./zig-out/bin/xsprof version
 ```
 
-Requirements: Linux 5.10+ (viewer needs runtime-loaded X11/GLX and a GL 3.3
-class driver), or macOS 15+ arm64 for the viewer. Zig 0.17.0 is pinned by
-`./tools/zig`; there are no third-party runtime dependencies. `git`, `curl`,
+Requirements: Linux with perf tracepoints (the project tests recent 7.x
+kernels; `xsprof doctor` reports what an older kernel exposes; the viewer needs
+runtime-loaded X11/GLX and a GL 3.3-class driver), or macOS 15+ arm64 for the
+viewer. Zig 0.17.0 is pinned by `./tools/zig`; there are no third-party runtime
+dependencies. `git`, `curl`,
 and `xz` are needed only for the first toolchain bootstrap (`nix develop`
 provides them).
 

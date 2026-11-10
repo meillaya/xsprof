@@ -6,14 +6,17 @@ const extract = @import("../recorder/extract.zig");
 const bundle = @import("../incident/bundle.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
+const state_paths = @import("../platform/state_paths.zig");
 
 pub fn cmdIncident(
     io: std.Io,
     allocator: std.mem.Allocator,
+    env: state_paths.Env,
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     var dir: ?[]const u8 = null;
     var out_dir: ?[]const u8 = null;
     var last_text: []const u8 = "10m";
@@ -25,21 +28,21 @@ pub fn cmdIncident(
         if (std.mem.eql(u8, arg, "--dir")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("incident: --dir requires a path\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             dir = args[i];
         } else if (std.mem.eql(u8, arg, "--out")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("incident: --out requires a path\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             out_dir = args[i];
         } else if (std.mem.eql(u8, arg, "--last")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("incident: --last requires a duration\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             last_text = args[i];
@@ -48,18 +51,18 @@ pub fn cmdIncident(
         } else if (std.mem.eql(u8, arg, "--max-window-bytes")) {
             if (i + 1 >= args.len) {
                 try err.writeAll("incident: --max-window-bytes requires a size\n");
-                return 2;
+                return .usage;
             }
             i += 1;
             max_window_bytes = parseSize(args[i]) catch {
                 try err.writeAll("incident: invalid --max-window-bytes\n");
-                return 2;
+                return .usage;
             };
         } else if (std.mem.eql(u8, arg, "--json")) {
             continue;
         } else {
             try err.print("incident: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const destination = out_dir orelse blk: {
@@ -75,13 +78,13 @@ pub fn cmdIncident(
     }
     if (exists and !force) {
         try err.print("incident: {s} already exists (use --force)\n", .{destination});
-        return 1;
+        return .refuse;
     }
     const last_ms = extract.parseDuration(last_text) catch {
         try err.writeAll("incident: invalid --last duration\n");
-        return 2;
+        return .usage;
     };
-    const source_dir = if (dir) |value| value else try defaultDir(allocator);
+    const source_dir = if (dir) |value| value else try state_paths.stateDirWith(env, allocator);
 
     const result = bundle.write(io, allocator, .{
         .dir = source_dir,
@@ -94,7 +97,7 @@ pub fn cmdIncident(
             error.NoRecorder => try err.print("incident: no recorder manifest in {s}\n", .{source_dir}),
             else => try err.print("incident: {s}\n", .{@errorName(write_error)}),
         }
-        return 1;
+        return .refuse;
     };
 
     try json.write(out, .{ .object = &.{
@@ -114,7 +117,7 @@ pub fn cmdIncident(
         .{ .key = "window_events", .value = .{ .unsigned = result.events } },
     } });
     try out.writeByte('\n');
-    return 0;
+    return .ok;
 }
 
 fn parseSize(text: []const u8) !u64 {
@@ -136,16 +139,6 @@ fn parseSize(text: []const u8) !u64 {
     return std.math.mul(u64, value, unit) catch error.InvalidSize;
 }
 
-fn defaultDir(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.c.getenv("XDG_STATE_HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/xsprof", .{std.mem.span(value)});
-    }
-    if (std.c.getenv("HOME")) |value| {
-        return std.fmt.allocPrint(allocator, "{s}/.local/state/xsprof", .{std.mem.span(value)});
-    }
-    return error.NoStateDirectory;
-}
-
 test "incident requires --out and a valid duration" {
     var out_buffer: [512]u8 = undefined;
     var err_buffer: [512]u8 = undefined;
@@ -157,7 +150,7 @@ test "incident requires --out and a valid duration" {
     out = Writer.fixed(&out_buffer);
     err = Writer.fixed(&err_buffer);
     try std.testing.expectEqual(
-        @as(u8, 2),
-        try cmdIncident(std.testing.io, arena.allocator(), &bad_args, &out, &err),
+        Exit.usage,
+        try cmdIncident(std.testing.io, arena.allocator(), state_paths.Env.process(), &bad_args, &out, &err),
     );
 }

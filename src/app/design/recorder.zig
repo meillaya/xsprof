@@ -2,10 +2,10 @@
 //! Home recorder strip. The executor (platform layer) owns the actual capture
 //! daemon; this module only decides transitions and emits commands.
 //!
-//! TODO(platform): wire Effect.start_capture/stop_capture/extract_window to the
-//! owned recorder daemon (`src/recorder/daemon.zig`) + live_feed.Store (native
-//! Linux) and fail closed elsewhere. Restart of an externally owned recorder is
-//! attach-only.
+//! Effect.start_capture/stop_capture/extract_window are executed by
+//! `src/platform/effect_exec.zig` against the owned recorder daemon
+//! (`src/recorder/daemon.zig`) + `live_feed.Queue` (native Linux) and fail
+//! closed elsewhere. Restart of an externally owned recorder is attach-only.
 
 const std = @import("std");
 

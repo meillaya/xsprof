@@ -13,8 +13,8 @@
   writes canonical evidence under `docs/evidence/microvm/`. Root
   perf/live/service/retention gates remain in `qa/vm_acceptance.sh`. The
   committed TCG run passed all 10 checks in 50 s on a container host with no
-  `/dev/kvm` (qemu fell back to TCG). See
-  [docs/guides/microvm.md](docs/guides/microvm.md).
+  `/dev/kvm` (qemu fell back to TCG). The microVM lane and that guide were
+  later removed from the repository.
 - A deterministic light/dark native screenshot set
   (`design/screenshots/native/{dark,light}/`, 1280x720, canonical provenance)
   plus `tools/screenshots.sh`, whose `--check` verifies committed bytes,
@@ -45,7 +45,7 @@
 - Live tail stop no longer stalls when the bounded feed fills up. The feed now
   trims to half capacity in one step; trimming only the exact overflow copied
   the whole store for every appended event once full (a catch-up/stop stall).
-  See [docs/audit/live-feed-stall.md](docs/audit/live-feed-stall.md).
+  See [docs/history/audits/live-feed-stall.md](docs/history/audits/live-feed-stall.md).
 - Recorder probe SKIP/REFUSE is no longer displayed as FAILED; the reason is
   shown with the capture permission requirement and the Recorder screen keeps
   in-app export/verify actions instead of shell snippets.

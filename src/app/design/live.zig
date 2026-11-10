@@ -1,8 +1,8 @@
 //! OS-free live controller for native live streaming.
 //!
-//! The controller owns a bounded NDJSON feed, an incremental `stream/index`
-//! index, and a rebuild cadence; sources are injected through a vtable so this
-//! file never imports capture/OS code:
+//! The controller owns a bounded decoded-event queue, an incremental
+//! `stream/index` index, and a rebuild cadence; sources are injected through a
+//! vtable so this file never imports capture/OS code:
 //!   - Linux `src/platform/linux/live_source.zig` owns the recorder daemon and
 //!     tails its compact segments (probe-gated READY/SKIP/REFUSE).
 //!   - `src/platform/follow_source.zig` tails a recorder directory on any OS.
@@ -26,6 +26,10 @@ const model_mod = @import("model.zig");
 
 const Model = model_mod.Model;
 const Session = session_mod.Session;
+
+/// Upper bound on events committed in one poll. A full queue is drained over
+/// several ticks so a recorder catch-up burst cannot stall the console frame.
+const max_consume_events_per_poll: usize = 32 * 1024;
 
 pub const State = enum { off, probing, starting, ready, stopped, degraded, skip, refuse, failed };
 
@@ -65,7 +69,7 @@ pub const VTable = struct {
         ctx: *anyopaque,
         allocator: std.mem.Allocator,
         io: std.Io,
-        feed: *live_feed.Store,
+        queue: *live_feed.Queue,
         options: SourceOptions,
     ) StartResult,
     stop: *const fn (ctx: *anyopaque) void,
@@ -81,6 +85,9 @@ pub const Source = struct {
 };
 
 pub const Options = struct {
+    /// Decoded events handed off but not yet consumed. The queue evicts the
+    /// oldest complete batches past this budget and reports the loss once as a
+    /// `feed_trim` marker; a single larger batch is dropped whole.
     max_feed_bytes: usize = 8 * 1024 * 1024,
     max_store_bytes: usize = 64 * 1024 * 1024,
     /// Hard cap on indexed events; beyond it the controller stops indexing and
@@ -108,7 +115,7 @@ pub const Controller = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     options: Options,
-    feed: live_feed.Store,
+    feed: live_feed.Queue,
     store: stream_store.Store,
     index: stream_index.Index,
     arena: std.heap.ArenaAllocator,
@@ -118,7 +125,6 @@ pub const Controller = struct {
     source_options: SourceOptions = .{},
     status: Status = .{},
     started: bool = false,
-    feed_offset: u64 = 0,
     indexed_events: usize = 0,
     pending_rebuild: bool = false,
     overflow_marker_sent: bool = false,
@@ -137,7 +143,7 @@ pub const Controller = struct {
     loss_buf: [128]u8 = @splat(0),
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, options: Options) Controller {
-        var feed = live_feed.Store.init();
+        var feed = live_feed.Queue.init(allocator, io);
         feed.max_bytes = options.max_feed_bytes;
         var store = stream_store.Store.init(allocator);
         store.max_bytes = options.max_store_bytes;
@@ -222,7 +228,7 @@ pub const Controller = struct {
         self.freeAllocations(&self.capability_allocations);
         self.capability_allocations = .empty;
         self.feed.deinit();
-        self.feed = live_feed.Store.init();
+        self.feed = live_feed.Queue.init(self.allocator, self.io);
         self.feed.max_bytes = self.options.max_feed_bytes;
         self.store.deinit();
         self.store = stream_store.Store.init(self.allocator);
@@ -233,7 +239,6 @@ pub const Controller = struct {
         self.arena = std.heap.ArenaAllocator.init(self.allocator);
         self.model = null;
         self.session = null;
-        self.feed_offset = 0;
         self.indexed_events = 0;
         self.pending_rebuild = false;
         self.overflow_marker_sent = false;
@@ -319,23 +324,23 @@ pub const Controller = struct {
 
     fn consume(self: *Controller) void {
         if (self.ingest_failed) return;
-        const snapshot = self.feed.since(self.allocator, self.feed_offset) catch return;
-        defer self.allocator.free(snapshot.data);
-        if (snapshot.reset) {
-            const gap = if (snapshot.start > self.feed_offset) snapshot.start - self.feed_offset else 1;
-            _ = self.emitLoss(gap, "feed_trim");
-            self.feed_offset = snapshot.start;
+        // Feed trim/gap loss is reported once per drain, before the surviving
+        // batches, so the model never overstates what it kept.
+        const dropped = self.feed.takeDropped();
+        if (dropped.events != 0) _ = self.emitLoss(dropped.events, "feed_trim");
+        var drained: usize = 0;
+        while (drained < max_consume_events_per_poll) {
+            const batch = self.feed.pop() orelse break;
+            drained += batch.count();
+            _ = self.store.commitBatch(batch) catch |err| {
+                // The store is unchanged by a refused batch; stop ingesting
+                // instead of retrying the same batch forever.
+                batch.deinit();
+                self.rejected += 1;
+                self.failIngest(err);
+                return;
+            };
         }
-        if (snapshot.data.len == 0) return;
-        _ = self.store.append(snapshot.data) catch |err| {
-            // The store is unchanged by a failed append. Stop ingesting here
-            // instead of advancing past and retrying the poisoned bytes forever.
-            self.feed_offset = snapshot.end;
-            self.rejected += 1;
-            self.failIngest(err);
-            return;
-        };
-        self.feed_offset = snapshot.end;
 
         if (self.indexed_events >= self.store.events.items.len) return;
         const new_events = self.store.events.items[self.indexed_events..];
@@ -371,13 +376,9 @@ pub const Controller = struct {
                 self.status = .{ .state = .degraded, .reason = "live store full; ingest stopped" };
                 _ = self.emitLoss(1, "store_full");
             },
-            error.InvalidJournal => {
-                self.status = .{ .state = .degraded, .reason = "live journal corrupt; ingest stopped" };
-                _ = self.emitLoss(1, "corrupt_line");
-            },
             else => {
-                self.status = .{ .state = .degraded, .reason = "live store append failed; ingest stopped" };
-                _ = self.emitLoss(1, "append_failed");
+                self.status = .{ .state = .degraded, .reason = "live store commit failed; ingest stopped" };
+                _ = self.emitLoss(1, "commit_failed");
             },
         }
         if (self.source) |source| source.vtable.stop(source.context);
@@ -448,12 +449,16 @@ pub const Controller = struct {
             return self.suppressLoss(dropped);
         };
         self.loss_markers += 1;
+        // Loss is a model change even when no data event arrived (a fully
+        // trimmed feed): the console must still repaint the loss counters.
+        self.pending_rebuild = true;
         return true;
     }
 
     /// Markers are capped; keep the true dropped count outside the event caps.
     fn suppressLoss(self: *Controller, dropped: u64) bool {
         self.loss_aggregate +|= dropped;
+        self.pending_rebuild = true;
         return false;
     }
 

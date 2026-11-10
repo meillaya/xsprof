@@ -3,6 +3,7 @@ const bpf = @import("../capture/bpf.zig");
 const json = @import("../core/json.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 pub fn cmdBpf(
     io: std.Io,
@@ -10,16 +11,16 @@ pub fn cmdBpf(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
+) !Exit {
     for (args) |arg| {
         if (!std.mem.eql(u8, arg, "--json")) {
             try err.print("bpf-gate: unknown option {s}\n", .{arg});
-            return 2;
+            return .usage;
         }
     }
     const result = bpf.run(io, allocator) catch |run_error| {
         try err.print("bpf-gate: {s}\n", .{@errorName(run_error)});
-        return 1;
+        return .refuse;
     };
     try json.write(out, .{ .object = &.{
         .{ .key = "attached", .value = .{ .boolean = result.attached } },
@@ -32,5 +33,5 @@ pub fn cmdBpf(
         .{ .key = "vm_marker", .value = .{ .string = result.vm_marker } },
     } });
     try out.writeByte('\n');
-    return if (result.state == .READY) 0 else 1;
+    return if (result.state == .READY) .ok else .refuse;
 }

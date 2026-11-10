@@ -3,6 +3,7 @@
 //! missing segments. It never repairs, rewrites, or trusts the manifest counts.
 
 const std = @import("std");
+const compact = @import("compact.zig");
 const event = @import("../core/event.zig");
 const json = @import("../core/json.zig");
 const safety = @import("../core/safety.zig");
@@ -20,6 +21,12 @@ pub const SegmentReport = struct {
     events: u64 = 0,
     offset: u64 = 0,
     status: []const u8 = "unknown",
+    /// Compact footer claims and the decoded block count. A mismatch means the
+    /// file's own close record disagrees with its payload, so it cannot be clean.
+    footer_events: u64 = 0,
+    footer_blocks: u64 = 0,
+    blocks: u64 = 0,
+    footer_mismatch: bool = false,
 };
 
 pub const Report = struct {
@@ -33,6 +40,7 @@ pub const Report = struct {
     corrupt: usize = 0,
     missing: usize = 0,
     unsupported: usize = 0,
+    footer_mismatch: usize = 0,
 };
 
 pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Report {
@@ -78,13 +86,14 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Report {
         } else {
             report.unsupported += 1;
         }
+        if (item.footer_mismatch) report.footer_mismatch += 1;
         report.events += item.events;
         report.bytes += item.bytes;
         try reports.append(allocator, item);
     }
     report.decoded_events = report.events;
     report.segments = try reports.toOwnedSlice(allocator);
-    report.state = if (report.corrupt != 0 or report.missing != 0)
+    report.state = if (report.corrupt != 0 or report.missing != 0 or report.footer_mismatch != 0)
         "REFUSE"
     else if (report.dirty != 0 or report.unsupported != 0)
         "DEGRADED"
@@ -123,10 +132,24 @@ fn verifyCompact(io: std.Io, path: []const u8, item: *SegmentReport) !void {
     while (true) {
         const maybe = reader.next() catch break;
         if (maybe == null) break;
-        item.events += 1;
     }
+    item.events = reader.events;
+    item.blocks = reader.blocks;
     item.status = reader.status.label();
     item.offset = reader.err_offset;
+    // The footer is the segment's own close record: a clean file whose footer
+    // counts disagree with the decoded payload is not clean, even when every
+    // block CRC and the footer CRC still check out.
+    if (reader.footer) |footer| {
+        item.footer_events = footer.event_count;
+        item.footer_blocks = footer.block_count;
+        if (std.mem.eql(u8, item.status, "clean") and
+            (footer.event_count != item.events or footer.block_count != item.blocks))
+        {
+            item.footer_mismatch = true;
+            item.status = "corrupt";
+        }
+    }
 }
 
 fn verifyLegacy(io: std.Io, allocator: std.mem.Allocator, path: []const u8, item: *SegmentReport) !void {
@@ -210,12 +233,13 @@ pub fn writeText(w: *std.Io.Writer, report: Report) !void {
         report.events,
         report.bytes,
     });
-    try w.print("  clean={d} dirty={d} corrupt={d} missing={d} unsupported={d}\n", .{
+    try w.print("  clean={d} dirty={d} corrupt={d} missing={d} unsupported={d} footer_mismatch={d}\n", .{
         report.clean,
         report.dirty,
         report.corrupt,
         report.missing,
         report.unsupported,
+        report.footer_mismatch,
     });
     for (report.segments) |segment| {
         try w.print("  {s:<11} {s:<12} bytes={d} events={d} offset={d} {s}\n", .{
@@ -226,6 +250,12 @@ pub fn writeText(w: *std.Io.Writer, report: Report) !void {
             segment.offset,
             segment.path,
         });
+        if (segment.footer_mismatch) {
+            try w.print(
+                "      footer_mismatch: footer_events={d} decoded_events={d} footer_blocks={d} decoded_blocks={d}\n",
+                .{ segment.footer_events, segment.events, segment.footer_blocks, segment.blocks },
+            );
+        }
     }
 }
 
@@ -296,6 +326,12 @@ test "verify reports READY for a clean compact segment" {
     try std.testing.expectEqualStrings("READY", report.state);
     try std.testing.expectEqual(@as(u64, 100), report.events);
     try std.testing.expectEqual(@as(usize, 1), report.clean);
+    // The decoded payload matches the clean-close footer exactly.
+    try std.testing.expectEqual(@as(usize, 0), report.footer_mismatch);
+    try std.testing.expectEqual(@as(u64, 100), report.segments[0].footer_events);
+    try std.testing.expectEqual(@as(u64, 100), report.segments[0].events);
+    try std.testing.expectEqual(report.segments[0].footer_blocks, report.segments[0].blocks);
+    try std.testing.expect(!report.segments[0].footer_mismatch);
     var buffer: [4096]u8 = undefined;
     var out = std.Io.Writer.fixed(&buffer);
     try writeJson(&out, report);
@@ -324,4 +360,132 @@ test "verify refuses a manifest with a missing segment" {
     const report = try run(std.testing.io, allocator, .{ .dir = root });
     try std.testing.expectEqualStrings("REFUSE", report.state);
     try std.testing.expectEqual(@as(usize, 1), report.missing);
+}
+
+fn tmpRoot(tmp: *std.testing.TmpDir, allocator: std.mem.Allocator) ![]const u8 {
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try tmp.dir.realPath(std.testing.io, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
+fn writeBytes(io: std.Io, allocator: std.mem.Allocator, root: []const u8, relative: []const u8, bytes: []const u8) !void {
+    const full = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ root, relative });
+    defer allocator.free(full);
+    const file = try std.Io.Dir.createFileAbsolute(io, full, .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, bytes);
+}
+
+fn writeManifestList(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    root: []const u8,
+    segments: []const manifest_mod.Segment,
+) !void {
+    const path = try std.fmt.allocPrint(allocator, "{s}/manifest.json", .{root});
+    defer allocator.free(path);
+    try manifest_mod.writeAtomic(io, allocator, path, .{
+        .session_id = "verify-test",
+        .state = .stopped,
+        .started_wall_ns = 1,
+        .started_mono_ns = 0,
+        .raw_codec = "compact_v1",
+        .segments = segments,
+    });
+}
+
+/// Rewrites a clean segment's footer with wrong counts and a valid CRC, so the
+/// reader decodes a clean file whose own close record disagrees with the data.
+fn craftFooterMismatch(
+    allocator: std.mem.Allocator,
+    original: []const u8,
+    extra_events: u64,
+    extra_blocks: u64,
+) ![]u8 {
+    const footer_total = compact.block_header_bytes + compact.footer_payload_bytes;
+    if (original.len < compact.header_bytes + footer_total) return error.TestUnexpectedResult;
+    const footer_start = original.len - footer_total;
+    var out = try allocator.dupe(u8, original);
+    var payload: [compact.footer_payload_bytes]u8 = undefined;
+    @memcpy(&payload, out[footer_start + compact.block_header_bytes ..]);
+    var footer = compact.Footer.parse(&payload);
+    footer.event_count += extra_events;
+    footer.block_count += extra_blocks;
+    footer.encode(&payload);
+    @memcpy(out[footer_start + compact.block_header_bytes ..], &payload);
+    var header: [compact.block_header_bytes]u8 = undefined;
+    compact.writeBlockHeader(&header, compact.block_type_footer, &payload);
+    @memcpy(out[footer_start..][0..compact.block_header_bytes], &header);
+    return out;
+}
+
+// Checks a segment whose footer counts disagree with the decoded payload is
+// refused with an explicit footer_mismatch reason, never reported READY.
+test "verify refuses footer count mismatches" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const io = std.testing.io;
+    const root = try tmpRoot(&tmp, allocator);
+    const segments_path = try std.fmt.allocPrint(allocator, "{s}/segments", .{root});
+    try std.Io.Dir.cwd().createDirPath(io, segments_path);
+
+    var writer = try segment_mod.Writer.create(io, allocator, root, 0, 1, 2);
+    var index: u64 = 0;
+    while (index < 100) : (index += 1) {
+        try writer.writeEvent(.{
+            .kind = .sched_switch,
+            .ts_ns = index * 1000,
+            .cpu = 0,
+            .pid = 7,
+            .tid = 7,
+            .a = index,
+            .comm = "worker",
+        });
+    }
+    try writer.close();
+    const original_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ root, writer.path });
+    defer allocator.free(original_path);
+    const original = try std.Io.Dir.cwd().readFileAlloc(io, original_path, allocator, .limited(1024 * 1024));
+    const writer_stats = writer.stats;
+    writer.deinit();
+
+    const event_mismatch = "segments/event-mismatch-0.xsraw";
+    const block_mismatch = "segments/block-mismatch-0.xsraw";
+    try writeBytes(io, allocator, root, event_mismatch, try craftFooterMismatch(allocator, original, 1, 0));
+    try writeBytes(io, allocator, root, block_mismatch, try craftFooterMismatch(allocator, original, 0, 1));
+    try writeManifestList(io, allocator, root, &.{
+        .{ .path = event_mismatch, .start_wall_ns = 1, .start_mono_ns = 2, .bytes = writer_stats.bytes, .events = 100, .closed = true, .codec = "compact_v1" },
+        .{ .path = block_mismatch, .start_wall_ns = 1, .start_mono_ns = 2, .bytes = writer_stats.bytes, .events = 100, .closed = true, .codec = "compact_v1" },
+    });
+
+    const report = try run(io, allocator, .{ .dir = root });
+    try std.testing.expectEqualStrings("REFUSE", report.state);
+    try std.testing.expectEqual(@as(usize, 2), report.footer_mismatch);
+    try std.testing.expectEqual(@as(usize, 2), report.corrupt);
+    try std.testing.expectEqual(@as(usize, 0), report.clean);
+    // Both payloads decode fine; only their own footer counts are wrong.
+    try std.testing.expectEqual(@as(u64, 200), report.events);
+    try std.testing.expect(report.segments[0].footer_mismatch);
+    try std.testing.expectEqual(@as(u64, 101), report.segments[0].footer_events);
+    try std.testing.expectEqual(@as(u64, 100), report.segments[0].events);
+    try std.testing.expect(report.segments[1].footer_mismatch);
+    try std.testing.expectEqual(@as(u64, 100), report.segments[1].footer_events);
+    try std.testing.expectEqual(report.segments[1].footer_blocks, report.segments[1].blocks + 1);
+
+    var text_buffer: [4096]u8 = undefined;
+    var text = std.Io.Writer.fixed(&text_buffer);
+    try writeText(&text, report);
+    try std.testing.expect(std.mem.indexOf(u8, text.buffered(), "footer_mismatch:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text.buffered(), "footer_events=101") != null);
+
+    // Canonical JSON stays schema-compatible: the detail is in the human report
+    // until the recorder-verify schema is extended (an out-of-scope follow-up).
+    var json_buffer: [16 * 1024]u8 = undefined;
+    var out = std.Io.Writer.fixed(&json_buffer);
+    try writeJson(&out, report);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\"state\":\"REFUSE\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "footer_mismatch") == null);
 }

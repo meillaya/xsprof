@@ -164,6 +164,11 @@ pub fn build(b: *std.Build) void {
     const cli_parity_step = b.step("cli-parity", "Check read-only CLI behavior end to end");
     cli_parity_step.dependOn(&cli_parity.step);
 
+    const cli_manifest = b.addSystemCommand(&.{ "sh", "-c", "zig-out/bin/xsprof help --json --all --check" });
+    cli_manifest.step.dependOn(b.getInstallStep());
+    const cli_manifest_step = b.step("cli-manifest", "Check the committed CLI manifest is current");
+    cli_manifest_step.dependOn(&cli_manifest.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -253,6 +258,7 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&no_mutation.step);
     check.dependOn(&unsafe_matrix.step);
     check.dependOn(&cli_parity.step);
+    check.dependOn(&cli_manifest.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
     check.dependOn(&xsui_package.step);

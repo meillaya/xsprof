@@ -20,8 +20,22 @@ than the retained window emits a `retention_loss` marker instead of zero-filling
 block-local comm tables, ~12–13 bytes/event versus ~160 bytes/event for
 canonical NDJSON. The default 2 GiB budget therefore usually lets the
 ten-minute age cap bind; the byte budget remains the safety backstop for high
-rates or larger event text. Segments rotate at 16 MiB or 30 s; retention drops
-the oldest closed segments and writes an explicit `retention_loss` marker.
+rates or larger event text. Segments rotate at 16 MiB or 30 s; retention plans
+which closed segments are over the byte/age budget, then deletes the oldest
+prefix. A failed delete is not silent: the manifest entry is kept, one
+`retention_loss … delete_failed=1 path=… error=…` marker is written for that
+attempt, and the next rotation retries. An entry whose file is already gone is
+dropped rather than retried forever.
+
+At startup the daemon reconciles the segment directory with the manifest: any
+unmanifested `.xsraw` file is adopted chronologically (a clean footer is trusted
+without decoding; a dirty/corrupt tail is decoded for its complete prefix) and
+the session records one
+`capture_recovered_orphan adopted=… dirty=… corrupt=… unreadable=…` marker.
+Unknown files are never deleted or rewritten. The manifest rename is fsynced at
+the file and state-directory level, and `verify` compares each segment footer's
+event/block counts against the decoded payload; a mismatch is `REFUSE` with an
+explicit `footer_mismatch` reason rather than READY.
 
 ## Measured result (disposable KVM VM)
 
@@ -53,7 +67,7 @@ recovery.
 
 These measurements are environment-specific (one VM, one kernel, one
 workload). The committed repository does not carry the VM logs or benchmark
-output: they are attached to the corresponding release. Rerun the harness on
+output: those are kept as release/CI artifacts. Rerun the harness on
 new hardware/builds before generalizing the numbers.
 
 ## Acceptance thresholds

@@ -3,9 +3,9 @@
 //! The viewer always owns its recorder: one in-process recorder daemon thread
 //! writes compact `.xsraw` segments into the configured recorder state dir for
 //! the requested duration (`recorder/daemon.zig` `stop` flag, no signal
-//! handlers), while a `follow_source` tail re-serializes those segments into the
-//! bounded live feed for the controller. Stop sets the flag, joins the daemon,
-//! then stops the tail. The owned daemon is the only capture path: without a
+//! handlers), while a `follow_source` tail decodes those segments straight into
+//! event batches for the controller's bounded queue. Stop sets the flag, joins
+//! the daemon, then stops the tail. The owned daemon is the only capture path: without a
 //! recorder state dir the source refuses instead of streaming view-only data,
 //! and a non-READY probe is reported as SKIP/REFUSE with its reason.
 
@@ -20,7 +20,7 @@ const follow_source = @import("../follow_source.zig");
 pub const Source = struct {
     allocator: std.mem.Allocator = undefined,
     io: std.Io = undefined,
-    feed: ?*live_feed.Store = null,
+    queue: ?*live_feed.Queue = null,
     options: live_mod.SourceOptions = .{},
     /// Recorder state directory. The owned recorder writes compact segments
     /// here and the tail re-reads them for the live view; empty fails closed.
@@ -60,13 +60,13 @@ pub const Source = struct {
         ctx: *anyopaque,
         allocator: std.mem.Allocator,
         io: std.Io,
-        feed: *live_feed.Store,
+        queue: *live_feed.Queue,
         options: live_mod.SourceOptions,
     ) live_mod.StartResult {
         const self: *Source = @ptrCast(@alignCast(ctx));
         self.allocator = allocator;
         self.io = io;
-        self.feed = feed;
+        self.queue = queue;
         self.options = options;
         self.failed = false;
         self.stopping = false;
@@ -101,8 +101,8 @@ pub const Source = struct {
     }
 
     fn startRecording(self: *Source) live_mod.StartResult {
-        const feed = self.feed orelse return .{ .unavailable = .{ .state = .refuse, .reason = "no live feed" } };
-        if (!self.follow.begin(self.allocator, self.io, feed, self.dir)) {
+        const queue = self.queue orelse return .{ .unavailable = .{ .state = .refuse, .reason = "no live event queue" } };
+        if (!self.follow.begin(self.allocator, self.io, queue, self.dir)) {
             return .{ .unavailable = .{
                 .state = .refuse,
                 .reason = self.copyReasonText("recorder tail could not start"),
@@ -111,7 +111,7 @@ pub const Source = struct {
         self.daemon_stop.store(false, .release);
         self.daemon_thread = std.Thread.spawn(.{}, runDaemon, .{self}) catch {
             self.follow.stop();
-            self.feed = null;
+            self.queue = null;
             return .{ .unavailable = .{
                 .state = .refuse,
                 .reason = self.copyReasonText("recorder worker thread failed"),
@@ -154,7 +154,7 @@ pub const Source = struct {
         const self: *Source = @ptrCast(@alignCast(ctx));
         self.stopRecording();
         self.stopping = false;
-        self.feed = null;
+        self.queue = null;
     }
 
     fn tickImpl(ctx: *anyopaque, io: std.Io) void {

@@ -6,6 +6,7 @@ const json = @import("../core/json.zig");
 const schema = @import("../core/schema.zig");
 
 const Writer = std.Io.Writer;
+const Exit = @import("exit.zig").Exit;
 
 const max_evidence_bytes = 64 * 1024 * 1024;
 
@@ -22,34 +23,34 @@ pub fn cmdValidate(
     args: []const []const u8,
     out: *Writer,
     err: *Writer,
-) !u8 {
-    const options = parseArgs(args, err) catch return 2;
+) !Exit {
+    const options = parseArgs(args, err) catch return .usage;
     if (options.schema_path.len == 0 or options.file_path.len == 0) {
         try err.writeAll("validate: --schema <name|path> and --file <path> are required\n");
-        return 2;
+        return .usage;
     }
 
     const resolved_schema = resolveSchemaPath(allocator, options.schema_path) catch |resolve_error| {
         try err.print("validate: schema {s}: {s}\n", .{ options.schema_path, @errorName(resolve_error) });
-        return 2;
+        return .usage;
     };
     defer allocator.free(resolved_schema);
 
     const schema_text = std.Io.Dir.cwd().readFileAlloc(io, resolved_schema, allocator, .limited(schema.max_schema_bytes)) catch |read_error| {
         try err.print("validate: cannot read schema {s}: {s}\n", .{ resolved_schema, @errorName(read_error) });
-        return 2;
+        return .usage;
     };
     defer allocator.free(schema_text);
 
     var validator = schema.Schema.parse(allocator, schema_text) catch |parse_error| {
         try err.print("validate: schema {s}: {s}\n", .{ resolved_schema, @errorName(parse_error) });
-        return 2;
+        return .usage;
     };
     defer validator.deinit();
 
     const evidence = std.Io.Dir.cwd().readFileAlloc(io, options.file_path, allocator, .limited(max_evidence_bytes)) catch |read_error| {
         try err.print("validate: cannot read {s}: {s}\n", .{ options.file_path, @errorName(read_error) });
-        return 2;
+        return .usage;
     };
     defer allocator.free(evidence);
 
@@ -100,7 +101,7 @@ pub fn cmdValidate(
             .{ documents, if (documents == 1) "" else "s", options.file_path, schema_name },
         );
     }
-    return if (ok) 0 else 1;
+    return if (ok) .ok else .refuse;
 }
 
 const Failure = struct {
@@ -190,7 +191,7 @@ test "validate requires schema and file" {
     var out = Writer.fixed(&out_buffer);
     var err = Writer.fixed(&err_buffer);
     try std.testing.expectEqual(
-        @as(u8, 2),
+        Exit.usage,
         try cmdValidate(std.testing.io, arena.allocator(), &.{}, &out, &err),
     );
 }
@@ -203,7 +204,7 @@ test "validate rejects unknown options" {
     var out = Writer.fixed(&out_buffer);
     var err = Writer.fixed(&err_buffer);
     try std.testing.expectEqual(
-        @as(u8, 2),
+        Exit.usage,
         try cmdValidate(std.testing.io, arena.allocator(), &.{"--nope"}, &out, &err),
     );
 }

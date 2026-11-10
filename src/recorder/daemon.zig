@@ -6,9 +6,11 @@ const builtin = @import("builtin");
 const event = @import("../core/event.zig");
 const live = @import("../capture/live.zig");
 const capture_meta = @import("../capture/session_meta.zig");
+const compact = @import("compact.zig");
 const manifest_mod = @import("manifest.zig");
 const segment_mod = @import("segment.zig");
 const reader_mod = @import("segment_reader.zig");
+const retention_mod = @import("retention.zig");
 const sidecar = @import("sidecar.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 const overhead = @import("../os/linux/overhead.zig");
@@ -48,6 +50,8 @@ pub const Result = struct {
     history_sidecars: u64 = 0,
     history_dropped: u64 = 0,
     sidecar_errors: u64 = 0,
+    /// Orphan `.xsraw` segments adopted into the manifest on this start.
+    recovered_orphans: u64 = 0,
     overhead: overhead.Report = .{},
 };
 
@@ -112,6 +116,12 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         }
     }
 
+    // A crash between segment creation and the manifest rename leaves a
+    // `.xsraw` file the manifest never learned about. Adopt those files into
+    // the durable index before this session starts, so extract/verify see them
+    // and retention can eventually age them out. Unknown files are left alone.
+    const recovery = try reconcileSegments(io, allocator, dir, &segments, now_wall);
+
     var sequence: u32 = 0;
     var segment = try segment_mod.Writer.create(io, runtime_allocator, dir, sequence, now_wall, now_mono);
     defer segment.deinit();
@@ -154,6 +164,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             .reason = @errorName(err),
             .dir = dir,
             .session_id = manifest.session_id,
+            .recovered_orphans = recovery.adopted,
             .overhead = meter.finish(io, allocator, 0, 0),
         };
     };
@@ -195,6 +206,15 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
                 .detail = "capture_unsupported_segment dropped=1",
             }),
         }
+    }
+    if (recovery.shouldAnnotate()) {
+        var recovery_buf: [160]u8 = undefined;
+        try segment.writeEvent(.{
+            .kind = .marker,
+            .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
+            .cpu = -1,
+            .detail = recoveryDetail(&recovery_buf, recovery),
+        });
     }
     try writeMeta(&segment, &segment_metrics, meta_events);
     try segment.writeEvent(.{
@@ -276,28 +296,20 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
             });
             current = segments.items.len - 1;
             segment_started = now;
-            const dropped = try enforceRetention(
-                io,
-                allocator,
-                dir,
-                &segments,
-                &current,
-                opts.max_bytes,
-                opts.max_age_ms,
-                @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds))),
-            );
-            if (dropped != 0) {
-                var detail_buf: [64]u8 = undefined;
-                const detail = std.fmt.bufPrint(
-                    &detail_buf,
-                    "retention_loss dropped_segments={d}",
-                    .{dropped},
-                ) catch "retention_loss";
+            const retention_result = try retention_mod.apply(io, allocator, dir, &segments, &current, .{
+                .max_bytes = opts.max_bytes,
+                .max_age_ms = opts.max_age_ms,
+                .now_wall_ns = @as(u64, @intCast(@max(0, std.Io.Clock.now(.real, io).nanoseconds))),
+            });
+            if (retention_result.trimmed()) {
+                var detail_buf: [retention_mod.max_detail_bytes]u8 = undefined;
+                var detail_writer = std.Io.Writer.fixed(&detail_buf);
+                try retention_mod.writeLossDetail(&detail_writer, retention_result);
                 try segment.writeEvent(.{
                     .kind = .marker,
                     .ts_ns = @intCast(std.Io.Clock.now(.awake, io).nanoseconds),
                     .cpu = -1,
-                    .detail = detail,
+                    .detail = detail_writer.buffered(),
                 });
             }
             manifest.segments = segments.items;
@@ -359,6 +371,7 @@ pub fn run(io: std.Io, allocator: std.mem.Allocator, opts: Options) !Result {
         .history_sidecars = history_sidecars,
         .history_dropped = history_dropped,
         .sidecar_errors = sidecar_errors,
+        .recovered_orphans = recovery.adopted,
         .overhead = meter.finish(io, allocator, total_events, bytes),
     };
 }
@@ -409,32 +422,162 @@ fn totalBytes(segments: []const manifest_mod.Segment) u64 {
     return total;
 }
 
-fn enforceRetention(
+const Recovery = struct {
+    adopted: usize = 0,
+    dirty: usize = 0,
+    corrupt: usize = 0,
+    unreadable: usize = 0,
+    bytes: u64 = 0,
+    events: u64 = 0,
+
+    fn shouldAnnotate(self: Recovery) bool {
+        return self.adopted != 0 or self.unreadable != 0;
+    }
+};
+
+/// Adopt compact segment files the manifest does not know about: a crash
+/// between segment creation and the manifest rename leaves one behind, and a
+/// stopped session's segments stay on disk too. Unknown files are never deleted.
+fn reconcileSegments(
     io: std.Io,
     allocator: std.mem.Allocator,
     dir: []const u8,
     segments: *std.ArrayList(manifest_mod.Segment),
-    current: *usize,
-    max_bytes: u64,
-    max_age_ms: u64,
-    now_wall: u64,
-) !usize {
-    var dropped: usize = 0;
-    const max_age_ns = std.math.mul(u64, max_age_ms, std.time.ns_per_ms) catch std.math.maxInt(u64);
-    while (segments.items.len > 1) {
-        const oldest = segments.items[0];
-        if (!oldest.closed) break;
-        const too_old = oldest.end_wall_ns != 0 and now_wall > oldest.end_wall_ns +| max_age_ns;
-        const over_budget = totalBytes(segments.items) > max_bytes;
-        if (!too_old and !over_budget) break;
-        const full = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, oldest.path });
-        defer allocator.free(full);
-        std.Io.Dir.deleteFileAbsolute(io, full) catch break;
-        _ = segments.orderedRemove(0);
-        if (current.* > 0) current.* -= 1;
-        dropped += 1;
+    now_wall_ns: u64,
+) !Recovery {
+    var recovered = Recovery{};
+    const segments_dir_path = try std.fmt.allocPrint(allocator, "{s}/segments", .{dir});
+    defer allocator.free(segments_dir_path);
+    var segments_dir = blk: {
+        if (std.fs.path.isAbsolute(segments_dir_path)) {
+            break :blk std.Io.Dir.openDirAbsolute(io, segments_dir_path, .{ .iterate = true }) catch
+                return recovered;
+        }
+        break :blk std.Io.Dir.cwd().openDir(io, segments_dir_path, .{ .iterate = true }) catch
+            return recovered;
+    };
+    defer segments_dir.close(io);
+    var iterator = segments_dir.iterate();
+    while (try iterator.next(io)) |entry| {
+        if (entry.kind == .directory) continue;
+        if (!std.mem.endsWith(u8, entry.name, ".xsraw")) continue;
+        if (manifestContains(segments.items, entry.name)) continue;
+        const rel = try std.fmt.allocPrint(allocator, "segments/{s}", .{entry.name});
+        const full = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dir, rel });
+        const adoption = adoptSegment(io, full, now_wall_ns) catch {
+            allocator.free(rel);
+            allocator.free(full);
+            recovered.unreadable += 1;
+            continue;
+        };
+        allocator.free(full);
+        var adopted = adoption.segment;
+        adopted.path = rel;
+        segments.insert(allocator, chronologicalIndex(segments.items, adopted.start_wall_ns), adopted) catch |err| {
+            allocator.free(rel);
+            return err;
+        };
+        recovered.adopted += 1;
+        recovered.bytes +|= adopted.bytes;
+        recovered.events +|= adopted.events;
+        switch (adoption.status) {
+            .clean => {},
+            .dirty => recovered.dirty += 1,
+            .corrupt => recovered.corrupt += 1,
+            .unsupported => recovered.unreadable += 1,
+        }
     }
-    return dropped;
+    return recovered;
+}
+
+const Adopted = struct {
+    segment: manifest_mod.Segment,
+    status: reader_mod.Status,
+};
+
+/// Cheaply index one orphan `.xsraw`: header for timing, stat for bytes, and
+/// the footer for exact counts when the tail is clean. Only a dirty/corrupt
+/// tail is decoded, so startup stays proportional to the crash tail.
+fn adoptSegment(io: std.Io, full_path: []const u8, now_wall_ns: u64) !Adopted {
+    var reader = try reader_mod.Reader.open(io, full_path);
+    const header = reader.header orelse {
+        reader.deinit();
+        return error.InvalidSegment;
+    };
+    const stat = reader.file.stat(io) catch null;
+    const size = if (stat) |value| value.size else reader.size;
+    const mtime_ns: u64 = if (stat) |value|
+        std.math.cast(u64, value.mtime.nanoseconds) orelse 0
+    else
+        0;
+    const status = reader_mod.tailStatus(io, full_path) catch reader_mod.Status.dirty;
+    var events: u64 = 0;
+    if (status == .clean) {
+        if (footerCounts(io, reader.file, size)) |footer| events = footer.event_count;
+    }
+    if (events == 0) {
+        var decoded: u64 = 0;
+        while (true) {
+            const maybe = reader.next() catch break;
+            if (maybe == null) break;
+            decoded += 1;
+        }
+        events = decoded;
+    }
+    reader.deinit();
+    return .{
+        .status = status,
+        .segment = .{
+            .path = "",
+            .start_wall_ns = header.start_wall_ns,
+            .start_mono_ns = header.start_mono_ns,
+            .end_wall_ns = @max(header.start_wall_ns, @min(mtime_ns, now_wall_ns)),
+            .end_mono_ns = 0,
+            .bytes = size,
+            .events = events,
+            .closed = true,
+            .codec = "compact_v1",
+        },
+    };
+}
+
+/// Read the clean-close footer counts from the last 32 bytes without decoding.
+fn footerCounts(io: std.Io, file: std.Io.File, size: u64) ?compact.Footer {
+    const footer_total = compact.block_header_bytes + compact.footer_payload_bytes;
+    if (size < compact.header_bytes + footer_total) return null;
+    var buffer: [footer_total]u8 = undefined;
+    const read = file.readPositionalAll(io, &buffer, size - footer_total) catch return null;
+    if (read != buffer.len) return null;
+    var block_header: [compact.block_header_bytes]u8 = undefined;
+    @memcpy(&block_header, buffer[0..compact.block_header_bytes]);
+    const parsed = compact.parseBlockHeader(&block_header) catch return null;
+    if (parsed.kind != compact.block_type_footer) return null;
+    var payload: [compact.footer_payload_bytes]u8 = undefined;
+    @memcpy(&payload, buffer[compact.block_header_bytes..]);
+    if (compact.crc(&payload) != std.mem.readInt(u32, block_header[4..][0..4], .little)) return null;
+    return compact.Footer.parse(&payload);
+}
+
+fn manifestContains(segments: []const manifest_mod.Segment, name: []const u8) bool {
+    for (segments) |segment| {
+        if (std.mem.eql(u8, std.fs.path.basename(segment.path), name)) return true;
+    }
+    return false;
+}
+
+/// Manifest segments are chronological; adopted orphans are merged in place.
+fn chronologicalIndex(segments: []const manifest_mod.Segment, start_wall_ns: u64) usize {
+    var at = segments.len;
+    while (at > 0 and segments[at - 1].start_wall_ns > start_wall_ns) : (at -= 1) {}
+    return at;
+}
+
+fn recoveryDetail(buffer: *[160]u8, recovered: Recovery) []const u8 {
+    return std.fmt.bufPrint(
+        buffer,
+        "capture_recovered_orphan adopted={d} dirty={d} corrupt={d} unreadable={d}",
+        .{ recovered.adopted, recovered.dirty, recovered.corrupt, recovered.unreadable },
+    ) catch "capture_recovered_orphan";
 }
 
 fn resolveDir(allocator: std.mem.Allocator, explicit: ?[]const u8) ![]const u8 {
@@ -487,4 +630,118 @@ test "daemon skips off Linux" {
         const result = try run(std.testing.io, std.testing.allocator, .{});
         try std.testing.expectEqual(live.State.SKIP, result.state);
     }
+}
+
+fn testRootFrom(tmp: *std.testing.TmpDir, allocator: std.mem.Allocator) ![]const u8 {
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try tmp.dir.realPath(std.testing.io, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
+fn createTestSegment(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    root: []const u8,
+    sequence: u32,
+    start_wall_ns: u64,
+    count: u64,
+    clean_close: bool,
+) ![]const u8 {
+    var writer = try segment_mod.Writer.create(io, allocator, root, sequence, start_wall_ns, 0);
+    var index: u64 = 0;
+    while (index < count) : (index += 1) {
+        try writer.writeEvent(.{
+            .kind = .sched_switch,
+            .ts_ns = start_wall_ns + index,
+            .cpu = 0,
+            .pid = 7,
+            .tid = 7,
+            .a = index,
+            .comm = "worker",
+        });
+    }
+    if (clean_close) try writer.close() else try writer.flush();
+    const path = try allocator.dupe(u8, writer.path);
+    writer.deinit();
+    return path;
+}
+
+fn writeTestFile(io: std.Io, allocator: std.mem.Allocator, root: []const u8, relative: []const u8, body: []const u8) !void {
+    const full = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ root, relative });
+    defer allocator.free(full);
+    const file = try std.Io.Dir.createFileAbsolute(io, full, .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, body);
+}
+
+// Checks that a restart adopts unknown compact segments (including a dirty
+// crash tail) chronologically, reports them, and leaves other files untouched.
+test "daemon restart reconciles manifest orphans and annotates the count" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const io = std.testing.io;
+    // The adopted manifest entries keep their path strings for the session's
+    // lifetime, so the test lets an arena own them.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const root = try testRootFrom(&tmp, allocator);
+    defer allocator.free(root);
+    const segments_path = try std.fmt.allocPrint(allocator, "{s}/segments", .{root});
+    defer allocator.free(segments_path);
+    try std.Io.Dir.cwd().createDirPath(io, segments_path);
+
+    const known_path = try createTestSegment(io, allocator, root, 0, 1_000, 3, true);
+    defer allocator.free(known_path);
+    const orphan_path = try createTestSegment(io, allocator, root, 1, 2_000, 5, true);
+    defer allocator.free(orphan_path);
+    const dirty_path = try createTestSegment(io, allocator, root, 2, 3_000, 4, false);
+    defer allocator.free(dirty_path);
+    try writeTestFile(io, allocator, root, "segments/truncated-0.xsraw", "short");
+    try writeTestFile(io, allocator, root, "segments/notes.txt", "keep me");
+
+    var segments: std.ArrayList(manifest_mod.Segment) = .empty;
+    defer segments.deinit(allocator);
+    try segments.append(allocator, .{
+        .path = known_path,
+        .start_wall_ns = 1_000,
+        .start_mono_ns = 0,
+        .end_wall_ns = 1_500,
+        .bytes = 0,
+        .events = 3,
+        .closed = true,
+        .codec = "compact_v1",
+    });
+
+    const recovered = try reconcileSegments(io, allocator, root, &segments, 10_000);
+    try std.testing.expectEqual(@as(usize, 2), recovered.adopted);
+    try std.testing.expectEqual(@as(usize, 1), recovered.dirty);
+    try std.testing.expectEqual(@as(usize, 0), recovered.corrupt);
+    try std.testing.expectEqual(@as(usize, 1), recovered.unreadable);
+    try std.testing.expectEqual(@as(usize, 3), segments.items.len);
+    try std.testing.expectEqualStrings(known_path, segments.items[0].path);
+    try std.testing.expectEqualStrings(orphan_path, segments.items[1].path);
+    try std.testing.expectEqualStrings(dirty_path, segments.items[2].path);
+    try std.testing.expect(segments.items[1].start_wall_ns >= segments.items[0].start_wall_ns);
+    try std.testing.expect(segments.items[2].start_wall_ns >= segments.items[1].start_wall_ns);
+    try std.testing.expectEqual(@as(u64, 5), segments.items[1].events);
+    try std.testing.expect(segments.items[1].bytes > 0);
+    try std.testing.expect(segments.items[1].closed);
+    try std.testing.expectEqualStrings("compact_v1", segments.items[1].codec);
+    // The dirty crash tail is adopted with its decodable prefix counted.
+    try std.testing.expectEqual(@as(u64, 4), segments.items[2].events);
+
+    // Unknown files are reported, not adopted, deleted, or rewritten.
+    const notes_full = try std.fmt.allocPrint(allocator, "{s}/segments/notes.txt", .{root});
+    defer allocator.free(notes_full);
+    const notes = try std.Io.Dir.cwd().readFileAlloc(io, notes_full, allocator, .limited(64));
+    defer allocator.free(notes);
+    try std.testing.expectEqualStrings("keep me", notes);
+
+    var detail_buf: [160]u8 = undefined;
+    const detail = recoveryDetail(&detail_buf, recovered);
+    try std.testing.expect(std.mem.indexOf(u8, detail, "capture_recovered_orphan") != null);
+    try std.testing.expect(std.mem.indexOf(u8, detail, "adopted=2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, detail, "dirty=1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, detail, "unreadable=1") != null);
 }
