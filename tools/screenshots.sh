@@ -27,7 +27,20 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN=${XSPROF_BIN:-"$ROOT/zig-out/bin/xsprof"}
-MAGICK=${MAGICK_BIN:-magick}
+MAGICK=${MAGICK_BIN:-}
+if [ -z "$MAGICK" ]; then
+    if command -v magick >/dev/null 2>&1; then
+        MAGICK=magick
+    elif command -v convert >/dev/null 2>&1; then
+        # Ubuntu's imagemagick package ships ImageMagick 6 as `convert`; the
+        # flags used here are identical. Re-rendered PNG bytes may differ from
+        # committed magick-7 output, so --check falls back to decoded-pixel
+        # comparison (see the compare stage below).
+        MAGICK=convert
+    else
+        MAGICK=magick
+    fi
+fi
 PYTHON=${PYTHON_BIN:-python3}
 OUT_DIR="$ROOT/design/screenshots/native"
 MODE=render
