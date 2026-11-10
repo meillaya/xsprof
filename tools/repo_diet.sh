@@ -42,6 +42,7 @@ BACKUP_BUNDLE="$ROOT/.zig-cache/repo-diet-backup-$(git rev-parse --short HEAD).b
 if ! git rev-parse --verify "$BACKUP_BRANCH" >/dev/null 2>&1; then
     git branch "$BACKUP_BRANCH" HEAD
 fi
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
 git bundle create "$BACKUP_BUNDLE" --all
 echo "repo_diet: backup branch $BACKUP_BRANCH and bundle $BACKUP_BUNDLE"
 echo "repo_diet: restore with: git clone $BACKUP_BUNDLE restored-xsprof"
@@ -57,6 +58,12 @@ git filter-repo --force --invert-paths \
     --path design/screenshots/breakpoints \
     --path design/screenshots/prototype
 
+# filter-repo removes the origin remote as a push-safety measure; restore the
+# connection but leave pushing (and force-pushing) as an explicit human step.
+if [ -n "$ORIGIN_URL" ]; then
+    git remote add origin "$ORIGIN_URL"
+    echo "repo_diet: restored origin ($ORIGIN_URL); push requires --force-with-lease"
+fi
 echo "repo_diet: history rewritten (local only; no push performed)"
 git count-objects -vH
 echo "repo_diet: re-run ./tools/zig build check before tagging"
