@@ -269,8 +269,8 @@
         "over24_max": 3.0
       },
       "cpu_vs_gl": {
-        "mae_max": 4.0,
-        "over24_max": 3.0,
+        "mae_max": 6.0,
+        "over24_max": 5.0,
         "routes": [
           "home",
           "overview"

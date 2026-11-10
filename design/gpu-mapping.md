@@ -267,10 +267,13 @@ Recommended capture set for every token change:
 9. Responsive 1024, 780, and 420 widths.
 
 For CPU rendering, compare framebuffer hashes exactly. For Metal/GL, compare
-against the CPU reference using the thresholds in `ui-spec.json` (Metal/GL:
-MAE ≤ 4.0, >24 ≤ 3%). CPU raster is canonical: committed stills are verified
-by `./tools/zig build screenshots-check` in CI, while Metal/GL reference diffs
-are advisory and not a CI gate.
+against the CPU reference using the thresholds in `ui-spec.json`
+(`acceptance.cross_surface`): Metal MAE ≤ 4.0 / >24 ≤ 3%; GL under Xvfb (Mesa
+software rasterization) MAE ≤ 6.0 / >24 ≤ 5% for `home` and `overview`. CPU
+raster is canonical: committed stills are verified by
+`./tools/zig build screenshots-check` in CI, and the CPU-vs-GL parity smoke
+(`qa/xvfb_smoke.sh`) is part of strict `check-ci`; a missing Xvfb/Mesa GLX is a
+hard failure there, never a fabricated pass.
 
 ## 11. Implementation checklist
 

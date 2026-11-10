@@ -43,20 +43,21 @@ unavailable() { # reason
     exit 0
 }
 
-command -v xvfb-run >/dev/null 2>&1 || unavailable "required tool unavailable: xvfb-run"
+XVFB_RUN=${XSPROF_XVFB_RUN:-xvfb-run}
+command -v "$XVFB_RUN" >/dev/null 2>&1 || unavailable "required tool unavailable: xvfb-run (XVFB_RUN=${XVFB_RUN:-<unset>})"
 [ -x "$BIN" ] || unavailable "binary missing: $BIN (run ./tools/zig build)"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 export XSPROF_STATE_DIR="$TMP/state"
-out=$(xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" \
+out=$("$XVFB_RUN" -a -s "-screen 0 1280x720x24 +extension GLX +render" \
     "$BIN" ui --live --smoke --duration 250 2>&1)
 printf '%s\n' "$out"
 printf '%s' "$out" | grep -q "live smoke:" || {
     echo "native_live_smoke: FAIL (no live controller status line)" >&2
     exit 1
 }
-tail=$(xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" \
+tail=$("$XVFB_RUN" -a -s "-screen 0 1280x720x24 +extension GLX +render" \
     "$BIN" ui --follow-recorder "$ROOT/fixtures/ui/design/recorder" --smoke --duration 400 2>&1)
 printf '%s\n' "$tail"
 printf '%s' "$tail" | grep -q "live smoke:" || {

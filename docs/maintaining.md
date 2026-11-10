@@ -50,8 +50,8 @@ aarch64 runners and `check` on macOS. The release preflight runs `check-ci` and
 
 Useful individual steps: `test`, `fuzz`, `fmt-check`, `lines`, `design-check`,
 `repo-size`, `docs-links`, `screenshots-check`, `cli-parity`, `cli-manifest`,
-`perf-smoke`, `compact-roundtrip`, `a11y-smoke`, `xsui-package`, platform
-smokes (`xvfb-smoke`, `native-live-smoke`), and the VM gates
+`perf-smoke`, `quickstart-smoke`, `compact-roundtrip`, `a11y-smoke`,
+`xsui-package`, platform smokes (`xvfb-smoke`, `native-live-smoke`), and the VM gates
 (`live-smoke`, `service-smoke`, `retention-bench`). Never run privileged gates
 on a production host.
 

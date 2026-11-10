@@ -441,17 +441,23 @@ fn interfaceReadback(
     return self.readback(allocator, list, target, background);
 }
 
+/// Static vtable: the adapter must outlive the returned interface. A vtable
+/// built as `&.{ ... }` inside this function would point at a stack temporary
+/// and crash later when the interface is called (observed in the Xvfb parity
+/// smoke), so it lives at file scope. Readback capability is checked at call
+/// time in `Renderer.readback`; `readPixels` fails closed with
+/// `error.ReadbackUnsupported` when the driver lacks the entry points.
+const interface_vtable: xsui.gpu.Renderer.VTable = .{
+    .backend = .gl,
+    .deinit = interfaceDeinit,
+    .resize = interfaceResize,
+    .draw = interfaceDraw,
+    .readback = interfaceReadback,
+};
+
 /// Adapts a concrete renderer to the public `xsui.gpu.Renderer` contract.
-/// Readback is advertised only when the driver exposes the framebuffer/read
-/// entry points, so callers can fail closed instead of trusting fake pixels.
 pub fn interfaceFor(self: *Renderer) xsui.gpu.Renderer {
-    return .{ .context = self, .vtable = &.{
-        .backend = .gl,
-        .deinit = interfaceDeinit,
-        .resize = interfaceResize,
-        .draw = interfaceDraw,
-        .readback = if (self.gl.readbackReady()) &interfaceReadback else null,
-    } };
+    return .{ .context = self, .vtable = &interface_vtable };
 }
 
 test "gl capability reports an explicit state" {

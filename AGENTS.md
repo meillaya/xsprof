@@ -73,6 +73,7 @@ its schemas were removed; do not reintroduce them. Historical material lives in
 ./tools/zig build cli-parity       # process-level read-only CLI behavior
 ./tools/zig build cli-manifest     # committed CLI manifest is current
 ./tools/zig build perf-smoke       # bounded hot-path performance floor
+./tools/zig build quickstart-smoke # headless first-run workflow (why/metrics/validate/incident)
 ./tools/zig build compact-roundtrip # .xsraw decode/verify/corruption gate
 ./tools/zig build a11y-smoke       # deterministic accessibility tree
 ./tools/zig build xsui-package     # standalone UI package gate

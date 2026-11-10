@@ -47,14 +47,15 @@ unavailable() { # reason
     exit 0
 }
 
-command -v xvfb-run >/dev/null 2>&1 || unavailable "required tool unavailable: xvfb-run"
+XVFB_RUN=${XSPROF_XVFB_RUN:-xvfb-run}
+command -v "$XVFB_RUN" >/dev/null 2>&1 || unavailable "required tool unavailable: xvfb-run (XVFB_RUN=${XVFB_RUN:-<unset>})"
 [ -x "$BIN" ] || unavailable "binary missing: $BIN (run ./tools/zig build)"
 
 # Keep hidden smokes deterministic: isolated state dir, no user ui-settings.json.
 XSPROF_STATE_DIR=${XSPROF_STATE_DIR:-${TMPDIR:-/tmp}/xsprof-smoke-state}
 export XSPROF_STATE_DIR
 cd "$ROOT" 2>/dev/null || true
-smoke_log=$(xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render" \
+smoke_log=$("$XVFB_RUN" -a -s "-screen 0 1280x720x24 +extension GLX +render" \
     "$BIN" ui --smoke --resize 900x600 --a11y 2>&1) && smoke_rc=0 || smoke_rc=$?
 printf '%s\n' "$smoke_log"
 if [ "$smoke_rc" != 0 ]; then

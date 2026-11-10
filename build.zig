@@ -174,6 +174,11 @@ pub fn build(b: *std.Build) void {
     const perf_smoke_step = b.step("perf-smoke", "Bounded hot-path performance floor");
     perf_smoke_step.dependOn(&perf_smoke.step);
 
+    const quickstart_smoke = b.addSystemCommand(&.{ "sh", "qa/quickstart_smoke.sh" });
+    quickstart_smoke.step.dependOn(b.getInstallStep());
+    const quickstart_smoke_step = b.step("quickstart-smoke", "Headless first-run workflow smoke");
+    quickstart_smoke_step.dependOn(&quickstart_smoke.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -265,6 +270,7 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&unsafe_matrix.step);
     check.dependOn(&cli_parity.step);
     check.dependOn(&cli_manifest.step);
+    check.dependOn(&quickstart_smoke.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
     check.dependOn(&xsui_package.step);
