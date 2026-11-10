@@ -72,7 +72,7 @@ cp packaging/linux/xsprof.svg "$DIST/share/icons/hicolor/scalable/apps/xsprof.sv
 cp packaging/sysusers/xsprof.conf "$DIST/lib/sysusers.d/xsprof.conf"
 sh tools/gen_completions.sh "$COMPLETIONS_BIN" "$DIST/share"
 cp README.md THIRD_PARTY_NOTICES.md LICENSE CHANGELOG.md "$DIST/share/doc/xsprof/"
-for guide in flight-recorder compare-ci host-probes quickstart top-why install; do
+for guide in flight-recorder compare-ci quickstart top-why install; do
     cp "docs/guides/$guide.md" "$DIST/share/doc/xsprof/"
 done
 if [ "$OS" = linux ]; then
