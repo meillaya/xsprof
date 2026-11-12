@@ -1,10 +1,34 @@
 # Changelog
 
+## 0.6.1 — 2026-11-12
+
+Fix-forward release for the published v0.6.0 AppImage. Releases are tag-first,
+so `v0.6.0` and its notes stay as published; the broken artifact is superseded
+by this release.
+
+### Fixed
+
+- The published `Xsprof-0.6.0-x86_64.AppImage` trapped with `SIGILL` (exit 132)
+  on x86_64 hosts without the CI runner's AVX-512 feature set. `gdb` showed
+  `vmovups %zmm0` in `start.main`: `tools/package_appimage.sh` compiled the
+  host-native binary with the runner's CPU features. All packaging scripts now
+  pin `-Dcpu=baseline` (`tools/package.sh` already did;
+  `tools/package_appimage.sh` and `tools/package_deb.sh` are fixed), so artifacts
+  use the target's baseline CPU feature set instead of the build host's. The
+  v0.6.0 tarball and Debian package were already baseline-built and are
+  unaffected; the v0.6.0 AppImage is superseded by this release.
+- Added a fail-closed ISA-portability gate: `qa/cpu_portability.sh --binary
+  FILE` disassembles each packaged binary and rejects VEX/EVEX-encoded x86_64
+  instructions (and SVE/SVE2 on aarch64). `qa/appimage_smoke.sh` and
+  `qa/package_layout.sh` run it on every artifact, and the release lane runs
+  those gates with `XSPROF_REQUIRE_TOOLS=1`, so a missing `readelf`/`objdump`
+  fails the lane instead of silently skipping the check.
+
 ## 0.6.0 — 2026-11-10
 
 Brownfield repositioning to a trust-first Linux scheduler flight recorder with
-an optional, frozen native viewer. This release is prepared but not yet tagged:
-the root/VM gates and CI/release lanes must run before a tag is cut.
+an optional, frozen native viewer. This release was tagged `v0.6.0` and
+published on 2026-11-10; its AppImage artifact is superseded by 0.6.1.
 
 ### Changed
 

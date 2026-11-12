@@ -1,6 +1,9 @@
 #!/bin/sh
 # Assert release tarball, Debian and AppImage layouts. Native-only: no web/
-# WASM assets ship in any package.
+# WASM assets ship in any package. Every packaged binary that can be reached is
+# also checked for CPU-readiness against the architecture baseline with
+# qa/cpu_portability.sh (x86_64: no VEX/EVEX instructions; aarch64: no SVE/
+# SVE2), so a native-CPU build cannot ship again (v0.6.0 AppImage SIGILL).
 # Usage: sh qa/package_layout.sh [--tarball FILE] [--deb FILE] [--appimage FILE]
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -46,6 +49,16 @@ reject_web_assets() { # label path-list
     fi
 }
 
+check_cpu_portability() { # label binary
+    label=$1
+    binary=$2
+    echo "package_layout: checking CPU portability of $label"
+    if ! sh "$ROOT/qa/cpu_portability.sh" --binary "$binary"; then
+        echo "package_layout: FAIL ($label is not CPU-baseline portable)" >&2
+        exit 1
+    fi
+}
+
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
@@ -79,6 +92,7 @@ lib/systemd/system/xsprof-recorder.service" ;;
     done
     tar -xzf "$TARBALL" -C "$TMP"
     [ -x "$TMP/$root/bin/xsprof" ] || { echo "package_layout: bin/xsprof is not executable" >&2; exit 1; }
+    check_cpu_portability "tarball bin/xsprof" "$TMP/$root/bin/xsprof"
     echo "package_layout: PASS tarball layout"
 fi
 
@@ -99,6 +113,7 @@ if [ -n "$APPIMAGE" ]; then
     done
     [ -x "$SQ/AppRun" ] || { echo "package_layout: AppImage AppRun is not executable" >&2; exit 1; }
     [ -x "$SQ/usr/bin/xsprof" ] || { echo "package_layout: AppImage binary is not executable" >&2; exit 1; }
+    check_cpu_portability "AppImage usr/bin/xsprof" "$SQ/usr/bin/xsprof"
     find "$SQ" -type f > "$TMP/appimage-listing"
     reject_web_assets "AppImage" "$TMP/appimage-listing"
     if find "$SQ" \( -name 'libX11*' -o -name 'libxcb*' -o -name 'libGL*' -o -name 'libEGL*' -o -name 'libgbm*' -o -name 'libdrm*' -o -name '*.so*' \) | grep -q .; then
@@ -127,6 +142,13 @@ if [ -n "$DEB" ]; then
                 exit 1
             }
         done
+        mkdir -p "$TMP/deb-root"
+        dpkg-deb -x "$DEB" "$TMP/deb-root"
+        [ -x "$TMP/deb-root/usr/bin/xsprof" ] || {
+            echo "package_layout: deb usr/bin/xsprof is not executable" >&2
+            exit 1
+        }
+        check_cpu_portability "deb usr/bin/xsprof" "$TMP/deb-root/usr/bin/xsprof"
         echo "package_layout: PASS deb layout"
     fi
 fi

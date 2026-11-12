@@ -34,7 +34,10 @@ TOOL=$(sh tools/fetch_appimagetool.sh)
 
 PREFIX="$ROOT/zig-out/appimage"
 rm -rf "$PREFIX"
-./tools/zig build -Doptimize=ReleaseSafe --prefix "$PREFIX"
+# Release binaries must not inherit the build host's CPU features. A native
+# build on the CI runner emitted AVX-512 (the v0.6.0 AppImage trapped with
+# SIGILL on an AMD Zen3 host); -Dcpu=baseline keeps the shipped binary portable.
+./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline --prefix "$PREFIX"
 [ -x "$PREFIX/bin/xsprof" ] || {
     echo "package_appimage: binary missing after build" >&2
     exit 1

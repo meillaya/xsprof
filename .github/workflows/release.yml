@@ -124,6 +124,12 @@ jobs:
             deb_arch: arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    # Fail closed: the packaging and layout steps run qa/appimage_smoke.sh and
+    # qa/package_layout.sh, which both call qa/cpu_portability.sh. Without this
+    # a missing readelf/objdump would downgrade the CPU-portability gate to a
+    # silent SKIP, which is exactly how the v0.6.0 AppImage escaped the lane.
+    env:
+      XSPROF_REQUIRE_TOOLS: "1"
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain

@@ -62,44 +62,46 @@ build provenance; there is no macOS artifact.
 
 | Artifact | Contents |
 |---|---|
-| `xsprof-0.6.0-linux-<arch>.tar.gz` | binary, fixture, desktop entry/icon, completions, systemd unit, sysusers entry |
-| `xsprof_0.6.0-1_<arch>.deb` | same layout under `/usr`; unit installed but not enabled |
-| `Xsprof-0.6.0-<arch>.AppImage` | single-file Linux app; host X11/GL for the viewer |
+| `xsprof-0.6.1-linux-<arch>.tar.gz` | binary, fixture, desktop entry/icon, completions, systemd unit, sysusers entry |
+| `xsprof_0.6.1-1_<arch>.deb` | same layout under `/usr`; unit installed but not enabled |
+| `Xsprof-0.6.1-<arch>.AppImage` | single-file Linux app; host X11/GL for the viewer |
 
 Verify a download:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify Xsprof-0.6.0-x86_64.AppImage -R meillaya/xsprof
+gh attestation verify Xsprof-0.6.1-x86_64.AppImage -R meillaya/xsprof
 ```
 
 ### AppImage
 
 ```sh
-chmod +x Xsprof-0.6.0-x86_64.AppImage
-./Xsprof-0.6.0-x86_64.AppImage version
-./Xsprof-0.6.0-x86_64.AppImage record --duration 10s --output session.ndjson
+chmod +x Xsprof-0.6.1-x86_64.AppImage
+./Xsprof-0.6.1-x86_64.AppImage version
+./Xsprof-0.6.1-x86_64.AppImage record --duration 10s --output session.ndjson
 ```
 
 The AppImage links the host glibc and does not bundle glibc, X11, or GL
-drivers. Without FUSE (containers, CI):
+drivers. Release artifacts are built for the baseline CPU and pass the
+ISA-portability gate, so they run on x86_64 hosts without AVX-512 (and on
+aarch64 hosts without SVE). Without FUSE (containers, CI):
 
 ```sh
-APPIMAGE_EXTRACT_AND_RUN=1 ./Xsprof-0.6.0-x86_64.AppImage version
+APPIMAGE_EXTRACT_AND_RUN=1 ./Xsprof-0.6.1-x86_64.AppImage version
 ```
 
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i xsprof_0.6.0-1_amd64.deb
+sudo dpkg -i xsprof_0.6.1-1_amd64.deb
 xsprof version
 ```
 
 ### Tarball
 
 ```sh
-tar -xzf xsprof-0.6.0-linux-x86_64.tar.gz
-./xsprof-0.6.0-linux-x86_64/bin/xsprof version
+tar -xzf xsprof-0.6.1-linux-x86_64.tar.gz
+./xsprof-0.6.1-linux-x86_64/bin/xsprof version
 ```
 
 Copy `bin/xsprof` to `/usr/local/bin`, `share/*` to

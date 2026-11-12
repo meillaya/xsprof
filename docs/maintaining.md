@@ -115,20 +115,29 @@ A trust-first repository must stay cheap to clone, mirror, and review:
    x86_64/aarch64, and `check` on macOS. Do not tag with a red or skipped gate.
 3. **Run `./tools/zig build check-vm`** on a disposable KVM Linux VM (live,
    service, retention). Save the output.
-4. **Commit the release notes** under a new `CHANGELOG.md` heading; review that
+4. **Verify packaged-binary CPU portability before tagging.** Build the release
+   artifacts from the candidate tree — a `workflow_dispatch` release-lane dry run
+   builds and smoke-tests them without publishing, or build locally with
+   `tools/package*.sh` — and run the ISA-portability gate on every packaged
+   binary with `sh qa/cpu_portability.sh --binary <binary>` (the same gate runs
+   inside `qa/appimage_smoke.sh` and `qa/package_layout.sh`). The release lane
+   runs it with `XSPROF_REQUIRE_TOOLS=1`: a missing `readelf`/`objdump` is a hard
+   failure, never a silent skip. Do not tag unless it passes; a binary that only
+   runs on the build host is a release blocker.
+5. **Commit the release notes** under a new `CHANGELOG.md` heading; review that
    `README.md` names the release version.
-5. **Tag `vX.Y.Z` and push the tag.** Publishing happens only for a pushed tag
+6. **Tag `vX.Y.Z` and push the tag.** Publishing happens only for a pushed tag
    equal to the manifest version; a tag-driven run is the only path to a
    release. Never rewrite history after a tag — fix forward.
-6. **The release workflow** (`release.yml`) builds Linux tarballs, Debian
+7. **The release workflow** (`release.yml`) builds Linux tarballs, Debian
    packages, and AppImages for x86_64/aarch64, runs per-artifact checksums,
    creates SHA256SUMS, attests build provenance with Sigstore, and publishes.
    macOS artifacts and Homebrew/notarization tooling do not exist.
-7. **Attach evidence to the release** (not git): the `check-vm` logs/results,
+8. **Attach evidence to the release** (not git): the `check-vm` logs/results,
    the full macOS-VM capture (`macos-vm-sched.ndjson`, sha256
    `f658213f58939f69f5a887b1211da5bf6cbb7c728111dd4a2ecc93b3c74a39a5`), and any
    benchmark/measurement output referenced by docs.
-8. **Verify the published release**: `sha256sum -c SHA256SUMS`,
+9. **Verify the published release**: `sha256sum -c SHA256SUMS`,
    `gh attestation verify <file> -R meillaya/xsprof`, and a quick install
    (`version`, `help`, `doctor`) from at least the tarball.
 

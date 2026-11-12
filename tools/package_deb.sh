@@ -47,10 +47,12 @@ command -v dpkg-deb >/dev/null 2>&1 || {
 
 # Build the target binary, and a host-native binary only to render
 # arch-independent shell completions. A native package reuses one build.
+# -Dcpu=baseline keeps the shipped binary portable: a native build on a newer
+# host (or CI runner) may require CPU features the target host lacks.
 PREFIX="$ROOT/zig-out/package-deb"
 HOST_PREFIX="$ROOT/zig-out/package-deb-host"
 rm -rf "$PREFIX" "$HOST_PREFIX"
-./tools/zig build -Doptimize=ReleaseSafe --prefix "$HOST_PREFIX"
+./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline --prefix "$HOST_PREFIX"
 NATIVE=0
 if [ -z "${XSPROF_TARGET:-}" ]; then
     case "$(uname -m)/$DEB_ARCH" in
@@ -60,7 +62,7 @@ fi
 if [ "$NATIVE" = 1 ]; then
     PREFIX="$HOST_PREFIX"
 else
-    ./tools/zig build -Doptimize=ReleaseSafe -Dtarget="$TARGET" --prefix "$PREFIX"
+    ./tools/zig build -Doptimize=ReleaseSafe -Dcpu=baseline -Dtarget="$TARGET" --prefix "$PREFIX"
 fi
 [ -x "$HOST_PREFIX/bin/xsprof" ] || { echo "package_deb: host binary missing" >&2; exit 1; }
 [ -x "$PREFIX/bin/xsprof" ] || { echo "package_deb: target binary missing" >&2; exit 1; }

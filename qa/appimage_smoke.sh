@@ -1,7 +1,9 @@
 #!/bin/sh
 # Smoke-test a built xsprof AppImage without FUSE and without opening a window.
 # It extracts the AppImage, checks the AppDir contents (native binary, fixture,
-# desktop entry, icon, AppRun; no web assets; no bundled X11/GL drivers), runs
+# desktop entry, icon, AppRun; no web assets; no bundled X11/GL drivers),
+# verifies the binary has no instructions above the CPU baseline
+# (qa/cpu_portability.sh: VEX/EVEX on x86_64, SVE/SVE2 on aarch64), runs
 # version/help and a headless CPU snapshot through AppRun, and also runs the
 # AppImage runtime path with APPIMAGE_EXTRACT_AND_RUN=1.
 #
@@ -72,6 +74,16 @@ if command -v readelf >/dev/null 2>&1; then
         echo "appimage_smoke: binary has a link-time X11/GL dependency" >&2
         exit 1
     fi
+fi
+
+# A native-CPU build from an AVX-512 runner traps with SIGILL on older hosts and
+# still runs on its build host, so executing the artifact cannot catch it.
+# Inspect the machine code instead; the release lane runs this fail-closed via
+# XSPROF_REQUIRE_TOOLS=1, so missing inspection tools fail rather than skip.
+echo "appimage_smoke: checking CPU portability of the extracted binary"
+if ! sh "$ROOT/qa/cpu_portability.sh" --binary "$SQ/usr/bin/xsprof"; then
+    echo "appimage_smoke: FAIL (AppImage binary is not CPU-baseline portable)" >&2
+    exit 1
 fi
 
 echo "appimage_smoke: running AppRun version/help/snapshot"

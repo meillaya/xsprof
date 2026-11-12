@@ -154,6 +154,31 @@ X11/GL/mesa/driver/shared libraries: the binary keeps `dlopen`ing the host's
 the Ubuntu 24.04 baseline). The AppImage is unsigned; there is no code-signing
 claim for Linux artifacts beyond checksums and build provenance.
 
+### Baseline-CPU portability
+
+Every packaged binary is a **baseline-CPU build**:
+
+- `tools/package.sh`, `tools/package_deb.sh`, and `tools/package_appimage.sh`
+  pass `-Dcpu=baseline` to every Zig build, native or cross. A default native
+  build uses the build host's (or CI runner's) CPU features: the v0.6.0 AppImage
+  was built that way and trapped with `SIGILL` (exit 132; `gdb` showed
+  `vmovups %zmm0` in `start.main`) on an AMD Zen3 host, because it required
+  AVX-512.
+- `qa/cpu_portability.sh --binary FILE` disassembles a packaged binary and fails
+  on VEX/EVEX-encoded x86_64 instructions (mnemonics beginning with `v`, except
+  legacy `verr`/`verw`) and on SVE/SVE2 instructions or vector/predicate
+  registers on aarch64; other architectures SKIP with a reason.
+- `qa/appimage_smoke.sh` and `qa/package_layout.sh` call the gate on the AppImage
+  binary, the tarball binary, and (when `dpkg-deb` is available) the deb binary.
+  The release lane runs those gates with `XSPROF_REQUIRE_TOOLS=1`, so a missing
+  `readelf`/`objdump` is a hard failure, never a silent skip.
+
+The v0.6.0 AppImage smoke only *executed* the artifact on the build host, whose
+CPU supports the same features the compiler targeted, so a host-native binary
+passed; it never inspected the machine code for instructions older hosts cannot
+run. The portability gate is independent of where it runs: a capable x86_64
+runner still rejects AVX/AVX-512 code in a shipped binary.
+
 ## Release workflow
 
 `.github/workflows/release.yml` is a **Linux-only, tag-first** lane:
@@ -166,7 +191,10 @@ claim for Linux artifacts beyond checksums and build provenance.
   packages but can never run the publish job.
 - The `linux` job builds x86_64/aarch64 tarballs and debs, packages and
   FUSE-free-smokes the AppImages, and verifies all layouts with
-  `qa/package_layout.sh`.
+  `qa/package_layout.sh`. Packaging/smoke steps run with
+  `XSPROF_REQUIRE_TOOLS=1`, so each artifact's CPU-portability check is
+  fail-closed: a missing `readelf`/`objdump` fails the lane instead of skipping
+  the check.
 - `publish` verifies per-artifact checksums, builds `SHA256SUMS`, attests build
   provenance with Sigstore, and creates the GitHub release. There is no macOS
   job, no notarization secret handling, no Homebrew tap, and no token-bearing

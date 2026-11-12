@@ -563,7 +563,7 @@ test "version is stable" {
         Exit.ok,
         try testRun(&test_env, &args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.6.0\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.6.1\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {
