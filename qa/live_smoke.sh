@@ -45,6 +45,13 @@ say "why"
     fail "why failed: $(cat "$TMP/why.err")"
 grep -q '"schema":"xsprof/why/v1"' "$TMP/why.json" || fail "why schema missing"
 grep -q '"host_mutation":false' "$TMP/why.json" || fail "why mutation flag missing"
+grep -q '"preemptions":' "$TMP/why.json" || fail "why JSON missing preemptions"
+# The capture path must canonicalize the kernel preemption marker (R+) to
+# running (0); a raw marker means capture and imported perf scripts would
+# disagree about involuntary preemption (the v0.7 fix-forward).
+if grep -Eq '"c":(256|512),' "$TMP/rec.ndjson"; then
+    fail "capture wrote a raw preemption marker instead of canonical running"
+fi
 
 say "daemon + history"
 STATE="$TMP/state"
@@ -56,6 +63,9 @@ grep -q '"raw_codec":"compact_v1"' "$STATE/manifest.json" || fail "manifest raw_
     fail "capture --last failed on compact segments"
 grep -q '"capture_stop"' "$TMP/daemon-window.ndjson" || fail "capture_stop missing from extraction"
 grep -q '"host_mutation":false' "$TMP/daemon-window.ndjson" || fail "compact extraction omitted host_mutation=false"
+if grep -Eq '"c":(256|512),' "$TMP/daemon-window.ndjson"; then
+    fail "compact extraction carries a raw preemption marker"
+fi
 if grep -q 'capture_corrupt\|capture_truncated_tail' "$TMP/daemon-window.ndjson"; then
     fail "clean daemon extraction emitted a gap marker"
 fi

@@ -38,11 +38,15 @@
 //! (the kernel's `TASK_REPORT` symbols in `include/trace/events/sched.h`).
 //! `R+` is the tracepoint's preemption marker; it is normalized to the
 //! canonical running value (`c = 0`) because that is the value the causal
-//! latency analysis uses to detect involuntary preemption. Symbols map to the
-//! kernel ABI bits documented in `src/core/sched_state.zig`:
-//! `R`=0, `S`=1, `D`=2, `T`=4, `t`=8, `X`=16, `Z`=32, `P`=64, `I`=128;
-//! the preempted flag is not representable and is dropped with `R+` -> 0.
-//! Other flag combinations and unknown spellings are rejected.
+//! latency analysis uses to detect involuntary preemption. Live capture drops
+//! the kernel's equivalent raw marker value the same way, so imported and
+//! recorded events decode identically. Symbols map to the reported-state codes
+//! documented in `src/core/sched_state.zig`:
+//! `R`=0, `S`=1, `D`=2, `T`=4, `t`=8, `X`=16, `Z`=32, `P`=64, `I`=128
+//! (modern `TASK_REPORT_IDLE`, an idle wait; the classic encoding used the same
+//! value for `TASK_DEAD`); the preempted flag is not representable and is
+//! dropped with `R+` -> 0. Other flag combinations and unknown spellings are
+//! rejected.
 //!
 //! `sched_wakeup` payload:
 //!

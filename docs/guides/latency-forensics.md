@@ -120,11 +120,13 @@ bound, not a measurement of zero.
 
 ### Preemption: was the task runnable but not running?
 
-`latency.preemptions` counts switch-outs with `prev_state == running` that
-resumed without an intervening wakeup — the task was runnable and got the CPU
-taken away. `preempt_p95_us` is an upper bound from the same log2 histogram
-buckets as the wait metrics. `preempt_unresolved` counts preemption waits whose
-resume was not observed; they stay unknown.
+`latency.preemptions` counts switch-outs whose canonical `prev_state` is
+running that resumed without an intervening wakeup — the task was runnable and
+got the CPU taken away. The kernel's `R+` preemption marker is normalized to
+running on capture and on import, so recorded and imported traces count it
+alike. `preempt_p95_us` is an upper bound from the same log2 histogram buckets
+as the wait metrics. `preempt_unresolved` counts preemption waits whose resume
+was not observed; they stay unknown.
 
 ## 3. Bundle the evidence
 
@@ -252,8 +254,16 @@ Practical translation notes:
 - **Import subset.** The `perf script` importer accepts only the documented
   default-layout subset (two sched events, printable ASCII comms); it does not
   reconstruct lost-event records or custom field layouts, and `R+` preemption
-  is normalized to the canonical running state. Files outside the subset are
-  refused with line diagnostics instead of partially imported.
+  is normalized to the canonical running state, matching live capture. Files
+  outside the subset are refused with line diagnostics instead of partially
+  imported.
+- **State encoding across kernel generations.** `c` carries the state code the
+  supported 7.x tracepoints report, with the preemption marker normalized to
+  running. Captures from older kernels that report the classic `__state`
+  bitmask decode best-effort: primary states match, but a classic exit-dead
+  switch-out can be labeled `idle` because `0x80` is `TASK_DEAD` in that
+  encoding and `TASK_REPORT_IDLE` in the supported one. Unknown bits stay
+  `unknown`, never guessed.
 - **Read-only by design.** xsprof never applies an advisor recommendation,
   never tunes the scheduler, and never suggests privilege escalation; fixing
   the cause is still an operator decision.

@@ -370,7 +370,10 @@ pub const Index = struct {
             outgoing.last_cpu = entry.cpu;
             outgoing.running = false;
             outgoing.wakeup_pending = false;
-            if (entry.c == sched_state.task_running) {
+            // Legacy captures may still carry the kernel preemption marker:
+            // normalize before deciding (`c == 0` == left the CPU runnable).
+            const prev_state = sched_state.normalizePrevState(entry.c);
+            if (prev_state == sched_state.task_running) {
                 // Still runnable: this is a preemption candidate. It becomes a
                 // measured preemption only if the task runs again without an
                 // intervening wakeup (an already-runnable task needs no wakeup).
@@ -382,7 +385,7 @@ pub const Index = struct {
                 }
             } else {
                 outgoing.sleep_since_ns = now;
-                outgoing.sleep_cause = sched_state.causeOf(entry.c);
+                outgoing.sleep_cause = sched_state.causeOf(prev_state);
                 outgoing.preempt_since_ns = null;
                 outgoing.preempt_wakeup = false;
             }
@@ -780,6 +783,32 @@ test "metrics attribute offcpu causes and preemptions" {
         }
     }
     try std.testing.expect(b_found);
+}
+
+// The raw tracepoint preemption marker (TASK_REPORT_MAX) must count as an
+// involuntary preemption, never as an "other" off-CPU cause.
+test "metrics normalize the kernel preemption marker" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var index = Index.init(arena.allocator());
+    defer index.deinit();
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_switch, .ts_ns = 1_000_000, .a = 2, .b = 1, .c = sched_state.preempt_marker, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 2_000_000, .a = 1, .b = 2, .c = 1, .comm = "a" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(arena.allocator());
+    try std.testing.expectEqual(@as(u64, 1), metrics.preemptions);
+    try std.testing.expectEqual(@as(u64, 0), metrics.causes[@backingInt(sched_state.Cause.other)].count);
+    try std.testing.expectEqual(@as(u64, 0), metrics.offcpu_samples);
+    var a_found = false;
+    for (metrics.tasks) |task| {
+        if (std.mem.eql(u8, task.comm, "a")) {
+            a_found = true;
+            try std.testing.expectEqual(@as(u64, 1), task.preemptions);
+        }
+    }
+    try std.testing.expect(a_found);
 }
 
 // The incremental pass and the bounded second pass must agree on the same

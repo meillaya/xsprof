@@ -33,12 +33,28 @@ for the subject, and the `subjectPid()` / `actorPid()` helpers in
 | `pid`, `tid` | The task that was switched **out** (perf's sample task at the switch). |
 | `a` | The task switched **in** (`next_pid`). This is the subject. |
 | `b` | The task switched **out** (`prev_pid`). This is the actor. |
-| `c` | The previous task's `prev_state` value. |
+| `c` | The previous task's state at the switch, canonicalized (see below). |
 | `comm` | The **next** task's name, i.e. the subject's comm. |
 
 `subjectPid()` returns `a`; `actorPid()` returns `b`. This is why a row can
 look "self-referential" (`pid == b`) without being malformed: `pid` is the
 outgoing task and `b` repeats it deliberately.
+
+`c` is a bounded state code, not necessarily the raw
+`task_struct.__state` bitmask. Supported 7.x kernels report the compact
+*reported* encoding: `0` running, `1` interruptible, `2` uninterruptible,
+`4` stopped, `8` traced, `16` exit-dead, `32` zombie, `64` parked, `128`
+idle (`TASK_REPORT_IDLE`). An involuntarily preempted task is still runnable
+and is flagged by the kernel with a separate marker (`TASK_REPORT_MAX`,
+`0x100` on 7.x kernels, `0x200` on classic encodings; `perf script` prints it
+as `R+`). xsprof normalizes that marker to canonical running (`0`) both when
+recording and when importing, so `c == 0` consistently means "left the CPU
+still runnable" (a preemption candidate) and captures and imported traces
+decode alike. Captures written before this normalization may carry the raw
+marker; analysis normalizes it on read. Classic-kernel captures put the raw
+`__state` bitmask in the field: primary states decode identically, while
+`0x80` is decoded as idle because that is its meaning on the supported 7.x
+encoding (classic `TASK_DEAD` shares the value).
 
 ### `sched_wakeup`
 
@@ -138,6 +154,11 @@ major flag.
 | `marker` | `detail` carries the text. `pid`/`tid` are `-1` except session metadata: `capture_owner` records the recorder pid, `cpu_llc cpu=N llc=N` and `host_memory buddy_fragmentation=...` carry data in `detail`. `a`/`b`/`c` are `0`. |
 | `capability`, `refusal`, `incident` | `detail` is `name:STATE:reason` for capabilities; refusal/incident rows are explicit failure records. No packed fields. |
 | `runqueue_sample`, `priority_inversion`, `lock_contention`, `tlb_miss`, `cache_miss`, `huge_page`, `numa_balance`, `alloc_sample`, `malloc_hotspot`, `runtime_sample` | Reserved for future collectors or replayed legacy rows. Treat `a`/`b`/`c` as `0` and do not synthesize meaning. |
+
+A captured `capability` row is still an `xsprof/event/v1` event. The
+fail-closed diagnostic record a CLI command prints to stdout on
+SKIP/REFUSE is a separate `xsprof/capability/v1` document
+(`schemas/xsprof/capability.v1.schema.json`), not an event row.
 
 ## Ordering and timestamps
 

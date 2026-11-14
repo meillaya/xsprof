@@ -33,6 +33,7 @@ const schema_files = [_]SchemaFile{
     .{ .file = "advisor-report.v1.schema.json", .contract = "xsprof/advisor-report/v1" },
     .{ .file = "aggregates.v1.schema.json", .contract = "xsprof/aggregates/v1" },
     .{ .file = "bpf-gate.v1.schema.json", .contract = "xsprof/bpf-gate/v1" },
+    .{ .file = "capability.v1.schema.json", .contract = "xsprof/capability/v1" },
     .{ .file = "capture-summary.v1.schema.json", .contract = "xsprof/capture-summary/v1" },
     .{ .file = "cgroup.v1.schema.json", .contract = "xsprof/cgroup/v1" },
     .{ .file = "compare.v1.schema.json", .contract = "xsprof/compare/v1" },
@@ -65,6 +66,7 @@ const WireSample = struct {
 const wire_samples = [_]WireSample{
     .{ .path = "tests/golden/root/advise_vm_fragmented.json", .contract = "xsprof/advisor-report/v1" },
     .{ .path = "tests/golden/root/aggregates_v1_golden.json", .contract = "xsprof/aggregates/v1" },
+    .{ .path = "tests/golden/root/capability_v1_golden.json", .contract = "xsprof/capability/v1" },
     .{ .path = "tests/golden/root/event_v1_golden.json", .contract = "xsprof/event/v1" },
     .{ .path = "tests/golden/root/event_v1_page_fault_golden.json", .contract = "xsprof/event/v1" },
     .{ .path = "tests/golden/root/journal_v1_golden.json", .contract = "xsprof/journal/v1" },
@@ -744,4 +746,54 @@ test "latency attribution wire fields validate" {
         \\"window":{"duration_ms":1,"first_us":0,"last_us":1,"retained_ms":1,
         \\"trimmed":false}}
     , "incident-latency", 1);
+}
+
+// The fail-closed CLI diagnostic record is a `xsprof/capability/v1` document,
+// not an `xsprof/event/v1` row: it is a probe result (name/state/reason), not a
+// captured event sample, and validating it against event.v1 must fail. The
+// committed golden is the CLI writer's byte output.
+test "capability records validate against their own schema" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var documents: [schema_files.len]schema.Schema = undefined;
+    try loadSchemas(allocator, &documents);
+    defer for (&documents) |*document| document.deinit();
+    const document = &documents[try contractIndex("xsprof/capability/v1")];
+
+    try validateDocument(document,
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"reason":"perf_event_paranoid=2 (fail-closed SKIP)",
+        \\"schema":"xsprof/capability/v1","state":"SKIP"}
+    , "capability-skip", 1);
+    try validateDocument(document,
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"reason":"tracefs unreadable","schema":"xsprof/capability/v1",
+        \\"state":"REFUSE"}
+    , "capability-refuse", 1);
+
+    // The old shape declared `xsprof/event/v1`; that discriminator is wrong.
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"reason":"x","schema":"xsprof/event/v1","state":"SKIP"}
+    ));
+    try std.testing.expectEqualStrings("const", document.failure.keyword);
+
+    // Missing required fields and unknown fields fail closed.
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"schema":"xsprof/capability/v1","state":"SKIP"}
+    ));
+    try std.testing.expectEqualStrings("required", document.failure.keyword);
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"reason":"x","schema":"xsprof/capability/v1","state":"SKIP","extra":1}
+    ));
+    try std.testing.expectEqualStrings("additionalProperties", document.failure.keyword);
+
+    // States stay in the bounded READY/DEGRADED/SKIP/REFUSE set.
+    try std.testing.expectError(error.ValidationFailed, document.validateText(
+        \\{"event":"capability","host_mutation":false,"name":"live_capture",
+        \\"reason":"x","schema":"xsprof/capability/v1","state":"OK"}
+    ));
 }

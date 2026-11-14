@@ -1,0 +1,1 @@
+{"event":"capability","host_mutation":false,"name":"stack_sampling","reason":"perf_event_paranoid=2; no CAP_PERFMON (fail-closed SKIP)","schema":"xsprof/capability/v1","state":"SKIP"}

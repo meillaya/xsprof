@@ -6,6 +6,7 @@ const builtin = @import("builtin");
 const event = @import("../core/event.zig");
 const json = @import("../core/json.zig");
 const loss = @import("../core/loss.zig");
+const sched_state = @import("../core/sched_state.zig");
 const proc = @import("../os/linux/proc.zig");
 const ring_mod = @import("ring.zig");
 const order = @import("order.zig");
@@ -562,7 +563,10 @@ fn emitRecord(self: *Capture, ring: *const Ring, bytes: []const u8) !void {
                     .tid = sample.tid,
                     .a = next_pid,
                     .b = prev_pid,
-                    .c = readU32(raw, fields.prev_state),
+                    // Canonicalize the kernel's preemption marker to running
+                    // (the importer does the same for `R+`) so `c == 0` means
+                    // "left the CPU still runnable" in every capture.
+                    .c = sched_state.normalizePrevState(readU32(raw, fields.prev_state)),
                     .comm = try commAt(self.batch_arena.allocator(), raw, fields.next_comm),
                 }),
                 .wakeup => {

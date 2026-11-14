@@ -48,7 +48,7 @@ were removed; historical material is in [`docs/history/`](../history/README.md).
 - `EventStore` is bounded. Overflow emits explicit loss markers; it never
   interpolates or silently drops.
 - Canonical wire form is `xsprof/event/v1` NDJSON: keys strictly ascending,
-  compact separators, `host_mutation=false` on every row. Twenty canonical
+  compact separators, `host_mutation=false` on every row. Twenty-one canonical
   schemas live in `schemas/xsprof/`.
 - Raw recorder storage is `xsprof/raw-segment/v1` compact blocks (`.xsraw`,
   ~12–13 bytes/event); extraction, incident, and viewer output remain canonical

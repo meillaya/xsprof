@@ -94,7 +94,7 @@ A trust-first repository must stay cheap to clone, mirror, and review:
 
 ## Wire schema policy
 
-- Twenty canonical schemas live in `schemas/xsprof/`; each has
+- Twenty-one canonical schemas live in `schemas/xsprof/`; each has
   `$id = https://xsprof.dev/schemas/<basename>`, a 2020-12 `$schema`, a root
   object type, and `properties.schema.const = xsprof/<name>/v1`.
 - The schema-conformance test root (`tests/schema.zig`, wired into

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xsprof.dev/schemas/capability.v1.schema.json",
+  "title": "xsprof fail-closed capability record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event",
+    "host_mutation",
+    "name",
+    "reason",
+    "schema",
+    "state"
+  ],
+  "properties": {
+    "event": { "const": "capability" },
+    "host_mutation": { "const": false },
+    "name": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "schema": { "const": "xsprof/capability/v1" },
+    "state": { "enum": ["READY", "DEGRADED", "SKIP", "REFUSE"] }
+  }
+}

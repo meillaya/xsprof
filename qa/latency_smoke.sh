@@ -140,8 +140,10 @@ analysis_mode() {
     assert_why_invariants "$TMP/why.json" "$TMP/why.txt" "latency fixture"
     say "analysis: golden stable, schema valid, invariants hold"
 
-    # 3. A real committed capture with legacy prev_state values must not break
-    # attribution (unknown/other causes stay explicit, never crash).
+    # 3. A real committed 7.x capture with raw kernel state codes (idle code and
+    # the preemption marker) must not break attribution (unknown/other causes
+    # stay explicit, never crash). The golden above locks the marker
+    # normalization; this checks the real-capture path end to end.
     "$BIN" why --input fixtures/real/macos-vm-sched.ndjson --json >"$TMP/real.json" ||
         fail "why failed on the real capture fixture"
     "$BIN" why --input fixtures/real/macos-vm-sched.ndjson >"$TMP/real.txt" ||

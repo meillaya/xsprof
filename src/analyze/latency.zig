@@ -11,10 +11,12 @@
 //!   cut too. Both cuts are counted, never silently dropped.
 //! * `analyze` is a bounded second pass over an already-materialized
 //!   `event.RawEvent` slice. It derives off-CPU causes from the switch-out
-//!   `prev_state`, preemption waits (switch-out with `prev_state == RUNNING`,
-//!   then switch-in without an intervening wakeup), and critical chains from the
-//!   same tracker. Durations use saturating subtraction so out-of-order legacy
-//!   rows degrade to zero instead of underflowing.
+//!   `prev_state`, preemption waits (a normalized running switch-out, then
+//!   switch-in without an intervening wakeup), and critical chains from the
+//!   same tracker. The kernel's `R+` preemption marker is normalized to running
+//!   before decoding, so captures and imported perf scripts agree. Durations use
+//!   saturating subtraction so out-of-order legacy rows degrade to zero instead
+//!   of underflowing.
 //!
 //! Both forms are deterministic, allocate only in bounded structures, and mark
 //! unknown data explicitly (`unknown`/`other` causes, unresolved counters,
@@ -335,7 +337,11 @@ pub fn analyze(allocator: std.mem.Allocator, events: []const event.RawEvent) !An
                 const incoming = pidOf(entry.a);
                 const outgoing = pidOf(entry.b);
                 if (outgoing > 0) {
-                    if (entry.c == sched_state.task_running) {
+                    // Legacy captures may still carry the kernel preemption
+                    // marker: normalize before deciding. `c == 0` then means
+                    // "left the CPU still runnable" in every ingest path.
+                    const prev_state = sched_state.normalizePrevState(entry.c);
+                    if (prev_state == sched_state.task_running) {
                         if (preempt.getPtr(outgoing)) |pending| {
                             pending.start_ns = now;
                             pending.woke = false;
@@ -346,11 +352,11 @@ pub fn analyze(allocator: std.mem.Allocator, events: []const event.RawEvent) !An
                         _ = preempt.remove(outgoing);
                         if (sleeping.getPtr(outgoing)) |pending| {
                             pending.start_ns = now;
-                            pending.cause = sched_state.causeOf(entry.c);
+                            pending.cause = sched_state.causeOf(prev_state);
                         } else {
                             sleeping.put(outgoing, .{
                                 .start_ns = now,
-                                .cause = sched_state.causeOf(entry.c),
+                                .cause = sched_state.causeOf(prev_state),
                             }) catch {};
                         }
                     }
@@ -559,6 +565,29 @@ test "voluntary block and preemption are distinguished" {
     try std.testing.expectEqual(@as(u64, 2), analysis.preempt.count);
     try std.testing.expectEqual(@as(u64, 1), analysis.chains.len);
     try std.testing.expectEqual(@as(u64, 1), analysis.counters.roots);
+}
+
+test "kernel preemption marker counts as an involuntary preemption" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const events = [_]event.RawEvent{
+        // 7.x tracepoint marker (`TASK_REPORT_MAX` = 0x100): switched out while
+        // still runnable, then resumed without an intervening wakeup.
+        .{ .kind = .sched_switch, .ts_ns = 1_000_000, .a = 2, .b = 1, .c = sched_state.preempt_marker, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 2_000_000, .a = 1, .b = 2, .c = 1, .comm = "a" },
+        // Classic encoding marker (0x200).
+        .{ .kind = .sched_switch, .ts_ns = 3_000_000, .a = 2, .b = 1, .c = sched_state.preempt_marker_classic, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 5_000_000, .a = 1, .b = 2, .c = 1, .comm = "a" },
+    };
+    const analysis = try analyze(allocator, &events);
+    try std.testing.expectEqual(@as(u64, 2), analysis.preemptions);
+    try std.testing.expectEqual(@as(u64, 2), analysis.preempt.count);
+    // The marker rows are preemptions, not blocked-sleep samples: only pid 2's
+    // voluntary switch-out is attributed to a sleep cause.
+    try std.testing.expectEqual(@as(u64, 1), analysis.offcpu_samples);
+    try std.testing.expectEqual(@as(u64, 1), analysis.causes[@backingInt(sched_state.Cause.interruptible)].count);
+    try std.testing.expectEqual(@as(u64, 0), analysis.causes[@backingInt(sched_state.Cause.other)].count);
 }
 
 test "a migration during the wait does not break attribution" {

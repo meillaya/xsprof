@@ -9,8 +9,11 @@ software page-fault counter. It never writes scheduler state.
 - tracefs sched format unreadable → REFUSE.
 - No events opened → SKIP.
 - Non-Linux → SKIP.
-- Every path exits non-zero on SKIP/REFUSE and prints a capability event with
-  `host_mutation=false`.
+- Every path exits non-zero on SKIP/REFUSE and prints a canonical capability
+  record (`xsprof/capability/v1`) with `host_mutation=false`, the bounded
+  state (`READY`/`DEGRADED`/`SKIP`/`REFUSE`), and the exact reason. This is a
+  probe result document, not an `xsprof/event/v1` event row; validate it with
+  `xsprof validate --schema capability.v1`.
 - `--bpf` remains VM-marker-gated and is a P7 lane; it reports SKIP today.
 
 ## Implementation
