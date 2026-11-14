@@ -1171,7 +1171,7 @@ run_lanes_container() {
                     container | container-lane) container_lane || overall=1 ;;
                     *)
                         record_refuse "$lane" "gate '$lane' needs root and readable tracefs; use --backend kvm-machine"
-                        rc=1
+                        overall=1
                         ;;
                 esac
                 ;;
