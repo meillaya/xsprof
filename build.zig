@@ -179,6 +179,16 @@ pub fn build(b: *std.Build) void {
     const quickstart_smoke_step = b.step("quickstart-smoke", "Headless first-run workflow smoke");
     quickstart_smoke_step.dependOn(&quickstart_smoke.step);
 
+    const compare_ci_smoke = b.addSystemCommand(&.{ "sh", "qa/compare_ci_smoke.sh" });
+    compare_ci_smoke.step.dependOn(b.getInstallStep());
+    const compare_ci_smoke_step = b.step("compare-ci-smoke", "Noise-aware capture comparison gate smoke");
+    compare_ci_smoke_step.dependOn(&compare_ci_smoke.step);
+
+    const latency_smoke = b.addSystemCommand(&.{ "sh", "qa/latency_smoke.sh" });
+    latency_smoke.step.dependOn(b.getInstallStep());
+    const latency_smoke_step = b.step("latency-smoke", "Causal latency attribution smoke (analysis fixtures)");
+    latency_smoke_step.dependOn(&latency_smoke.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -271,6 +281,8 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&cli_parity.step);
     check.dependOn(&cli_manifest.step);
     check.dependOn(&quickstart_smoke.step);
+    check.dependOn(&compare_ci_smoke.step);
+    check.dependOn(&latency_smoke.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
     check.dependOn(&xsui_package.step);

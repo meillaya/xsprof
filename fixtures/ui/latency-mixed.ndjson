@@ -1,0 +1,50 @@
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"session_start","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48470000000}
+{"a":0,"b":0,"c":0,"comm":"xsprof","cpu":-1,"detail":"capture_owner","event":"marker","host_mutation":false,"pid":9000,"schema":"xsprof/event/v1","tid":9000,"ts_ns":48470000000}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=0 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48470000000}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=1 llc=0","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48470000000}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=2 llc=1","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48470000000}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"cpu_llc cpu=3 llc=1","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48470000000}
+{"a":4100,"b":0,"c":0,"comm":"dispatcher","cpu":0,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48470100000}
+{"a":4200,"b":0,"c":0,"comm":"indexer","cpu":1,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48470150000}
+{"a":4300,"b":0,"c":0,"comm":"render","cpu":2,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48470200000}
+{"a":4301,"b":0,"c":0,"comm":"irq/16","cpu":3,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48470250000}
+{"a":4101,"b":0,"c":0,"comm":"worker-a","cpu":3,"event":"sched_wakeup","host_mutation":false,"pid":4301,"schema":"xsprof/event/v1","tid":4301,"ts_ns":48470300000}
+{"a":4101,"b":4100,"c":0,"comm":"worker-a","cpu":0,"event":"sched_switch","host_mutation":false,"pid":4100,"schema":"xsprof/event/v1","tid":4100,"ts_ns":48470400000}
+{"a":4102,"b":1,"c":0,"comm":"worker-b","cpu":0,"event":"sched_wakeup","host_mutation":false,"pid":4101,"schema":"xsprof/event/v1","tid":4101,"ts_ns":48470500000}
+{"a":4102,"b":4200,"c":0,"comm":"worker-b","cpu":1,"event":"sched_switch","host_mutation":false,"pid":4200,"schema":"xsprof/event/v1","tid":4200,"ts_ns":48470600000}
+{"a":4103,"b":2,"c":0,"comm":"worker-c","cpu":1,"event":"sched_wakeup","host_mutation":false,"pid":4102,"schema":"xsprof/event/v1","tid":4102,"ts_ns":48470700000}
+{"a":4103,"b":4300,"c":0,"comm":"worker-c","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48470800000}
+{"a":4100,"b":4101,"c":2,"comm":"dispatcher","cpu":0,"event":"sched_switch","host_mutation":false,"pid":4101,"schema":"xsprof/event/v1","tid":4101,"ts_ns":48470900000}
+{"a":4201,"b":2,"c":0,"comm":"flush","cpu":1,"event":"sched_wakeup","host_mutation":false,"pid":4102,"schema":"xsprof/event/v1","tid":4102,"ts_ns":48471000000}
+{"a":0,"b":4102,"c":1,"comm":"swapper/1","cpu":1,"event":"sched_switch","host_mutation":false,"pid":4102,"schema":"xsprof/event/v1","tid":4102,"ts_ns":48471100000}
+{"a":4201,"b":4103,"c":1,"comm":"flush","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4103,"schema":"xsprof/event/v1","tid":4103,"ts_ns":48471100000}
+{"a":4103,"b":2,"c":0,"comm":"worker-c","cpu":2,"event":"sched_wakeup","host_mutation":false,"pid":4201,"schema":"xsprof/event/v1","tid":4201,"ts_ns":48471190000}
+{"a":4200,"b":0,"c":0,"comm":"indexer","cpu":1,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48471200000}
+{"a":4103,"b":4201,"c":0,"comm":"worker-c","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4201,"schema":"xsprof/event/v1","tid":4201,"ts_ns":48471200000}
+{"a":4300,"b":4103,"c":0,"comm":"render","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4103,"schema":"xsprof/event/v1","tid":4103,"ts_ns":48471400000}
+{"a":4104,"b":2,"c":0,"comm":"fsync","cpu":1,"event":"sched_wakeup","host_mutation":false,"pid":4200,"schema":"xsprof/event/v1","tid":4200,"ts_ns":48471500000}
+{"a":1,"b":2,"c":0,"comm":"fsync","cpu":2,"event":"sched_migrate","host_mutation":false,"pid":4104,"schema":"xsprof/event/v1","tid":4104,"ts_ns":48471600000}
+{"a":4104,"b":4100,"c":1,"comm":"fsync","cpu":0,"event":"sched_switch","host_mutation":false,"pid":4100,"schema":"xsprof/event/v1","tid":4100,"ts_ns":48471700000}
+{"a":4100,"b":0,"c":0,"comm":"dispatcher","cpu":2,"event":"sched_wakeup","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48471800000}
+{"a":0,"b":4200,"c":1,"comm":"swapper/1","cpu":1,"event":"sched_switch","host_mutation":false,"pid":4200,"schema":"xsprof/event/v1","tid":4200,"ts_ns":48471900000}
+{"a":4106,"b":4301,"c":1,"comm":"kworker/0:1","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4301,"schema":"xsprof/event/v1","tid":4301,"ts_ns":48472100000}
+{"a":4107,"b":4106,"c":1026,"comm":"rcu_gp","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4106,"schema":"xsprof/event/v1","tid":4106,"ts_ns":48472200000}
+{"a":4103,"b":4300,"c":0,"comm":"worker-c","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48472300000}
+{"a":4106,"b":4107,"c":256,"comm":"kworker/0:1","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4107,"schema":"xsprof/event/v1","tid":4107,"ts_ns":48472300000}
+{"a":4102,"b":1,"c":0,"comm":"worker-b","cpu":2,"event":"sched_wakeup","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48472400000}
+{"a":4109,"b":4106,"c":0,"comm":"rcu_gp2","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4106,"schema":"xsprof/event/v1","tid":4106,"ts_ns":48472400000}
+{"a":0,"b":4104,"c":1,"comm":"swapper/0","cpu":0,"event":"sched_switch","host_mutation":false,"pid":4104,"schema":"xsprof/event/v1","tid":4104,"ts_ns":48472500000}
+{"a":4107,"b":4109,"c":65536,"comm":"rcu_gp","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4109,"schema":"xsprof/event/v1","tid":4109,"ts_ns":48472500000}
+{"a":4300,"b":4103,"c":0,"comm":"render","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4103,"schema":"xsprof/event/v1","tid":4103,"ts_ns":48472600000}
+{"a":4108,"b":4107,"c":0,"comm":"exited","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4107,"schema":"xsprof/event/v1","tid":4107,"ts_ns":48472600000}
+{"a":4102,"b":0,"c":0,"comm":"worker-b","cpu":1,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48472700000}
+{"a":0,"b":4108,"c":32,"comm":"swapper/3","cpu":3,"event":"sched_switch","host_mutation":false,"pid":4108,"schema":"xsprof/event/v1","tid":4108,"ts_ns":48472700000}
+{"a":0,"b":4300,"c":1,"comm":"swapper/2","cpu":2,"event":"sched_switch","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48472800000}
+{"a":4109,"b":0,"c":0,"comm":"rcu_gp2","cpu":3,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48472800000}
+{"a":0,"b":4102,"c":1,"comm":"swapper/1","cpu":1,"event":"sched_switch","host_mutation":false,"pid":4102,"schema":"xsprof/event/v1","tid":4102,"ts_ns":48472900000}
+{"a":4100,"b":0,"c":0,"comm":"dispatcher","cpu":0,"event":"sched_switch","host_mutation":false,"pid":0,"schema":"xsprof/event/v1","tid":0,"ts_ns":48473000000}
+{"a":1,"b":1,"c":0,"cpu":1,"event":"page_fault","host_mutation":false,"pid":4102,"schema":"xsprof/event/v1","tid":4102,"ts_ns":48473100000}
+{"a":1,"b":0,"c":0,"cpu":2,"event":"page_fault","host_mutation":false,"pid":4300,"schema":"xsprof/event/v1","tid":4300,"ts_ns":48473200000}
+{"a":1,"b":1,"c":0,"cpu":3,"event":"page_fault","host_mutation":false,"pid":4109,"schema":"xsprof/event/v1","tid":4109,"ts_ns":48473300000}
+{"a":1,"b":0,"c":0,"cpu":0,"event":"page_fault","host_mutation":false,"pid":4100,"schema":"xsprof/event/v1","tid":4100,"ts_ns":48473400000}
+{"a":0,"b":0,"c":0,"cpu":-1,"detail":"session_end","event":"marker","host_mutation":false,"pid":-1,"schema":"xsprof/event/v1","tid":-1,"ts_ns":48473500000}

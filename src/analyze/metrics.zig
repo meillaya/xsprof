@@ -4,10 +4,33 @@
 const std = @import("std");
 const event = @import("../core/event.zig");
 const loss = @import("../core/loss.zig");
+const sched_state = @import("../core/sched_state.zig");
 const session_meta = @import("../core/session_meta.zig");
+const latency = @import("latency.zig");
 
 const max_cpus = 256;
 const bucket_count = 64;
+
+/// Bounded per-cause off-CPU aggregate: one switch-out attributed to a decoded
+/// `prev_state` cause and the accumulated time until the task ran again.
+pub const CauseStat = struct {
+    count: u64 = 0,
+    total_us: u64 = 0,
+};
+
+/// A bounded critical wakeup chain: one causal root, its deepest observed leaf,
+/// and the accumulated wake-to-run wait of every edge in chains rooted there.
+pub const Chain = struct {
+    root_pid: i32 = -1,
+    leaf_pid: i32 = -1,
+    leaf_comm: []const u8 = "",
+    depth: u8 = 0,
+    count: u64 = 0,
+    total_wait_us: u64 = 0,
+    p95_wait_us: u64 = 0,
+};
+
+pub const max_chains = latency.max_chain_output;
 
 pub const Histogram = struct {
     buckets: [bucket_count]u64 = @splat(0),
@@ -62,6 +85,11 @@ pub const TaskMetric = struct {
     wait_p99_us: u64 = 0,
     wait_max_us: u64 = 0,
     offcpu_p95_us: u64 = 0,
+    /// Blocked-sleep samples attributed to the decoded switch-out cause.
+    offcpu_by_reason: [sched_state.cause_count]CauseStat = @splat(CauseStat{}),
+    /// Detected involuntary preemptions and their wait distribution.
+    preemptions: u64 = 0,
+    preempt_p95_us: u64 = 0,
     last_cpu: i32 = -1,
 };
 
@@ -93,6 +121,24 @@ pub const Metrics = struct {
     pairs_truncated: bool = false,
     wait: Histogram = .{},
     offcpu: Histogram = .{},
+    /// Blocked-sleep samples whose cause could not be attributed (unknown bits,
+    /// bare modifiers) are counted in `causes[.unknown/.other]`, never dropped.
+    offcpu_samples: u64 = 0,
+    /// Tasks that were still blocked when the window ended: duration unknown.
+    offcpu_unresolved: u64 = 0,
+    causes: [sched_state.cause_count]CauseStat = @splat(CauseStat{}),
+    preempt: Histogram = .{},
+    preemptions: u64 = 0,
+    preempt_unresolved: u64 = 0,
+    chains: [max_chains]Chain = @splat(Chain{}),
+    chain_count: u8 = 0,
+    chain_edges: u64 = 0,
+    chain_roots: u64 = 0,
+    chain_cycles_cut: u64 = 0,
+    chain_depth_cut: u64 = 0,
+    chain_overflow: u64 = 0,
+    chain_too_many_tasks: u64 = 0,
+    chain_truncated: bool = false,
     cpus: []const CpuMetric = &.{},
     tasks: []const TaskMetric = &.{},
     wakeup_pairs: []const WakeupPair = &.{},
@@ -108,9 +154,14 @@ const Task = struct {
     faults_major: u64 = 0,
     wait: Histogram = .{},
     offcpu: Histogram = .{},
+    offcpu_by_reason: [sched_state.cause_count]CauseStat = @splat(CauseStat{}),
+    preempt: Histogram = .{},
     last_cpu: i32 = -1,
     runnable_since_ns: ?u64 = null,
     sleep_since_ns: ?u64 = null,
+    sleep_cause: sched_state.Cause = .unknown,
+    preempt_since_ns: ?u64 = null,
+    preempt_wakeup: bool = false,
     wakeup_pending: bool = false,
     running: bool = false,
     last_waker_pid: i32 = -1,
@@ -151,6 +202,8 @@ pub const Index = struct {
     loss_counter: loss.Counter = .{},
     wait: Histogram = .{},
     offcpu: Histogram = .{},
+    causes: [sched_state.cause_count]CauseStat = @splat(CauseStat{}),
+    preempt: Histogram = .{},
     events: u64 = 0,
     self_pid: i32 = -1,
     self_seen: bool = false,
@@ -162,6 +215,7 @@ pub const Index = struct {
     pair_overflow: u64 = 0,
     out_of_order: u64 = 0,
     last_timed_ns: ?u64 = null,
+    chains: latency.ChainTracker,
 
     pub fn setSelf(self: *Index, meta: *const session_meta.Meta) void {
         if (!meta.self_seen) return;
@@ -180,12 +234,14 @@ pub const Index = struct {
             .tasks = std.AutoHashMap(i32, Task).init(allocator),
             .names = std.heap.ArenaAllocator.init(allocator),
             .pairs = std.AutoHashMap(PairKey, PairAgg).init(allocator),
+            .chains = latency.ChainTracker.init(allocator),
         };
     }
 
     pub fn deinit(self: *Index) void {
         self.tasks.deinit();
         self.pairs.deinit();
+        self.chains.deinit();
         self.names.deinit();
     }
 
@@ -220,7 +276,9 @@ pub const Index = struct {
                     if (task.comm.len == 0 and entry.comm.len != 0) {
                         task.comm = try self.names.allocator().dupe(u8, entry.comm);
                     }
-                    if (!task.running and task.runnable_since_ns == null) {
+                    const was_blocked = !task.running and task.runnable_since_ns == null;
+                    if (task.preempt_since_ns != null) task.preempt_wakeup = true;
+                    if (was_blocked) {
                         task.runnable_since_ns = entry.ts_ns;
                         task.wakeup_pending = true;
                     } else if (is_self) {
@@ -229,6 +287,9 @@ pub const Index = struct {
                         self.redundant_wakeups += 1;
                     }
                     const waker: i32 = entry.pid;
+                    if (!is_self and pid > 0 and !(waker > 0 and self.isSelf(waker, ""))) {
+                        try self.chains.onWakeup(waker, pid, entry.comm, entry.ts_ns, was_blocked);
+                    }
                     if (!is_self and waker > 0 and pid > 0 and !self.isSelf(waker, "")) {
                         task.last_waker_pid = waker;
                         const key: PairKey = .{ .waker = waker, .woken = pid };
@@ -296,8 +357,23 @@ pub const Index = struct {
             const outgoing = try self.getTask(outgoing_pid);
             outgoing.last_cpu = entry.cpu;
             outgoing.running = false;
-            outgoing.sleep_since_ns = if (entry.c == 0) null else now;
-            if (entry.c == 0) outgoing.runnable_since_ns = now;
+            outgoing.wakeup_pending = false;
+            if (entry.c == sched_state.task_running) {
+                // Still runnable: this is a preemption candidate. It becomes a
+                // measured preemption only if the task runs again without an
+                // intervening wakeup (an already-runnable task needs no wakeup).
+                outgoing.sleep_since_ns = null;
+                outgoing.runnable_since_ns = now;
+                if (outgoing_pid > 0 and outgoing.preempt_since_ns == null) {
+                    outgoing.preempt_since_ns = now;
+                    outgoing.preempt_wakeup = false;
+                }
+            } else {
+                outgoing.sleep_since_ns = now;
+                outgoing.sleep_cause = sched_state.causeOf(entry.c);
+                outgoing.preempt_since_ns = null;
+                outgoing.preempt_wakeup = false;
+            }
         }
         {
             const incoming = try self.getTask(@intCast(@min(entry.a, std.math.maxInt(i32))));
@@ -329,8 +405,25 @@ pub const Index = struct {
                 const offcpu_us = (now -| started) / 1000;
                 incoming.offcpu.observe(offcpu_us);
                 self.offcpu.observe(offcpu_us);
+                const reason = @backingInt(incoming.sleep_cause);
+                incoming.offcpu_by_reason[reason].count +|= 1;
+                incoming.offcpu_by_reason[reason].total_us +|= offcpu_us;
+                self.causes[reason].count +|= 1;
+                self.causes[reason].total_us +|= offcpu_us;
                 incoming.sleep_since_ns = null;
             }
+            if (incoming.preempt_since_ns) |started| {
+                // Only an involuntary wait counts: a wakeup in between means the
+                // task was re-queued by a waker, not resumed by the scheduler.
+                if (!incoming.preempt_wakeup) {
+                    const preempt_us = (now -| started) / 1000;
+                    incoming.preempt.observe(preempt_us);
+                    self.preempt.observe(preempt_us);
+                }
+                incoming.preempt_since_ns = null;
+                incoming.preempt_wakeup = false;
+            }
+            self.chains.onRun(incoming.pid, now, entry.comm);
         }
     }
 
@@ -339,6 +432,8 @@ pub const Index = struct {
         errdefer task_list.deinit(allocator);
         var unresolved: u64 = 0;
         var self_unresolved: u64 = 0;
+        var offcpu_unresolved: u64 = 0;
+        var preempt_unresolved: u64 = 0;
         var iterator = self.tasks.iterator();
         while (iterator.next()) |item| {
             const task = item.value_ptr;
@@ -346,6 +441,8 @@ pub const Index = struct {
             if (task.wakeup_pending) {
                 if (is_self) self_unresolved += 1 else unresolved += 1;
             }
+            if (task.sleep_since_ns != null) offcpu_unresolved += 1;
+            if (task.preempt_since_ns != null) preempt_unresolved += 1;
             try task_list.append(allocator, .{
                 .pid = task.pid,
                 .comm = try allocator.dupe(u8, task.comm),
@@ -361,6 +458,9 @@ pub const Index = struct {
                 .wait_p99_us = task.wait.quantileUpper(990),
                 .wait_max_us = task.wait.max_us,
                 .offcpu_p95_us = task.offcpu.quantileUpper(950),
+                .offcpu_by_reason = task.offcpu_by_reason,
+                .preemptions = task.preempt.count,
+                .preempt_p95_us = task.preempt.quantileUpper(950),
                 .last_cpu = task.last_cpu,
             });
         }
@@ -418,6 +518,15 @@ pub const Index = struct {
         const pair_cap = @min(pair_total, 32);
         const pairs_truncated = pair_total > pair_cap or self.pair_overflow != 0;
 
+        const chain_snapshot = try self.chains.snapshot(allocator, max_chains);
+        const chain_count: u8 = @intCast(chain_snapshot.chains.len);
+        var chain_array: [max_chains]Chain = @splat(Chain{});
+        for (chain_snapshot.chains, 0..) |chain, chain_index| {
+            chain_array[chain_index] = chain;
+            chain_array[chain_index].leaf_comm = try allocator.dupe(u8, chain.leaf_comm);
+        }
+        if (chain_snapshot.chains.len != 0) allocator.free(chain_snapshot.chains);
+
         return .{
             .events = self.events,
             .first_us = if (self.timed_events == 0) 0 else self.first_us,
@@ -437,6 +546,22 @@ pub const Index = struct {
             .pairs_truncated = pairs_truncated,
             .wait = self.wait,
             .offcpu = self.offcpu,
+            .offcpu_samples = self.offcpu.count,
+            .offcpu_unresolved = offcpu_unresolved,
+            .causes = self.causes,
+            .preempt = self.preempt,
+            .preemptions = self.preempt.count,
+            .preempt_unresolved = preempt_unresolved,
+            .chains = chain_array,
+            .chain_count = chain_count,
+            .chain_edges = chain_snapshot.counters.edges,
+            .chain_roots = chain_snapshot.counters.roots,
+            .chain_cycles_cut = chain_snapshot.counters.cycles_cut,
+            .chain_depth_cut = chain_snapshot.counters.depth_cut,
+            .chain_overflow = chain_snapshot.counters.overflow,
+            .chain_too_many_tasks = chain_snapshot.counters.too_many_tasks,
+            .chain_truncated = chain_snapshot.counters.overflow != 0 or
+                chain_snapshot.counters.too_many_tasks != 0,
             .cpus = try cpu_list.toOwnedSlice(allocator),
             .tasks = try task_list.toOwnedSlice(allocator),
             .wakeup_pairs = try pair_list.toOwnedSlice(allocator),
@@ -597,4 +722,100 @@ test "metrics count every loss kind through the registry" {
     try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.capture_truncated_tail));
     try std.testing.expectEqual(@as(u64, 1), metrics.loss_by_kind.get(.capture_truncated));
     try std.testing.expectEqual(@as(u64, 0), metrics.loss_by_kind.get(.capture_missing_segment));
+}
+
+// Checks the additive causal fields are populated from the incremental pass:
+// a blocked sleep is attributed to its prev_state cause, and a runnable
+// switch-out followed by a switch-in without a wakeup is a preemption.
+test "metrics attribute offcpu causes and preemptions" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var index = Index.init(arena.allocator());
+    defer index.deinit();
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_switch, .ts_ns = 1_000_000, .a = 2, .b = 1, .c = 0, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 2_000_000, .a = 1, .b = 2, .c = 1, .comm = "a" },
+        .{ .kind = .sched_wakeup, .ts_ns = 2_500_000, .pid = 1, .a = 2, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 3_000_000, .a = 2, .b = 1, .c = 0, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 3_500_000, .a = 1, .b = 2, .c = 0, .comm = "a" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(arena.allocator());
+    try std.testing.expectEqual(@as(u64, 1), metrics.offcpu_samples);
+    try std.testing.expectEqual(@as(u64, 1), metrics.causes[@backingInt(sched_state.Cause.interruptible)].count);
+    try std.testing.expectEqual(@as(u64, 1_000), metrics.causes[@backingInt(sched_state.Cause.interruptible)].total_us);
+    try std.testing.expectEqual(@as(u64, 2), metrics.preemptions);
+    try std.testing.expectEqual(@as(u64, 2), metrics.preempt.count);
+    try std.testing.expectEqual(@as(u64, 1), metrics.preempt_unresolved);
+    try std.testing.expectEqual(@as(u64, 1), metrics.chain_count);
+    try std.testing.expectEqual(@as(i32, 1), metrics.chains[0].root_pid);
+    try std.testing.expectEqual(@as(u8, 2), metrics.chains[0].depth);
+    try std.testing.expectEqual(@as(u64, 500), metrics.chains[0].total_wait_us);
+    try std.testing.expectEqual(@as(u64, 1), metrics.chain_roots);
+    var b_found = false;
+    for (metrics.tasks) |task| {
+        if (std.mem.eql(u8, task.comm, "b")) {
+            b_found = true;
+            try std.testing.expectEqual(@as(u64, 1), task.offcpu_by_reason[@backingInt(sched_state.Cause.interruptible)].count);
+            try std.testing.expectEqual(@as(u64, 1_000), task.offcpu_by_reason[@backingInt(sched_state.Cause.interruptible)].total_us);
+        }
+        if (std.mem.eql(u8, task.comm, "a")) {
+            // Two runnable switch-outs of task 1 were resumed without a wakeup.
+            try std.testing.expectEqual(@as(u64, 2), task.preemptions);
+            try std.testing.expect(task.preempt_p95_us != 0);
+        }
+    }
+    try std.testing.expect(b_found);
+}
+
+// The incremental pass and the bounded second pass must agree on the same
+// synthetic window; drift here would make `why` and `incident` disagree.
+test "incremental metrics agree with the second-pass latency analysis" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var index = Index.init(allocator);
+    defer index.deinit();
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_switch, .ts_ns = 1_000_000, .a = 2, .b = 1, .c = 0, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 2_000_000, .a = 1, .b = 2, .c = 1, .comm = "a" },
+        .{ .kind = .sched_wakeup, .ts_ns = 2_500_000, .pid = 1, .a = 2, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 3_000_000, .a = 2, .b = 1, .c = 0, .comm = "b" },
+        .{ .kind = .sched_switch, .ts_ns = 3_500_000, .a = 1, .b = 2, .c = 0, .comm = "a" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(allocator);
+    const analysis = try latency.analyze(allocator, &events);
+    try std.testing.expectEqual(metrics.offcpu_samples, analysis.offcpu_samples);
+    try std.testing.expectEqual(metrics.preemptions, analysis.preemptions);
+    try std.testing.expectEqual(metrics.offcpu_unresolved, analysis.offcpu_unresolved);
+    try std.testing.expectEqual(metrics.preempt_unresolved, analysis.preempt_unresolved);
+    for (analysis.causes, metrics.causes) |left, right| {
+        try std.testing.expectEqual(right.count, left.count);
+        try std.testing.expectEqual(right.total_us, left.total_us);
+    }
+    try std.testing.expectEqual(metrics.chain_count, @as(u8, @intCast(analysis.chains.len)));
+}
+
+// A sleep that never resolves is counted as unresolved: its duration is
+// unknown and must not be rendered as a zero-length off-CPU sample.
+test "metrics count unresolved sleeps without inventing a duration" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var index = Index.init(arena.allocator());
+    defer index.deinit();
+    const events = [_]event.RawEvent{
+        .{ .kind = .sched_switch, .ts_ns = 1_000, .a = 1, .b = 7, .c = 1, .comm = "a" },
+    };
+    try index.append(&events);
+    const metrics = try index.snapshot(arena.allocator());
+    try std.testing.expectEqual(@as(u64, 0), metrics.offcpu_samples);
+    try std.testing.expectEqual(@as(u64, 1), metrics.offcpu_unresolved);
+}
+
+// Pull the causal modules' unit tests into the test graph: root.zig only
+// references `metrics`, so the imported modules must be reachable from here.
+test {
+    _ = sched_state;
+    _ = latency;
 }

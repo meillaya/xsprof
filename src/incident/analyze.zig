@@ -8,6 +8,7 @@ const loss = @import("../core/loss.zig");
 const session_meta = @import("../core/session_meta.zig");
 const session_mod = @import("../stream/session.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
+const latency_mod = @import("../analyze/latency.zig");
 
 pub const Options = struct {
     max_trace_events: usize = 200_000,
@@ -20,6 +21,11 @@ pub const Result = struct {
     trace_events: []const event.RawEvent,
     trace_truncated: bool,
     retention_trimmed: bool,
+    /// Owned causal view of the same streaming pass (off-CPU causes,
+    /// preemption cost, critical chains) for front ends that report latency
+    /// without a replay `Session`. The summary writers read the identical
+    /// fields from `session.metrics`.
+    latency: latency_mod.Analysis = .{},
 };
 
 fn openFile(io: std.Io, path: []const u8) !std.Io.File {
@@ -147,6 +153,7 @@ pub fn analyzeFile(
     }
 
     const metrics = try metrics_index.snapshot(allocator);
+    const latency_analysis = try latency_mod.Analysis.fromMetrics(allocator, &metrics);
     const session = session_mod.Session{
         .allocator = allocator,
         .source = "incident window",
@@ -178,6 +185,7 @@ pub fn analyzeFile(
         .trace_events = try trace.toOwnedSlice(allocator),
         .trace_truncated = event_count > trace_count,
         .retention_trimmed = retention_trimmed,
+        .latency = latency_analysis,
     };
 }
 
@@ -232,4 +240,29 @@ test "incident analysis counts all loss kinds and retention trim" {
     try std.testing.expectEqual(@as(u64, 1), result.session.loss_by_kind.get(.retention_loss));
     try std.testing.expectEqual(@as(u64, 1), result.session.loss_by_kind.get(.capture_corrupt_segment));
     try std.testing.expectEqual(@as(u64, 4), loss.sum(result.session.loss_by_kind));
+}
+
+// Checks the streaming pass exposes causal latency alongside the session
+// metrics: a blocked sleep is attributed, and the summary writers read the
+// same cause totals from session.metrics.
+test "incident analysis exposes causal latency attribution" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const path = try std.fmt.allocPrint(allocator, "/tmp/xsprof-incident-latency-{d}.ndjson", .{std.testing.random_seed});
+    const body =
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"sched_switch\",\"ts_ns\":1000000,\"cpu\":0,\"pid\":1,\"tid\":1,\"a\":2,\"b\":1,\"c\":0,\"comm\":\"b\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"sched_switch\",\"ts_ns\":2000000,\"cpu\":0,\"pid\":2,\"tid\":2,\"a\":1,\"b\":2,\"c\":1,\"comm\":\"a\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"sched_wakeup\",\"ts_ns\":2500000,\"cpu\":0,\"pid\":1,\"tid\":1,\"a\":2,\"comm\":\"b\",\"host_mutation\":false}\n" ++
+        "{\"schema\":\"xsprof/event/v1\",\"event\":\"sched_switch\",\"ts_ns\":3000000,\"cpu\":0,\"pid\":1,\"tid\":1,\"a\":2,\"b\":1,\"c\":0,\"comm\":\"b\",\"host_mutation\":false}\n";
+    {
+        const file = try std.Io.Dir.createFileAbsolute(std.testing.io, path, .{});
+        defer file.close(std.testing.io);
+        try file.writeStreamingAll(std.testing.io, body);
+    }
+    defer std.Io.Dir.deleteFileAbsolute(std.testing.io, path) catch {};
+    const result = try analyzeFile(std.testing.io, allocator, path, .{});
+    try std.testing.expectEqual(@as(u64, 1), result.latency.offcpu_samples);
+    try std.testing.expectEqual(@as(u64, 1), result.latency.causes[2].count); // interruptible
+    try std.testing.expectEqual(result.latency.causes[2].count, result.session.metrics.causes[2].count);
 }

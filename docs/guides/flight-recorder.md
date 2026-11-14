@@ -129,6 +129,10 @@ row; the binary segment format has no mutation field at all.
 ## Verification evidence
 
 Root-only recorder gates (live capture, service start/SIGKILL recovery,
-retention budget) run in a disposable Linux VM via `./tools/zig build check-vm`
-and are documented in [maintaining](../maintaining.md). Measured evidence is
-attached to releases, not committed to git.
+retention budget) run in a disposable Linux VM. From a rootless host the durable
+entry point is the write-scoped VM lab:
+`sh tools/vm_lab.sh gates --all --bundle` (see
+[maintaining](../maintaining.md)); it provisions a disposable KVM podman
+machine, runs the gates as root inside it, and writes canonical evidence under
+`dist/vm/evidence/`. Measured evidence is attached to releases, not committed
+to git.

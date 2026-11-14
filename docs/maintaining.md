@@ -43,6 +43,20 @@ Files over the limit should be split by responsibility, not compressed.
 | `./tools/zig build check` | fmt, 1,000-line limit, version sync, shell syntax, design contract, privacy/no-mutation/unsafe-verb scans, CLI parity, compact round-trip, a11y smoke, xsui package, unit/integration/fuzz tests, schema conformance | no display, no root, no network |
 | `./tools/zig build check-ci` | `check` + platform smokes (Xvfb/native live) + screenshots + re-render check + repo size + docs links + perf floor, with `XSPROF_REQUIRE_TOOLS=1` (a missing tool fails, never silently skips) | Linux (X11/Xvfb, python3, ffmpeg, ImageMagick); arm64 runs the same gate |
 | `./tools/zig build check-vm` | root-only `qa/live_smoke.sh`, `qa/service_smoke.sh`, `qa/retention_bench.sh 600000 0 2G yes` | disposable KVM Linux VM with readable tracefs |
+| `sh tools/vm_lab.sh gates --all --bundle` | durable write-scoped lab: provisions a disposable KVM podman machine from a rootless podman client, stages committed HEAD, runs probe/live/service/retention (+latency/stacks when present), writes `dist/vm/evidence/<run-id>/` and a release-attachable evidence bundle | Linux with `/dev/kvm` readable+writable, podman, and `qemu-system-x86_64`/`qemu-img`/`gvproxy`/`virtiofsd` (PATH or Nix store); no host root |
+
+The VM lab never writes to the user's `$HOME`/XDG dirs or `/tmp`: every mutable
+host path is under `$ROOT/.vm/` (scoped `HOME`, `XDG_*`, `TMPDIR`,
+`CONTAINERS_*` for the rootless podman client) and evidence is under
+`$ROOT/dist/vm/evidence/`; both are gitignored. It refuses to run as root and
+never calls host `sudo` — the only privilege is inside the disposable VM
+(`podman machine ssh 'sudo -n …'`). `--audit-writes` records a post-run
+inventory of files newer than the run start and fails on anything outside the
+repository. Without `/dev/kvm`, `--backend podman-container` runs the
+unprivileged `container` lane in a rootless container and records explicitly
+requested privileged lanes as `REFUSE` with the reason — it never fabricates a
+PASS. Evidence is a QA artifact (`xsprof/vm-evidence/v1` manifest) attached to
+release assets, never committed.
 
 CI (`.github/workflows/zig-ci.yml`) runs `check-ci` on Linux x86_64 and
 aarch64 runners and `check` on macOS. The release preflight runs `check-ci` and
@@ -113,8 +127,13 @@ A trust-first repository must stay cheap to clone, mirror, and review:
    badge/artifacts). `qa/version_sync.sh` fails if they disagree.
 2. **Run the gates**: `./tools/zig build check` and `check-ci` on Linux
    x86_64/aarch64, and `check` on macOS. Do not tag with a red or skipped gate.
-3. **Run `./tools/zig build check-vm`** on a disposable KVM Linux VM (live,
-   service, retention). Save the output.
+3. **Run the durable VM lab** on a KVM-capable host:
+   `sh tools/vm_lab.sh gates --all --bundle` (probe/live/service/retention, plus
+   latency/stacks when those gates exist). The lab fails closed, writes
+   `dist/vm/evidence/<run-id>/manifest.json` plus per-gate logs, and prints the
+   path of a `dist/xsprof-<version>-vm-evidence-<date>.tar.gz` bundle (+
+   `.sha256`) for step 8. Never run privileged gates on a production host; a
+   machine without KVM refuses the privileged lanes rather than skipping them.
 4. **Verify packaged-binary CPU portability before tagging.** Build the release
    artifacts from the candidate tree — a `workflow_dispatch` release-lane dry run
    builds and smoke-tests them without publishing, or build locally with
@@ -133,8 +152,9 @@ A trust-first repository must stay cheap to clone, mirror, and review:
    packages, and AppImages for x86_64/aarch64, runs per-artifact checksums,
    creates SHA256SUMS, attests build provenance with Sigstore, and publishes.
    macOS artifacts and Homebrew/notarization tooling do not exist.
-8. **Attach evidence to the release** (not git): the `check-vm` logs/results,
-   the full macOS-VM capture (`macos-vm-sched.ndjson`, sha256
+8. **Attach evidence to the release** (not git): the VM lab evidence bundle
+   (`dist/xsprof-*-vm-evidence-*.tar.gz` and its `.sha256`), the full macOS-VM
+   capture (`macos-vm-sched.ndjson`, sha256
    `f658213f58939f69f5a887b1211da5bf6cbb7c728111dd4a2ecc93b3c74a39a5`), and any
    benchmark/measurement output referenced by docs.
 9. **Verify the published release**: `sha256sum -c SHA256SUMS`,

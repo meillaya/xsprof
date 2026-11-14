@@ -76,6 +76,218 @@
     "migrations": {
       "type": "integer"
     },
+    "offcpu_by_reason": {
+      "additionalProperties": false,
+      "properties": {
+        "dead": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "idle": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "interruptible": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "other": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "parked": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "preempted": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "stopped": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "traced": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "uninterruptible": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "unknown": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        },
+        "zombie": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total_us": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "total_us"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "offcpu_samples": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "offcpu_unresolved": {
+      "minimum": 0,
+      "type": "integer"
+    },
     "quantiles": {
       "type": "object"
     },
@@ -109,6 +321,18 @@
     },
     "pairs_truncated": {
       "type": "boolean"
+    },
+    "preempt_p95_us": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "preempt_unresolved": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "preemptions": {
+      "minimum": 0,
+      "type": "integer"
     },
     "wakeup_pairs": {
       "type": "array",

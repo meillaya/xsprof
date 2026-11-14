@@ -5,8 +5,10 @@
 const std = @import("std");
 const json = @import("../core/json.zig");
 const loss = @import("../core/loss.zig");
+const sched_state = @import("../core/sched_state.zig");
 const session_mod = @import("../stream/session.zig");
 const advisor = @import("../analyze/advisor.zig");
+const latency = @import("../analyze/latency.zig");
 const report = @import("../analyze/report.zig");
 const rules = @import("../analyze/rules.zig");
 
@@ -93,7 +95,9 @@ pub fn writeJson(
         if (index != 0) try w.writeByte(',');
         try report.writeFinding(w, finding);
     }
-    try w.writeAll("],\"host_mutation\":false,\"loss\":{\"lost\":");
+    try w.writeAll("],\"host_mutation\":false,\"latency\":");
+    try latency.writeJson(w, &session.metrics);
+    try w.writeAll(",\"loss\":{\"lost\":");
     try json.write(w, .{ .unsigned = session.lost });
     try w.writeAll(",\"retention_trimmed\":");
     try json.write(w, .{ .boolean = trimmed });
@@ -188,6 +192,72 @@ fn statusLabel(status: rules.Status) []const u8 {
         .clear => "CLEAR",
         .skip => "SKIP",
     };
+}
+
+fn sessionTaskComm(session: *const Session, pid: i32) []const u8 {
+    for (session.metrics.tasks) |task| {
+        if (task.pid == pid) return task.comm;
+    }
+    return "?";
+}
+
+/// Offline latency-attribution section: bounded tables, escaped names, and
+/// explicit unresolved counters. No scripts, links, or external assets.
+fn writeLatencyHtml(w: *Writer, session: *const Session) !void {
+    const metrics = &session.metrics;
+    try w.writeAll("<h2>Latency attribution</h2><p class=\"muted\">Why tasks were off-CPU (switch-out prev_state), involuntary preemptions, and the critical wakeup chains. Unknown and other are explicit categories, never zeroed.</p>");
+    try w.writeAll("<table><thead><tr><th>Off-CPU cause</th><th>Samples</th><th>Total</th></tr></thead><tbody>");
+    const cause_names = @typeInfo(sched_state.Cause).@"enum".field_names;
+    var cause_rows: usize = 0;
+    for (metrics.causes, 0..) |stat, index| {
+        if (stat.count == 0) continue;
+        cause_rows += 1;
+        try w.writeAll("<tr><td>");
+        try escape(w, cause_names[index]);
+        try w.print("</td><td>{d}</td><td>{d} ms</td></tr>", .{ stat.count, stat.total_us / 1000 });
+    }
+    if (cause_rows == 0) {
+        try w.writeAll("<tr><td colspan=\"3\" class=\"muted\">No blocked off-CPU samples in this window.</td></tr>");
+    }
+    try w.writeAll("</tbody></table>");
+
+    try w.writeAll("<h3>Preemption</h3><p class=\"muted\">A preemption is a switch-out with prev_state=running whose next switch-in had no intervening wakeup. ");
+    try w.print("preemptions={d} · p95={d} ms · unresolved={d}</p>", .{
+        metrics.preemptions,
+        metrics.preempt.quantileUpper(950) / 1000,
+        metrics.preempt_unresolved,
+    });
+
+    try w.writeAll("<h3>Critical chains</h3>");
+    const chain_count: usize = metrics.chain_count;
+    if (chain_count == 0) {
+        try w.writeAll("<p class=\"muted\">No wakeup chains in this window.</p>");
+    } else {
+        try w.writeAll("<table><thead><tr><th>Root</th><th>Leaf</th><th>Depth</th><th>Edges</th><th>Total wait</th><th>p95</th></tr></thead><tbody>");
+        for (metrics.chains[0..chain_count]) |chain| {
+            try w.writeAll("<tr><td>");
+            try escape(w, sessionTaskComm(session, chain.root_pid));
+            try w.print(":{d}</td><td>", .{chain.root_pid});
+            try escape(w, chain.leaf_comm);
+            try w.print(":{d}</td><td>{d}</td><td>{d}</td><td>{d} ms</td><td>{d} ms</td></tr>", .{
+                chain.leaf_pid,
+                chain.depth,
+                chain.count,
+                chain.total_wait_us / 1000,
+                chain.p95_wait_us / 1000,
+            });
+        }
+        try w.writeAll("</tbody></table>");
+    }
+    try w.print("<p class=\"muted\">offcpu_samples={d} · offcpu_unresolved={d} · chain_edges={d} · chain_roots={d} · cycles_cut={d} · depth_cut={d}{s}</p>", .{
+        metrics.offcpu_samples,
+        metrics.offcpu_unresolved,
+        metrics.chain_edges,
+        metrics.chain_roots,
+        metrics.chain_cycles_cut,
+        metrics.chain_depth_cut,
+        if (metrics.chain_truncated) " · chain table truncated" else "",
+    });
 }
 
 pub fn writeHtml(
@@ -336,6 +406,8 @@ pub fn writeHtml(
     }
     try w.writeAll("</tbody></table>");
 
+    try writeLatencyHtml(w, session);
+
     try w.writeAll("<h2>Captured signals</h2><table><thead><tr><th>Signal</th><th>Collected</th></tr></thead><tbody>");
     const agg = session.aggregate();
     const signal_rows = [_]struct { []const u8, bool }{
@@ -426,6 +498,8 @@ test "incident summary reports the retained window and stays offline" {
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"host_mutation\":false") != null);
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"events\":3") != null);
     try std.testing.expect(std.mem.indexOf(u8, json_text, "\"truncated\":true") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"latency\":{\"causes\":") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json_text, "\"preemptions\":0") != null);
 
     var html_buf: [32 * 1024]u8 = undefined;
     var html_writer = Writer.fixed(&html_buf);
@@ -434,5 +508,7 @@ test "incident summary reports the retained window and stays offline" {
     try std.testing.expect(std.mem.indexOf(u8, html_text, "Retained window") != null);
     try std.testing.expect(std.mem.indexOf(u8, html_text, "event span") != null);
     try std.testing.expect(std.mem.indexOf(u8, html_text, "Capabilities") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html_text, "Latency attribution") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html_text, "Critical chains") != null);
     try std.testing.expect(std.mem.indexOf(u8, html_text, "https://") == null);
 }

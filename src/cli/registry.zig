@@ -325,9 +325,12 @@ pub const commands = [_]Command{
         .visible = false,
         .summary = "Baseline/candidate regression report",
         .usage =
-        \\xsprof compare --base FILE --candidate FILE [--fail-on METRIC] [--json]
-        \\Compare two metric documents. --fail-on exits 3 when the named metric
-        \\regresses beyond its threshold (reportable regression, not a crash).
+        \\xsprof compare --base FILE [--base FILE ...] --candidate FILE [--candidate FILE ...]
+        \\  [--min-runs K] [--fail-on METRIC=THRESHOLD ...] [--json|--md|--html FILE]
+        \\Compare scheduler captures (1..8 per side; repeated runs establish a
+        \\run-to-run noise floor). --fail-on exits 3 only when the named metric
+        \\regresses beyond its threshold and the observed noise (reportable
+        \\regression, not a crash).
         \\
         ,
         .handler = .compare,

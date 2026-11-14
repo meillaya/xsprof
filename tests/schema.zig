@@ -68,8 +68,10 @@ const wire_samples = [_]WireSample{
     .{ .path = "tests/golden/root/event_v1_golden.json", .contract = "xsprof/event/v1" },
     .{ .path = "tests/golden/root/event_v1_page_fault_golden.json", .contract = "xsprof/event/v1" },
     .{ .path = "tests/golden/root/journal_v1_golden.json", .contract = "xsprof/journal/v1" },
+    .{ .path = "tests/golden/root/why_latency_golden.json", .contract = "xsprof/why/v1" },
     .{ .path = "tests/golden/recorder/segment_v1_golden.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
     .{ .path = "fixtures/ui/healthy.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
+    .{ .path = "fixtures/ui/latency-mixed.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
     .{ .path = "fixtures/real/scheduler-mix.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
     .{ .path = "fixtures/real/vm-fragmented.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
     .{ .path = "fixtures/real/macos-vm-sched.ndjson", .contract = "xsprof/event/v1", .format = .ndjson },
@@ -639,4 +641,107 @@ test "recorder result and verify extensions validate" {
         \\"state":"READY","unsupported":0}
     ));
     try std.testing.expectEqualStrings("const", verify_document.failure.keyword);
+}
+
+// Checks the additive causal-latency fields: the new optional objects validate
+// when present, old documents without them still validate, and an unknown cause
+// name fails closed (additionalProperties / enum) instead of being ignored.
+test "latency attribution wire fields validate" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var documents: [schema_files.len]schema.Schema = undefined;
+    try loadSchemas(allocator, &documents);
+    defer for (&documents) |*document| document.deinit();
+
+    const why_document = &documents[try contractIndex("xsprof/why/v1")];
+    // Additive: a pre-v0.7 why document without latency still validates.
+    try validateDocument(why_document,
+        \\{"cpus":[],"events":1,"findings":[],"host_mutation":false,"lost":0,
+        \\"malformed":0,"out_of_order":0,"pairs":[],"rules":[],
+        \\"schema":"xsprof/why/v1","source":"legacy","tasks":[],"window_ms":0}
+    , "why-legacy", 1);
+    try validateDocument(why_document,
+        \\{"cpus":[],"events":1,"findings":[],"host_mutation":false,
+        \\"latency":{"causes":[{"count":2,"reason":"interruptible","total_us":500}],
+        \\"chain_cycles_cut":0,"chain_depth_cut":0,"chain_edges":1,
+        \\"chain_overflow":0,"chain_roots":1,"chain_too_many_tasks":0,
+        \\"chain_truncated":false,"chains":[{"count":1,"depth":2,
+        \\"leaf_comm":"worker","leaf_pid":2,"p95_wait_us":64,"root_pid":1,
+        \\"total_wait_us":100}],"offcpu_samples":2,"offcpu_unresolved":0,
+        \\"preempt_p95_us":128,"preempt_unresolved":0,"preemptions":1},
+        \\"lost":0,"malformed":0,"out_of_order":0,"pairs":[],"rules":[],
+        \\"schema":"xsprof/why/v1","source":"latency","tasks":[],"window_ms":10}
+    , "why-latency", 1);
+    try std.testing.expectError(error.ValidationFailed, why_document.validateText(
+        \\{"cpus":[],"events":1,"findings":[],"host_mutation":false,
+        \\"latency":{"causes":[{"count":1,"reason":"invented","total_us":1}],
+        \\"chain_cycles_cut":0,"chain_depth_cut":0,"chain_edges":0,
+        \\"chain_overflow":0,"chain_roots":0,"chain_too_many_tasks":0,
+        \\"chain_truncated":false,"chains":[],"offcpu_samples":1,
+        \\"offcpu_unresolved":0,"preempt_p95_us":0,"preempt_unresolved":0,
+        \\"preemptions":0},"lost":0,"malformed":0,"out_of_order":0,
+        \\"pairs":[],"rules":[],"schema":"xsprof/why/v1","source":"x",
+        \\"tasks":[],"window_ms":1}
+    ));
+    try std.testing.expectEqualStrings("enum", why_document.failure.keyword);
+
+    const metrics_document = &documents[try contractIndex("xsprof/metrics/v1")];
+    try validateDocument(metrics_document,
+        \\{"cpus":[],"events":1,"faults_major":0,"faults_minor":0,"first_us":0,
+        \\"host_mutation":false,"last_us":1,"lost":0,"migrations":0,
+        \\"offcpu_by_reason":{"interruptible":{"count":2,"total_us":500}},
+        \\"offcpu_samples":2,"offcpu_unresolved":0,"out_of_order":0,
+        \\"pairs_truncated":false,"preempt_p95_us":128,"preempt_unresolved":0,
+        \\"preemptions":1,"quantiles":{},"schema":"xsprof/metrics/v1",
+        \\"self_unnecessary_wakeups":0,"self_wakeups":0,"switches":0,"tasks":[],
+        \\"unnecessary_wakeups":0,"unresolved_wakeups":0,"wakeup_pairs":[],
+        \\"wakeups":0}
+    , "metrics-latency", 1);
+    try std.testing.expectError(error.ValidationFailed, metrics_document.validateText(
+        \\{"cpus":[],"events":1,"faults_major":0,"faults_minor":0,"first_us":0,
+        \\"host_mutation":false,"last_us":1,
+        \\"offcpu_by_reason":{"invented":{"count":1,"total_us":1}},
+        \\"lost":0,"migrations":0,"out_of_order":0,"pairs_truncated":false,
+        \\"quantiles":{},"schema":"xsprof/metrics/v1","self_unnecessary_wakeups":0,
+        \\"self_wakeups":0,"switches":0,"tasks":[],"unnecessary_wakeups":0,
+        \\"unresolved_wakeups":0,"wakeup_pairs":[],"wakeups":0}
+    ));
+    try std.testing.expectEqualStrings("additionalProperties", metrics_document.failure.keyword);
+
+    const incident_document = &documents[try contractIndex("xsprof/incident-summary/v1")];
+    // Additive: a document without latency still validates.
+    try validateDocument(incident_document,
+        \\{"artifacts":{"report":"r","summary":"s","trace":"t","window":"w"},
+        \\"capabilities":[],"events":1,"findings":[],"host_mutation":false,
+        \\"loss":{"lost":0,"retention_trimmed":false},"requested_ms":1000,
+        \\"rules":[],"schema":"xsprof/incident-summary/v1",
+        \\"self":{"share":0,"switches":0},
+        \\"signals":{"allocator":false,"cpu_topology":false,"lock_contention":false,
+        \\"numa_fault":false,"page_fault":false,"pmu_hitm":false,
+        \\"priority_inversion":false,"sched_migrate":false,"sched_switch":false,
+        \\"sched_wakeup":false},"source":{"dir":"/tmp","window":"w"},"tasks":[],
+        \\"trace":{"events":1,"truncated":false},
+        \\"window":{"duration_ms":1,"first_us":0,"last_us":1,"retained_ms":1,
+        \\"trimmed":false}}
+    , "incident-legacy", 1);
+    try validateDocument(incident_document,
+        \\{"artifacts":{"report":"r","summary":"s","trace":"t","window":"w"},
+        \\"capabilities":[],"events":1,"findings":[],"host_mutation":false,
+        \\"latency":{"causes":[],"chain_cycles_cut":0,"chain_depth_cut":0,
+        \\"chain_edges":0,"chain_overflow":0,"chain_roots":0,
+        \\"chain_too_many_tasks":0,"chain_truncated":false,"chains":[],
+        \\"offcpu_samples":0,"offcpu_unresolved":0,"preempt_p95_us":0,
+        \\"preempt_unresolved":0,"preemptions":0},
+        \\"loss":{"lost":0,"retention_trimmed":false},"requested_ms":1000,
+        \\"rules":[],"schema":"xsprof/incident-summary/v1",
+        \\"self":{"share":0,"switches":0},
+        \\"signals":{"allocator":false,"cpu_topology":false,"lock_contention":false,
+        \\"numa_fault":false,"page_fault":false,"pmu_hitm":false,
+        \\"priority_inversion":false,"sched_migrate":false,"sched_switch":false,
+        \\"sched_wakeup":false},"source":{"dir":"/tmp","window":"w"},"tasks":[],
+        \\"trace":{"events":1,"truncated":false},
+        \\"window":{"duration_ms":1,"first_us":0,"last_us":1,"retained_ms":1,
+        \\"trimmed":false}}
+    , "incident-latency", 1);
 }

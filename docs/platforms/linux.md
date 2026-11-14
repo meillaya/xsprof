@@ -66,5 +66,11 @@ a normal Linux host, `./tools/zig build` targets the host glibc and works.
 
 `./tools/zig build check` runs on any Linux host; `check-ci` adds platform/
 media lanes and fails instead of skipping when a required tool is missing. The
-root-only perf/recorder gates are `./tools/zig build check-vm` on a disposable
-KVM VM. See [maintaining](../maintaining.md).
+root-only perf/recorder gates run in a disposable KVM VM. From a rootless host
+the durable, write-scoped way to run them is
+`sh tools/vm_lab.sh gates --all --bundle` (see [maintaining](../maintaining.md)):
+it pins every mutable host path under `.vm/`, keeps evidence under
+`dist/vm/evidence/`, and refuses to fabricate a PASS. A container-only host can
+still run `sh tools/vm_lab.sh gates --backend podman-container --lanes
+container,container-analysis`; explicitly requested privileged lanes are
+recorded as `REFUSE` with the exact reason.

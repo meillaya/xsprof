@@ -7,13 +7,38 @@
   "required": ["base", "base_source", "candidate", "candidate_source", "host_mutation", "regressions", "schema", "tasks", "threshold_pct"],
   "properties": {
     "base": { "type": "object" },
+    "base_runs": { "minimum": 1, "type": "integer" },
     "base_source": { "type": "string" },
     "candidate": { "type": "object" },
+    "candidate_runs": { "minimum": 1, "type": "integer" },
     "candidate_source": { "type": "string" },
+    "fail_reasons": {
+      "items": { "type": "string" },
+      "type": "array"
+    },
     "host_mutation": { "const": false },
-    "regressions": { "type": "integer" },
+    "regressions": { "minimum": 0, "type": "integer" },
     "schema": { "const": "xsprof/compare/v1" },
-    "tasks": { "type": "array" },
-    "threshold_pct": { "type": "number" }
+    "tasks": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "base_p95_us": { "minimum": 0, "type": ["integer", "null"] },
+          "base_runs": { "minimum": 0, "type": "integer" },
+          "base_switches": { "minimum": 0, "type": "integer" },
+          "candidate_p95_us": { "minimum": 0, "type": ["integer", "null"] },
+          "candidate_runs": { "minimum": 0, "type": "integer" },
+          "candidate_switches": { "minimum": 0, "type": "integer" },
+          "comm": { "maxLength": 1024, "minLength": 1, "type": "string" },
+          "delta_pct": { "type": ["number", "null"] },
+          "noise_pct": { "minimum": 0, "type": ["number", "null"] },
+          "regression": { "type": "boolean" }
+        },
+        "required": ["comm", "regression"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "threshold_pct": { "minimum": 0, "type": "number" }
   }
 }

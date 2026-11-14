@@ -1,0 +1,112 @@
+name: xsprof compare
+description: >-
+  Noise-aware scheduler regression gate: run `xsprof compare` over one to eight
+  captures per side and fail the job when the candidate regresses beyond both
+  the requested threshold and the empirical run-to-run noise floor.
+
+# No checkout, network, upload, or scripting-action dependencies: the caller is
+# expected to have checked out or restored its captures and built/downloaded the
+# xsprof binary already. The action only executes the binary and writes a report.
+inputs:
+  base:
+    description: >-
+      Baseline capture paths, whitespace separated (one to eight captures of
+      xsprof/event/v1 NDJSON).
+    required: true
+  candidate:
+    description: >-
+      Candidate capture paths, whitespace separated (one to eight captures of
+      xsprof/event/v1 NDJSON).
+    required: true
+  min-runs:
+    description: >-
+      Minimum number of captures required on each side (1-8). A shortfall is a
+      usage error in xsprof compare (exit 2) and fails the step.
+    required: false
+    default: "1"
+  fail-on:
+    description: >-
+      Whitespace-separated --fail-on rules, for example
+      "wait.p95=10% loss=0 migrations=5".
+    required: false
+    default: "wait.p95=10%"
+  binary:
+    description: Path to the xsprof binary, absolute or relative to the workspace.
+    required: false
+    default: "zig-out/bin/xsprof"
+  output:
+    description: Path of the canonical compare report to write.
+    required: false
+    default: "compare.json"
+
+outputs:
+  compare-json:
+    description: Path to the written canonical compare report.
+    value: ${{ steps.compare.outputs.compare-json }}
+  regressed:
+    description: '"true" when the gate failed with the regression exit code (3).'
+    value: ${{ steps.compare.outputs.regressed }}
+  exit-code:
+    description: compare exit code (0 pass, 3 regression; other codes fail the step).
+    value: ${{ steps.compare.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compare captures
+      id: compare
+      shell: bash
+      env:
+        XSPROF_BIN: ${{ inputs.binary }}
+        XSPROF_BASE: ${{ inputs.base }}
+        XSPROF_CANDIDATE: ${{ inputs.candidate }}
+        XSPROF_MIN_RUNS: ${{ inputs.min-runs }}
+        XSPROF_FAIL_ON: ${{ inputs.fail-on }}
+        XSPROF_OUTPUT: ${{ inputs.output }}
+      run: |
+        set -euo pipefail
+        binary="$XSPROF_BIN"
+        if ! command -v "$binary" >/dev/null 2>&1 && [ ! -x "$binary" ]; then
+          echo "xsprof-compare: binary not found: $binary" >&2
+          exit 1
+        fi
+        if [ -z "$XSPROF_BASE" ]; then
+          echo "xsprof-compare: the base input is required" >&2
+          exit 2
+        fi
+        if [ -z "$XSPROF_CANDIDATE" ]; then
+          echo "xsprof-compare: the candidate input is required" >&2
+          exit 2
+        fi
+        output="${XSPROF_OUTPUT:-compare.json}"
+        args=()
+        # Deliberate word splitting: the inputs are whitespace-separated paths.
+        # shellcheck disable=SC2086
+        for path in $XSPROF_BASE; do args+=(--base "$path"); done
+        # shellcheck disable=SC2086
+        for path in $XSPROF_CANDIDATE; do args+=(--candidate "$path"); done
+        # shellcheck disable=SC2086
+        for rule in $XSPROF_FAIL_ON; do args+=(--fail-on "$rule"); done
+        if [ -n "${XSPROF_MIN_RUNS:-}" ]; then args+=(--min-runs "$XSPROF_MIN_RUNS"); fi
+        args+=(--json)
+        mkdir -p -- "$(dirname -- "$output")"
+        status=0
+        "$binary" compare "${args[@]}" >"$output" || status=$?
+        case "$status" in
+          0) regressed=false ;;
+          3) regressed=true ;;
+          *)
+            echo "xsprof-compare: compare failed with exit $status; report: $output" >&2
+            exit "$status"
+            ;;
+        esac
+        {
+          echo "compare-json=$output"
+          echo "regressed=$regressed"
+          echo "exit-code=$status"
+        } >>"$GITHUB_OUTPUT"
+        if [ "$regressed" = true ]; then
+          echo "xsprof-compare: scheduler regression detected (exit 3); report: $output" >&2
+          exit 3
+        fi
+        echo "xsprof-compare: no regression beyond threshold and noise floor"

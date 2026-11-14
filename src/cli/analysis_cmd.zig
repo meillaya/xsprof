@@ -7,6 +7,8 @@ const compare_mod = @import("../analyze/compare.zig");
 const Writer = std.Io.Writer;
 const Exit = @import("exit.zig").Exit;
 
+const max_rules = 32;
+
 fn loadMetrics(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -17,6 +19,24 @@ fn loadMetrics(
     defer index.deinit();
     try index.append(events);
     return index.snapshot(allocator);
+}
+
+/// One comparison input: the scalar metrics plus the per-comm histograms the
+/// noise-aware gate merges across repeated captures.
+fn loadRun(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    path: []const u8,
+) !compare_mod.RunInput {
+    const events = try journal.read(io, allocator, path);
+    var index = metrics_mod.Index.init(allocator);
+    defer index.deinit();
+    try index.append(events);
+    return .{
+        .source = path,
+        .metrics = try index.snapshot(allocator),
+        .comms = try compare_mod.extractComms(allocator, &index),
+    };
 }
 
 pub fn cmdMetrics(
@@ -61,15 +81,130 @@ pub fn cmdMetrics(
     return .ok;
 }
 
-fn parseThreshold(text: []const u8) !f64 {
-    const equals = std.mem.indexOfScalar(u8, text, '=') orelse return error.InvalidThreshold;
-    const metric = std.mem.trim(u8, text[0..equals], " ");
-    if (!std.mem.eql(u8, metric, "wait.p95")) return error.UnsupportedMetric;
-    var value = std.mem.trim(u8, text[equals + 1 ..], " ");
-    if (std.mem.endsWith(u8, value, "%")) value = value[0 .. value.len - 1];
-    const parsed = std.fmt.parseFloat(f64, value) catch return error.InvalidThreshold;
-    if (parsed < 0) return error.InvalidThreshold;
-    return parsed;
+const CompareOptions = struct {
+    bases: std.ArrayList([]const u8) = .empty,
+    candidates: std.ArrayList([]const u8) = .empty,
+    rules: std.ArrayList(compare_mod.Rule) = .empty,
+    min_runs: usize = 1,
+    threshold_pct: f64 = compare_mod.default_threshold_pct,
+    html_path: ?[]const u8 = null,
+    markdown: bool = false,
+
+    fn deinit(self: *CompareOptions, allocator: std.mem.Allocator) void {
+        self.bases.deinit(allocator);
+        self.candidates.deinit(allocator);
+        self.rules.deinit(allocator);
+    }
+};
+
+fn parseCompareOptions(
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    err: *Writer,
+) !CompareOptions {
+    var options = CompareOptions{};
+    errdefer options.deinit(allocator);
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--base")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("compare: --base requires a capture path\n");
+                return error.BadArgs;
+            }
+            if (options.bases.items.len >= compare_mod.max_runs_per_side) {
+                try err.print("compare: at most {d} --base captures are supported\n", .{compare_mod.max_runs_per_side});
+                return error.BadArgs;
+            }
+            try options.bases.append(allocator, args[i]);
+        } else if (std.mem.eql(u8, arg, "--candidate")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("compare: --candidate requires a capture path\n");
+                return error.BadArgs;
+            }
+            if (options.candidates.items.len >= compare_mod.max_runs_per_side) {
+                try err.print("compare: at most {d} --candidate captures are supported\n", .{compare_mod.max_runs_per_side});
+                return error.BadArgs;
+            }
+            try options.candidates.append(allocator, args[i]);
+        } else if (std.mem.eql(u8, arg, "--min-runs")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("compare: --min-runs requires a value\n");
+                return error.BadArgs;
+            }
+            const parsed = std.fmt.parseInt(usize, args[i], 10) catch {
+                try err.writeAll("compare: --min-runs must be an integer between 1 and 8\n");
+                return error.BadArgs;
+            };
+            if (parsed < 1 or parsed > compare_mod.max_runs_per_side) {
+                try err.writeAll("compare: --min-runs must be an integer between 1 and 8\n");
+                return error.BadArgs;
+            }
+            options.min_runs = parsed;
+        } else if (std.mem.eql(u8, arg, "--fail-on")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("compare: --fail-on requires a metric threshold\n");
+                return error.BadArgs;
+            }
+            const rule = compare_mod.parseRule(args[i]) catch {
+                try err.print(
+                    "compare: invalid --fail-on {s}; expected wait.p50|p95|p99|max|offcpu.p95=<percent> " ++
+                        "or preemptions|migrations|loss=<absolute>\n",
+                    .{args[i]},
+                );
+                return error.BadArgs;
+            };
+            if (options.rules.items.len >= max_rules) {
+                try err.print("compare: at most {d} --fail-on rules are supported\n", .{max_rules});
+                return error.BadArgs;
+            }
+            switch (rule) {
+                .latency => |latency| {
+                    if (latency.metric == .wait_p95) options.threshold_pct = latency.threshold_pct;
+                },
+                .counter => {},
+            }
+            try options.rules.append(allocator, rule);
+        } else if (std.mem.eql(u8, arg, "--html")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("compare: --html requires a path\n");
+                return error.BadArgs;
+            }
+            options.html_path = args[i];
+        } else if (std.mem.eql(u8, arg, "--md")) {
+            options.markdown = true;
+        } else if (std.mem.eql(u8, arg, "--json")) {
+            // JSON is the default output; accepted for automation symmetry.
+        } else {
+            try err.print("compare: unknown option {s}\n", .{arg});
+            return error.BadArgs;
+        }
+    }
+    return options;
+}
+
+fn loadInputs(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    paths: []const []const u8,
+    side: []const u8,
+    err: *Writer,
+) !?std.ArrayList(compare_mod.RunInput) {
+    var inputs: std.ArrayList(compare_mod.RunInput) = .empty;
+    errdefer inputs.deinit(allocator);
+    for (paths) |path| {
+        const input = loadRun(io, allocator, path) catch |load_error| {
+            try err.print("compare: {s} {s}: {s}\n", .{ side, path, @errorName(load_error) });
+            return null;
+        };
+        try inputs.append(allocator, input);
+    }
+    return inputs;
 }
 
 pub fn cmdCompare(
@@ -79,68 +214,49 @@ pub fn cmdCompare(
     out: *Writer,
     err: *Writer,
 ) !Exit {
-    var base: ?[]const u8 = null;
-    var candidate: ?[]const u8 = null;
-    var html_path: ?[]const u8 = null;
-    var markdown = false;
-    var threshold: f64 = 10.0;
-    var threshold_set = false;
-    var i: usize = 0;
-    while (i < args.len) : (i += 1) {
-        const arg = args[i];
-        if (std.mem.eql(u8, arg, "--base") and i + 1 < args.len) {
-            i += 1;
-            base = args[i];
-        } else if (std.mem.eql(u8, arg, "--candidate") and i + 1 < args.len) {
-            i += 1;
-            candidate = args[i];
-        } else if (std.mem.eql(u8, arg, "--html") and i + 1 < args.len) {
-            i += 1;
-            html_path = args[i];
-        } else if (std.mem.eql(u8, arg, "--md")) {
-            markdown = true;
-        } else if (std.mem.eql(u8, arg, "--fail-on") and i + 1 < args.len) {
-            i += 1;
-            threshold = parseThreshold(args[i]) catch {
-                try err.writeAll("compare: --fail-on supports wait.p95=<percent>\n");
-                return .usage;
-            };
-            threshold_set = true;
-        } else if (std.mem.eql(u8, arg, "--json")) {
-            continue;
-        } else {
-            try err.print("compare: unknown option {s}\n", .{arg});
-            return .usage;
-        }
+    var options = parseCompareOptions(allocator, args, err) catch return .usage;
+    defer options.deinit(allocator);
+    if (options.bases.items.len == 0) {
+        try err.writeAll("compare: at least one --base <capture> is required\n");
+        return .usage;
     }
-    const base_path = base orelse {
-        try err.writeAll("compare: --base <journal> is required\n");
+    if (options.candidates.items.len == 0) {
+        try err.writeAll("compare: at least one --candidate <capture> is required\n");
         return .usage;
-    };
-    const candidate_path = candidate orelse {
-        try err.writeAll("compare: --candidate <journal> is required\n");
+    }
+    if (options.min_runs > 1 and
+        (options.bases.items.len < options.min_runs or options.candidates.items.len < options.min_runs))
+    {
+        try err.print(
+            "compare: --min-runs {d} requires at least {d} --base and {d} --candidate captures (got {d} and {d})\n",
+            .{ options.min_runs, options.min_runs, options.min_runs, options.bases.items.len, options.candidates.items.len },
+        );
         return .usage;
+    }
+    for (options.rules.items) |rule| switch (rule) {
+        .counter => |counter_rule| if (!compare_mod.counterAvailable(counter_rule.metric)) {
+            try err.print(
+                "compare: --fail-on {s} is unavailable in this build (requires causal-latency metrics)\n",
+                .{compare_mod.counterName(counter_rule.metric)},
+            );
+            return .usage;
+        },
+        .latency => {},
     };
-    const base_metrics = loadMetrics(io, allocator, base_path) catch |load_error| {
-        try err.print("compare: base: {s}\n", .{@errorName(load_error)});
-        return .refuse;
-    };
-    const candidate_metrics = loadMetrics(io, allocator, candidate_path) catch |load_error| {
-        try err.print("compare: candidate: {s}\n", .{@errorName(load_error)});
-        return .refuse;
-    };
-    const report = compare_mod.build(
-        allocator,
-        base_path,
-        base_metrics,
-        candidate_path,
-        candidate_metrics,
-        threshold,
-    ) catch |build_error| {
+
+    var base_inputs = try loadInputs(io, allocator, options.bases.items, "base", err) orelse return .refuse;
+    defer base_inputs.deinit(allocator);
+    var candidate_inputs = try loadInputs(io, allocator, options.candidates.items, "candidate", err) orelse return .refuse;
+    defer candidate_inputs.deinit(allocator);
+
+    const report = compare_mod.build(allocator, base_inputs.items, candidate_inputs.items, .{
+        .threshold_pct = options.threshold_pct,
+        .rules = options.rules.items,
+    }) catch |build_error| {
         try err.print("compare: {s}\n", .{@errorName(build_error)});
         return .refuse;
     };
-    if (html_path) |path| {
+    if (options.html_path) |path| {
         var allocating = std.Io.Writer.Allocating.init(allocator);
         defer allocating.deinit();
         try compare_mod.writeHtml(&allocating.writer, report);
@@ -150,12 +266,53 @@ pub fn cmdCompare(
         };
         defer file.close(io);
         try file.writeStreamingAll(io, allocating.written());
-    } else if (markdown) {
+    } else if (options.markdown) {
         try compare_mod.writeMarkdown(out, report);
     } else {
         try compare_mod.writeJson(out, report);
         try out.writeByte('\n');
     }
-    if (threshold_set and report.regressions > 0) return .internal;
+    if (report.fail_reasons.len != 0) return .internal;
+    if (report.unavailable_rules.len != 0) {
+        for (report.unavailable_rules) |name| {
+            try err.print(
+                "compare: --fail-on {s}: no comparable data (unknown, not a pass)\n",
+                .{name},
+            );
+        }
+        return .refuse;
+    }
     return .ok;
+}
+
+fn expectUsage(args: []const []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out_buffer: [256]u8 = undefined;
+    var err_buffer: [1024]u8 = undefined;
+    var out = Writer.fixed(&out_buffer);
+    var err = Writer.fixed(&err_buffer);
+    try std.testing.expectEqual(
+        Exit.usage,
+        try cmdCompare(std.testing.io, arena.allocator(), args, &out, &err),
+    );
+}
+
+test "compare requires at least one capture per side" {
+    try expectUsage(&.{});
+    try expectUsage(&.{"--base"});
+    try expectUsage(&.{ "--base", "b.ndjson" });
+    try expectUsage(&.{ "--candidate", "c.ndjson" });
+}
+
+test "compare validates the fail-on grammar and run bounds" {
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--fail-on", "wait.p90=5" });
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--fail-on", "loss=1%" });
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--min-runs", "0" });
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--min-runs", "9" });
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--min-runs", "x" });
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--nope" });
+    // --min-runs K needs K captures on each side before any file is opened.
+    try expectUsage(&.{ "--base", "b", "--candidate", "c", "--min-runs", "2" });
+    try expectUsage(&.{ "--base", "b1", "--base", "b2", "--candidate", "c", "--min-runs", "2" });
 }

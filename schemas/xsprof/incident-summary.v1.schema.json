@@ -121,6 +121,157 @@
     "host_mutation": {
       "const": false
     },
+    "latency": {
+      "additionalProperties": false,
+      "properties": {
+        "causes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reason": {
+                "enum": [
+                  "dead",
+                  "idle",
+                  "interruptible",
+                  "other",
+                  "parked",
+                  "preempted",
+                  "stopped",
+                  "traced",
+                  "uninterruptible",
+                  "unknown",
+                  "zombie"
+                ]
+              },
+              "total_us": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "count",
+              "reason",
+              "total_us"
+            ],
+            "type": "object"
+          },
+          "maxItems": 11,
+          "type": "array"
+        },
+        "chain_cycles_cut": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_depth_cut": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_edges": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_overflow": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_roots": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_too_many_tasks": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chain_truncated": {
+          "type": "boolean"
+        },
+        "chains": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "depth": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "leaf_comm": {
+                "type": "string"
+              },
+              "leaf_pid": {
+                "type": "integer"
+              },
+              "p95_wait_us": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "root_pid": {
+                "type": "integer"
+              },
+              "total_wait_us": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "count",
+              "depth",
+              "leaf_comm",
+              "leaf_pid",
+              "p95_wait_us",
+              "root_pid",
+              "total_wait_us"
+            ],
+            "type": "object"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "offcpu_samples": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "offcpu_unresolved": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "preempt_p95_us": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "preempt_unresolved": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "preemptions": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "causes",
+        "chain_cycles_cut",
+        "chain_depth_cut",
+        "chain_edges",
+        "chain_overflow",
+        "chain_roots",
+        "chain_too_many_tasks",
+        "chain_truncated",
+        "chains",
+        "offcpu_samples",
+        "offcpu_unresolved",
+        "preempt_p95_us",
+        "preempt_unresolved",
+        "preemptions"
+      ],
+      "type": "object"
+    },
     "loss": {
       "additionalProperties": false,
       "properties": {

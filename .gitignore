@@ -30,6 +30,11 @@ __pycache__/
 # Local release artifacts
 /dist/
 
+# Local VM verification lab state (tools/vm_lab.sh): scoped podman HOME/XDG
+# dirs, machine caches and staging live here; evidence bundles live under
+# dist/vm/. Never commit either.
+/.vm/
+
 # Local Nix evaluation caches (sandbox-friendly)
 .nix-cache/
 .nix-tmp/
