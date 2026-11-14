@@ -67,7 +67,11 @@ fail() {
 say() { printf '%s\n' "stack_smoke: $*"; }
 
 [ -x "$BIN" ] || fail "binary not found: $BIN (build first: ./tools/zig build)"
-[ -x "$ZIG" ] || fail "zig toolchain not found: $ZIG (required by the analysis lane)"
+# The analysis lane compiles its fixture and runs the deterministic unit tests
+# with the pinned toolchain; the live VM lane only needs the staged binary.
+if [ "$MODE" = analysis ]; then
+    [ -x "$ZIG" ] || fail "zig toolchain not found: $ZIG (required by the analysis lane)"
+fi
 
 TMP=$(mktemp -d)
 cleanup() {

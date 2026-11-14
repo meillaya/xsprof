@@ -633,8 +633,24 @@ kvm_run_lane() { # LANE
                 record_refuse studies "qa/studies/run_studies.sh is not present in this tree"
                 return 1
             fi
-            kvm_gate studies 08-studies.log "xsprof latency studies: PASS" \
-                'sudo -n env XSPROF_STUDY_VM_CONFIRM=1 sh /var/tmp/xsprof/qa/studies/run_studies.sh --out /var/tmp/xsprof-studies'
+            kvm_gate studies 08-studies.log "run_studies: PASS" \
+                'sudo -n env XSPROF_STUDY_VM_CONFIRM=1 sh /var/tmp/xsprof/qa/studies/run_studies.sh --out /var/tmp/xsprof-studies' || return 1
+            # Copy the in-VM study artifacts into the evidence directory so the
+            # release bundle carries the actual capture/why/metrics/incident
+            # output, not just the console log.
+            mkdir -p "$EVIDENCE/studies-artifacts"
+            if podman machine ssh "$MACHINE" 'sudo -n tar -C /var/tmp -cf - xsprof-studies' 2>"$EVIDENCE/08b-studies-copy.log" |
+                tar -C "$EVIDENCE/studies-artifacts" -xf - 2>>"$EVIDENCE/08b-studies-copy.log"; then
+                {
+                    printf '# studies artifact inventory\n'
+                    find "$EVIDENCE/studies-artifacts" -type f | LC_ALL=C sort | while IFS= read -r artifact; do
+                        printf '%s  %s\n' "$(sha256_of "$artifact")" "${artifact#"$EVIDENCE/"}"
+                    done
+                } >"$EVIDENCE/08c-studies-inventory.txt"
+                say "studies artifacts captured: $(find "$EVIDENCE/studies-artifacts" -type f | wc -l | tr -d ' ') files"
+            else
+                warn "could not copy studies artifacts out of the VM (see 08b-studies-copy.log)"
+            fi
             ;;
         *)
             usage_error "unknown lane: $lane"
