@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/meillaya/xsprof/actions/workflows/zig-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/meillaya/xsprof/zig-ci.yml?style=flat-square&label=zig-ci" alt="zig-ci status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-72d487?style=flat-square" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/version-0.6.1-58d7e8?style=flat-square" alt="version 0.6.1">
+  <img src="https://img.shields.io/badge/version-0.7.0-58d7e8?style=flat-square" alt="version 0.7.0">
 </p>
 
 <p align="center">
@@ -43,6 +43,35 @@ Live capture needs Linux perf tracepoints plus `CAP_PERFMON` (or
 `perf_event_paranoid <= 1`) and readable tracefs — see
 [recording permissions](docs/guides/capture-permissions.md). The tool shows
 `SKIP`/`REFUSE` with the exact reason and never elevates.
+
+## Latency forensics in three commands
+
+No VM, root, or perf permissions needed: replay the committed scheduler
+captures below and read the same reports a live incident produces.
+
+```sh
+# 1. Explain waits, off-CPU causes, preemption, and wakeup chains
+xsprof why --input fixtures/ui/latency-mixed.ndjson
+#    OFF-CPU CAUSES / PREEMPTION / CRITICAL CHAINS are the v0.7 causal sections
+
+# 2. Read the canonical metrics behind the report (schema xsprof/metrics/v1)
+xsprof metrics --input fixtures/ui/latency-mixed.ndjson --json
+
+# 3. Turn repeated captures into a regression decision (schema xsprof/compare/v1)
+xsprof compare --base fixtures/real/scheduler-mix.ndjson --base fixtures/real/scheduler-mix.ndjson \
+  --candidate fixtures/real/scheduler-mix.ndjson --candidate fixtures/real/scheduler-mix.ndjson \
+  --min-runs 2 --json
+```
+
+`why --json` exposes the same data as `latency` (`offcpu_samples`,
+`offcpu_unresolved`, `causes[]`, `preemptions`, `chains[]`) so it can feed
+automation. `compare` gates on wakeup-to-run/off-CPU latency and scheduler
+counters with an empirical run-to-run noise floor; exit `3` means a reportable
+regression, `1` means the data was not comparable (unknown is not a pass).
+Walk one incident end to end in
+[latency forensics](docs/guides/latency-forensics.md); the replay study
+workloads for a disposable VM live in
+[qa/studies](qa/studies/README.md).
 
 ## Viewer (optional)
 
@@ -81,8 +110,8 @@ NixOS recorder service (disabled by default; unprivileged user with only
 ```
 
 **Release artifacts:** Linux tarballs, Debian packages, and AppImages for
-x86_64 and aarch64 (`Xsprof-0.6.1-x86_64.AppImage`,
-`xsprof_0.6.1-1_amd64.deb`, `xsprof-0.6.1-linux-x86_64.tar.gz`), published with
+x86_64 and aarch64 (`Xsprof-0.7.0-x86_64.AppImage`,
+`xsprof_0.7.0-1_amd64.deb`, `xsprof-0.7.0-linux-x86_64.tar.gz`), published with
 `SHA256SUMS` and Sigstore build provenance. Releases are cut from tags only;
 verify with `sha256sum -c` and `gh attestation verify <file> -R meillaya/xsprof`.
 

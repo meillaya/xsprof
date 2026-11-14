@@ -38,7 +38,7 @@ fn parseWrapper(allocator: std.mem.Allocator, data: []const u8) ![]event.RawEven
     };
     var out: std.ArrayList(event.RawEvent) = .empty;
     for (array.items) |item| {
-        const parsed = event.fromValue(item) catch |err| switch (err) {
+        const parsed = event.fromValue(allocator, item) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             else => return error.InvalidJournal,
         };

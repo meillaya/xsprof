@@ -51,12 +51,17 @@ host path is under `$ROOT/.vm/` (scoped `HOME`, `XDG_*`, `TMPDIR`,
 `$ROOT/dist/vm/evidence/`; both are gitignored. It refuses to run as root and
 never calls host `sudo` — the only privilege is inside the disposable VM
 (`podman machine ssh 'sudo -n …'`). `--audit-writes` records a post-run
-inventory of files newer than the run start and fails on anything outside the
-repository. Without `/dev/kvm`, `--backend podman-container` runs the
+inventory of files newer than the run start (informational: a desktop or agent
+session writes to `$HOME` concurrently) and hard-fails only on this lab's
+tool-owned locations — podman/qemu/container state and `xsprof-lab` paths —
+appearing outside the repository; unrelated writes are listed but do not fail
+the audit. Without `/dev/kvm`, `--backend podman-container` runs the
 unprivileged `container` lane in a rootless container and records explicitly
 requested privileged lanes as `REFUSE` with the reason — it never fabricates a
 PASS. Evidence is a QA artifact (`xsprof/vm-evidence/v1` manifest) attached to
-release assets, never committed.
+release assets, never committed. `vm_evidence.sh verify`/`prune` keep their
+temporary extraction under `$ROOT/.vm/tmp/`, and their bundles are hash-checked
+(not signed) by design.
 
 CI (`.github/workflows/zig-ci.yml`) runs `check-ci` on Linux x86_64 and
 aarch64 runners and `check` on macOS. The release preflight runs `check-ci` and

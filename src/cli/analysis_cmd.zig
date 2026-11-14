@@ -1,8 +1,10 @@
 const std = @import("std");
 const journal = @import("../stream/journal.zig");
+const event_mod = @import("../core/event.zig");
 const metrics_mod = @import("../analyze/metrics.zig");
 const metrics_json = @import("../analyze/metrics_json.zig");
 const compare_mod = @import("../analyze/compare.zig");
+const perf_script_import = @import("../viz/perf_script_import.zig");
 
 const Writer = std.Io.Writer;
 const Exit = @import("exit.zig").Exit;
@@ -281,6 +283,115 @@ pub fn cmdCompare(
             );
         }
         return .refuse;
+    }
+    return .ok;
+}
+
+fn readTextFile(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    max_bytes: usize,
+) ?[]u8 {
+    const file = if (path.len != 0 and path[0] == '/')
+        std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null
+    else
+        std.Io.Dir.cwd().openFile(io, path, .{}) catch return null;
+    defer file.close(io);
+    var buffer: [64 * 1024]u8 = undefined;
+    var reader = file.readerStreaming(io, &buffer);
+    return reader.interface.allocRemaining(allocator, .limited(max_bytes)) catch null;
+}
+
+/// `import --perf-script FILE [--out FILE]`: strict, bounded conversion of the
+/// documented `perf script` subset to canonical `xsprof/event/v1` NDJSON.
+/// A file with any rejected line is refused whole; no partial rows are written.
+pub fn cmdImport(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: []const []const u8,
+    out: *Writer,
+    err: *Writer,
+) !Exit {
+    var input: ?[]const u8 = null;
+    var output: ?[]const u8 = null;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--perf-script")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("import: --perf-script requires a file\n");
+                return .usage;
+            }
+            input = args[i];
+        } else if (std.mem.eql(u8, arg, "--out")) {
+            i += 1;
+            if (i >= args.len) {
+                try err.writeAll("import: --out requires a file\n");
+                return .usage;
+            }
+            output = args[i];
+        } else {
+            try err.print("import: unknown option {s}\n", .{arg});
+            return .usage;
+        }
+    }
+    const path = input orelse {
+        try err.writeAll("import: --perf-script <file> is required\n");
+        return .usage;
+    };
+    const text = readTextFile(io, allocator, path, perf_script_import.max_input_bytes + 1) orelse {
+        try err.print("import: cannot read {s}\n", .{path});
+        return .refuse;
+    };
+    var result = perf_script_import.import(allocator, text, .{}) catch |import_error| {
+        try err.print("import: {s}\n", .{@errorName(import_error)});
+        return .refuse;
+    };
+    defer result.deinit(allocator);
+    if (!result.ok()) {
+        for (result.diagnostics) |diagnostic| {
+            try err.print("import: line {d}: {s}\n", .{
+                diagnostic.line,
+                perf_script_import.reasonName(diagnostic.reason),
+            });
+        }
+        if (result.errors_truncated) try err.writeAll("import: further rejected lines suppressed\n");
+        try err.print(
+            "import: {d} of {d} lines rejected; refusing the file (no rows written)\n",
+            .{ result.rejected, result.lines },
+        );
+        return .refuse;
+    }
+    if (result.events.len == 0) {
+        try err.writeAll("import: no supported scheduler lines found\n");
+        return .refuse;
+    }
+    var allocating = std.Io.Writer.Allocating.init(allocator);
+    defer allocating.deinit();
+    for (result.events) |entry| {
+        try event_mod.writeJson(&allocating.writer, entry);
+        try allocating.writer.writeByte('\n');
+    }
+    if (output) |out_path| {
+        const file = if (out_path.len != 0 and out_path[0] == '/')
+            std.Io.Dir.createFileAbsolute(io, out_path, .{}) catch |open_error| {
+                try err.print("import: cannot open {s}: {s}\n", .{ out_path, @errorName(open_error) });
+                return .refuse;
+            }
+        else
+            std.Io.Dir.cwd().createFile(io, out_path, .{}) catch |open_error| {
+                try err.print("import: cannot open {s}: {s}\n", .{ out_path, @errorName(open_error) });
+                return .refuse;
+            };
+        defer file.close(io);
+        file.writeStreamingAll(io, allocating.written()) catch |write_error| {
+            try err.print("import: write failed: {s}\n", .{@errorName(write_error)});
+            return .refuse;
+        };
+    } else {
+        try out.writeAll(allocating.written());
     }
     return .ok;
 }

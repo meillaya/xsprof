@@ -38,7 +38,7 @@
 #   sh tools/vm_lab.sh clean [--evidence]           # remove this lab's state
 #
 # Options: --backend auto|kvm-machine|podman-container
-#          --all | --lanes probe,live,service,retention[,latency,stacks]
+#          --all | --lanes probe,live,service,retention[,latency,stacks,studies]
 #          --keep                    keep the podman machine (debugging)
 #          --bundle                  package evidence for release attachment
 #          --audit-writes            inventory writes outside $ROOT
@@ -106,6 +106,9 @@ fail() {
         meta run_failure "$*" 2>/dev/null || true
         meta exit_code 1 2>/dev/null || true
         write_manifest 1 >/dev/null 2>&1 || true
+        if [ "${JSON_OUT:-0}" = 1 ] && [ -f "$EVIDENCE/manifest.json" ]; then
+            cat "$EVIDENCE/manifest.json"
+        fi
     fi
     exit 1
 }
@@ -625,6 +628,14 @@ kvm_run_lane() { # LANE
             kvm_gate stacks 07-stack-smoke.log "stack_smoke: PASS" \
                 'sudo -n sh /var/tmp/xsprof/qa/stack_smoke.sh --live'
             ;;
+        studies)
+            if [ ! -f "$STAGE/qa/studies/run_studies.sh" ]; then
+                record_refuse studies "qa/studies/run_studies.sh is not present in this tree"
+                return 1
+            fi
+            kvm_gate studies 08-studies.log "xsprof latency studies: PASS" \
+                'sudo -n env XSPROF_STUDY_VM_CONFIRM=1 sh /var/tmp/xsprof/qa/studies/run_studies.sh --out /var/tmp/xsprof-studies'
+            ;;
         *)
             usage_error "unknown lane: $lane"
             ;;
@@ -1033,6 +1044,7 @@ run_lanes_kvm() {
         lanes="probe live service retention"
         if [ -f "$SRC_ROOT/qa/latency_smoke.sh" ]; then lanes="$lanes latency"; fi
         if [ -f "$SRC_ROOT/qa/stack_smoke.sh" ]; then lanes="$lanes stacks"; fi
+        if [ -f "$SRC_ROOT/qa/studies/run_studies.sh" ]; then lanes="$lanes studies"; fi
     else
         lanes=${LANES:-probe}
     fi
@@ -1051,7 +1063,7 @@ run_lanes_container() {
     rc=0
     for lane in $(printf '%s' "$desired" | tr ',' ' '); do
         case "$lane" in
-            container | container-lane | probe | live | service | retention | latency | stacks)
+            container | container-lane | probe | live | service | retention | latency | stacks | studies)
                 case "$lane" in
                     container | container-lane) container_lane || rc=1 ;;
                     *)

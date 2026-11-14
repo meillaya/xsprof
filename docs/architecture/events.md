@@ -71,6 +71,46 @@ index build wakeup pairs as `pid (waker) -> a (woken)`.
 | `c` | `0`. |
 | `comm` | The migrating task's name. |
 
+### `stack_sample` (experimental)
+
+```json
+{"a":4210688,"b":0,"c":0,"comm":"worker","cpu":2,"event":"stack_sample","host_mutation":false,"pid":4242,"schema":"xsprof/event/v1","stack":[4210688,4227072,4198400],"tid":4243,"ts_ns":9000000}
+```
+
+| Field | Meaning |
+|---|---|
+| `pid`, `tid` | The sampled task (perf's `PERF_SAMPLE_TID` pair). `comm` is the sampled **process** comm, bounded by the serializer. |
+| `a` | The sample instruction pointer (`PERF_SAMPLE_IP`). It repeats the first callchain entry when a callchain was captured. |
+| `b`, `c` | `0`. |
+| `cpu` | CPU on which the sampled task was running. |
+| `stack` | Optional array of raw callchain addresses, leaf first (`PERF_SAMPLE_CALLCHAIN` order), at most 64 entries. Absent for IP-only sampling. |
+| `detail` | Empty. Loss is a separate `marker` row. |
+
+Only the experimental per-PID sampling lane (`record --sample cpu [--stacks fp]
+--pid PID`) emits `stack_sample` rows; the tracepoint preset lane never does.
+Lost kernel samples are explicit `sample_loss` marker rows (`stacks_perf_ring
+lost=N`, `stacks_throttled`, `stacks_malformed_records=N`), never filler rows.
+
+Limits, stated rather than hidden:
+
+- Userspace stacks are frame-pointer based (the kernel callchain walk); there
+  is no DWARF unwinding, no JIT symbol support, and no system-wide sampling.
+  Frames are hardware/runtime addresses and are not symbolized in the capture.
+- Kernel frames appear only when the host permits kernel sampling (the same
+  `CAP_PERFMON`/`perf_event_paranoid` gate as live capture) and the kernel can
+  unwind; a capture can therefore contain only user frames.
+- Symbolization is analysis-time only: `export --format folded|perf-script
+  --input FILE [--binary PATH] [--kallsyms PATH]` resolves addresses from
+  user-supplied symbol sources (ELF `.symtab`/`.dynsym`, `/proc/kallsyms` text).
+  Unresolved frames stay `0x...`; no symbol is ever invented.
+- The ELF load bias for `--binary` comes from the local
+  `<capture>.maps.ndjson` sidecar written by the sampler. That sidecar is
+  **not** product wire: it is never displayed, contains only bounded path-backed
+  mappings (no argv/env), and is ignored by every other command.
+- Compact segments (`.xsraw`) carry no stack representation: the compact v1
+  writer refuses a non-empty `stack` payload explicitly, and there is no
+  compact codec v2. The recorder/daemon (compact) lane stays tracepoint-only.
+
 ### `page_fault`
 
 ```json

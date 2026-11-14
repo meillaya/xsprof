@@ -49,6 +49,20 @@ mtime_of() {
     fi
 }
 
+# Temporary paths stay inside the repository: the lab claims never to use the
+# system TMPDIR, and verify/prune must not make that claim false.
+evidence_tmp_dir() {
+    root="$ROOT/.vm/tmp"
+    mkdir -p "$root"
+    mktemp -d "$root/vm-evidence.XXXXXX"
+}
+
+evidence_tmp_file() {
+    root="$ROOT/.vm/tmp"
+    mkdir -p "$root"
+    mktemp "$root/vm-evidence-list.XXXXXX"
+}
+
 # require_inside_repo PATH: resolve PATH and refuse anything outside $ROOT.
 require_inside_repo() {
     target=$1
@@ -161,7 +175,7 @@ cmd_verify() {
     actual=$(sha256_of "$bundle")
     [ "$expected" = "$actual" ] || fail "verify: sha256 mismatch"
     say "PASS sha256=$actual"
-    tmp=$(mktemp -d)
+    tmp=$(evidence_tmp_dir)
     trap 'rm -rf "$tmp"' EXIT HUP INT TERM
     tar -xzf "$bundle" -C "$tmp" || fail "verify: cannot extract bundle"
     manifest=$(find "$tmp" -name manifest.json -type f | head -n 1)
@@ -186,6 +200,7 @@ cmd_prune() {
     keep=5
     max_bytes=$((512 * 1024 * 1024))
     dry_run=0
+    orphans=0
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --keep)
@@ -198,6 +213,10 @@ cmd_prune() {
                 ;;
             --dry-run)
                 dry_run=1
+                shift
+                ;;
+            --orphans)
+                orphans=1
                 shift
                 ;;
             -h | --help)
@@ -219,13 +238,21 @@ cmd_prune() {
         say "nothing to prune (no evidence root)"
         exit 0
     }
-    # Newest first by manifest mtime.
-    list=$(mktemp)
+    # Newest first by manifest mtime. Interrupted runs have no manifest; they are
+    # skipped unless --orphans is given (then their directory mtime is used).
+    list=$(evidence_tmp_file)
     trap 'rm -f "$list"' EXIT HUP INT TERM
     for dir in "$EVIDENCE_ROOT"/*; do
         [ -d "$dir" ] || continue
-        [ -f "$dir/manifest.json" ] || continue
-        printf '%s\t%s\n' "$(mtime_of "$dir/manifest.json")" "$dir"
+        if [ -f "$dir/manifest.json" ]; then
+            stamp=$(mtime_of "$dir/manifest.json")
+        elif [ "$orphans" = 1 ]; then
+            stamp=$(mtime_of "$dir")
+        else
+            say "SKIP orphan without manifest: $dir (use --orphans to prune)"
+            continue
+        fi
+        printf '%s\t%s\n' "$stamp" "$dir"
     done | sort -rn >"$list"
     total=0
     index=0

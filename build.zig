@@ -189,6 +189,16 @@ pub fn build(b: *std.Build) void {
     const latency_smoke_step = b.step("latency-smoke", "Causal latency attribution smoke (analysis fixtures)");
     latency_smoke_step.dependOn(&latency_smoke.step);
 
+    const stack_smoke = b.addSystemCommand(&.{ "sh", "qa/stack_smoke.sh" });
+    stack_smoke.step.dependOn(b.getInstallStep());
+    const stack_smoke_step = b.step("stack-smoke", "Experimental sampling-stack analysis smoke");
+    stack_smoke_step.dependOn(&stack_smoke.step);
+
+    const import_smoke = b.addSystemCommand(&.{ "sh", "qa/import_smoke.sh" });
+    import_smoke.step.dependOn(b.getInstallStep());
+    const import_smoke_step = b.step("import-smoke", "Strict perf-script importer gate");
+    import_smoke_step.dependOn(&import_smoke.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -283,6 +293,8 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&quickstart_smoke.step);
     check.dependOn(&compare_ci_smoke.step);
     check.dependOn(&latency_smoke.step);
+    check.dependOn(&stack_smoke.step);
+    check.dependOn(&import_smoke.step);
     check.dependOn(&compact_roundtrip.step);
     check.dependOn(&a11y_smoke.step);
     check.dependOn(&xsui_package.step);

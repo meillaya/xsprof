@@ -13,6 +13,9 @@ pub const version: u16 = 1;
 pub const header_bytes: usize = 64;
 pub const block_header_bytes: usize = 8;
 pub const max_block_payload: usize = 32 * 1024;
+/// Append-only compact v1 event-kind byte. New `event.Kind` variants get the
+/// next integer and old segments stay readable; removed kinds are never reused.
+pub const max_encoded_kind: u8 = @intCast(@typeInfo(event.Kind).@"enum".field_names.len - 1);
 pub const footer_payload_bytes: usize = 24;
 pub const max_record_bytes: usize = 1152;
 pub const max_strings: usize = 1024;
@@ -205,7 +208,11 @@ pub const Encoder = struct {
 
     /// Encode one record into dst. Returns the byte length; the caller owns
     /// block framing. error.DeltaOverflow means the caller must start a block.
+    /// compact_v1 has no stack representation, so a non-empty sampled stack is
+    /// refused explicitly (`error.UnsupportedStackPayload`) rather than losing
+    /// frames; recorder/daemon paths refuse stack captures before this point.
     pub fn encode(self: *Encoder, dst: []u8, entry: event.RawEvent) !usize {
+        if (entry.stack.len != 0) return error.UnsupportedStackPayload;
         var comm_buf: [max_comm_bytes]u8 = undefined;
         var detail_buf: [max_detail_bytes]u8 = undefined;
         const comm = if (entry.comm.len == 0)
@@ -298,7 +305,7 @@ pub const Decoder = struct {
         const data = self.payload;
         if (self.pos + 2 > data.len) return error.TruncatedSegment;
         const kind_byte = data[self.pos];
-        if (kind_byte > 17) return error.InvalidSegment;
+        if (kind_byte > max_encoded_kind) return error.InvalidSegment;
         const kind = kindFromInt(kind_byte) orelse return error.InvalidSegment;
         const flags = data[self.pos + 1];
         if (flags & 0xe0 != 0) return error.InvalidSegment;
@@ -388,12 +395,12 @@ test "header and footer round-trip and reject corruption" {
     try std.testing.expectEqual(@as(u64, 500), parsed_footer.encoded_bytes);
 }
 
-test "all 18 kinds round-trip byte-identically through canonical JSON" {
+test "all 19 kinds round-trip byte-identically through canonical JSON" {
     var encoder = try Encoder.init(std.testing.allocator);
     defer encoder.deinit();
     var block: [max_block_payload]u8 = undefined;
     var used: usize = 0;
-    var expected: [18]event.RawEvent = undefined;
+    var expected: [19]event.RawEvent = undefined;
     var count: usize = 0;
     inline for (@typeInfo(event.Kind).@"enum".field_names) |field_name| {
         expected[count] = .{
@@ -410,7 +417,7 @@ test "all 18 kinds round-trip byte-identically through canonical JSON" {
         };
         count += 1;
     }
-    try std.testing.expectEqual(@as(usize, 18), count);
+    try std.testing.expectEqual(@as(usize, 19), count);
     for (expected) |entry| used += try encoder.encode(block[used..], entry);
     var decoder = Decoder.init(block[0..used]);
     var seen: usize = 0;
@@ -424,7 +431,54 @@ test "all 18 kinds round-trip byte-identically through canonical JSON" {
         try event.writeJson(&theirs, expected[seen]);
         try std.testing.expectEqualStrings(theirs.buffered(), mine.buffered());
     }
-    try std.testing.expectEqual(@as(usize, 18), seen);
+    try std.testing.expectEqual(@as(usize, 19), seen);
+}
+
+// A sampled stack has no compact_v1 representation: the codec must refuse it
+// explicitly, while an IP-only stack_sample row (no frames) round-trips as a
+// normal append-only kind byte.
+test "stack payloads are refused and IP-only sample rows round-trip" {
+    var encoder = try Encoder.init(std.testing.allocator);
+    defer encoder.deinit();
+    var block: [max_block_payload]u8 = undefined;
+    const stack = [_]u64{ 0x401000, 0x402000 };
+    try std.testing.expectError(
+        error.UnsupportedStackPayload,
+        encoder.encode(&block, .{
+            .kind = .stack_sample,
+            .ts_ns = 10,
+            .cpu = 0,
+            .pid = 42,
+            .tid = 42,
+            .a = 0x401000,
+            .comm = "worker",
+            .stack = &stack,
+        }),
+    );
+    // A non-sampled kind with a stack payload is refused just as explicitly.
+    try std.testing.expectError(
+        error.UnsupportedStackPayload,
+        encoder.encode(&block, .{ .kind = .marker, .ts_ns = 11, .stack = &stack }),
+    );
+
+    const used = try encoder.encode(&block, .{
+        .kind = .stack_sample,
+        .ts_ns = 12,
+        .cpu = 1,
+        .pid = 43,
+        .tid = 44,
+        .a = 0x401100,
+        .comm = "worker",
+    });
+    var decoder = Decoder.init(block[0..used]);
+    const decoded = (try decoder.next()).?;
+    try std.testing.expectEqual(event.Kind.stack_sample, decoded.kind);
+    try std.testing.expectEqual(@as(usize, 0), decoded.stack.len);
+    var mine_buffer: [512]u8 = undefined;
+    var mine = std.Io.Writer.fixed(&mine_buffer);
+    try event.writeJson(&mine, decoded);
+    try std.testing.expect(std.mem.indexOf(u8, mine.buffered(), "\"event\":\"stack_sample\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, mine.buffered(), "\"stack\"") == null);
 }
 
 test "boundary integers and negative deltas round-trip" {
@@ -473,7 +527,7 @@ test "privacy transforms are applied before encoding" {
 }
 
 test "malformed records are rejected" {
-    const invalid_kind = [_]u8{ 18, 8, 1 };
+    const invalid_kind = [_]u8{ max_encoded_kind + 1, 8, 1 };
     var decoder_a = Decoder.init(&invalid_kind);
     try std.testing.expectError(error.InvalidSegment, decoder_a.next());
 

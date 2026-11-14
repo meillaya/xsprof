@@ -300,6 +300,14 @@
     "self_wakeups": {
       "type": "integer"
     },
+    "stack_frames": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stack_samples": {
+      "minimum": 0,
+      "type": "integer"
+    },
     "switches": {
       "type": "integer"
     },

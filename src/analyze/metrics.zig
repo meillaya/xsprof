@@ -139,6 +139,10 @@ pub const Metrics = struct {
     chain_overflow: u64 = 0,
     chain_too_many_tasks: u64 = 0,
     chain_truncated: bool = false,
+    /// Experimental sampled-stack rows: counted only. No latency is invented
+    /// for them (they carry no scheduler state and no wakeup edges).
+    stack_frames: u64 = 0,
+    stack_samples: u64 = 0,
     cpus: []const CpuMetric = &.{},
     tasks: []const TaskMetric = &.{},
     wakeup_pairs: []const WakeupPair = &.{},
@@ -215,6 +219,8 @@ pub const Index = struct {
     pair_overflow: u64 = 0,
     out_of_order: u64 = 0,
     last_timed_ns: ?u64 = null,
+    stack_frames: u64 = 0,
+    stack_samples: u64 = 0,
     chains: latency.ChainTracker,
 
     pub fn setSelf(self: *Index, meta: *const session_meta.Meta) void {
@@ -332,6 +338,12 @@ pub const Index = struct {
                     // counts, not just the sample_loss markers the old
                     // substring scan happened to match.
                     _ = self.loss_counter.add(entry.detail);
+                },
+                .stack_sample => {
+                    // Sampling rows are counted, never interpreted as
+                    // scheduler latency (they carry no wakeup/switch state).
+                    self.stack_samples +|= 1;
+                    self.stack_frames +|= entry.stack.len;
                 },
                 else => {},
             }
@@ -562,6 +574,8 @@ pub const Index = struct {
             .chain_too_many_tasks = chain_snapshot.counters.too_many_tasks,
             .chain_truncated = chain_snapshot.counters.overflow != 0 or
                 chain_snapshot.counters.too_many_tasks != 0,
+            .stack_frames = self.stack_frames,
+            .stack_samples = self.stack_samples,
             .cpus = try cpu_list.toOwnedSlice(allocator),
             .tasks = try task_list.toOwnedSlice(allocator),
             .wakeup_pairs = try pair_list.toOwnedSlice(allocator),

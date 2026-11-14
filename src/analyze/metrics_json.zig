@@ -191,6 +191,8 @@ pub fn writeJson(w: *std.Io.Writer, metrics: Metrics, top: usize) !void {
         .{ .key = "schema", .value = .{ .string = "xsprof/metrics/v1" } },
         .{ .key = "self_unnecessary_wakeups", .value = .{ .unsigned = metrics.self_unnecessary_wakeups } },
         .{ .key = "self_wakeups", .value = .{ .unsigned = metrics.self_wakeups } },
+        .{ .key = "stack_frames", .value = .{ .unsigned = metrics.stack_frames } },
+        .{ .key = "stack_samples", .value = .{ .unsigned = metrics.stack_samples } },
         .{ .key = "switches", .value = .{ .unsigned = metrics.switches } },
         .{ .key = "tasks", .value = .{ .array = task_values[0..out_index] } },
         .{ .key = "unnecessary_wakeups", .value = .{ .unsigned = metrics.unnecessary_wakeups } },

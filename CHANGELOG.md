@@ -1,5 +1,84 @@
 # Changelog
 
+## 0.7.0 — 2026-11-13
+
+Adoption-oriented release: causal latency attribution, a noise-aware CI
+regression gate, a durable write-scoped VM verification lab, and opt-in
+experimental stack sampling with perf-script interop. The capture path stays
+read-only; there is no new runtime dependency, no network surface, and the
+optional viewer is unchanged.
+
+### Added
+
+- **Causal latency attribution.** `why` (text and JSON), `metrics`, incident
+  summaries and the offline `report.html` now break off-CPU time down by the
+  decoded `sched_switch` `prev_state` cause (interruptible, uninterruptible,
+  stopped/traced, idle, zombie, unknown), count preemptions and their p95 cost,
+  and expose bounded wakeup chains (depth <= 8, cycle-cut, roots counted)
+  alongside the existing per-task wait p50/p95/p99/max. Additive optional fields
+  in `metrics.v1`, `why.v1` and `incident-summary.v1` keep old documents valid;
+  a synthetic fixture plus byte-stable golden lock the wire bytes;
+  `qa/latency_smoke.sh` gates analysis (fast) and live VM modes.
+- **Noise-aware regression gate.** `compare` accepts up to eight captures per
+  side, pools bounded per-comm histograms, and fails only when a delta exceeds
+  both the configured threshold and the observed run-to-run noise floor.
+  `--fail-on` covers `wait.p50|p95|p99|max`, `offcpu.p95`, `preemptions`,
+  `migrations` and `loss`; missing/trimmed data stays unknown. Additive
+  `compare.v1` fields, `qa/compare_ci_smoke.sh`, and a composite
+  `.github/actions/xsprof-compare` action.
+- **Durable write-scoped VM verification lab.** `tools/vm_lab.sh` provisions a
+  disposable KVM podman machine from a rootless podman client, stages the
+  committed HEAD, runs probe/live/service/retention/latency/stacks/studies
+  lanes with fail-closed PASS criteria (exit 0 + gate marker + postconditions),
+  and writes canonical `xsprof/vm-evidence/v1` manifests plus per-gate logs
+  under `dist/vm/evidence/<run-id>/`. All mutable host state is pinned under
+  `.vm/` (scoped `HOME`/`XDG_*`/`TMPDIR`); the harness refuses root and host
+  `sudo`, never retries gates, and records `REFUSE` instead of fabricating a
+  pass. `tools/vm_evidence.sh` bundles/verifies/prunes evidence for release
+  attachment; `--backend podman-container` provides an unprivileged lane on
+  hosts without `/dev/kvm`. `qa/vm_acceptance.sh` remains a thin wrapper.
+- **Experimental stack sampling (opt-in).** `record --sample cpu --stacks fp
+  --pid PID` samples software CPU-clock stacks (frame-pointer userspace plus
+  kernel-unwinder frames only); `export --format folded|perf-script` produces
+  flamegraph/perf-compatible output; `import --perf-script` strictly converts
+  the documented `perf script` subset of `sched:sched_switch` /
+  `sched:sched_wakeup` lines into canonical events. New `stack_sample` kind and
+  optional bounded `stack` array are additive in `event.v1`; compact `.xsraw`
+  v1 is unchanged and refuses non-empty stack payloads (no codec v2). DWARF,
+  JIT symbolization and system-wide sampling are explicitly out of scope;
+  symbolization is analysis-time only and stores no process paths.
+- **Adoption docs/evidence.** `docs/guides/latency-forensics.md` (incident
+  walkthrough, trade-offs vs perf sched/bpftrace/strace, limitations),
+  `qa/studies/` deterministic latency-scenario harness, `qa/import_smoke.sh`,
+  and `qa/stack_smoke.sh` (analysis and live VM modes).
+
+### Changed
+
+- CLI: hidden automation verbs `export` and `import` added; `record` help
+  documents the sampling lane; `compare` usage documents repeatable captures,
+  `--min-runs`, and output formats. `packaging/cli-manifest.json` regenerated.
+- `docs/maintaining.md` release checklist now runs the durable VM lab
+  (`tools/vm_lab.sh gates --all --bundle`) and attaches its evidence bundle;
+  gate tiers/docs point at the lab instead of the old `docs/evidence` path.
+
+### Fixed
+
+- Compact recorder: the append-only event-kind table covers the new
+  `stack_sample` kind and explicitly refuses events with a non-empty `stack`
+  payload (fail-closed) instead of silently dropping frames.
+
+### Verification
+
+- `./tools/zig build check` and the CI-tier gates pass on this host, including
+  the new latency/compare/stack/import smokes and the v0.6.1 CPU-portability
+  protection for packaged artifacts.
+- A full-lane KVM run (`sh tools/vm_lab.sh gates --all --bundle`) exercises
+  probe/live/service/retention/latency/stacks/studies in a disposable Fedora
+  CoreOS VM; its canonical evidence manifest, per-gate logs and
+  `xsprof-0.7.0-vm-evidence-*.tar.gz` bundle are attached to the release, never
+  committed. The `--audit-writes` lane independently checks that no tool-owned
+  state escaped this repository.
+
 ## 0.6.1 — 2026-11-12
 
 Fix-forward release for the published v0.6.0 AppImage. Releases are tag-first,

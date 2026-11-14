@@ -28,6 +28,7 @@ const completions_cmd = @import("completions_cmd.zig");
 const doctor_cmd = @import("doctor_cmd.zig");
 const watch_cmd = @import("watch_cmd.zig");
 const analysis_cmd = @import("analysis_cmd.zig");
+const export_cmd = @import("export_cmd.zig");
 const observe_cmd = @import("observe_cmd.zig");
 const verify_cmd = @import("verify_cmd.zig");
 const validate_cmd = @import("validate_cmd.zig");
@@ -298,10 +299,12 @@ fn dispatch(ctx: Context, handler: registry.Handler) !Exit {
         .daemon => recorder_cmd.cmdDaemon(ctx.io, ctx.allocator, ctx.env, ctx.args, ctx.out, ctx.err),
         .demo => demo_cmd.cmdDemo(ctx.io, ctx.allocator, ctx.env, ctx.args, ctx.out, ctx.err),
         .doctor => doctor_cmd.cmdDoctor(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
+        .@"export" => export_cmd.cmdExport(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
         .help => cmdHelp(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
         .history => history_cmd.cmdHistory(ctx.io, ctx.allocator, ctx.env, ctx.args, ctx.out, ctx.err),
         .incident => incident_cmd.cmdIncident(ctx.io, ctx.allocator, ctx.env, ctx.args, ctx.out, ctx.err),
         .metrics => analysis_cmd.cmdMetrics(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
+        .perf_import => analysis_cmd.cmdImport(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
         .preflight => cmdPreflight(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
         .pressure => observe_cmd.cmdPressure(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
         .record => record_cmd.cmdRecord(ctx.io, ctx.allocator, ctx.args, ctx.out, ctx.err),
@@ -563,7 +566,7 @@ test "version is stable" {
         Exit.ok,
         try testRun(&test_env, &args, &out_buffer, &err_buffer, &out, &err),
     );
-    try std.testing.expectEqualStrings("xsprof 0.6.1\n", out.buffered());
+    try std.testing.expectEqualStrings("xsprof 0.7.0\n", out.buffered());
 }
 
 test "unsafe verbs refuse with canonical json" {

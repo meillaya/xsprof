@@ -15,7 +15,7 @@ All integers are little-endian. Checksums are CRC-32C (Castagnoli).
     block 8 B + payload: u8 type (1=events, 2=footer) | u8 flags=0 |
                  u16 payload_len | u32 payload_crc32c
     footer payload 24 B: u64 event_count | u64 block_count | u64 encoded_bytes
-    record: u8 kind (0..17) | u8 flags (1 pid==tid, 2 comm, 4 detail,
+    record: u8 kind (0..18, append-only) | u8 flags (1 pid==tid, 2 comm, 4 detail,
                  8 ts_absolute, 16 comm_new) |
             ts (uvarint absolute on the first record of a block, otherwise
                 zigzag uvarint delta) | cpu zigzag | pid zigzag |
@@ -23,6 +23,16 @@ All integers are little-endian. Checksums are CRC-32C (Castagnoli).
             comm (comm_new: uvarint len 1..15 + bytes, else uvarint 1-based
                   block-table index) |
             detail (uvarint len 1..1024 + bytes, only when flag set)
+
+The kind byte mapping is append-only: new `event.Kind` variants take the next
+integer, and existing segment bytes keep their meaning. The current range
+includes `stack_sample` (18), but compact v1 has no stack representation, so
+the writer refuses a non-empty `stack` payload with
+`error.UnsupportedStackPayload` instead of silently dropping frames and the
+decoder rejects bytes above the append-only bound. There is no compact codec
+v2; the recorder/daemon lane stays tracepoint-only and the sampling lane writes
+canonical NDJSON. An IP-only `stack_sample` row (no `stack` array) carries no
+frames and therefore round-trips like any other kind byte.
 
 The comm string table is per events block (cap 1024 entries) and resets on
 every block, so a block never depends on earlier blocks. The encoder asks the

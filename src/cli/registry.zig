@@ -67,10 +67,12 @@ pub const Handler = enum {
     daemon,
     demo,
     doctor,
+    @"export",
     help,
     history,
     incident,
     metrics,
+    perf_import,
     preflight,
     pressure,
     record,
@@ -179,8 +181,10 @@ pub const commands = [_]Command{
         .summary = "One bounded capture (default file)",
         .usage =
         \\xsprof record [--duration 1s] [--output FILE|-] [--preset NAME] [--force]
-        \\Capture scheduler tracepoints read-only. Default output is
-        \\session-<timestamp>.ndjson; use '-' for stdout.
+        \\  [--sample cpu [--stacks fp] --pid PID [--freq HZ] [--max-stack-frames N]]
+        \\Capture scheduler tracepoints read-only (default), or with --sample cpu
+        \\one experimental per-PID software-clock stack sample stream (canonical
+        \\NDJSON only, requires --pid, mutually exclusive with --preset).
         \\
         ,
         .handler = .record,
@@ -334,6 +338,36 @@ pub const commands = [_]Command{
         \\
         ,
         .handler = .compare,
+    },
+    .{
+        .name = "export",
+        .group = .analysis,
+        .visible = false,
+        .summary = "Folded/perf-script export of sampled stacks",
+        .usage =
+        \\xsprof export --format folded|perf-script --input FILE
+        \\  [--binary PATH] [--kallsyms PATH]
+        \\Export one sampled-stack capture as flamegraph folded stacks or the
+        \\documented strict perf-script subset. Symbolization is analysis-time
+        \\only; unresolved frames stay 0x... addresses.
+        \\
+        ,
+        .handler = .@"export",
+    },
+    .{
+        .name = "import",
+        .group = .analysis,
+        .visible = false,
+        .summary = "Import a perf script text trace (strict subset)",
+        .usage =
+        \\xsprof import --perf-script FILE [--out FILE]
+        \\Convert the default `perf script` subset of sched:sched_switch and
+        \\sched:sched_wakeup lines to canonical xsprof/event/v1 NDJSON (stdout
+        \\by default). Unsupported lines fail closed with line numbers and no
+        \\rows are written for a rejected file.
+        \\
+        ,
+        .handler = .perf_import,
     },
     .{
         .name = "timeline",

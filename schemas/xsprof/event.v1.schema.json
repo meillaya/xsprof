@@ -46,7 +46,8 @@
         "capability",
         "refusal",
         "incident",
-        "runtime_sample"
+        "runtime_sample",
+        "stack_sample"
       ],
       "type": "string"
     },
@@ -59,6 +60,14 @@
     },
     "schema": {
       "const": "xsprof/event/v1"
+    },
+    "stack": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 64,
+      "type": "array"
     },
     "tid": {
       "minimum": -1,
