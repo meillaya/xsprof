@@ -27,6 +27,12 @@ MODE=analysis
 : "${ZIG_LOCAL_CACHE_DIR:=$ROOT/.zig-cache}"
 export ZIG_GLOBAL_CACHE_DIR ZIG_LOCAL_CACHE_DIR
 
+# The live lane is invoked as `sudo sh /var/tmp/xsprof/qa/stack_smoke.sh --live`,
+# whose CWD is the VM user's home. Schema names are resolved relative to the
+# process CWD by the CLI, so pin CWD to the staged tree root (harmless for the
+# analysis lane too).
+cd "$ROOT"
+
 usage() {
     cat <<'EOF'
 Usage: sh qa/stack_smoke.sh [--analysis|--live] [--help]
@@ -413,9 +419,19 @@ live_mode() {
     say "live: stack samples=$SAMPLES"
 
     # Symbolization: the sampled process is this same xsprof binary, so
-    # --binary resolves real user frames; /proc/kallsyms is root-readable.
+    # --binary resolves real user frames. /proc/kallsyms can be readable but
+    # address-masked (kptr_restrict); use it only when at least one kernel
+    # address is non-zero, otherwise kernel frames stay unresolved 0x... by
+    # design and the run records that limitation instead of failing.
     KALLSYMS=/proc/kallsyms
-    [ -r "$KALLSYMS" ] || KALLSYMS=
+    if [ -r "$KALLSYMS" ]; then
+        if ! awk '($2 ~ /^[A-Za-z]/) && $1 != "0000000000000000" { found = 1; exit } END { exit(found ? 0 : 1) }' "$KALLSYMS"; then
+            say "live: /proc/kallsyms is address-masked (kptr_restrict); kernel symbols unavailable"
+            KALLSYMS=
+        fi
+    else
+        KALLSYMS=
+    fi
     if [ -n "$KALLSYMS" ]; then
         "$BIN" export --format folded --input "$TMP/stacks.ndjson" --binary "$BIN" --kallsyms "$KALLSYMS" \
             >"$TMP/folded.txt" 2>"$TMP/folded.err" ||
@@ -427,9 +443,13 @@ live_mode() {
     fi
     [ -s "$TMP/folded.txt" ] || fail "folded export is empty"
     user_symbols=$(count_folded_frames "$TMP/folded.txt" '^[A-Za-z_.$@]')
-    kernel_frames=$(count_folded_frames "$TMP/folded.txt" '^\[k\]')
+    kernel_frames=$(count_folded_frames "$TMP/folded.txt" '^\\[k\\]')
     [ "$user_symbols" -ge 1 ] || fail "folded export has no resolved user symbol: $(head -n 3 "$TMP/folded.txt")"
-    [ "$kernel_frames" -ge 1 ] || fail "folded export has no kernel frame: $(head -n 3 "$TMP/folded.txt")"
+    if [ -n "$KALLSYMS" ]; then
+        [ "$kernel_frames" -ge 1 ] || fail "folded export has no kernel frame: $(head -n 3 "$TMP/folded.txt")"
+    else
+        say "live: kernel frames unresolved (kallsyms masked); kernel_frames=0 is an honest measurement"
+    fi
     say "live: folded user_symbols=$user_symbols kernel_frames=$kernel_frames stacks=$(wc -l <"$TMP/folded.txt" | tr -d ' ')"
 
     if [ -n "$KALLSYMS" ]; then

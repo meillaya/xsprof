@@ -199,6 +199,12 @@ pub fn build(b: *std.Build) void {
     const import_smoke_step = b.step("import-smoke", "Strict perf-script importer gate");
     import_smoke_step.dependOn(&import_smoke.step);
 
+    // Offline fail-closed regression for the VM lab's evidence aggregation: no
+    // podman/VM needed, but the script uses python3, so it lives in check-ci.
+    const vm_lab_selftest = b.addSystemCommand(&.{ "sh", "tools/vm_lab.sh", "selftest" });
+    const vm_lab_selftest_step = b.step("vm-lab-selftest", "VM lab gate-aggregation and bundle-guard regression");
+    vm_lab_selftest_step.dependOn(&vm_lab_selftest.step);
+
     const compact_roundtrip = b.addSystemCommand(&.{ "sh", "qa/compact_roundtrip.sh" });
     compact_roundtrip.step.dependOn(b.getInstallStep());
     const compact_roundtrip_step = b.step("compact-roundtrip", "Compact .xsraw decode/verify gate");
@@ -311,6 +317,7 @@ pub fn build(b: *std.Build) void {
     check_ci.dependOn(check_media);
     check_ci.dependOn(&repo_size.step);
     check_ci.dependOn(&docs_links.step);
+    check_ci.dependOn(&vm_lab_selftest.step);
     check_ci.dependOn(&design_check.step);
     check_ci.dependOn(&perf_smoke.step);
     if (target.result.os.tag == .linux) {

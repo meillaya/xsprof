@@ -36,6 +36,7 @@
 #   sh tools/vm_lab.sh gates            [options]   # run lanes (default: probe)
 #   sh tools/vm_lab.sh audit-writes     [options]   # probe + write-scope audit
 #   sh tools/vm_lab.sh clean [--evidence]           # remove this lab's state
+#   sh tools/vm_lab.sh selftest                     # offline harness regression
 #
 # Options: --backend auto|kvm-machine|podman-container
 #          --all | --lanes probe,live,service,retention[,latency,stacks,studies]
@@ -159,6 +160,13 @@ record_gate() { # ID STATUS EXIT LOG MARKER
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$log_sha" >>"$EVIDENCE/gates.tsv"
 }
 
+# Count gates recorded as anything other than PASS. Used both by the run
+# aggregator (defense in depth against clobbered shell globals) and by
+# `selftest`, which proves the aggregation is fail-closed.
+gates_bad_count() { # GATES_TSV
+    awk -F'\t' '$2 != "PASS" { count++ } END { print count + 0 }' "$1"
+}
+
 record_refuse() { # ID REASON
     log="$EVIDENCE/refuse-$1.log"
     printf 'REFUSE %s: %s\n' "$1" "$2" >"$log"
@@ -171,7 +179,7 @@ parse_args() {
     CMD=$1
     shift
     case "$CMD" in
-        probe | gates | audit-writes | clean | help | -h | --help) ;;
+        probe | gates | audit-writes | clean | selftest | help | -h | --help) ;;
         *) usage_error "unknown command: $CMD" ;;
     esac
     while [ "$#" -gt 0 ]; do
@@ -635,12 +643,17 @@ kvm_run_lane() { # LANE
             fi
             kvm_gate studies 08-studies.log "run_studies: PASS" \
                 'sudo -n env XSPROF_STUDY_VM_CONFIRM=1 sh /var/tmp/xsprof/qa/studies/run_studies.sh --out /var/tmp/xsprof-studies' || return 1
-            # Copy the in-VM study artifacts into the evidence directory so the
-            # release bundle carries the actual capture/why/metrics/incident
-            # output, not just the console log.
+            # Copy only regular study outputs into the evidence directory: the
+            # in-VM work/state dirs hold FIFOs and raw recorder segments that
+            # must never enter a release-attachable archive.
             mkdir -p "$EVIDENCE/studies-artifacts"
-            if podman machine ssh "$MACHINE" 'sudo -n tar -C /var/tmp -cf - xsprof-studies' 2>"$EVIDENCE/08b-studies-copy.log" |
+            if podman machine ssh "$MACHINE" "sudo -n tar -C /var/tmp --exclude='xsprof-studies/*/work/*' --exclude='xsprof-studies/*/state/*' -cf - xsprof-studies" 2>"$EVIDENCE/08b-studies-copy.log" |
                 tar -C "$EVIDENCE/studies-artifacts" -xf - 2>>"$EVIDENCE/08b-studies-copy.log"; then
+                special=$(find "$EVIDENCE/studies-artifacts" ! -type f ! -type d -print 2>/dev/null | head -n 1)
+                if [ -n "$special" ]; then
+                    warn "studies copy contains a non-regular file: $special"
+                    return 1
+                fi
                 {
                     printf '# studies artifact inventory\n'
                     find "$EVIDENCE/studies-artifacts" -type f | LC_ALL=C sort | while IFS= read -r artifact; do
@@ -650,6 +663,7 @@ kvm_run_lane() { # LANE
                 say "studies artifacts captured: $(find "$EVIDENCE/studies-artifacts" -type f | wc -l | tr -d ' ') files"
             else
                 warn "could not copy studies artifacts out of the VM (see 08b-studies-copy.log)"
+                return 1
             fi
             ;;
         *)
@@ -896,7 +910,14 @@ def as_int(value, default=0):
         return default
 
 
+# The manifest must never claim success while a recorded gate is not PASS.
+all_gates_pass = bool(gates) and all(gate.get("status") == "PASS" for gate in gates)
+exit_code = as_int(meta.get("exit_code"), 1)
+if gates and not all_gates_pass:
+    exit_code = 1
+
 manifest = {
+    "all_gates_pass": all_gates_pass,
     "audit": {
         "method": meta.get("audit_method", "none"),
         "status": meta.get("audit_status", "SKIP"),
@@ -909,7 +930,7 @@ manifest = {
         "version": meta.get("binary_version", ""),
     },
     "command": meta.get("command", ""),
-    "exit_code": as_int(meta.get("exit_code"), 1),
+    "exit_code": exit_code,
     "finished_utc": meta.get("finished_utc", ""),
     "gates": gates,
     "git": {
@@ -949,6 +970,23 @@ PY
 }
 
 bundle_evidence() {
+    # Defense in depth: never package a run as release evidence unless the
+    # manifest is green and every recorded gate is PASS.
+    if ! python3 - "$EVIDENCE/manifest.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("exit_code") != 0:
+    raise SystemExit("bundle: manifest exit_code is not 0")
+for gate in data.get("gates", []):
+    if gate.get("status") != "PASS":
+        raise SystemExit("bundle: gate %s is %s" % (gate.get("id"), gate.get("status")))
+PY
+    then
+        warn "refusing to bundle a run whose manifest is not all-PASS"
+        return 1
+    fi
     if sh "$ROOT/tools/vm_evidence.sh" bundle --run "$EVIDENCE" >"$EVIDENCE/bundle.log" 2>&1; then
         bundle_path=$(tail -n 1 "$EVIDENCE/bundle.log")
         say "bundled evidence: $bundle_path"
@@ -994,6 +1032,55 @@ cmd_clean() {
     say "removed lab root $VM_ROOT"
 }
 
+cmd_selftest() {
+    # Offline regression for the release-evidence fail-closed invariants. No
+    # podman, no VM, no network: only the gate-aggregation and bundling guards.
+    tmp_root="$ROOT/.vm/tmp"
+    mkdir -p "$tmp_root"
+    tmp=$(mktemp -d "$tmp_root/vm-lab-selftest.XXXXXX") || fail "selftest: cannot create a temp dir"
+    trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+    mkdir -p "$tmp/evidence"
+    : >"$tmp/evidence/gates.tsv"
+    printf 'probe\tPASS\t0\t02-probe.log\tvm readiness\t-\n' >>"$tmp/evidence/gates.tsv"
+    [ "$(gates_bad_count "$tmp/evidence/gates.tsv")" -eq 0 ] ||
+        fail "selftest: all-PASS table was counted as failing"
+    printf 'stacks\tFAIL\t1\t07-stack-smoke.log\tstack_smoke: PASS\t-\n' >>"$tmp/evidence/gates.tsv"
+    [ "$(gates_bad_count "$tmp/evidence/gates.tsv")" -eq 1 ] ||
+        fail "selftest: a FAIL row was not counted"
+    printf 'studies\tREFUSE\t-\trefuse-studies.log\t-\t-\n' >>"$tmp/evidence/gates.tsv"
+    [ "$(gates_bad_count "$tmp/evidence/gates.tsv")" -eq 2 ] ||
+        fail "selftest: a REFUSE row was not counted"
+    # A manifest that claims exit_code=0 while a gate is FAIL must be refused by
+    # the bundling guard (this is exactly the class of false-PASS bug the
+    # full-lane integration run caught).
+    python3 - "$tmp/evidence/manifest.json" <<'PY'
+import json
+import sys
+
+data = {
+    "all_gates_pass": False,
+    "exit_code": 0,
+    "gates": [{"exit": 1, "id": "stacks", "status": "FAIL"}],
+    "host_mutation": False,
+    "run_id": "selftest",
+    "schema": "xsprof/vm-evidence/v1",
+}
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n")
+PY
+    saved_evidence=$EVIDENCE
+    EVIDENCE="$tmp/evidence"
+    if bundle_evidence >/dev/null 2>&1; then
+        EVIDENCE=$saved_evidence
+        fail "selftest: bundle guard accepted a manifest with a FAIL gate"
+    fi
+    EVIDENCE=$saved_evidence
+    if [ -e "$tmp/evidence/bundle.log" ]; then
+        fail "selftest: bundle guard still attempted to run vm_evidence"
+    fi
+    say "selftest: PASS (gate aggregation and bundle guard fail closed)"
+}
+
 do_probe() {
     prepare_kvm
     prepare_binary
@@ -1031,8 +1118,9 @@ do_gates() {
             stage_workspace
             stage_kvm
             if [ "$AUDIT_WRITES" = 1 ]; then audit_begin; fi
-            rc=0
-            run_lanes_kvm || rc=$?
+            # Functions share the shell's global variables, so never read `rc`
+            # after a lane helper ran; derive the status from the helper itself.
+            if run_lanes_kvm; then rc=0; else rc=1; fi
             if [ "$AUDIT_WRITES" = 1 ]; then
                 audit_end || rc=1
             fi
@@ -1044,8 +1132,7 @@ do_gates() {
             stage_workspace
             prepare_container
             if [ "$AUDIT_WRITES" = 1 ]; then audit_begin; fi
-            rc=0
-            run_lanes_container || rc=$?
+            if run_lanes_container; then rc=0; else rc=1; fi
             if [ "$AUDIT_WRITES" = 1 ]; then
                 audit_end || rc=1
             fi
@@ -1064,11 +1151,11 @@ run_lanes_kvm() {
     else
         lanes=${LANES:-probe}
     fi
-    rc=0
+    overall=0
     for lane in $(printf '%s' "$lanes" | tr ',' ' '); do
-        kvm_run_lane "$lane" || rc=1
+        kvm_run_lane "$lane" || overall=1
     done
-    return "$rc"
+    return "$overall"
 }
 
 run_lanes_container() {
@@ -1076,25 +1163,25 @@ run_lanes_container() {
     if [ "$ALL_LANES" = 1 ]; then
         desired=container
     fi
-    rc=0
+    overall=0
     for lane in $(printf '%s' "$desired" | tr ',' ' '); do
         case "$lane" in
             container | container-lane | probe | live | service | retention | latency | stacks | studies)
                 case "$lane" in
-                    container | container-lane) container_lane || rc=1 ;;
+                    container | container-lane) container_lane || overall=1 ;;
                     *)
                         record_refuse "$lane" "gate '$lane' needs root and readable tracefs; use --backend kvm-machine"
                         rc=1
                         ;;
                 esac
                 ;;
-            container-analysis) container_analysis_lane || rc=1 ;;
+            container-analysis) container_analysis_lane || overall=1 ;;
             *)
                 usage_error "unknown lane: $lane"
                 ;;
         esac
     done
-    return "$rc"
+    return "$overall"
 }
 
 main() {
@@ -1106,6 +1193,10 @@ main() {
             ;;
         clean)
             cmd_clean
+            exit 0
+            ;;
+        selftest)
+            cmd_selftest
             exit 0
             ;;
     esac
@@ -1134,6 +1225,16 @@ main() {
             fi
             ;;
     esac
+    # Defense in depth: the lane helpers share the shell's global variables, so
+    # derive the final status from the recorded gate table as well as the return
+    # codes. A FAIL row always fails the run and blocks bundling.
+    if [ -f "$EVIDENCE/gates.tsv" ]; then
+        bad_gates=$(gates_bad_count "$EVIDENCE/gates.tsv")
+        if [ "$bad_gates" -gt 0 ]; then
+            warn "gate table records ${bad_gates} non-PASS gate(s); marking the run failed"
+            rc=1
+        fi
+    fi
     if ! write_manifest "$rc" >/dev/null; then
         warn "could not write evidence manifest"
         rc=1

@@ -17,6 +17,11 @@ const maps = @import("../os/linux/maps.zig");
 
 pub const max_name_bytes = 256;
 pub const max_symbols = 262_144;
+/// `/proc/kallsyms` on a normal kernel has ~250k-450k symbols, more than an ELF
+/// `.symtab` budget allows; keep a separate bounded cap so analysis-time kernel
+/// symbolization works instead of failing with TooManySymbols. The 32 MiB text
+/// bound still limits total memory.
+pub const max_kallsyms_symbols = 1_048_576;
 pub const max_elf_bytes = 128 * 1024 * 1024;
 pub const max_symtab_bytes = 8 * 1024 * 1024;
 pub const max_strtab_bytes = 16 * 1024 * 1024;
@@ -340,7 +345,7 @@ pub fn parseKallsyms(allocator: std.mem.Allocator, text: []const u8) Error!Kalls
         if (std.mem.indexOfScalar(u8, name, ' ')) |space| name = name[0..space]; // drop [module]
         if (name.len == 0) continue;
         if (address == 0) continue; // kptr_restrict: no symbolization evidence
-        if (list.items.len >= max_symbols) return error.TooManySymbols;
+        if (list.items.len >= max_kallsyms_symbols) return error.TooManySymbols;
         try list.append(allocator, .{
             .addr = address,
             .name = try duplicateName(allocator, name),
@@ -352,8 +357,23 @@ pub fn parseKallsyms(allocator: std.mem.Allocator, text: []const u8) Error!Kalls
     return .{ .symbols = symbols };
 }
 
+/// Read a bounded text file with a streaming reader. Size-hint APIs are wrong
+/// for procfs files (they report size 0), which matters for the common
+/// `--kallsyms /proc/kallsyms` invocation; stream instead so the content is
+/// actually read. Returns null on open/read failure.
+fn readTextFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8, max: usize) ?[]u8 {
+    const file = if (path.len != 0 and path[0] == '/')
+        std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null
+    else
+        std.Io.Dir.cwd().openFile(io, path, .{}) catch return null;
+    defer file.close(io);
+    var buffer: [64 * 1024]u8 = undefined;
+    var reader = file.readerStreaming(io, &buffer);
+    return reader.interface.allocRemaining(allocator, .limited(max)) catch null;
+}
+
 pub fn loadKallsymsFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8) Error!Kallsyms {
-    const text = std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(max_kallsyms_bytes)) catch
+    const text = readTextFile(io, allocator, path, max_kallsyms_bytes) orelse
         return error.KallsymsUnreadable;
     return parseKallsyms(allocator, text);
 }
@@ -440,7 +460,7 @@ pub const Symbolizer = struct {
         }
         if (options.kallsyms_path) |path| {
             symbolizer.kernel_path = try arena.dupe(u8, path);
-            const text = std.Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(max_kallsyms_bytes)) catch
+            const text = readTextFile(io, arena, path, max_kallsyms_bytes) orelse
                 return error.KallsymsUnreadable;
             symbolizer.kernel = try parseKallsyms(arena, text);
         }
